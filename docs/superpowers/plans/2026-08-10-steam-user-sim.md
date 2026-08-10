@@ -2,216 +2,168 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** ゲーム開発コンサル用MCPサーバー v1 — Steamデータ取得・ペルソナ派生・UIキャプチャの7 tool + canonical ナレッジ + 実行レシピ(MCP prompts)。
+**Goal:** ゲーム開発コンサル用MCPサーバー v1 — Steamデータ取得・ペルソナ派生/保存・UIキャプチャの8 tool + canonical ナレッジ + 実行レシピ(MCP prompts)。
 
-**Architecture:** stateレスなstdio MCPサーバー。状態は全部ファイル(`knowledge/`, `workspaces/`)。ペルソナの思考はクライアント側Claudeが担当し、サーバーはデータと型を提供する(spec 案A)。
+**Architecture:** stateレスなrepo-local stdio MCPサーバー。状態は全部ファイル(`knowledge/`, `workspaces/`)。ペルソナの思考とJSON生成はクライアント側Claudeが担当し、サーバーは根拠データ、schema、安全な保存境界を提供する(spec 案A)。
 
-**Tech Stack:** TypeScript (Node 20+, ESM), `@modelcontextprotocol/sdk`, `zod`, `vitest`。外部API: Steam Store API / SteamSpy / IsThereAnyDeal (キー任意) / Obscura (バイナリ任意)。
+**Tech Stack:** TypeScript (Node 20+, ESM), MCP TypeScript SDK v2 (`@modelcontextprotocol/server`, `@modelcontextprotocol/client`), `zod` v4, `vitest`。外部API: Steam Store API / SteamSpy / IsThereAnyDeal (キー任意) / Obscura (バイナリ任意)。
 
 ## Global Constraints
 
-- パッケージマネージャは pnpm。ESM (`"type": "module"`)。
-- 外部APIキーは `ITAD_API_KEY` と `OBSCURA_PATH` の2つのみ、どちらも**任意**。未設定でもサーバーは起動し、該当toolが warnings/エラーメッセージで代替手順を案内する。
-- 全toolの返り値は `{ data, warnings: string[] }` 形(部分成功を隠さない)。
-- 外部HTTPは全て 8000ms timeout(Steam Sonar の `STEAM_V2_TIMEOUT_MS` に合わせる)。
-- スモークテストの固定appid: **Hades = 1145360**。
-- テストは vitest のみ。ネットワークテストは実APIを叩く(モック不使用、spec方針)。
-- knowledge/ 配下のドキュメントは日本語。コードのコメント・識別子は英語。
+- パッケージマネージャはpnpm。ESM (`"type": "module"`)。lockfileをコミットする。
+- 任意設定は `ITAD_API_KEY` と `OBSCURA_PATH` の2つのみ。前者はAPIキー、後者はバイナリパス。空文字は未設定として扱う。
+- 外部サービスの期待される失敗は `{data, warnings: string[]}` で返し、部分成功を隠さない。入力違反・パス境界違反・想定外例外はMCP tool errorにする。
+- `fetchJson`を使う外部HTTPは8000ms timeout。Obscuraのブラウザnavigationは別枠で15000ms timeout。
+- v1はリポジトリルートから起動するrepo-local MCP。npm `bin` 配布はv1.1へ送る。
+- `knowledge/`、`skills/`、`workspaces/`へのアクセスは共通path resolver経由に限定する。
+- 決定的テストは `pnpm test`、実APIスモークは `pnpm test:live`、両方は `pnpm test:all`。固定appidは **Hades = 1145360**。
+- HTTP client全体はmockしない。外部応答の正規化を純粋関数へ分離し、固定fixtureで分岐をテストする。live smokeは手動リトライで成功扱いにしない。
+- `knowledge/`配下のドキュメントは日本語。コードのコメント・識別子は英語。
 
 ---
 
-### Task 1: プロジェクト scaffold + fetch helper
+### Task 1: scaffold + HTTP/パス/結果型の共通基盤
 
 **Files:**
-- Create: `package.json`, `tsconfig.json`, `src/http.ts`
-- Test: `src/http.test.ts`
+- Create: `package.json`, `pnpm-lock.yaml`, `tsconfig.json`, `vitest.config.ts`, `vitest.live.config.ts`, `src/http.ts`, `src/paths.ts`
+- Test: `src/http.test.ts`, `src/paths.test.ts`
 
 **Interfaces:**
-- Produces: `fetchJson<T>(url: string, opts?: {timeoutMs?: number}): Promise<{data: T | null, warnings: string[]}>` — 全後続タスクのHTTP基盤。失敗時 `data: null` + warning文字列(例: `"steamspy timeout"`)。throwしない。
+- Produces:
+  - `FetchResult<T> = {data: T | null; warnings: string[]}`
+  - `fetchJson<T>(url: string | URL, opts?: {timeoutMs?: number; source?: string}): Promise<FetchResult<T>>`
+  - `createPathResolver(root: string)` — 明示されたtrusted root配下だけを解決する。テストは一時root、productionは検出済みrepo rootを渡す。
+  - default resolverの `resolveKnowledgePath(kind, id)` / `resolvePersonaPath(id)` / `resolveCapturePath(name?)`
 
 - [ ] **Step 1: scaffold**
 
 ```bash
 pnpm init
-pnpm add @modelcontextprotocol/sdk zod
+pnpm add @modelcontextprotocol/server@^2 @modelcontextprotocol/client@^2 zod@^4.2
 pnpm add -D typescript vitest @types/node tsx
 ```
 
-`package.json` に追記:
+`package.json`へ追記:
 
 ```json
 {
   "type": "module",
+  "engines": { "node": ">=20" },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
-    "test": "vitest run"
+    "test": "vitest run --config vitest.config.ts",
+    "test:live": "RUN_LIVE=1 vitest run --config vitest.live.config.ts",
+    "test:all": "pnpm test && pnpm test:live"
   }
 }
 ```
 
-`tsconfig.json`:
+`vitest.config.ts`は`src/**/*.test.ts`をincludeし、`src/**/*.live.test.ts`をexclude。`vitest.live.config.ts`はlive testだけをincludeする。
 
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "outDir": "dist",
-    "skipLibCheck": true
-  },
-  "include": ["src"]
-}
-```
+`tsconfig.json`は`target: ES2022`、`module/moduleResolution: NodeNext`、`strict: true`、`outDir: dist`、`rootDir: src`とする。
 
-- [ ] **Step 2: failing test**
+- [ ] **Step 2: failing tests**
 
-`src/http.test.ts`:
+`src/http.test.ts`はNodeのloopback HTTP serverを起動し、200 JSON、HTTP 500、不正JSON、timeoutを検証する。global `fetch`は差し替えない。
+
+`src/paths.test.ts`は`mkdtempSync(join(tmpdir(), "steam-user-sim-"))`で専用rootを作り、次を検証する。
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { fetchJson } from "./http.js";
+it.each(["..", "../x", "../../etc/passwd", "a/b", ".hidden"])(
+  "rejects traversal-like id: %s",
+  (id) => expect(() => resolver.resolveKnowledgePath("rubrics", id)).toThrow(),
+);
 
-describe("fetchJson", () => {
-  it("returns parsed JSON on success", async () => {
-    const r = await fetchJson<{ appid: number }>(
-      "https://steamspy.com/api.php?request=appdetails&appid=1145360",
-    );
-    expect(r.data?.appid).toBe(1145360);
-    expect(r.warnings).toEqual([]);
-  });
-
-  it("returns null + warning on unreachable host", async () => {
-    const r = await fetchJson("https://invalid.invalid/x", { timeoutMs: 2000 });
-    expect(r.data).toBeNull();
-    expect(r.warnings.length).toBe(1);
-  });
-});
+expect(resolver.resolveKnowledgePath("rubrics", "harsh-critic.md"))
+  .toMatch(/knowledge[/\\]rubrics[/\\]harsh-critic\.md$/);
+expect(() => resolver.resolvePersonaPath("../escape")).toThrow();
+expect(resolver.resolvePersonaPath("jp-localization-hawk")).toMatch(/\.json$/);
 ```
 
-- [ ] **Step 3: run test, verify FAIL** — `pnpm test` → "Cannot find module './http.js'"
+作成した一時rootだけを`afterAll`で削除する。
+
+- [ ] **Step 3: run, verify FAIL** — `pnpm test` → modules not found
 
 - [ ] **Step 4: implement**
 
-`src/http.ts`:
+`fetchJson`は非2xx、JSON parse、AbortSignal timeout、network errorを`data:null`へ変換する。warningにAPI keyやURL query全体を含めず、`source`またはhostと失敗種別だけを入れる。
 
-```ts
-export interface FetchResult<T> {
-  data: T | null;
-  warnings: string[];
-}
+`src/paths.ts`は以下を必須にする。
 
-export async function fetchJson<T>(
-  url: string,
-  opts: { timeoutMs?: number } = {},
-): Promise<FetchResult<T>> {
-  const timeoutMs = opts.timeoutMs ?? 8000;
-  try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: { "User-Agent": "steam-user-sim/0.1" },
-    });
-    if (!res.ok) return { data: null, warnings: [`${new URL(url).host} HTTP ${res.status}`] };
-    return { data: (await res.json()) as T, warnings: [] };
-  } catch (e) {
-    const kind = e instanceof Error && e.name === "TimeoutError" ? "timeout" : "unreachable";
-    return { data: null, warnings: [`${new URL(url).host} ${kind}`] };
-  }
-}
-```
+- production rootは`knowledge/`と`skills/`が存在する現在のrepo root。見つからなければ起動時に明示エラー。
+- knowledge idは`path.basename(id) === id`、`.`/`..`拒否、kindごとの拡張子制限。
+- persona idは `/^[a-z0-9][a-z0-9_-]{0,63}$/i`。
+- `path.resolve()`後に`root + path.sep`でcontainmentを再確認。
+- captureはサーバー生成名をデフォルトにし、`knowledge/intel/captures/`以外へ出さない。
+- 既存ファイルを読む場合はsymlink経由でroot外へ出ないことも確認する。
 
-- [ ] **Step 5: run test, verify PASS** — `pnpm test`
-
-- [ ] **Step 6: Commit** — `git add -A && git commit -m "feat: scaffold + fetchJson helper"`
+- [ ] **Step 5: run, verify PASS** — `pnpm test`
+- [ ] **Step 6: Commit** — `feat: scaffold + safe http and path foundations`
 
 ---
 
-### Task 2: steam.ts — `steam_search` / `steam_fetch` のデータ層
+### Task 2: `steam_search` / `steam_fetch` データ層
 
 **Files:**
 - Create: `src/steam.ts`
-- Test: `src/steam.test.ts`
+- Test: `src/steam.test.ts`, `src/steam.live.test.ts`
 
 **Interfaces:**
 - Consumes: `fetchJson` (Task 1)
 - Produces:
-  - `searchGames(query: string): Promise<FetchResult<SearchHit[]>>` — `SearchHit = { appid: number; name: string }`
-  - `fetchGame(appid: number): Promise<FetchResult<GameProfile>>` — `GameProfile = { appid; name; shortDescription; releaseDate; tags: string[]; genres: string[]; languages: string[]; prices: Record<"us"|"jp"|"eu", {currency: string; finalFormatted: string; discountPercent: number} | null>; reviewStats: {positive: number; negative: number; positivePercent: number} | null; ccu: number | null; owners: string | null; screenshots: string[] }`
-
-Steam Sonar `src/lib/steam.ts` の `appdetails` パターンと `src/lib/extension/v2/steam-client.ts` の言語マップ/timeout方針を踏襲。SteamSpy (`https://steamspy.com/api.php?request=appdetails&appid=N`) から tags/owners/ccu/positive/negative、Store API (`https://store.steampowered.com/api/appdetails?appids=N&cc=us|jp|de&l=english`) から価格・言語・スクショ。地域別価格は cc を変えて3回叩く(eu は cc=de で代表)。`supported_languages` はHTMLタグ入り文字列なので `/<[^>]+>/g` と `*` を除去して `, ` split。
-
-- [ ] **Step 1: failing test**
-
-`src/steam.test.ts`:
+  - `searchGames(query: string): Promise<FetchResult<SearchHit[]>>`
+  - `fetchGame(appid: number): Promise<FetchResult<GameProfile>>`
+  - `normalizeStoreDetails(...)` / `normalizeSteamSpy(...)` — fixtureで検証する純粋関数
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { searchGames, fetchGame } from "./steam.js";
-
-describe("steam data layer (live API, appid=Hades)", () => {
-  it("searchGames finds Hades", async () => {
-    const r = await searchGames("Hades");
-    expect(r.data?.some((h) => h.appid === 1145360)).toBe(true);
-  });
-
-  it("fetchGame returns normalized profile", async () => {
-    const r = await fetchGame(1145360);
-    expect(r.data?.name).toBe("Hades");
-    expect(r.data?.languages).toContain("Japanese");
-    expect(r.data?.prices.jp?.currency).toBe("JPY");
-    expect(r.data?.reviewStats!.positivePercent).toBeGreaterThan(90);
-    expect(r.data?.tags.length).toBeGreaterThan(3);
-  }, 30_000);
-});
-```
-
-- [ ] **Step 2: run, verify FAIL**
-
-- [ ] **Step 3: implement**
-
-`src/steam.ts` の骨子(検索は storesearch エンドポイント):
-
-```ts
-import { fetchJson, type FetchResult } from "./http.js";
-
-const STORE = "https://store.steampowered.com/api";
-const SPY = "https://steamspy.com/api.php";
-
-export interface SearchHit { appid: number; name: string }
-
-export async function searchGames(query: string): Promise<FetchResult<SearchHit[]>> {
-  const r = await fetchJson<{ items: { id: number; name: string }[] }>(
-    `${STORE}/storesearch/?term=${encodeURIComponent(query)}&cc=us&l=english`,
-  );
-  return { data: r.data?.items.map((i) => ({ appid: i.id, name: i.name })) ?? null, warnings: r.warnings };
+interface SearchHit {
+  appid: number;
+  name: string;
 }
 
-const REGION_CC = { us: "us", jp: "jp", eu: "de" } as const;
+interface RegionPrice {
+  countryCode: "us" | "jp" | "de";
+  currency: string;
+  finalFormatted: string;
+  discountPercent: number;
+}
 
-export interface GameProfile { /* Interfaces欄の通り */ }
-
-export async function fetchGame(appid: number): Promise<FetchResult<GameProfile>> {
-  const warnings: string[] = [];
-  // 3地域の appdetails + steamspy を Promise.all で並列取得
-  // 各地域: `${STORE}/appdetails?appids=${appid}&cc=${cc}&l=english`
-  //   → json[appid].data.price_overview から {currency, final_formatted, discount_percent}
-  //   price_overview欠落(無料/未発売/地域制限)は null + warning
-  // us応答から name / short_description / release_date.date / genres / screenshots(path_full) /
-  //   supported_languages(タグ除去+split) を採用
-  // steamspy応答から tags(Object.keys), owners, ccu, positive, negative
-  //   positivePercent = Math.round(positive / (positive + negative) * 100)
-  // steamspy欠落時は該当フィールド null + warning "steamspy unavailable"
-  // us appdetails 欠落時のみ data: null
+interface GameProfile {
+  appid: number;
+  name: string;
+  shortDescription: string;
+  releaseDate: string;
+  isFree: boolean;
+  tags: string[];
+  genres: string[];
+  languages: string[];
+  prices: Record<"us" | "jp" | "eu", RegionPrice | null>;
+  reviewStats: {positive: number; negative: number; positivePercent: number} | null;
+  ccu: number | null;
+  owners: string | null;
+  screenshots: string[];
 }
 ```
 
-(コメント部は実装時にそのままコードへ展開する。分岐は「us失敗→全体null」「spy失敗→部分成功」の2つだけ。)
+Steam Store appdetailsを`cc=us|jp|de`で3回、SteamSpy appdetailsを1回、`Promise.all`で取得する。`eu`はGermany代表値であり、`countryCode:"de"`を保持する。v1の検索は名前だけとし、タグは`steam_fetch`後にクライアント側で絞る。
 
-- [ ] **Step 4: run, verify PASS**(SteamSpy が落ちていたら tags/ccu の expect を warnings 確認に緩めず、リトライで通す — flaky時は一時 `it.skip` ではなく再実行)
+- [ ] **Step 1: failing deterministic tests**
+  - supported_languagesのHTML/`*`除去
+  - 3地域価格の正規化とGermany代表コード
+  - `is_free=true`のprice欠落は正常なnullで、障害warningにしない
+  - 未発売/地域制限/HTTP失敗によるprice欠落はwarningで区別
+  - SteamSpy tags/owners/ccu/positive/negative
+  - positive+negative=0ならpositivePercentを0除算せずnull扱い
 
-- [ ] **Step 5: Commit** — `feat: steam data layer (search + fetch)`
+- [ ] **Step 2: failing live smoke**
+
+`src/steam.live.test.ts`は`RUN_LIVE=1`時だけ実行し、`searchGames("Hades")`が1145360を含むこと、`fetchGame(1145360)`がname、Japanese、JPY、複数tagを返すことを確認する。可変値のCCUやレビュー件数そのものは固定値assertしない。
+
+- [ ] **Step 3: run, verify FAIL** — `pnpm test`
+- [ ] **Step 4: implement** — US Store失敗だけ全体null。JP/DE/SteamSpy失敗は取得済みデータとwarningを返す。
+- [ ] **Step 5: run, verify PASS** — `pnpm test`後に`pnpm test:live`
+- [ ] **Step 6: Commit** — `feat: steam data layer (search + fetch)`
 
 ---
 
@@ -219,247 +171,319 @@ export async function fetchGame(appid: number): Promise<FetchResult<GameProfile>
 
 **Files:**
 - Create: `src/reviews.ts`
-- Test: `src/reviews.test.ts`
+- Test: `src/reviews.test.ts`, `src/reviews.live.test.ts`
 
 **Interfaces:**
 - Consumes: `fetchJson` (Task 1)
-- Produces: `fetchReviews(appid: number, opts?: {language?: string; type?: "all"|"positive"|"negative"; minPlaytimeHours?: number; limit?: number}): Promise<FetchResult<Review[]>>` — `Review = { review: string; votedUp: boolean; playtimeHours: number; language: string; timestamp: number }`
-
-エンドポイント: `https://store.steampowered.com/appreviews/{appid}?json=1&filter=recent&language={lang}&review_type={type}&num_per_page=100&cursor={cursor}`。`language` はSteam言語名(`japanese` 等)、デフォルト `all`。`limit`(デフォルト100、最大300)までcursorページング(`cursor` はURLエンコード必須)。文字化け対策はSteam Sonar `steam-review-text.ts` の簡易版: 制御文字 `/[ --]/g` 除去と `?{3,}` 連続の除去のみ移植(full版のmojibake検出はv1不要)。
-
-- [ ] **Step 1: failing test**
+- Produces:
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { fetchReviews } from "./reviews.js";
+interface Review {
+  recommendationId: string;
+  review: string;
+  votedUp: boolean;
+  playtimeHours: number;
+  language: string;
+  timestamp: number;
+}
 
-describe("fetchReviews (live, Hades)", () => {
-  it("fetches japanese negative reviews with playtime", async () => {
-    const r = await fetchReviews(1145360, { language: "japanese", type: "negative", limit: 20 });
-    expect(r.data!.length).toBeGreaterThan(0);
-    expect(r.data![0].votedUp).toBe(false);
-    expect(typeof r.data![0].playtimeHours).toBe("number");
-  }, 30_000);
-});
+function fetchReviews(
+  appid: number,
+  opts?: {
+    language?: string;
+    type?: "all" | "positive" | "negative";
+    minPlaytimeHours?: number;
+    limit?: number;
+  },
+): Promise<FetchResult<Review[]>>;
 ```
 
-- [ ] **Step 2: run, verify FAIL**
-- [ ] **Step 3: implement**(`author.playtime_forever` は分単位 → `Math.round(x/60*10)/10` で時間に。`minPlaytimeHours` はクライアント側filter)
-- [ ] **Step 4: run, verify PASS**
-- [ ] **Step 5: Commit** — `feat: review fetcher with language/type/playtime filters`
+Steam reviews APIは`filter=recent`、初回cursor=`*`、次ページは応答cursorをURLエンコードする。`limit`はデフォルト100、最大300で、**全filter適用後**の返却件数。最大3ページ/生レビュー300件まで走査し、limit未達なら取得済みデータとwarningを返す。`recommendationid`で重複除去する。
+
+文字化け対策は簡易版のみ: 制御文字 `/[\x00-\x08\x0B\x0C\x0E-\x1F]/g` と `?{3,}` を除去する。
+
+- [ ] **Step 1: failing deterministic tests**
+  - 制御文字と`???`除去
+  - `author.playtime_forever`の分→小数1桁の時間
+  - positive/negative mapping
+  - minPlaytime適用後にlimitへ達するまで次ページを処理
+  - recommendationId重複除去
+  - 300件capとlimit未達warning
+
+- [ ] **Step 2: failing live smoke** — HadesのJapanese negative reviewを最大20件取得し、votedUp=false、playtimeHours number、recommendationId非空を確認する。
+- [ ] **Step 3: run, verify FAIL**
+- [ ] **Step 4: implement**
+- [ ] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
+- [ ] **Step 6: Commit** — `feat: review fetcher with traceable filtered reviews`
 
 ---
 
-### Task 4: `steam_timeline` データ層
+### Task 4: `steam_timeline` — 現在CCU + 期間指定価格履歴
 
 **Files:**
 - Create: `src/timeline.ts`
-- Test: `src/timeline.test.ts`
+- Test: `src/timeline.test.ts`, `src/timeline.live.test.ts`
 
 **Interfaces:**
 - Consumes: `fetchJson` (Task 1)
-- Produces: `fetchTimeline(appid: number): Promise<FetchResult<Timeline>>` — `Timeline = { ccu: number | null; owners: string | null; avgPlaytimeForever: number | null; priceHistory: {date: string; priceUsd: number; discountPercent: number}[] | null }`
-
-CCU/owners/playtime は SteamSpy。価格履歴は ITAD API v2 (`ITAD_API_KEY` 環境変数):
-1. `https://api.isthereanydeal.com/games/lookup/v1?key=K&appid=N` → `game.id` (uuid)
-2. `https://api.isthereanydeal.com/games/history/v2?key=K&id=UUID&shops=61` (61=Steam) → `[{timestamp, deal: {price: {amount}, cut}}]`
-
-キー未設定時: `priceHistory: null` + warning `"ITAD_API_KEY not set — price history unavailable. Get a free key at https://isthereanydeal.com/apps/my/"`。
-
-- [ ] **Step 1: failing test**
+- Produces:
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { fetchTimeline } from "./timeline.js";
+interface Timeline {
+  observedAt: string;
+  currentCcu: number | null;
+  owners: string | null;
+  avgPlaytimeHours: number | null;
+  priceHistory: Array<{
+    date: string;
+    amount: number;
+    currency: string;
+    discountPercent: number;
+  }> | null;
+  priceHistorySince: string | null;
+  country: string;
+}
 
-describe("fetchTimeline (live, Hades)", () => {
-  it("returns ccu from steamspy; price history per ITAD key presence", async () => {
-    const r = await fetchTimeline(1145360);
-    expect(r.data!.ccu).not.toBeNull();
-    if (process.env.ITAD_API_KEY) {
-      expect(r.data!.priceHistory!.length).toBeGreaterThan(0);
-      expect(r.data!.priceHistory![0]).toHaveProperty("discountPercent");
-    } else {
-      expect(r.data!.priceHistory).toBeNull();
-      expect(r.warnings.join()).toContain("ITAD_API_KEY");
-    }
-  }, 30_000);
-});
+function fetchTimeline(
+  appid: number,
+  opts?: {since?: string; country?: string},
+): Promise<FetchResult<Timeline>>;
 ```
 
-- [ ] **Step 2: run, verify FAIL**
-- [ ] **Step 3: implement**
-- [ ] **Step 4: run, verify PASS**
-- [ ] **Step 5: Commit** — `feat: ccu + price timeline (steamspy + itad)`
+SteamSpyは取得時点のCCU/owners/average_foreverスナップショットだけを提供するものとして扱う。v1では過去CCUや急上昇を返さない。`average_forever`は分から時間へ正規化する。
+
+ITAD API:
+
+1. `games/lookup/v1?key=K&appid=N` → `found`と`game.id`
+2. `games/history/v2?key=K&id=UUID&shops=61&country=US&since=ISO`
+
+`since`はISO 8601、未指定時は現在から365日前。`country`はISO 3166-1 alpha-2大文字、デフォルトUS。API応答のamount/currencyを保持し、USD変換しない。URLは`URL`/`URLSearchParams`で組み立て、keyをwarningへ出さない。
+
+- [ ] **Step 1: failing deterministic tests**
+  - currentCcuとobservedAt
+  - average_foreverの分→時間
+  - ITAD通貨保持、discount cut mapping、デフォルトsince
+  - lookup `found:false`
+  - `ITAD_API_KEY`なしはpriceHistory:null + 取得手順warning
+  - SteamSpy失敗でもITAD成功データを返す部分成功
+
+- [ ] **Step 2: failing live smoke** — HadesのcurrentCcuをnumberとして確認。ITAD keyありなら履歴・currency、なしならnullとwarningを確認。
+- [ ] **Step 3: run, verify FAIL**
+- [ ] **Step 4: implement**
+- [ ] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
+- [ ] **Step 6: Commit** — `feat: current ccu snapshot + bounded price timeline`
 
 ---
 
-### Task 5: personas — スキーマ・保存・派生素材パック
+### Task 5: personas — schema・派生素材・安全な保存
 
 **Files:**
 - Create: `src/personas.ts`, `knowledge/personas/.gitkeep`
-- Test: `src/personas.test.ts`
+- Test: `src/personas.test.ts`, `src/personas.live.test.ts`
 
 **Interfaces:**
-- Consumes: `fetchReviews` (Task 3), `fetchGame` (Task 2)
+- Consumes: `fetchReviews` (Task 3), `fetchGame` (Task 2), safe path resolver (Task 1)
 - Produces:
-  - `PersonaSchema` (zod) — specのペルソナJSONスキーマそのまま: `{ id, source_appids: number[], archetype, playtime_profile, priorities: string[], voice: string[], dealbreakers: string[], price_sensitivity }` 全て必須
-  - `buildDerivationPack(appids: number[]): Promise<FetchResult<DerivationPack>>` — `DerivationPack = { games: {appid; name; tags: string[]}[]; reviews: {appid: number; review: string; votedUp: boolean; playtimeHours: number; language: string}[]; instruction: string }`。ゲームごとに 好評25件+不評25件(japanese優先、足りなければall言語で補完し warning)。`instruction` はクライアントClaudeへの派生指示文(固定文字列: レビュー群からN体のペルソナを抽出し、voice には実レビュー引用を3-5件入れ、PersonaSchema準拠JSONで `save_persona` すること)
-  - `savePersona(persona: unknown): {id: string} ` — zod検証→ `knowledge/personas/{id}.json` へ書き込み。検証失敗はzodエラー文字列をthrow
-  - `listPersonas(): {id: string; archetype: string}[]` / `loadPersona(id: string): Persona`
-
-- [ ] **Step 1: failing test**
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { PersonaSchema, savePersona, loadPersona, buildDerivationPack } from "./personas.js";
-import { rmSync } from "node:fs";
+const VoiceEvidenceSchema = z.object({
+  text: z.string().min(1),
+  source_appid: z.number().int().positive(),
+  recommendation_id: z.string().min(1),
+  language: z.string().min(1),
+  voted_up: z.boolean(),
+});
 
-const valid = {
-  id: "test-hawk", source_appids: [1145360], archetype: "テスト用",
-  playtime_profile: "100h/年", priorities: ["UI"], voice: ["引用1"],
-  dealbreakers: ["機械翻訳"], price_sensitivity: "セール待ち型",
-};
-
-describe("personas", () => {
-  it("save + load round-trip", () => {
-    savePersona(valid);
-    expect(loadPersona("test-hawk").archetype).toBe("テスト用");
-    rmSync("knowledge/personas/test-hawk.json");
-  });
-  it("rejects missing fields", () => {
-    expect(() => savePersona({ id: "x" })).toThrow();
-  });
-  it("buildDerivationPack collects reviews (live)", async () => {
-    const r = await buildDerivationPack([1145360]);
-    expect(r.data!.reviews.length).toBeGreaterThan(10);
-    expect(r.data!.instruction).toContain("save_persona");
-  }, 60_000);
+const PersonaSchema = z.object({
+  id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i),
+  source_appids: z.array(z.number().int().positive()).min(1),
+  archetype: z.string().min(1),
+  playtime_profile: z.string().min(1),
+  priorities: z.array(z.string().min(1)).min(1),
+  voice: z.array(VoiceEvidenceSchema).min(3).max(5),
+  dealbreakers: z.array(z.string().min(1)),
+  price_sensitivity: z.string().min(1),
 });
 ```
 
-- [ ] **Step 2: run, verify FAIL**
-- [ ] **Step 3: implement**(ファイルパスはprocess.cwd()基準の `knowledge/personas/`。ディレクトリは `mkdirSync(recursive)`)
-- [ ] **Step 4: run, verify PASS**
-- [ ] **Step 5: Commit** — `feat: persona schema, storage, derivation pack`
+- `buildDerivationPack(appids: number[], count = 5)` — countは1〜12。`{requestedCount, schema, games, reviews, instruction}`を返す。schemaはzod v4からJSON Schemaへ変換する。
+- `savePersona(persona, {overwrite=false}?)` — validate後、同一ディレクトリの一時ファイルへwriteする。`overwrite:false`はtemp→destinationのhard linkで「既存なら失敗」を原子的に保証してtempをunlinkし、`overwrite:true`はrenameで原子的に置換する。
+- `listPersonas()` / `loadPersona(id)` — 読込時にもPersonaSchemaで検証する。
+
+派生素材は各ゲームについてJapanese positive 25件 + negative 25件を優先する。不足分だけall-languageから補い、`recommendationId`で日本語分との重複を除く。ゲーム/極性ごとに不足warningを残す。countはサーバー生成数ではなく、クライアントへの生成指示と検証期待値に使う。
+
+- [ ] **Step 1: failing deterministic tests**
+  - voice 2件/6件/出典欠落をreject
+  - save/load round-tripはTask 1の`createPathResolver(tempRoot)`を注入したstoreで行う
+  - traversal IDと既存ID上書きをreject
+  - `overwrite:true`は更新できる
+  - write/rename失敗時に対象一時ファイルだけcleanup
+  - Japanese→all fallbackが重複せずpositive/negativeを必要数まで補う
+  - count 0/13をrejectし、default 5をpackへ含める
+
+- [ ] **Step 2: failing live smoke** — Hadesのpackがレビュー10件以上、requestedCount=5、recommendationId重複なし、instructionに`save_persona`を含むことを確認。
+- [ ] **Step 3: run, verify FAIL**
+- [ ] **Step 4: implement**
+- [ ] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
+- [ ] **Step 6: Commit** — `feat: traceable persona derivation and safe storage`
 
 ---
 
-### Task 6: `ui_capture` — Obscuraスクショ
+### Task 6: `ui_capture` — 安全なObscura CDPスクリーンショット
 
 **Files:**
 - Create: `src/capture.ts`
-- Test: `src/capture.test.ts`
-- Modify: `package.json`(`pnpm add puppeteer-core`)
+- Test: `src/capture.test.ts`, `src/capture.live.test.ts`
+- Modify: `package.json` (`pnpm add puppeteer-core`)
 
 **Interfaces:**
-- Consumes: なし
-- Produces: `captureUrl(url: string, outPath: string): Promise<FetchResult<{path: string}>>` — `OBSCURA_PATH` のバイナリを `--remote-debugging-port=0` で起動し `puppeteer-core` の `connect`(ObscuraはCDP互換・Puppeteer drop-in)でフルページPNGを `outPath` に保存。`OBSCURA_PATH` 未設定時は `data: null` + warning: `"OBSCURA_PATH not set. Install: https://github.com/h4ckf0r0day/obscura/releases — or place screenshots manually in knowledge/ui-references/"`。キャプチャ失敗(403等)も同じ手動配置フォールバック文言をwarningに含める。
-
-- [ ] **Step 1: failing test**
+- Consumes: safe path resolver (Task 1)
+- Produces:
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { captureUrl } from "./capture.js";
-import { existsSync, rmSync } from "node:fs";
-
-describe("captureUrl", () => {
-  it("without OBSCURA_PATH returns instructive warning", async () => {
-    delete process.env.OBSCURA_PATH;
-    const r = await captureUrl("https://example.com", "/tmp/x.png");
-    expect(r.data).toBeNull();
-    expect(r.warnings.join()).toContain("ui-references");
-  });
-  it.skipIf(!process.env.OBSCURA_PATH)("captures example.com", async () => {
-    const out = "knowledge/intel/_test-capture.png";
-    const r = await captureUrl("https://example.com", out);
-    expect(existsSync(r.data!.path)).toBe(true);
-    rmSync(out);
-  }, 30_000);
-});
+function captureUrl(
+  url: string,
+  opts?: {
+    name?: string;
+    viewport?: {width: number; height: number};
+    fullPage?: boolean;
+  },
+): Promise<FetchResult<{
+  path: string;
+  url: string;
+  capturedAt: string;
+}>>;
 ```
 
-- [ ] **Step 2: run, verify FAIL**
-- [ ] **Step 3: implement**(子プロセスspawn→stdoutからws URL取得→`puppeteer.connect({browserWSEndpoint})`→`page.goto(url, {waitUntil: "networkidle2", timeout: 15000})`→`page.screenshot({path: outPath, fullPage: true})`→プロセスkill。try/finallyでkill保証)
-- [ ] **Step 4: run, verify PASS**(OBSCURA_PATH無し環境では1本目のみ実行される — それで可)
-- [ ] **Step 5: Commit** — `feat: obscura-based ui capture with manual fallback`
+- URLは`http:`/`https:`のみ。localhost/loopbackは対象UI確認のため許可。`file:`/`data:`/`javascript:`等は入力エラー。
+- `name`はファイル名のヒントでありpathではない。安全なslugへ変換し、出力は必ず`knowledge/intel/captures/`配下のPNG。
+- `OBSCURA_PATH`なしはdata:nullとinstall/manual fallback warning。
+- 起動は `OBSCURA_PATH serve --port N`。接続先は`ws://127.0.0.1:N/devtools/browser`。
+
+- [ ] **Step 1: failing deterministic tests**
+  - 未設定warning
+  - unsafe scheme拒否
+  - `name=../../x`でもroot外へ出ず、安全名になるか入力拒否
+  - viewport bounds (320〜3840 × 240〜2160)
+  - default fullPage=true
+
+- [ ] **Step 2: failing live smoke** — `RUN_LIVE=1 && OBSCURA_PATH`時だけexample.comをcaptureし、許可root配下のPNGと非zero sizeを確認後、対象ファイルだけ削除。
+
+- [ ] **Step 3: run, verify FAIL**
+- [ ] **Step 4: implement**
+  - loopbackの空きportを選び、`spawn(OBSCURA_PATH, ["serve", "--port", String(port)])`
+  - stdout/stderrはbufferへ捕捉し、MCPのprocess.stdoutへpipeしない
+  - 8秒以内でPuppeteer connectを短間隔retry
+  - viewport設定、`page.goto(..., {waitUntil:"networkidle2", timeout:15000})`、full-page screenshot
+  - `browser.disconnect()`と子プロセス終了を`finally`で保証。終了猶予後も残る場合だけ対象PIDへSIGKILL
+  - 失敗warningに手動配置先を含め、捕捉ログから秘密情報や長大HTMLを返さない
+
+- [ ] **Step 5: run, verify PASS** — `pnpm test`; Obscura環境では`pnpm test:live`
+- [ ] **Step 6: Commit** — `feat: safe obscura cdp capture with manual fallback`
 
 ---
 
 ### Task 7: canonical ナレッジ + 実行レシピ
 
 **Files:**
-- Create: `knowledge/templates/adoption-eval.md`, `knowledge/rubrics/harsh-critic.md`, `skills/run-sim.md`, `skills/ui-blind-compare.md`, `knowledge/ui-references/.gitkeep`, `knowledge/intel/.gitkeep`, `workspaces/.gitkeep`
+- Create: `knowledge/templates/adoption-eval.md`, `knowledge/rubrics/harsh-critic.md`, `skills/run-sim.md`, `skills/ui-blind-compare.md`, `knowledge/ui-references/.gitkeep`, `knowledge/intel/.gitkeep`, `knowledge/intel/captures/.gitkeep`, `workspaces/.gitkeep`
+- Test: `src/knowledge-content.test.ts`
 
 **Interfaces:**
-- Produces: Task 8 の `get_knowledge` / prompts 登録が読むファイル群。コード無し・テスト無し(内容はレビューで担保)。
+- Produces: Task 8の`get_knowledge`とMCP promptsが読むcanonicalファイル群。
 
-- [ ] **Step 1: `knowledge/templates/adoption-eval.md`** — hyperamm trader-adoption-evaluation のゲーム翻案。必須セクション:
-  1. `Overall Assessment`(Adoption Likelihood / Initial Friction / Retention Potential / Key Blocking Factors)
-  2. `Who Plays and Why — Flow Analysis`(Flow N: 誰が→なぜ買う/遊ぶ→どこで離脱、各Flowに **Volume driver / Friction / Retention / Current size / What we control** の5項目)
-  3. `Flow Summary` 表
-  4. 領域別所見(UI / 価格 / ローカライズ / 競合)— **各主張に根拠欄必須**(`knowledge/intel/` への相対リンク or steam_* toolの取得値。根拠が無い主張は「根拠不足」と明記)
-  5. 変更相談の場合は全セクションを「現状 vs 変更案」の差分形式で書く
-- [ ] **Step 2: `knowledge/rubrics/harsh-critic.md`** — 辛口批評家の合格基準: (a) 根拠の無い主張が1つでもあれば差し戻し (b) UIは本物スクショと並べたブラインド比較でAAAに見えなければ続行 (c) ペルソナの発言が voice の実レビュー引用と口調矛盾したら差し戻し (d) 全領域subagentの出力が基準を満たすまで /loop
-- [ ] **Step 3: `skills/run-sim.md`** — specのデータフロー①〜⑥をクライアントClaude向け手順書に展開(①対象理解→②competitor特定: steam_search/steam_fetch/steam_timeline→③derive_personas→④領域別subagent並列(AAA品質プロンプトの型: 項目ごとにsubagent展開)→⑤harsh-critic.mdで批評ループ→⑥workspaces/<target>/<date>-<topic>.md にadoption-eval.md形式で出力)
-- [ ] **Step 4: `skills/ui-blind-compare.md`** — gameuidatabase等の本物UIスクショ(ui_capture or knowledge/ui-references/手動配置)と対象UIを並べ、どちらが本物か明かさずに批評家subagentへ提示→AAAに見えない点を列挙させる手順
-- [ ] **Step 5: Commit** — `docs: canonical knowledge (templates, rubrics, run recipes)`
+- [ ] **Step 1: failing content contract test**
+  - adoption templateの必須5セクション
+  - 各領域の根拠欄と「根拠不足」規則
+  - rubricの根拠/ブラインド/voice出典要件
+  - run-simの8 tool名と`derive_personas → save_persona`
+  - 2 promptファイルが非空
+
+- [ ] **Step 2: `knowledge/templates/adoption-eval.md`**
+  1. `Overall Assessment` (Adoption Likelihood / Initial Friction / Retention Potential / Key Blocking Factors)
+  2. `Who Plays and Why — Flow Analysis`。各FlowにVolume driver / Friction / Retention / Current size / What we control
+  3. `Flow Summary`表
+  4. UI / 価格 / ローカライズ / 競合の領域別所見。各主張に`knowledge/intel/`相対リンクまたはtool取得値。なければ「根拠不足」
+  5. 変更相談は全セクションを「現状 vs 変更案」の差分形式
+
+- [ ] **Step 3: `knowledge/rubrics/harsh-critic.md`**
+  - 根拠なし主張が1つでもあれば差し戻し
+  - UIは本物スクショとのブラインド比較でAAAに見えなければ続行
+  - persona発言が`voice[].text`と矛盾、または`source_appid`/`recommendation_id`欠落なら差し戻し
+  - 全領域subagentが合格するまでloop。ただし同一指摘の反復時は根拠不足として停止条件を明記
+
+- [ ] **Step 4: `skills/run-sim.md`** — 対象理解→競合特定→derive_personas→JSON生成→save_persona→領域別subagent→辛口批評→workspaces出力。
+- [ ] **Step 5: `skills/ui-blind-compare.md`** — 本物UIと対象UIを匿名化して提示し、正解を明かす前に比較結果を固定する手順。
+- [ ] **Step 6: run, verify PASS** — `pnpm test`
+- [ ] **Step 7: Commit** — `docs: canonical knowledge (templates, rubrics, run recipes)`
 
 ---
 
-### Task 8: MCPサーバー組み立て — tool/prompt登録
+### Task 8: MCP v2サーバー組み立て — 8 tools / 2 prompts
 
 **Files:**
 - Create: `src/index.ts`, `src/knowledge.ts`
 - Test: `src/index.test.ts`
-- Modify: `package.json`(`"bin": {"steam-user-sim": "dist/index.js"}`)
 
 **Interfaces:**
-- Consumes: Task 1-7 の全export
-- Produces: stdio MCPサーバー。tool 7個: `steam_search` / `steam_fetch` / `steam_reviews` / `steam_timeline` / `derive_personas` / `ui_capture` / `get_knowledge`。prompt 2個: `run-sim` / `ui-blind-compare`(`skills/*.md` の中身をそのまま返す)。
+- Consumes: Task 1-7の全export
+- Produces:
+  - tools: `steam_search`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `derive_personas`, `save_persona`, `ui_capture`, `get_knowledge`
+  - prompts: `run-sim`, `ui-blind-compare`
 
-- [ ] **Step 1: `src/knowledge.ts`** — `getKnowledge(kind: "personas"|"templates"|"rubrics"|"intel", id?: string)`: id無しは一覧(ファイル名+personasはarchetype付き)、id有りは中身を返す。パスは `knowledge/{kind}/` 固定、`id` は `/[a-z0-9-_.]+/i` 検証(traversal防止 — 信頼境界の入力検証なので省略しない)。
-- [ ] **Step 2: failing test**
+- [ ] **Step 1: `src/knowledge.ts` failing tests**
+  - idなし一覧
+  - rubric本文取得
+  - persona一覧にarchetype
+  - persona読込時schema検証
+  - traversal/symlink拒否
 
-`src/index.test.ts`(in-memory transportでMCPハンドシェイク):
+パスはTask 1のresolverだけを使い、独自の`join(root, input)`を禁止する。
+
+- [ ] **Step 2: MCP contract failing tests**
+
+MCP SDK v2の`Client`と、`@modelcontextprotocol/server`から読み込んだ`InMemoryTransport.createLinkedPair()`を使う。各testは`try/finally`でclient/serverをcloseする。
+
+次を件数ではなく完全一致で検証する。
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { buildServer } from "./index.js";
+expect(toolNames.sort()).toEqual([
+  "derive_personas",
+  "get_knowledge",
+  "save_persona",
+  "steam_fetch",
+  "steam_reviews",
+  "steam_search",
+  "steam_timeline",
+  "ui_capture",
+]);
 
-describe("mcp server", () => {
-  it("lists 7 tools and 2 prompts", async () => {
-    const [ct, st] = InMemoryTransport.createLinkedPair();
-    await buildServer().connect(st);
-    const client = new Client({ name: "t", version: "0" });
-    await client.connect(ct);
-    expect((await client.listTools()).tools).toHaveLength(7);
-    expect((await client.listPrompts()).prompts).toHaveLength(2);
-  });
-  it("get_knowledge returns rubric content", async () => {
-    const [ct, st] = InMemoryTransport.createLinkedPair();
-    await buildServer().connect(st);
-    const client = new Client({ name: "t", version: "0" });
-    await client.connect(ct);
-    const r = await client.callTool({ name: "get_knowledge", arguments: { kind: "rubrics", id: "harsh-critic.md" } });
-    expect(JSON.stringify(r.content)).toContain("ブラインド");
-  });
-});
+expect(promptNames.sort()).toEqual(["run-sim", "ui-blind-compare"]);
 ```
 
+さらに各input/output schemaの必須項目、`derive_personas.count`範囲、`ui_capture`に`outPath`がないこと、`save_persona → get_knowledge` round-trip、path違反がtool errorになることを検証する。
+
 - [ ] **Step 3: run, verify FAIL**
-- [ ] **Step 4: implement** — `buildServer()` が `McpServer` を組み立ててreturn(テスト用)、`src/index.ts` 末尾で直接実行時のみ `StdioServerTransport` に接続。各toolは対応するデータ層関数を呼び、`{data, warnings}` をJSONでcontentに返す。zodでtool入力スキーマ定義(appidはpositive int、queryはstring等)。
-- [ ] **Step 5: run, verify PASS**(全テストスイート `pnpm test`)
-- [ ] **Step 6: Commit** — `feat: mcp server wiring (7 tools, 2 prompts)`
+
+- [ ] **Step 4: implement**
+  - `buildServer()`はMCP SDK v2の`McpServer`を組み立ててreturn
+  - 各toolにzod v4 input/output schemaを登録
+  - 成功は`structuredContent: {data, warnings}`と、同内容のtext contentを返す
+  - 外部サービスの期待失敗だけenvelope化。入力/パス/想定外例外は`isError` tool result
+  - promptsは`skills/*.md`を単一sourceとして返す
+  - 直接実行時だけ`serveStdio(buildServer)`を呼ぶ
+  - stdoutはJSON-RPC専用。診断ログはstderr
+
+- [ ] **Step 5: run, verify PASS** — `pnpm test`
+- [ ] **Step 6: Commit** — `feat: mcp v2 server wiring (8 tools, 2 prompts)`
 
 ---
 
-### Task 9: README + Claude Code接続確認
+### Task 9: README + build成果物の接続スモーク
 
 **Files:**
-- Create: `README.md`, `.mcp.json`
+- Create: `README.md`, `.mcp.json`, `scripts/smoke-stdio.ts`
+- Modify: `package.json` (`"smoke:stdio": "tsx scripts/smoke-stdio.ts"`)
 
 **Interfaces:**
 - Consumes: 全タスク
@@ -471,21 +495,53 @@ describe("mcp server", () => {
   "mcpServers": {
     "steam-user-sim": {
       "command": "pnpm",
-      "args": ["tsx", "src/index.ts"],
-      "env": { "ITAD_API_KEY": "", "OBSCURA_PATH": "" }
+      "args": ["tsx", "src/index.ts"]
     }
   }
 }
 ```
 
-- [ ] **Step 2: `README.md`** — 目的(ゲーム開発の「変更の右腕」)、セットアップ(pnpm install / 任意キー2つ)、tool一覧、使い方(`/run-sim` prompt起点のフロー)、specへのリンク。
-- [ ] **Step 3: エンドツーエンド確認** — `pnpm build` が通ること、`pnpm test` 全パス、`echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' | pnpm tsx src/index.ts` がinitialize応答を返すこと。
-- [ ] **Step 4: Commit** — `docs: readme + mcp config`
+空文字envは置かない。`ITAD_API_KEY`/`OBSCURA_PATH`は親プロセス環境から継承し、未設定時の動作をtool warningで案内する。
+
+- [ ] **Step 2: README**
+  - 「変更の右腕」という目的
+  - repo rootからの`pnpm install`
+  - 任意設定2つのexport方法
+  - 8 tools / 2 prompts
+  - `/run-sim`起点の流れ
+  - `pnpm test` / `test:live` / `test:all` / `smoke:stdio`
+  - design specへのリンク
+  - v1はグローバル`bin`非対応
+
+- [ ] **Step 3: `scripts/smoke-stdio.ts`**
+  - `Client` + `StdioClientTransport`で`node dist/index.js`を実際にspawn
+  - cwdは検証済みrepo root
+  - initialize、8 tools、2 prompts、`get_knowledge`を確認
+  - stdoutにJSON-RPC以外が混ざれば接続失敗として検出
+  - `finally`でclientをclose
+
+- [ ] **Step 4: end-to-end gate**
+
+```bash
+pnpm build
+pnpm test
+pnpm smoke:stdio
+pnpm test:live
+```
+
+live実行可能環境では4本すべてを通す。キー/Obscuraなしでもそれぞれのfallback smokeは通る。最後にClaude Codeから`steam_search`と`get_knowledge`を1回ずつ呼ぶ。
+
+- [ ] **Step 5: Commit** — `docs: readme + repo-local mcp connection smoke`
 
 ---
 
-## Self-Review 済みメモ
+## Self-Review Checklist
 
-- spec対応: tool 7個(Task 2,3,4,5,6,8)、knowledge構造(Task 5,7)、skills=MCP prompts二重管理なし(Task 8)、エラー処理 `{data, warnings}`(Global + Task 1)、Hadesスモークテスト(各Task)、ITAD/Obscura任意キー(Task 4,6)。
-- v1スコープ外(spec通り): `run_sim`、Cloudflare/sim.steamsonar.gg 配備、gameuidatabase一括取得。
-- 型整合: `FetchResult<T>` をTask 1で定義し全タスクが同名でconsume。`GameProfile`/`Review`/`Timeline`/`Persona` は定義タスクのInterfaces欄の名前を後続タスクがそのまま使用。
+- toolは8個で、`derive_personas → save_persona`がクライアントから完結する。
+- persona voiceは3〜5件の出典付き実レビュー引用。
+- `steam_timeline`は過去CCUを装わず、現在スナップショットと期間明示の価格履歴を返す。
+- knowledge/persona/captureは共通safe path resolverだけを使用し、任意出力pathをMCPへ公開しない。
+- Obscuraは`serve --port` +既知のCDP endpointで接続し、子プロセスを必ず終了する。
+- MCPはv2 package/`serveStdio`を使用し、stdoutを汚さない。
+- `pnpm test`、`test:live`、`smoke:stdio`の責務が分離され、上流障害を手動リトライで成功扱いにしない。
+- v1スコープ外: 過去CCU/急上昇、npm `bin`、サーバー側`run_sim`、Cloudflare配備、gameuidatabase一括取得。
