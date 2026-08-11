@@ -50,6 +50,44 @@ const ReferenceImageIdsSchema = z.string().transform((input, context) => {
   return imageIds.join(",");
 });
 
+const UiReferenceUrlsSchema = z.string().max(8_192).transform((input, context) => {
+  const candidates = [...new Set(
+    input.split(/[\n,]+/).map((value) => value.trim()).filter(Boolean),
+  )];
+  if (candidates.length === 0) {
+    context.addIssue({code: "custom", message: "At least one UI reference URL is required"});
+    return z.NEVER;
+  }
+  const normalized: string[] = [];
+  for (const [index, candidate] of candidates.entries()) {
+    try {
+      const parsed = new URL(candidate);
+      if (
+        parsed.protocol !== "https:"
+        || parsed.hostname === ""
+        || parsed.username !== ""
+        || parsed.password !== ""
+      ) {
+        throw new Error("UI reference URLs must be credential-free HTTPS URLs");
+      }
+      parsed.hash = "";
+      normalized.push(parsed.href);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: `Invalid UI reference URL at position ${index + 1}`,
+      });
+      return z.NEVER;
+    }
+  }
+  const unique = [...new Set(normalized)];
+  if (unique.length > 8) {
+    context.addIssue({code: "custom", message: "At most eight UI reference URLs are allowed"});
+    return z.NEVER;
+  }
+  return unique.join("\n");
+});
+
 export const RunSimPromptArgumentsSchema = z.object({
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
   topic: NonEmptyTrimmedStringSchema.describe("Consultation topic"),
@@ -57,6 +95,8 @@ export const RunSimPromptArgumentsSchema = z.object({
   domains: DomainsSchema.default("auto"),
   specification: z.string().max(50_000).optional(),
   uiUrl: z.string().optional(),
+  uiBenchmarkTask: z.string().trim().min(1).max(500).optional(),
+  uiReferenceUrls: UiReferenceUrlsSchema.optional(),
   currentState: z.string().optional(),
   proposal: z.string().optional(),
   competitors: z.string().optional(),
@@ -98,9 +138,13 @@ export function buildRunSimPrompt(
   const missingChangeInputs = parsed.mode === "change"
     ? (["currentState", "proposal"] as const).filter((field) => !parsed[field]?.trim())
     : undefined;
+  const {uiReferenceUrls, ...promptInput} = parsed;
 
   return appendSerializedInput(recipe, {
-    ...parsed,
+    ...promptInput,
+    ...(uiReferenceUrls
+      ? {uiReferenceUrls: uiReferenceUrls.split("\n")}
+      : {}),
     domainSelection: parsed.domains === "auto" ? "auto" : "explicit",
     selectedDomains,
     missingChangeInputs,

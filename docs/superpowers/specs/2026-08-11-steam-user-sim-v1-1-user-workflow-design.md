@@ -179,6 +179,8 @@ run-sim promptは次のstring argumentsを持つ。
 - domains: gameplay、storefront、ui、price、localization、competitionのcomma-separated list。default auto
 - specification
 - uiUrl
+- uiBenchmarkTask
+- uiReferenceUrls: credentialなしHTTPS URLを改行またはcomma区切りで最大8件
 - currentState
 - proposal
 - competitors
@@ -190,11 +192,13 @@ prompt callbackはrecipe本文と入力を明確に区切って1つのuser messa
 
 auto scopeはtopicと入力から必要領域を選び、その理由を最初に宣言する。UIがscope外ならui_capture、blind compare、UI rubricはN/Aであり不合格理由にしない。
 
+UIがscope内なら、具体的なplayer task、開始・完了状態、platform、controlsを`uiBenchmarkTask`で固定する。Game UI Database、Interface In Gameなどの`uiReferenceUrls`はreference候補探索に使い、同じtask、screen state、platform、controls、近い情報量、qualityTierの出荷済み製品を2〜4本選ぶ。catalog掲載や人気を品質根拠にせず、source URL、accessedAt、game、screen state、capture IDをmanual intel artifactへ保存する。公開APIやbulk scrapingを仮定せず、robots、認証、利用条件、download制限を回避しない。
+
 gameplayはプレイヤーから観測できるコアループ、目標、feedback、進行、失敗/再挑戦を扱う。description、categories、tags、reviewsはplayer-perceived proxyであり、内部コード、状態遷移、数式、バランス実装の直接根拠ではない。内部ロジックの評価には仕様、build、動画、telemetry、playtestのいずれかを要求する。
 
 storefrontは短文・詳細説明、価値提案、localized copy、capsule/screenshots、競合との期待差を扱う。localizedStorefrontsはenglish=US、japanese=JP、german=DEのrequested localeで、Steam fallbackの可能性をmethodologyに残す。`matchesEnglishCopy` は正規化後の英語copyとの完全一致だけを表し、fallbackの理由や翻訳品質は断定しない。referenceLinksはnavigation用であり、リンク先をcaptureまたはartifact保存するまでは取得済みEvidenceにしない。
 
-ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityTierを受け取る。AAAを全案件の固定基準にせず、指定qualityTierと同等の出荷済み製品に対する品質差を評価する。
+ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityTierを受け取る。AAAを全案件の固定基準にせず、指定qualityTierと同等の出荷済み製品に対する品質差を評価する。pre-reveal判定を固定した後、0〜4の軸別score、reference中央値、`gap = target - median`、material deficits、demonstrated strengthsを出す。static screenshotで確認できないmotion、latency、controller feel、未表示stateは0ではなくunscoredにする。
 
 ## Evaluation persistence flow
 
@@ -204,7 +208,7 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 4. steam_searchまたはsteam_discoverで競合候補を作る。
 5. Steam tool出力のmeta.resultHandleを取得直後にsave_artifact kind=intelへ渡し、モデルがpayloadを再serializeせず原本保存。
 6. derive_personasの返り値もresultHandleでintel artifactとして原本保存し、Evidence Indexに追加してからsave_personaを実行。
-7. 選択domainだけ評価し、必要な場合だけUI画像を取得・比較。
+7. 選択domainだけ評価する。UIではGame UI Database等からmatched cohortを選び、画像とprovenanceを保存してblind comparisonと軸別gapを実行。
 8. save_artifact kind=evaluationでレポート保存。
 9. save_artifact kind=runでscenarios、persona、evidence、全round、warning、confidence、最終evaluationをimmutable ledgerへ封印。
 10. evaluation path、run ID、run path、未解決事項をユーザーへ報告。
@@ -226,6 +230,7 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 - writeはatomic。intel/evaluationはoverwrite default false、runは常にimmutable。
 - intel JSON 1 MiB、evaluation Markdown 512 KiB、run JSON 2 MiB、inline image 6 MiB。
 - JSON parse失敗、PNG/JPEG signature違反、path違反はtool error。
+- uiReferenceUrlsは最大8件、credentialなしHTTPSだけを受け、fragmentと重複を除去する。
 - 外部APIの期待される失敗は引き続きdata、warnings、metaの部分成功。
 
 ## Non-goals

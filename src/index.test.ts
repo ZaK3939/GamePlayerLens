@@ -1395,6 +1395,8 @@ describe("MCP server contract", () => {
         "domains",
         "specification",
         "uiUrl",
+        "uiBenchmarkTask",
+        "uiReferenceUrls",
         "currentState",
         "proposal",
         "competitors",

@@ -25,6 +25,8 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
   "domains",
   "specification",
   "uiUrl",
+  "uiBenchmarkTask",
+  "uiReferenceUrls",
   "currentState",
   "proposal",
   "competitors",
@@ -160,6 +162,15 @@ try {
   assert(
     JSON.stringify(knowledge.structuredContent).includes("Overall Assessment"),
     "get_knowledge did not return the canonical adoption template",
+  );
+  const uiGapRubric = await client.callTool({
+    name: "get_knowledge",
+    arguments: {kind: "rubrics", id: "ui-quality-gap.md"},
+  });
+  assert(uiGapRubric.isError !== true, "get_knowledge returned a UI rubric tool error");
+  assert(
+    JSON.stringify(uiGapRubric.structuredContent).includes("Game UI Database"),
+    "get_knowledge did not return the canonical UI gap rubric",
   );
 
   const artifactTargets = await client.callTool({

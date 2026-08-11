@@ -24,6 +24,8 @@
 
 11-tool surfaceを維持したまま、`save_artifact` / `get_artifact` に kind=`run` を追加した。clientが実行したsimulationのscenarios、domains、persona、保存済みevidence、全round出力、warning、confidence、最終evaluationを、server側で参照検証して `workspaces/{targetId}/runs/{runId}.json` にimmutable保存する。recordは使用時点のrecipe、persona、evidenceのSHA-256とclient-reported model/calibration境界を持つ。unit、in-memory MCP、stdio/package smokeで保存・一覧・再読込を検証する。
 
+UI実力差follow-upでは、run-simへ`uiBenchmarkTask`と最大8件の`uiReferenceUrls`を追加し、Game UI Database / Interface In Gameをmatched reference探索へ組み込む。新しい`ui-quality-gap.md` rubricで、2〜4本の出荷済みcohort、reference provenance、匿名pre-reveal採点、0〜4 anchor、reference中央値との差、static/videoの証拠境界を固定する。公開APIやbulk scrapingは仮定せず、画像とmanual intel provenanceを分離保存する。
+
 ---
 
 ## Task 1: Result metaとartifact path境界

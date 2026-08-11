@@ -94,10 +94,29 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 ### UI
 
 - Status: ［Selected / N/A と理由］
+- Benchmark task: ［playerの目的、開始状態、完了状態］
+- Cohort conditions: ［qualityTier、2〜4本の出荷済みreference、screen state、platform、controls、aspect ratio / mismatch］
 - Mode result: ［現状の発見可能性、可読性、階層、操作フィードバック / change の場合は現状 vs 変更案］
 - ペルソナ反応: ［persona ID と voice 出典］
-- ブラインド比較: ［qualityTier と同等の出荷済み製品、固定済み判定、正解開示後の解釈］
-- 根拠: ［Evidence ID。なければ「根拠不足」］
+- 比較方式: ［blind comparison: opaque alias、固定済みpre-reveal判定、正解開示後の解釈 / memoryを隔離できない場合はnon-blind structured comparisonと理由］
+- Reference provenance: ［Game UI Database / Interface In Game / その他のsource page URL、accessedAt、game、screen state、capture IDを持つEvidence ID］
+- Evidence boundary: ［static screenshot / video / interactive observation。未表示state、motion、latency、controller feelは直接証拠がなければunscored］
+
+| Axis | Target | Reference median | Gap | Evidence IDs | Observation / location | Confidence |
+|---|---:|---:|---:|---|---|---|
+| Task clarity | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［target - median / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+| Information hierarchy / glanceability | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［差 / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+| Density / typography / localization-safe legibility | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［差 / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+| Input / focus / affordance | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［差 / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+| State / feedback / recovery | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［差 / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+| Accessibility / color independence | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［差 / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+| Visual-system consistency / production finish | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［差 / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+| Flow / motion / interruption cost | ［0〜4 / unscored］ | ［0〜4 / unscored］ | ［差 / N/A］ | ［ID］ | ［画面位置と観測］ | ［高 / 中 / 低］ |
+
+- Material deficits: ［gap <= -1 かつbenchmark taskを阻害する軸］
+- Demonstrated strengths: ［gap > 0 で変更時に保持する軸］
+- UI limitations: ［static-only、cohort mismatch、匿名化不能、missing state、利用条件による未取得］
+- 根拠: ［画像とreference provenanceのEvidence ID。なければ「根拠不足」］
 
 ### 価格
 

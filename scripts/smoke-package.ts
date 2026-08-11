@@ -91,6 +91,15 @@ try {
     JSON.stringify(knowledge.structuredContent).includes("Overall Assessment"),
     "packaged CLI returned the wrong canonical template",
   );
+  const uiGapRubric = await client.callTool({
+    name: "get_knowledge",
+    arguments: {kind: "rubrics", id: "ui-quality-gap.md"},
+  });
+  assert(uiGapRubric.isError !== true, "packaged CLI could not read the UI gap rubric");
+  assert(
+    JSON.stringify(uiGapRubric.structuredContent).includes("Game UI Database"),
+    "packaged CLI returned the wrong UI gap rubric",
+  );
 
   const persona = await client.callTool({
     name: "save_persona",

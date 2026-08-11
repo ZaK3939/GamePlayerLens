@@ -80,6 +80,18 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("confidence");
     expect(content).toContain("next validation");
   });
+
+  it("reports matched UI benchmark provenance and axis-level quality gaps", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+
+    expect(content).toContain("Benchmark task");
+    expect(content).toContain("Reference provenance");
+    expect(content).toContain("Game UI Database");
+    expect(content).toContain("Reference median");
+    expect(content).toContain("target - median");
+    expect(content).toContain("static-only");
+    expect(content).toContain("unscored");
+  });
 });
 
 describe("harsh critic rubric", () => {
@@ -134,6 +146,32 @@ describe("harsh critic rubric", () => {
     expect(content).toContain("reportedByClient");
     expect(content).toContain("calibrationStatus");
     expect(content).toMatch(/実測[\s\S]*calibrated[\s\S]*差し戻す/);
+  });
+
+  it("rejects unmatched or unsupported UI quality comparisons", async () => {
+    const content = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(content).toContain("Game UI Database");
+    expect(content).toContain("provenance artifact");
+    expect(content).toContain("gap = target - median");
+    expect(content).toMatch(/static screenshot[\s\S]*motion[\s\S]*unscored/);
+  });
+});
+
+describe("UI quality gap rubric", () => {
+  it("uses matched cohorts, provenance, ordinal anchors, and evidence boundaries", async () => {
+    const content = await read("knowledge/rubrics/ui-quality-gap.md");
+
+    expect(content).toContain("uiBenchmarkTask");
+    expect(content).toContain("Game UI Database");
+    expect(content).toContain("Interface In Game");
+    expect(content).toContain("bulk scraping");
+    expect(content).toContain("sourceTool=`manual`");
+    expect(content).toContain("0〜4");
+    expect(content).toContain("gap = target score - reference median");
+    expect(content).toContain("unscored");
+    expect(content).toContain("conversion");
+    expect(content).toContain("non-blind structured comparison");
   });
 });
 
@@ -190,6 +228,18 @@ describe("MCP prompt source recipes", () => {
       /steam_fetch\.screenshots[\s\S]*steamstatic\.com[\s\S]*sourceType[\s\S]*steam-image/,
     );
     expect(content).toMatch(/Steam Sonar[\s\S]*sourceType[\s\S]*page[\s\S]*Obscura/);
+  });
+
+  it("uses UI reference catalogs without treating popularity or scraping as evidence", async () => {
+    const content = await read("skills/run-sim.md");
+
+    expect(content).toContain("Game UI Database");
+    expect(content).toContain("Interface In Game");
+    expect(content).toContain("uiBenchmarkTask");
+    expect(content).toContain("uiReferenceUrls");
+    expect(content).toContain("sourceTool=`manual`");
+    expect(content).toContain("bulk scraping");
+    expect(content).toContain("gap = target score - reference median");
   });
 
   it("keeps both prompt files non-empty and freezes blind results before reveal", async () => {

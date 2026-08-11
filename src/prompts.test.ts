@@ -36,8 +36,12 @@ describe("run-sim prompt arguments", () => {
       target: "Example Game",
       topic: "full product review",
       domains: "competition, storefront,gameplay,ui,storefront",
+      uiBenchmarkTask: "  controller inventory navigation  ",
+      uiReferenceUrls: "https://www.gameuidatabase.com/example\nhttps://interfaceingame.com/example\nhttps://www.gameuidatabase.com/example#duplicate",
     })).toMatchObject({
       domains: "gameplay,storefront,ui,competition",
+      uiBenchmarkTask: "controller inventory navigation",
+      uiReferenceUrls: "https://www.gameuidatabase.com/example\nhttps://interfaceingame.com/example",
     });
   });
 
@@ -50,6 +54,22 @@ describe("run-sim prompt arguments", () => {
       target: "Game",
       topic: "topic",
       specification: "x".repeat(50_001),
+    }],
+    ["insecure UI reference URL", {
+      target: "Game",
+      topic: "topic",
+      uiReferenceUrls: "http://gameuidatabase.com/game",
+    }],
+    ["credentialed UI reference URL", {
+      target: "Game",
+      topic: "topic",
+      uiReferenceUrls: "https://user:pass@gameuidatabase.com/game",
+    }],
+    ["too many UI reference URLs", {
+      target: "Game",
+      topic: "topic",
+      uiReferenceUrls: Array.from({length: 9}, (_, index) =>
+        `https://example.com/reference-${index}`).join("\n"),
     }],
   ])("rejects %s", (_label, input) => {
     expect(() => RunSimPromptArgumentsSchema.parse(input)).toThrow();
@@ -80,6 +100,33 @@ describe("run-sim prompt arguments", () => {
 
     expect(result).toContain('"missingChangeInputs": [\n    "currentState",\n    "proposal"\n  ]');
     expect(result.slice(0, result.indexOf("--- END REPOSITORY RECIPE ---")).trimEnd()).toBe(recipe);
+  });
+
+  it("serializes normalized UI reference URLs as data rather than recipe text", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "inventory UI",
+      domains: "ui",
+      uiBenchmarkTask: "Controller inventory equip flow",
+      uiReferenceUrls: "https://www.gameuidatabase.com/game-a#inventory, https://interfaceingame.com/game-b/",
+    });
+
+    expect(result).toContain('"uiBenchmarkTask": "Controller inventory equip flow"');
+    expect(result).toContain(
+      '"uiReferenceUrls": [\n    "https://www.gameuidatabase.com/game-a",\n    "https://interfaceingame.com/game-b/"\n  ]',
+    );
+  });
+
+  it("does not echo rejected URL credentials in validation errors", () => {
+    const parsed = RunSimPromptArgumentsSchema.safeParse({
+      target: "Game",
+      topic: "UI",
+      uiReferenceUrls: "https://secret-user:secret-pass@example.com/reference",
+    });
+
+    if (parsed.success) throw new Error("credentialed URL should be rejected");
+    expect(JSON.stringify(parsed.error)).not.toContain("secret-user");
+    expect(JSON.stringify(parsed.error)).not.toContain("secret-pass");
   });
 });
 
@@ -127,6 +174,8 @@ describe("repository prompt recipes", () => {
     expect(content).toMatch(/steam_fetch\.screenshots[\s\S]*steamstatic\.com[\s\S]*steam-image/);
     expect(content).toMatch(/タグ[\s\S]*ゲームロジック[\s\S]*断定/);
     expect(content).toMatch(/derive_personas[\s\S]*resultHandle[\s\S]*save_artifact[\s\S]*Evidence Index/);
+    expect(content).toMatch(/Game UI Database[\s\S]*uiReferenceUrls[\s\S]*provenance/);
+    expect(content).toMatch(/benchmark task[\s\S]*reference median/);
     expect(content).toMatch(/resultHandle[\s\S]*再serialize[\s\S]*抜粋/);
     expect(content).toMatch(/subagent[\s\S]*利用できない[\s\S]*sequential independent pass/);
     expect(content).toMatch(/archive[\s\S]*client-side extraction[\s\S]*prompt/);
@@ -139,6 +188,10 @@ describe("repository prompt recipes", () => {
     expect(content).toMatch(/匿名[\s\S]*正解を明かす前[\s\S]*固定/);
     expect(content).toMatch(/qualityTier[\s\S]*同等[\s\S]*出荷済み製品/);
     expect(content).toMatch(/qualityTier[\s\S]*未指定[\s\S]*default[\s\S]*設定しない/);
+    expect(content).toMatch(/Game UI Database[\s\S]*provenance artifact/);
+    expect(content).toMatch(/gap = target score - reference median/);
+    expect(content).toMatch(/static screenshot[\s\S]*unscored/);
+    expect(content).toMatch(/記憶[\s\S]*non-blind structured comparison/);
     expect(content).not.toMatch(/AAA.*default|default.*AAA/);
   });
 });

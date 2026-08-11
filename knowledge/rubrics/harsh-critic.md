@@ -31,7 +31,11 @@
 
 - UI 品質ゲートは、Selected Domains で `ui` が選択された場合だけ適用する。UI が選択外なら明示的な理由とともに N/A とし、画像やブラインド比較がないことを不合格理由にしない。
 - `ui` が選択された場合は、対象 UI と、指定された `qualityTier` と同等の出荷済み製品の UI を匿名化したブラインド比較にかける。qualityTier が未指定なら、比較基準を仮定せず確認する。
+- 比較前に具体的なbenchmark taskを固定し、同じscreen state、platform、controls、近い情報量の出荷済みreferenceを2〜4本揃える。Game UI DatabaseやInterface In Gameの掲載・人気だけでcohortを選ばず、source URL、accessedAt、game、screen state、capture IDを保存したprovenance artifactがないreferenceは差し戻す。
 - 評価者は正解開示前に、階層、可読性、密度、状態表現、入力フィードバック、一貫性の判定を固定する。
+- referenceを選んだ同じmodelがgame名や対応表を記憶したまま評価したのにblind comparisonと称した場合は差し戻す。memoryを隔離できないclientでは `non-blind structured comparison` とし、confidenceをhighにしない。
+- 正解開示後に `ui-quality-gap.md` の0〜4 anchorでreference中央値と `gap = target - median` を軸別に示す。unscoredを0にした場合、単一の美観総合点だけで実力差を断定した場合、人気・売上・ブランド知名度をUI品質へ変換した場合は差し戻す。
+- static screenshotしかないのにmotion、latency、controller feel、未表示のhover / focus / disabled / loading / errorを採点した場合は差し戻す。video、連続capture、または実操作証拠がなければunscoredとする。
 - 単なる装飾追加を修正とせず、負けた評価軸とスクリーンショット上の位置を修正指示にする。
 - UI が選択されているのに比較画像を取得できない場合は合格にせず、手動配置先を示して「根拠不足」とする。
 

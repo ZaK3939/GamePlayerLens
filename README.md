@@ -107,6 +107,8 @@ UI の change 相談:
   "mode": "change",
   "domains": "ui",
   "uiUrl": "http://127.0.0.1:4173/inventory",
+  "uiBenchmarkTask": "Controllerでinventoryを開き、武器性能を比較して装備する",
+  "uiReferenceUrls": "https://www.gameuidatabase.com/\nhttps://interfaceingame.com/screenshots/",
   "currentState": "Tabs are text-only across the top; item details open in a modal.",
   "proposal": "Replace tabs with a left icon rail and persistent right-side details.",
   "competitors": "Hades II, Dead Cells",
@@ -114,7 +116,7 @@ UI の change 相談:
 }
 ```
 
-`mode=change` では `currentState` と `proposal` が必要です。不足時は評価開始前に確認質問を行う recipe になります。`domains` は `gameplay,storefront,ui,price,localization,competition` の comma-separated list または `auto` です。UI が scope 外なら capture、blind compare、UI gate は N/A であり、不合格理由にはなりません。
+`mode=change` では `currentState` と `proposal` が必要です。不足時は評価開始前に確認質問を行う recipe になります。`domains` は `gameplay,storefront,ui,price,localization,competition` の comma-separated list または `auto` です。`uiReferenceUrls` は改行またはcomma区切りのcredentialなしHTTPS URLを最大8件受け、重複とfragmentを除去します。UI が scope 外なら capture、blind compare、UI gate は N/A であり、不合格理由にはなりません。
 
 ### 分析できる範囲
 
@@ -122,10 +124,18 @@ UI の change 相談:
 |---|---|---|
 | `gameplay` | コアループ、目標、進行、失敗→再挑戦、継続動機 | tagsやレビューだけでは内部コード・状態遷移・数式の正しさを断定しない |
 | `storefront` | 英/日/独のrequested-locale copy、価値提案、screenshots、Steam Sonar dashboard、競合との期待差 | Steam fallbackの可能性を残し、未取得リンク先を根拠扱いしない |
-| `ui` | captureの階層、可読性、密度、状態、入力feedback | 画像なしで視覚品質を断定しない |
+| `ui` | matched cohortに対するtask clarity、階層、可読性、密度、状態、入力feedback、accessibility、production finishの軸別gap | static画像だけでmotion・latency・controller feel・未表示stateを断定しない |
 | `price` | US/JP/DE現在価格、値引き、任意のITAD履歴、購入タイミング | 現在価格から過去傾向を推測しない |
 | `localization` | 対応言語、localized store copy、対象言語レビュー、ゲーム内capture | 対応言語一覧だけで翻訳品質・文化適合・フォント品質を断定しない |
 | `competition` | tag交差、同一項目のstorefront/gameplay proxy/価格/review比較 | tag一致だけを最終的な類似性としない |
+
+### UI実力差の比較
+
+UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interface In Game](https://interfaceingame.com/screenshots/) などを、出荷済みreference候補の探索に使います。Game UI Databaseのscreen type、controls、HUD elements、layout、texture、patterns、color、font size、icon usage、colorblind visualizer、video flowを比較条件へ使います。ただしcatalog掲載、like数、人気順、ゲーム売上はUI品質の根拠ではありません。
+
+比較前に `uiBenchmarkTask` をplayerの目的・開始状態・完了状態として固定し、同じscreen state、platform、controls、近い情報量、指定qualityTierのreferenceを2〜4本選びます。各referenceはsource page URL、accessedAt、game、screen state、platform、controls、static/video、capture ID、cohort選定理由を `save_artifact(kind=intel, sourceTool=manual)` で保存します。Game UI Databaseの公開APIやbulk scrapingを仮定せず、robots、認証、利用条件、download制限を回避しません。通常page captureが使えない場合は、権利上利用可能な画像を `knowledge/ui-references/` へ手動配置します。
+
+画像は出自を隠してpre-reveal採点を固定し、開示後に8軸の `gap = target score - reference median` を計算します。0〜4はordinal anchorで、未検証軸は0ではなく `unscored` です。`gap <= -1` をmaterial deficitとして優先しますが、conversion、retention、売上の因果効果には変換しません。同じmodelがreference identityを既に見てmemoryを隔離できない場合はblindと称さず、`non-blind structured comparison` としてconfidenceを制限します。詳細な判定境界は `get_knowledge(kind=rubrics, id=ui-quality-gap.md)` で取得できます。
 
 ## Tools
 
