@@ -88,7 +88,15 @@ function safeSlug(displayName: string): string {
 }
 
 function validateEvaluationDate(date: string): void {
-  if (!EVALUATION_DATE.test(date)) {
+  const parsed = EVALUATION_DATE.test(date)
+    ? new Date(`${date}T00:00:00.000Z`)
+    : null;
+  if (
+    !parsed
+    || Number.isNaN(parsed.getTime())
+    || parsed.toISOString().slice(0, 10) !== date
+    || date.startsWith("0000-")
+  ) {
     throw new Error("invalid evaluation date");
   }
 }
