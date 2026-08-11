@@ -55,7 +55,9 @@ describe("artifact kinds", () => {
     expect(ImageArtifactKindSchema.options).toEqual(["capture", "ui-reference"]);
     expect(AnyArtifactKindSchema.parse("capture")).toBe("capture");
     expect(AnyArtifactKindSchema.parse("evaluation")).toBe("evaluation");
+    expect(AnyArtifactKindSchema.parse("run")).toBe("run");
     expect(() => ArtifactKindSchema.parse("capture")).toThrow();
+    expect(() => ArtifactKindSchema.parse("run")).toThrow();
   });
 });
 

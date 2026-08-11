@@ -14,6 +14,7 @@ export type CaptureImageExtension = "png" | "jpg";
 const PERSONA_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 const KNOWLEDGE_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
 const EVALUATION_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EXTENSIONS: Record<KnowledgeKind, ReadonlySet<string>> = {
   personas: new Set([".json"]),
   templates: new Set([".md"]),
@@ -126,6 +127,7 @@ export interface PathResolver {
     date: string,
     topic: string,
   ): ResolvedEvaluationPath;
+  resolveRunPath(target: string, runId: string): ResolvedRunPath;
   resolveCaptureReadPath(
     id: string,
     extension?: CaptureImageExtension,
@@ -146,6 +148,11 @@ export interface ResolvedIntelArtifactPath extends ResolvedPath {
 export interface ResolvedEvaluationPath extends ResolvedPath {
   targetId: string;
   topicId: string;
+}
+
+export interface ResolvedRunPath extends ResolvedPath {
+  targetId: string;
+  runId: string;
 }
 
 export interface ResolvedImagePath extends ResolvedPath {
@@ -267,6 +274,18 @@ function createSplitPathResolver(
       return {targetId, topicId, ...resolvedPath(absolutePath)};
     },
 
+    resolveRunPath(target, runId) {
+      const targetId = safeSlug(target);
+      if (!RUN_ID.test(runId)) throw new Error("invalid simulation run id");
+      const canonicalRunId = runId.toLowerCase();
+      const absolutePath = resolveIn(
+        root,
+        "workspaces",
+        join(targetId, "runs", `${canonicalRunId}.json`),
+      );
+      return {targetId, runId: canonicalRunId, ...resolvedPath(absolutePath)};
+    },
+
     resolveCaptureReadPath(id, extension = "png") {
       const canonicalId = safeSlug(id);
       const absolutePath = resolveIn(
@@ -337,6 +356,7 @@ export function initializePackagedPaths(
   resolver.resolveCaptureReadPath("startup-probe");
   resolver.resolveUiReferencePath("startup-probe");
   resolver.resolveEvaluationPath("startup-probe", "2000-01-01", "startup-probe");
+  resolver.resolveRunPath("startup-probe", "00000000-0000-4000-8000-000000000000");
   return resolver;
 }
 
@@ -411,6 +431,10 @@ export function resolveEvaluationPath(
   topic: string,
 ): ResolvedEvaluationPath {
   return getDefaultResolver().resolveEvaluationPath(target, date, topic);
+}
+
+export function resolveRunPath(target: string, runId: string): ResolvedRunPath {
+  return getDefaultResolver().resolveRunPath(target, runId);
 }
 
 export function resolveCaptureReadPath(

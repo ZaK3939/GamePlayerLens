@@ -171,6 +171,15 @@ try {
     Array.isArray(structuredData(artifactTargets)),
     "get_artifact did not return a read-only evaluation target list",
   );
+  const runTargets = await client.callTool({
+    name: "get_artifact",
+    arguments: {kind: "run"},
+  });
+  assert(runTargets.isError !== true, "get_artifact run listing returned a tool error");
+  assert(
+    Array.isArray(structuredData(runTargets)),
+    "get_artifact did not return a read-only run target list",
+  );
 
   let liveSearch = false;
   let liveDiscovery = false;
@@ -243,6 +252,7 @@ try {
     liveSearch,
     liveDiscovery,
     liveResultHandles,
+    runListing: true,
     protocolErrors: protocolErrors.length,
   };
 } catch (error) {

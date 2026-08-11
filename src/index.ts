@@ -41,6 +41,11 @@ import {
   type ResultEnvelope,
   type ResultStore,
 } from "./results.js";
+import {
+  SaveRunInputBaseSchema,
+  createRunStore,
+  type RunStore,
+} from "./runs.js";
 import {fetchGame, searchGames} from "./steam.js";
 import {fetchTimeline} from "./timeline.js";
 
@@ -79,6 +84,10 @@ const SaveArtifactInputSchema = z.union([
     ...SaveEvaluationInputSchema.shape,
     overwrite: z.boolean().optional(),
   }).strict(),
+  z.object({
+    kind: z.literal("run"),
+    ...SaveRunInputBaseSchema.shape,
+  }).strict(),
 ]);
 const GetArtifactInputSchema = z.object({
   kind: AnyArtifactKindSchema,
@@ -99,6 +108,7 @@ export interface ServerServices {
   readKnowledge: KnowledgeReader;
   readSkill(id: string): Promise<string>;
   artifactStore: ArtifactStore;
+  runStore: RunStore;
   imageService: ImageService;
   resultStore: ResultStore;
 }
@@ -151,6 +161,7 @@ function createServerServices(overrides: Partial<ServerServices>): ServerService
     readKnowledge: createKnowledgeReader(resolver, personaStore),
     readSkill: (id) => readFile(resolver.resolveSkillPath(id), "utf8"),
     artifactStore: createArtifactStore(resolver),
+    runStore: createRunStore(resolver),
     imageService: createImageService(resolver),
     resultStore: createResultStore(),
   };
@@ -323,7 +334,7 @@ export function buildServer(
   server.registerTool(
     "save_artifact",
     {
-      description: "Atomically save intel from an exact ephemeral resultHandle (preferred) or a caller-provided payload, or save evaluation Markdown",
+      description: "Atomically save intel from an exact ephemeral resultHandle (preferred) or a caller-provided payload, save evaluation Markdown, or seal an immutable simulation run with hashed evidence",
       inputSchema: SaveArtifactInputSchema,
       outputSchema: ResultEnvelopeSchema,
     },
@@ -349,9 +360,16 @@ export function buildServer(
           warnings: [],
         });
       }
-      const {kind: _kind, overwrite, ...artifact} = input;
+      if (input.kind === "evaluation") {
+        const {kind: _kind, overwrite, ...artifact} = input;
+        return jsonEnvelope({
+          data: await services.artifactStore.saveEvaluation(artifact, {overwrite}),
+          warnings: [],
+        });
+      }
+      const {kind: _kind, ...run} = input;
       return jsonEnvelope({
-        data: await services.artifactStore.saveEvaluation(artifact, {overwrite}),
+        data: await services.runStore.saveRun(run),
         warnings: [],
       });
     },
@@ -360,31 +378,37 @@ export function buildServer(
   server.registerTool(
     "get_artifact",
     {
-      description: "For intel/evaluation, omit target to list targets, use target without id to list item metadata, and use target+id to read JSON/Markdown; id without target is invalid. For capture/ui-reference, target is invalid, omit id to list PNG metadata, and use id to read metadata plus optional MCP ImageContent.",
+      description: "For intel/evaluation/run, omit target to list targets, use target without id to list item metadata, and use target+id to read the saved record; id without target is invalid. For capture/ui-reference, target is invalid, omit id to list image metadata, and use id to read metadata plus optional MCP ImageContent.",
       inputSchema: GetArtifactInputSchema,
       outputSchema: ResultEnvelopeSchema,
     },
     async ({kind, target, id}) => {
-      if (kind === "intel" || kind === "evaluation") {
+      if (kind === "intel" || kind === "evaluation" || kind === "run") {
         if (id !== undefined && target === undefined) {
-          throw new Error("target is required when reading a text artifact");
+          throw new Error("target is required when reading a target-scoped artifact");
         }
         if (target === undefined) {
           return jsonEnvelope({
-            data: await services.artifactStore.listTargets(kind),
+            data: kind === "run"
+              ? await services.runStore.listTargets()
+              : await services.artifactStore.listTargets(kind),
             warnings: [],
           });
         }
         if (id === undefined) {
           return jsonEnvelope({
-            data: await services.artifactStore.listArtifacts(kind, target),
+            data: kind === "run"
+              ? await services.runStore.listRuns(target)
+              : await services.artifactStore.listArtifacts(kind, target),
             warnings: [],
           });
         }
         return jsonEnvelope({
-          data: kind === "intel"
-            ? await services.artifactStore.readIntel(target, id)
-            : await services.artifactStore.readEvaluation(target, id),
+          data: kind === "run"
+            ? await services.runStore.readRun(target, id)
+            : kind === "intel"
+              ? await services.artifactStore.readIntel(target, id)
+              : await services.artifactStore.readEvaluation(target, id),
           warnings: [],
         });
       }

@@ -138,6 +138,23 @@ describe("safe paths", () => {
     });
   });
 
+  it("resolves immutable simulation runs under a target runs directory", () => {
+    const resolver = createPathResolver(root);
+    const runId = "11111111-1111-4111-8111-111111111111";
+
+    expect(resolver.resolveRunPath("Hádès II", runId)).toEqual({
+      targetId: "hades-ii",
+      runId,
+      absolutePath: join(
+        resolver.root,
+        `workspaces/hades-ii/runs/${runId}.json`,
+      ),
+      relativePath: `workspaces/hades-ii/runs/${runId}.json`,
+    });
+    expect(() => resolver.resolveRunPath("Hades II", "../run.json")).toThrow();
+    expect(() => resolver.resolveRunPath("../escape", runId)).toThrow();
+  });
+
   it("preserves Japanese letters in evaluation target and topic ids", () => {
     const resolver = createPathResolver(root);
     const result = resolver.resolveEvaluationPath(

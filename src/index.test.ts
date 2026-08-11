@@ -592,7 +592,7 @@ describe("MCP server contract", () => {
       const save = tools.save_artifact!.inputSchema as Record<string, unknown>;
       expect(save.properties).toBeUndefined();
       const branches = (save.oneOf ?? save.anyOf) as Array<Record<string, unknown>>;
-      expect(branches).toHaveLength(3);
+      expect(branches).toHaveLength(4);
       expect(branches.map((branch) => {
         const kind = schemaProperty(branch, "kind");
         return {
@@ -616,10 +616,43 @@ describe("MCP server contract", () => {
           fields: ["kind", "target", "topic", "date", "content", "overwrite"],
           required: ["kind", "target", "topic", "content"],
         },
+        {
+          kind: "run",
+          fields: [
+            "kind",
+            "target",
+            "topic",
+            "mode",
+            "selectedDomains",
+            "model",
+            "scenarios",
+            "personaIds",
+            "evidence",
+            "rounds",
+            "warnings",
+            "confidence",
+            "finalEvaluationRef",
+          ],
+          required: [
+            "kind",
+            "target",
+            "topic",
+            "mode",
+            "selectedDomains",
+            "model",
+            "scenarios",
+            "personaIds",
+            "evidence",
+            "rounds",
+            "warnings",
+            "confidence",
+            "finalEvaluationRef",
+          ],
+        },
       ]);
 
       expect(tools.get_artifact!.description).toBe(
-        "For intel/evaluation, omit target to list targets, use target without id to list item metadata, and use target+id to read JSON/Markdown; id without target is invalid. For capture/ui-reference, target is invalid, omit id to list PNG metadata, and use id to read metadata plus optional MCP ImageContent.",
+        "For intel/evaluation/run, omit target to list targets, use target without id to list item metadata, and use target+id to read the saved record; id without target is invalid. For capture/ui-reference, target is invalid, omit id to list image metadata, and use id to read metadata plus optional MCP ImageContent.",
       );
     } finally {
       await client.close();
@@ -884,6 +917,175 @@ describe("MCP server contract", () => {
     }
   });
 
+  it("seals and replays a simulation run through save_artifact and get_artifact", async () => {
+    const {client, server} = await createHarness();
+    try {
+      await client.callTool({
+        name: "save_persona",
+        arguments: {persona: persona()},
+      });
+      await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Hades II",
+          id: "Store Profile",
+          sourceTool: "steam_fetch",
+          observedAt: "2026-08-11T08:00:00.000Z",
+          payload: {appid: 1145350, price: {jp: 3400, us: 29.99}},
+        },
+      });
+      await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "evaluation",
+          target: "Hades II",
+          topic: "Store Promise",
+          date: "2026-08-11",
+          content: "# Evaluation\n\nTest the proposal before claiming lift.",
+        },
+      });
+
+      const saved = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "run",
+          target: "Hades II",
+          topic: "Store promise",
+          mode: "change",
+          selectedDomains: ["storefront"],
+          model: {provider: "OpenAI", name: "GPT-5", version: "test"},
+          scenarios: [
+            {id: "current", label: "Current", specification: "Current store promise"},
+            {id: "proposal", label: "Proposal", specification: "Sharper combat promise"},
+          ],
+          personaIds: ["mcp-round-trip"],
+          evidence: [
+            {ref: "profile", kind: "intel", target: "Hades II", id: "Store Profile"},
+            {
+              ref: "evaluation",
+              kind: "evaluation",
+              target: "Hades II",
+              id: "2026-08-11-store-promise",
+            },
+          ],
+          rounds: [
+            {
+              sequence: 1,
+              phase: "persona",
+              actor: "mcp-round-trip",
+              personaId: "mcp-round-trip",
+              scenarioId: "current",
+              output: "The current promise is understandable but generic.",
+              evidenceRefs: ["profile"],
+            },
+            {
+              sequence: 2,
+              phase: "persona",
+              actor: "mcp-round-trip",
+              personaId: "mcp-round-trip",
+              scenarioId: "proposal",
+              output: "The proposal gives me a clearer reason to try it.",
+              evidenceRefs: ["profile"],
+            },
+            {
+              sequence: 3,
+              phase: "domain",
+              actor: "storefront-reviewer",
+              domain: "storefront",
+              scenarioId: "proposal",
+              output: "The value proposition is more differentiated.",
+              evidenceRefs: ["profile"],
+            },
+            {
+              sequence: 4,
+              phase: "critic",
+              actor: "harsh-critic",
+              output: "This predicts direction, not measured conversion lift.",
+              evidenceRefs: ["profile", "evaluation"],
+            },
+            {
+              sequence: 5,
+              phase: "synthesis",
+              actor: "lead-synthesizer",
+              output: "Run the proposed store promise as a measured experiment.",
+              evidenceRefs: ["profile", "evaluation"],
+            },
+          ],
+          warnings: ["No observed post-change telemetry"],
+          confidence: {
+            level: "medium",
+            basis: "Store metadata and review-grounded persona evidence",
+            calibrationStatus: "not-calibrated",
+          },
+          finalEvaluationRef: "evaluation",
+        },
+      });
+      expect(saved.isError).not.toBe(true);
+      expect(saved.structuredContent).toMatchObject({
+        data: {
+          targetId: "hades-ii",
+          id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          mode: "change",
+          roundCount: 5,
+          evidenceCount: 2,
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        },
+        warnings: [],
+      });
+      const runId = (saved.structuredContent?.data as {id: string}).id;
+
+      const targets = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "run"},
+      });
+      expect(targets.structuredContent).toEqual({data: ["hades-ii"], warnings: []});
+
+      const listed = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "run", target: "Hades II"},
+      });
+      expect(listed.structuredContent).toMatchObject({
+        data: [{id: runId, roundCount: 5, evidenceCount: 2}],
+        warnings: [],
+      });
+      expect(JSON.stringify(listed.structuredContent)).not.toContain(
+        "This predicts direction",
+      );
+
+      const read = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "run", target: "Hades II", id: runId},
+      });
+      expect(read.isError).not.toBe(true);
+      expect(read.structuredContent).toMatchObject({
+        data: {
+          metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
+          record: {
+            runId,
+            targetId: "hades-ii",
+            recipe: {path: "skills/run-sim.md", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
+            model: {name: "GPT-5", reportedByClient: true},
+            evidence: [
+              expect.objectContaining({ref: "profile", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
+              expect.objectContaining({ref: "evaluation", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
+            ],
+            rounds: expect.arrayContaining([
+              expect.objectContaining({output: "This predicts direction, not measured conversion lift."}),
+            ]),
+            confidence: {calibrationStatus: "not-calibrated", reportedByClient: true},
+            finalEvaluationRef: "evaluation",
+          },
+        },
+        warnings: [],
+      });
+      expect(JSON.parse(resultText(read))).toEqual(read.structuredContent);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("does not overwrite an artifact unless overwrite is true", async () => {
     const {client, server} = await createHarness();
     const base = {
@@ -922,6 +1124,7 @@ describe("MCP server contract", () => {
   it.each([
     {kind: "intel", id: "missing-target"},
     {kind: "evaluation", id: "2026-08-11-topic"},
+    {kind: "run", id: "11111111-1111-4111-8111-111111111111"},
     {kind: "capture", target: "not-allowed"},
     {kind: "ui-reference", target: "not-allowed", id: "hero"},
     {kind: "unknown"},

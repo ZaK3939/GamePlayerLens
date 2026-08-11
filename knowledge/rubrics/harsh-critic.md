@@ -54,7 +54,15 @@
 - 現在 CCU は取得時点のスナップショットとして扱い、過去トレンドや因果を捏造しないこと。
 - Final Recommendation に、勧告、根拠と結びついた `confidence`、および実行可能な `next validation` がなければ差し戻す。
 
-## 8. 反復と停止条件
+## 8. 再現性と calibration ゲート
+
+- 最終 evaluation の保存後に、同じ `save_artifact` の kind=`run` で immutable な run artifact を保存できない場合は完了として扱わない。
+- run artifact に Mode と全 scenario、Selected Domains、使用した persona ID、全 independent pass の連続した rounds、warning、最終 evaluation 参照がなければ差し戻す。change で現状または変更案の round が欠ける場合、選択領域に対応する round がない場合も差し戻す。
+- serverが記録する `recipe SHA-256`、各 persona と `evidence SHA-256` により、使用時点の recipe と根拠を固定する。pathだけ、deep linkだけ、未保存のtool出力だけを evidence として渡した run は差し戻す。
+- model と confidence の `reportedByClient=true` はクライアント申告であってserverによるモデル同定や品質保証ではない。この境界をレポートで逆転させた場合は差し戻す。
+- `calibrationStatus` は実測結果との比較範囲を表す。予測対象、判定基準、観測結果を対応付けた実測がないのに `calibrated` とした場合は差し戻す。実測比較がなければ `not-calibrated`、一部だけなら `partially-calibrated` とし、confidenceの理由に未検証範囲を残す。
+
+## 9. 反復と停止条件
 
 選択された全領域の subagent が上記ゲートに合格するまで、修正、再評価、辛口批評を繰り返します。ただし同一指摘が、同じ欠損データのため2回続けて解消できない場合は、無限に書き換えません。「根拠不足として停止」と記録し、必要な外部データ、担当者判断、または実験を具体化して終了します。
 

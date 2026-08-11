@@ -1,6 +1,6 @@
 # steam-user-sim v1.1 User-Complete Workflow Implementation Plan
 
-**Status:** Approved, not started
+**Status:** Implemented. Replayable run-ledger follow-up added 2026-08-11.
 **Design:** [v1.1 user workflow design](../specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)
 
 ## Goal
@@ -19,6 +19,10 @@
 - 決定的テストは外部HTTP client全体をmockせず、正規化とservice dependencyをfixtureで検証する。
 - live appidはHades 1145360。SteamSpy tag live smokeはAction Roguelike。
 - 各Taskはfailing test、implementation、pass gate、1 commitの順。
+
+## Implemented follow-up: replayable simulation run ledger
+
+11-tool surfaceを維持したまま、`save_artifact` / `get_artifact` に kind=`run` を追加した。clientが実行したsimulationのscenarios、domains、persona、保存済みevidence、全round出力、warning、confidence、最終evaluationを、server側で参照検証して `workspaces/{targetId}/runs/{runId}.json` にimmutable保存する。recordは使用時点のrecipe、persona、evidenceのSHA-256とclient-reported model/calibration境界を持つ。unit、in-memory MCP、stdio/package smokeで保存・一覧・再読込を検証する。
 
 ---
 

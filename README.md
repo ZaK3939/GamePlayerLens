@@ -47,7 +47,7 @@ MCPクライアントからは次の設定で起動します。
 }
 ```
 
-配布版CLIはcanonical template、rubric、recipeをnpm packageから読み、生成するpersona、intel、capture、evaluationをデフォルトで `~/.game-player-lens/` に保存します。保存先を変える場合は、MCP server環境へ絶対パスの `GAME_PLAYER_LENS_HOME` を設定してください。インストール先の `node_modules` にはユーザーデータを書きません。
+配布版CLIはcanonical template、rubric、recipeをnpm packageから読み、生成するpersona、intel、capture、evaluation、simulation runをデフォルトで `~/.game-player-lens/` に保存します。保存先を変える場合は、MCP server環境へ絶対パスの `GAME_PLAYER_LENS_HOME` を設定してください。インストール先の `node_modules` にはユーザーデータを書きません。
 
 接続確認はリポジトリルートで実行します。
 
@@ -57,7 +57,7 @@ pnpm smoke:stdio
 pnpm smoke:stdio --live
 ```
 
-`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 11 tools、2 prompts、prompt arguments、canonical knowledge、read-only artifact list、protocol の正常終了を検証します。`--live` はさらに `steam_search` と `steam_discover` を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
+`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 11 tools、2 prompts、prompt arguments、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで persona・intel・evaluationを作り、simulation runの封印と再読込まで確認します。`--live` はさらに `steam_search` と `steam_discover` を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
 
 ## 任意設定
 
@@ -142,8 +142,8 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `ui_capture` | 通常ページをObscuraでPNG capture、またはSteam CDN画像をJPEG保存し、上限内なら `ImageContent` も返す |
 | `get_knowledge` | canonical templates、rubrics、personas、互換用 intel を一覧・取得 |
 | `steam_discover` | SteamSpy のtag/genreを単独検索、または最大4条件で交差して競合候補を取得 |
-| `save_artifact` | intel JSON または evaluation Markdown を安全かつ原子的に保存 |
-| `get_artifact` | intel、evaluation、capture、ui-reference を一覧または読出し |
+| `save_artifact` | intel JSON、evaluation Markdown、またはハッシュ付き immutable simulation run を安全に保存 |
+| `get_artifact` | intel、evaluation、run、capture、ui-reference を一覧または読出し |
 
 外部取得 tool は `{data, warnings, meta?}` を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。入力違反と path 境界違反は tool error です。
 
@@ -177,30 +177,33 @@ v1.1 の tool surface は次の exactly 11 tools です。
 
 ### `save_artifact` / `get_artifact`
 
-`save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`observedAt`、`payload` を直接渡す方式も維持します。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。どの方式も `overwrite` の default は `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
+`save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`observedAt`、`payload` を直接渡す方式も維持します。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
+
+`kind=run` は、evaluation 保存後に simulation を再生・監査するための ledger を封印します。Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済み evidence refs、連続した各 pass の rounds、warnings、confidence / `calibrationStatus`、最終 evaluation ref を受けます。サーバーは参照先を実際に読み、persona・evidence・現在の `skills/run-sim.md` の SHA-256 と `reportedByClient=true` を記録して、UUIDごとの JSON を作ります。run は常に immutable で、overwrite入力はありません。これは同じ入力からモデル出力が決定的に再生成されるという保証ではなく、「どのrecipe・根拠・申告モデルから、どのround出力を得たか」を後から検証する記録です。
 
 `get_artifact` は read-only で、list/read semantics は次のとおりです。
 
 | kind | arguments | 結果 |
 |---|---|---|
-| `intel` / `evaluation` | `target` なし | target ID 一覧 |
-| `intel` / `evaluation` | `target` あり、`id` なし | artifact metadata 一覧 |
-| `intel` / `evaluation` | `target` と `id` あり | JSON / Markdown 内容 |
+| `intel` / `evaluation` / `run` | `target` なし | target ID 一覧 |
+| `intel` / `evaluation` / `run` | `target` あり、`id` なし | artifact metadata 一覧（run本文・round出力は含めない） |
+| `intel` / `evaluation` / `run` | `target` と `id` あり | JSON / Markdown / run metadata＋record |
 | `capture` / `ui-reference` | `id` なし | 画像 metadata 一覧（captureはPNG/JPEG、ui-referenceはPNG） |
 | `capture` / `ui-reference` | `id` あり | metadata と、6 MiB 以下の有効な画像なら `ImageContent` |
 
-text artifact の `id` 単独指定と、image artifact の `target` 指定は無効です。一覧 metadata は canonical ID、repo-relative path、size、更新時刻を返します。画像は client filesystem access なしで読めます。
+target-scoped artifact の `id` 単独指定と、image artifact の `target` 指定は無効です。一覧 metadata は canonical ID、repo-relative path、size、更新時刻を返します。画像は client filesystem access なしで読めます。
 
 ## Artifact layout
 
 ```text
 knowledge/intel/{targetId}/{artifactId}.json
 workspaces/{targetId}/{date}-{topicId}.md
+workspaces/{targetId}/runs/{runId}.json
 knowledge/intel/captures/{captureId}.{png|jpg}
 knowledge/ui-references/{referenceId}.png
 ```
 
-入力された表示名は安全な canonical ID へ正規化され、tool result に repo-relative path が返ります。任意 path、traversal、symlink 経由の root 外アクセスは受け付けません。intel payload は最大 1 MiB、evaluation は最大 512 KiB、inline imageは最大 6 MiB です。
+入力された表示名は安全な canonical ID へ正規化され、tool result に repo-relative path が返ります。任意 path、traversal、symlink 経由の root 外アクセスは受け付けません。intel payload は最大 1 MiB、evaluation は最大 512 KiB、run record は最大 2 MiB、inline imageは最大 6 MiB です。
 
 repo内の直接起動では上記layoutの起点はrepository rootです。npm `bin`では `GAME_PLAYER_LENS_HOME`、未設定なら `~/.game-player-lens` が起点です。toolが返すpathは、どちらの実行方式でもそのdata rootからの相対パスです。
 

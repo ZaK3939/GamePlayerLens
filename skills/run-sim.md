@@ -26,7 +26,9 @@
 6. 競合 appid 群を `derive_personas` に渡します。通常の3〜5 personaでは `reviewsPerPolarity=8`、レビュー根拠を広く監査するときだけ最大25を使います。返り値のmeta.resultHandleを使い、派生素材パック原本を即座に `save_artifact` で保存し、返されたrepository-relative pathをEvidence Indexへ記録します。resultHandleがなく1 MiB制限で完全保存できない場合は`reviewsPerPolarity`を下げて再実行し、一部省略や抜粋に置き換えません。保存済みの schema とレビュー出典から指定件数の異なる persona JSON を生成し、その後に各 JSON を `save_persona` で保存します。`derive_personas` → resultHandleで原本保存 → `save_persona` の順序を逆にしてはいけません。
 7. 選択された領域ごとの subagent に、同一の対象仕様・変更案・intel・persona を渡して独立評価させます。subagent が利用できないクライアントでは、同じ領域分離を保った sequential independent pass として順番に実行します。各主張に取得値または voice の recommendation ID を付け、別領域の結論を先入観として持ち込みません。
 8. `ui` が選択された場合だけ `ui-blind-compare` の手順で対象 UI と比較画像を評価し、正解開示前の判定を固定します。続いて harsh-critic rubric で選択領域だけを審査し、差し戻しを修正します。同一の根拠欠損が反復したら rubric の停止条件に従います。UI 選択外では blind comparison と UI gate は N/A です。
-9. `knowledge/templates/adoption-eval.md` を埋め、baseline は現状単独、change は「現状 vs 変更案」で記述します。完成した Markdown は `save_artifact` の kind=`evaluation` で保存し、返された `workspaces/<target>/<date>-<topic>.md` 形式の repo-relative path をユーザーへ報告します。
+9. `knowledge/templates/adoption-eval.md` を埋め、baseline は現状単独、change は「現状 vs 変更案」で記述します。完成した Markdown は `save_artifact` の kind=`evaluation` で保存し、返された `workspaces/<target>/<date>-<topic>.md` 形式の repo-relative path を Evidence として保持します。
+10. 最終 evaluation を保存した後、同じ `save_artifact` を kind=`run` で呼び、再実行可能な run ledger を封印します。`target`、`topic`、`mode`、`selectedDomains`、実行クライアントが申告する `model`、baseline なら現状1件・change なら現状と変更案を含む `scenarios`、使用した `personaIds`、保存済み artifact を指す一意な `evidence`、実行順が1から連続する `rounds`、すべての warning、根拠と結びついた `confidence`、最終 evaluation を指す `finalEvaluationRef` を渡します。`rounds` には persona、選択領域、harsh critic、最終 synthesis の各 independent pass の出力を要約し直さず、そのまま記録し、各 scenario と Selected Domain を少なくとも1 roundで参照します。各 round の `evidenceRefs` はその判断に実際に使った evidence だけを指定します。
+11. `model` と `confidence` はクライアント申告値であり、サーバーが検証した値だと表現してはいけません。実測の予測結果と比較していない通常の実行は `calibrationStatus=not-calibrated` とし、一部だけ比較した場合だけ `partially-calibrated`、対象条件と判定基準を定めた実測比較がある場合だけ `calibrated` とします。サーバーは保存時に model と confidence へ `reportedByClient=true` を付け、persona、evidence、現在の `skills/run-sim.md` の正確な bytes を SHA-256 で記録し、UUID の immutable JSON を `workspaces/<target>/runs/<run-id>.json` に作ります。参照先の欠落、schema不整合、同じrun ID、2 MiB超過では保存に失敗します。失敗時は完了扱いにせず、参照を修正して再実行します。
 
 ## 完了条件
 
@@ -34,4 +36,5 @@
 - 利用した tool の役割を混同せず、外部 warning と根拠不足をレポートに残した。
 - ペルソナ発言に `source_appid` と `recommendation_id` がある。
 - Flow Summary と Overall Assessment が領域別所見と矛盾しない。
-- `save_artifact` で保存した evaluation の repo-relative path と、次に検証すべき未解決事項を報告した。
+- `save_artifact` で保存した evaluation の repo-relative path、run ID、`workspaces/<target>/runs/<run-id>.json` の repo-relative path、および次に検証すべき未解決事項を報告した。
+- run artifact に、全 scenario、Selected Domains、使用 persona、保存済み evidence、連続した全 rounds、warning、最終 evaluation、クライアント申告 model、`calibrationStatus` が入り、一覧では本文を漏らさず metadata だけを返せる。

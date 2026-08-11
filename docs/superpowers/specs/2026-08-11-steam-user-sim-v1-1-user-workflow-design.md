@@ -1,6 +1,6 @@
 # steam-user-sim v1.1 User-Complete Workflow Design
 
-**Status:** Approved direction, implementation pending
+**Status:** Implemented; replayable run-ledger follow-up implemented 2026-08-11
 **Date:** 2026-08-11
 
 ## Goal
@@ -36,8 +36,8 @@ v1.1で直接受ける対象入力は仕様テキストとHTTP(S) URL。zipはMC
 | ui_capture | pageをPNG capture、Steam CDN画像をJPEG保存し、上限内ならImageContentを同じresultへ含める |
 | get_knowledge | canonical templates、rubrics、personasを取得 |
 | steam_discover | SteamSpyのtagまたはgenreから競合候補を取得 |
-| save_artifact | intel JSONまたはevaluation Markdownを安全に保存 |
-| get_artifact | intel、evaluation、capture、ui-referenceを一覧または読出し |
+| save_artifact | intel JSON、evaluation Markdown、またはimmutable simulation runを安全に保存 |
+| get_artifact | intel、evaluation、run、capture、ui-referenceを一覧または読出し |
 
 最終構成は11 tools、2 prompts。
 
@@ -47,6 +47,7 @@ v1.1で直接受ける対象入力は仕様テキストとHTTP(S) URL。zipはMC
 
 - knowledge/intel/{targetId}/{artifactId}.json
 - workspaces/{targetId}/{date}-{topicId}.md
+- workspaces/{targetId}/runs/{runId}.json
 - knowledge/intel/captures/{captureId}.png または .jpg
 - knowledge/ui-references/{referenceId}.png
 
@@ -81,11 +82,22 @@ evaluation:
 
 Markdownは512 KiB以下。既存ファイルはoverwriteが明示されない限り変更しない。保存は同一directoryの一時ファイルからatomicに確定する。
 
+run:
+
+- target、topic、mode、selectedDomains
+- client-reported model
+- baselineは1件、changeは2件以上のscenarios
+- personaIds、保存済みartifactを指すevidence refs
+- 1から連続するpersona/domain/critic/synthesis rounds
+- warnings、confidence、calibrationStatus、finalEvaluationRef
+
+サーバーはpersona、evidence、現在のrun-sim recipeを実際に読み、各exact bytesのSHA-256をrecordへ入れる。modelとconfidenceはserver attestationではないため`reportedByClient=true`を付ける。UUID run IDごとに最大2 MiBのJSONをatomicに作成し、overwriteを受け付けない。参照欠落、symlink、不正schema、record/path不一致はtool error。これにより入力と出力の監査・再生材料を固定するが、LLM出力の決定性は保証しない。
+
 ### get_artifact
 
-kindはintel、evaluation、capture、ui-reference。
+kindはintel、evaluation、run、capture、ui-reference。
 
-- intel/evaluationでtarget省略: target一覧
+- intel/evaluation/runでtarget省略: target一覧
 - targetあり、id省略: artifact一覧
 - targetとidあり: 内容取得
 - capture/ui-referenceでid省略: 画像一覧（captureはPNG/JPEG、ui-referenceはPNG）
@@ -194,7 +206,8 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 6. derive_personasの返り値もresultHandleでintel artifactとして原本保存し、Evidence Indexに追加してからsave_personaを実行。
 7. 選択domainだけ評価し、必要な場合だけUI画像を取得・比較。
 8. save_artifact kind=evaluationでレポート保存。
-9. return dataのrepo-relative pathと未解決事項をユーザーへ報告。
+9. save_artifact kind=runでscenarios、persona、evidence、全round、warning、confidence、最終evaluationをimmutable ledgerへ封印。
+10. evaluation path、run ID、run path、未解決事項をユーザーへ報告。
 
 ## Compatibility
 
@@ -210,14 +223,14 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 - Steam画像の直接取得はHTTPS `steamstatic.com` allowlist、redirect禁止、6 MiB hard limitを通す。
 - knowledge、skillsに加えworkspacesの存在をstartup時に検証する。
 - target/id/date/topicのbasename、slug、拡張子、containment、symlinkを検証する。
-- writeはatomic、overwrite default false。
-- intel JSON 1 MiB、evaluation Markdown 512 KiB、inline image 6 MiB。
+- writeはatomic。intel/evaluationはoverwrite default false、runは常にimmutable。
+- intel JSON 1 MiB、evaluation Markdown 512 KiB、run JSON 2 MiB、inline image 6 MiB。
 - JSON parse失敗、PNG/JPEG signature違反、path違反はtool error。
 - 外部APIの期待される失敗は引き続きdata、warnings、metaの部分成功。
 
 ## Non-goals
 
-- サーバー側LLMまたはrun_sim engine
+- サーバー側LLMまたはsimulation実行engine（client出力のrun ledger保存は対象）
 - サーバー側subagent orchestration
 - 任意zipの展開
 - 任意filesystem pathの読書き

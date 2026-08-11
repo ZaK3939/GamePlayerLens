@@ -124,6 +124,17 @@ describe("harsh critic rubric", () => {
     expect(content).toMatch(/matchesEnglishCopy=true[\s\S]*fallback[\s\S]*翻訳品質/);
     expect(content).toMatch(/matchesEnglishCopy=false[\s\S]*fallback[\s\S]*断定/);
   });
+
+  it("requires an immutable replay ledger without overstating calibration", async () => {
+    const content = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(content).toContain("run artifact");
+    expect(content).toContain("recipe SHA-256");
+    expect(content).toContain("evidence SHA-256");
+    expect(content).toContain("reportedByClient");
+    expect(content).toContain("calibrationStatus");
+    expect(content).toMatch(/実測[\s\S]*calibrated[\s\S]*差し戻す/);
+  });
 });
 
 describe("MCP prompt source recipes", () => {
@@ -156,6 +167,20 @@ describe("MCP prompt source recipes", () => {
 
     expect(completion).toContain("evaluation");
     expect(completion).toContain("repo-relative path");
+    expect(completion).toContain("run ID");
+    expect(completion).toContain("workspaces/<target>/runs/");
+  });
+
+  it("seals replay inputs, exact rounds, and calibration claims as a run artifact", async () => {
+    const content = await read("skills/run-sim.md");
+
+    expect(content).toContain("kind=`run`");
+    expect(content).toContain("scenario");
+    expect(content).toContain("rounds");
+    expect(content).toContain("finalEvaluationRef");
+    expect(content).toContain("reportedByClient");
+    expect(content).toContain("calibrationStatus");
+    expect(content).toContain("SHA-256");
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {
