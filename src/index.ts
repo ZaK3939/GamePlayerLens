@@ -14,6 +14,12 @@ import {
   savePersona,
 } from "./personas.js";
 import {initializeRepositoryPaths, resolveSkillPath} from "./paths.js";
+import {
+  buildRunSimPrompt,
+  buildUiBlindComparePrompt,
+  RunSimPromptArgumentsSchema,
+  UiBlindComparePromptArgumentsSchema,
+} from "./prompts.js";
 import {fetchReviews} from "./reviews.js";
 import {fetchGame, searchGames} from "./steam.js";
 import {fetchTimeline} from "./timeline.js";
@@ -192,21 +198,42 @@ export function buildServer(
     }),
   );
 
-  for (const prompt of [
-    {name: "run-sim", file: "run-sim.md", description: "Run an evidence-grounded adoption simulation"},
-    {name: "ui-blind-compare", file: "ui-blind-compare.md", description: "Blindly compare target and reference game UI"},
-  ] as const) {
-    server.registerPrompt(
-      prompt.name,
-      {description: prompt.description, argsSchema: z.object({})},
-      async () => ({
-        messages: [{
-          role: "user" as const,
-          content: {type: "text" as const, text: await services.readSkill(prompt.file)},
-        }],
-      }),
-    );
-  }
+  server.registerPrompt(
+    "run-sim",
+    {
+      description: "Run an evidence-grounded adoption simulation",
+      argsSchema: RunSimPromptArgumentsSchema,
+    },
+    async (arguments_) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: buildRunSimPrompt(await services.readSkill("run-sim.md"), arguments_),
+        },
+      }],
+    }),
+  );
+
+  server.registerPrompt(
+    "ui-blind-compare",
+    {
+      description: "Blindly compare target and reference game UI",
+      argsSchema: UiBlindComparePromptArgumentsSchema,
+    },
+    async (arguments_) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: buildUiBlindComparePrompt(
+            await services.readSkill("ui-blind-compare.md"),
+            arguments_,
+          ),
+        },
+      }],
+    }),
+  );
 
   return server;
 }
