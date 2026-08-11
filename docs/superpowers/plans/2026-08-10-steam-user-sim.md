@@ -1,5 +1,7 @@
 # steam-user-sim v1 Implementation Plan
 
+> **Historical plan:** Active work moved to the [v1.1 user workflow implementation plan](2026-08-11-steam-user-sim-v1-1-user-workflow.md). The completed v1 body and checkboxes below are preserved unchanged.
+
 **Status:** 2026-08-11 実装・検証完了。各Stepのコミットとend-to-end gateを確認済み。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Completed steps use checkbox (`- [x]`) syntax for tracking.
