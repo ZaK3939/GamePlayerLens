@@ -37,8 +37,8 @@ READMEや`docs/examples/`へ昇格できるのは、次を満たすsanitized成�
 
 | 条件 | 進捗 | 記録 |
 |---|---:|---|
-| 保存済み実相談 | 1 / 3 | [Hades 日本市場 baseline](2026-08-11-hades-japan-baseline.md) |
+| 保存済み実相談 | 2 / 3 | [Hades 日本市場 baseline](2026-08-11-hades-japan-baseline.md)、[Hades JP copy change](2026-08-11-hades-jp-store-copy-change.md) |
 | 別session replay audit | 1 / 1 | PASS（同記録内） |
 | UI quality-gap | 0 / 1 | 未実施 |
 
-件数だけで完了にはしません。残りの相談ではchange比較、未知競合のdiscovery、UI referenceを使った実力差評価をそれぞれ実際に通し、同じ結論を繰り返すだけの検証を避けます。
+件数だけで完了にはしません。change比較は完了しました。残りではUI referenceを使った実力差評価を実際に通し、その後に未知競合のdiscoveryも追加検証します。
