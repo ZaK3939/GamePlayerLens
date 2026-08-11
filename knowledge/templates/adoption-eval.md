@@ -86,7 +86,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 - Status: ［Selected / N/A と理由］
 - Mode result: ［短文・詳細説明の価値提案、想定プレイヤー、独自性、CTA、スクリーンショットとの整合、期待と実プレイ評価の差 / change の場合は現状 vs 変更案］
-- Copy比較: ［`localizedStorefronts`のenglish / japanese / german。requested localeとSteam fallbackの可能性を明記。`matchesEnglishCopy` は正規化後の完全一致であり、fallbackの理由や翻訳品質の証明ではない］
+- Copy比較: ［`localizedStorefronts`のenglish / japanese / german。requested localeとSteam fallbackの可能性を明記。`matchesEnglishCopy` は正規化後の完全一致・非一致だけを示し、true / falseどちらもfallbackの理由や翻訳品質の証明ではない］
 - Visual比較: ［対象と競合のstore page、Steam Sonar game dashboard、capsule / screenshots。未取得なら「根拠不足」］
 - ペルソナ反応: ［購入前期待、価値、誤解に関するvoice出典］
 - 根拠: ［`steam_fetch` / `ui_capture` / `steam_reviews` の Evidence ID。なければ「根拠不足」］

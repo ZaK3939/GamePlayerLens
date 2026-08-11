@@ -11,6 +11,7 @@ import {
   SaveIntelInputSchema,
   createArtifactStore,
   type ArtifactStore,
+  type SourceTool,
 } from "./artifacts.js";
 import {createCaptureService} from "./capture.js";
 import {discoverGames} from "./discovery.js";
@@ -34,6 +35,12 @@ import {
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
 import {fetchReviews} from "./reviews.js";
+import {
+  ResultHandleSchema,
+  createResultStore,
+  type ResultEnvelope,
+  type ResultStore,
+} from "./results.js";
 import {fetchGame, searchGames} from "./steam.js";
 import {fetchTimeline} from "./timeline.js";
 
@@ -53,11 +60,18 @@ const DiscoveryInputSchema = z.object({
   excludeAppids: z.array(z.number().int().positive()).max(50).optional(),
   limit: z.number().int().min(1).max(50).optional(),
 }).strict();
-const SaveArtifactInputSchema = z.discriminatedUnion("kind", [
+const SaveArtifactInputSchema = z.union([
   z.object({
     kind: z.literal("intel"),
     ...SaveIntelInputSchema.shape,
     payload: JsonValueSchema,
+    overwrite: z.boolean().optional(),
+  }).strict(),
+  z.object({
+    kind: z.literal("intel"),
+    target: z.string().min(1),
+    id: z.string().min(1),
+    resultHandle: ResultHandleSchema,
     overwrite: z.boolean().optional(),
   }).strict(),
   z.object({
@@ -86,6 +100,7 @@ export interface ServerServices {
   readSkill(id: string): Promise<string>;
   artifactStore: ArtifactStore;
   imageService: ImageService;
+  resultStore: ResultStore;
 }
 
 function jsonEnvelope(result: FetchResult<unknown>) {
@@ -96,6 +111,17 @@ function jsonEnvelope(result: FetchResult<unknown>) {
     content: [{type: "text" as const, text: JSON.stringify(structuredContent)}],
     structuredContent,
   };
+}
+
+function trackedJsonEnvelope(
+  store: ResultStore,
+  sourceTool: SourceTool,
+  result: FetchResult<unknown>,
+) {
+  const normalized = ResultEnvelopeSchema.parse(
+    JSON.parse(JSON.stringify(result)) as unknown,
+  ) as ResultEnvelope;
+  return jsonEnvelope(store.remember(sourceTool, normalized));
 }
 
 function imageEnvelope(result: ImageFetchResult<unknown>) {
@@ -126,6 +152,7 @@ function createServerServices(overrides: Partial<ServerServices>): ServerService
     readSkill: (id) => readFile(resolver.resolveSkillPath(id), "utf8"),
     artifactStore: createArtifactStore(resolver),
     imageService: createImageService(resolver),
+    resultStore: createResultStore(),
   };
   return {...defaults, ...overrides, resolver};
 }
@@ -146,7 +173,11 @@ export function buildServer(
       inputSchema: z.object({query: z.string().trim().min(1)}),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({query}) => jsonEnvelope(await services.searchGames(query)),
+    async ({query}) => trackedJsonEnvelope(
+      services.resultStore,
+      "steam_search",
+      await services.searchGames(query),
+    ),
   );
 
   server.registerTool(
@@ -156,7 +187,11 @@ export function buildServer(
       inputSchema: DiscoveryInputSchema,
       outputSchema: ResultEnvelopeSchema,
     },
-    async (input) => jsonEnvelope(await services.discoverGames(input)),
+    async (input) => trackedJsonEnvelope(
+      services.resultStore,
+      "steam_discover",
+      await services.discoverGames(input),
+    ),
   );
 
   server.registerTool(
@@ -166,7 +201,11 @@ export function buildServer(
       inputSchema: z.object({appid: AppidSchema}),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({appid}) => jsonEnvelope(await services.fetchGame(appid)),
+    async ({appid}) => trackedJsonEnvelope(
+      services.resultStore,
+      "steam_fetch",
+      await services.fetchGame(appid),
+    ),
   );
 
   server.registerTool(
@@ -182,7 +221,9 @@ export function buildServer(
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({appid, language, type, minPlaytimeHours, limit}) => jsonEnvelope(
+    async ({appid, language, type, minPlaytimeHours, limit}) => trackedJsonEnvelope(
+      services.resultStore,
+      "steam_reviews",
       await services.fetchReviews(appid, {language, type, minPlaytimeHours, limit}),
     ),
   );
@@ -198,7 +239,9 @@ export function buildServer(
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({appid, since, country}) => jsonEnvelope(
+    async ({appid, since, country}) => trackedJsonEnvelope(
+      services.resultStore,
+      "steam_timeline",
       await services.fetchTimeline(appid, {since, country}),
     ),
   );
@@ -217,7 +260,9 @@ export function buildServer(
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({appids, count, reviewsPerPolarity}) => jsonEnvelope(
+    async ({appids, count, reviewsPerPolarity}) => trackedJsonEnvelope(
+      services.resultStore,
+      "derive_personas",
       await services.buildDerivationPack(appids, count, reviewsPerPolarity),
     ),
   );
@@ -277,12 +322,26 @@ export function buildServer(
   server.registerTool(
     "save_artifact",
     {
-      description: "Validate and atomically save intel JSON or evaluation Markdown",
+      description: "Atomically save intel from an exact ephemeral resultHandle (preferred) or a caller-provided payload, or save evaluation Markdown",
       inputSchema: SaveArtifactInputSchema,
       outputSchema: ResultEnvelopeSchema,
     },
     async (input) => {
       if (input.kind === "intel") {
+        if ("resultHandle" in input) {
+          const {target, id, resultHandle, overwrite} = input;
+          const cached = services.resultStore.get(resultHandle);
+          return jsonEnvelope({
+            data: await services.artifactStore.saveIntel({
+              target,
+              id,
+              sourceTool: cached.sourceTool,
+              observedAt: cached.observedAt,
+              payload: cached.payload,
+            }, {overwrite}),
+            warnings: [],
+          });
+        }
         const {kind: _kind, overwrite, ...artifact} = input;
         return jsonEnvelope({
           data: await services.artifactStore.saveIntel(artifact, {overwrite}),

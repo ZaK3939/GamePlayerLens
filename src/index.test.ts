@@ -555,7 +555,7 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("publishes bounded steam_discover and discriminated artifact schemas", async () => {
+  it("publishes bounded steam_discover and exact-save artifact schemas", async () => {
     const {client, server} = await createHarness();
     try {
       const tools = Object.fromEntries(
@@ -582,7 +582,7 @@ describe("MCP server contract", () => {
       const save = tools.save_artifact!.inputSchema as Record<string, unknown>;
       expect(save.properties).toBeUndefined();
       const branches = (save.oneOf ?? save.anyOf) as Array<Record<string, unknown>>;
-      expect(branches).toHaveLength(2);
+      expect(branches).toHaveLength(3);
       expect(branches.map((branch) => {
         const kind = schemaProperty(branch, "kind");
         return {
@@ -595,6 +595,11 @@ describe("MCP server contract", () => {
           kind: "intel",
           fields: ["kind", "target", "id", "sourceTool", "observedAt", "payload", "overwrite"],
           required: ["kind", "target", "id", "sourceTool", "observedAt", "payload"],
+        },
+        {
+          kind: "intel",
+          fields: ["kind", "target", "id", "resultHandle", "overwrite"],
+          required: ["kind", "target", "id", "resultHandle"],
         },
         {
           kind: "evaluation",
@@ -654,9 +659,83 @@ describe("MCP server contract", () => {
           observedAt: NOW.toISOString(),
           sources: [{name: "fixture"}],
           request: {query: "Hades"},
+          resultHandle: expect.any(String),
         },
       });
       expect(JSON.parse(resultText(result))).toEqual(result.structuredContent);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("saves an exact prior tool result by handle without model reserialization", async () => {
+    const searchGames = vi.fn(async () => ({
+      data: {
+        hits: [{appid: 1145350, name: "Hades II"}],
+        nested: {mustRemainComplete: ["one", "two", "three"]},
+      },
+      warnings: ["preserve this warning"],
+      meta: {observedAt: NOW.toISOString(), request: {query: "Hades II"}},
+    }));
+    const {client, server} = await createHarness({searchGames});
+    try {
+      const search = await client.callTool({
+        name: "steam_search",
+        arguments: {query: "Hades II"},
+      });
+      const handle = (search.structuredContent?.meta as Record<string, unknown>)
+        ?.resultHandle;
+      expect(handle).toEqual(expect.any(String));
+
+      const saved = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Hades II",
+          id: "Exact Search Result",
+          resultHandle: handle,
+        },
+      });
+      expect(saved.isError).not.toBe(true);
+
+      const read = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "intel", target: "Hades II", id: "Exact Search Result"},
+      });
+      expect(read.structuredContent).toMatchObject({
+        data: {
+          sourceTool: "steam_search",
+          observedAt: NOW.toISOString(),
+          payload: search.structuredContent,
+        },
+        warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("rejects unknown, malformed, and mixed result-handle saves", async () => {
+    const {client, server} = await createHarness();
+    const base = {kind: "intel", target: "Hades II", id: "Exact Result"};
+    try {
+      await expectToolError(client, "save_artifact", {
+        ...base,
+        resultHandle: "11111111-1111-4111-8111-111111111111",
+      });
+      await expectToolError(client, "save_artifact", {
+        ...base,
+        resultHandle: "not-a-handle",
+      });
+      await expectToolError(client, "save_artifact", {
+        ...base,
+        resultHandle: "11111111-1111-4111-8111-111111111111",
+        sourceTool: "steam_search",
+        observedAt: NOW.toISOString(),
+        payload: {},
+      });
     } finally {
       await client.close();
       await server.close();

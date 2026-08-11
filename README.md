@@ -145,7 +145,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `save_artifact` | intel JSON または evaluation Markdown を安全かつ原子的に保存 |
 | `get_artifact` | intel、evaluation、capture、ui-reference を一覧または読出し |
 
-外部取得 tool は `{data, warnings, meta?}` を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。入力違反と path 境界違反は tool error です。
+外部取得 tool は `{data, warnings, meta?}` を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。入力違反と path 境界違反は tool error です。
 
 `steam_discover` は `value` を主条件とし、任意の `additionalValues` 最大3件をすべて満たす候補だけを返せます。交差検索は各条件のSteamSpy上位50件を使い、各API順位の合計が小さい順に並べます。対象自身や既知の不適合候補は `excludeAppids` 最大50件で除外します。たとえばHades IIに近い候補は次の入力で探索できます。
 
@@ -163,7 +163,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 
 ### `save_artifact` / `get_artifact`
 
-`save_artifact` は `kind=intel` のとき `target`、`id`、`sourceTool`、`observedAt`、`payload` を、`kind=evaluation` のとき `target`、`topic`、任意の `date`、`content` を受けます。両方とも `overwrite` の default は `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
+`save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`observedAt`、`payload` を直接渡す方式も維持します。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。どの方式も `overwrite` の default は `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
 
 `get_artifact` は read-only で、list/read semantics は次のとおりです。
 
@@ -211,9 +211,10 @@ pnpm smoke:stdio
 pnpm smoke:package
 pnpm test:live
 pnpm smoke:stdio --live
+pnpm exec tsx scripts/smoke-package.ts --live
 ```
 
-live test の固定 appid は Hades `1145360`、SteamSpy discovery tag は `Action Roguelike` です。`OBSCURA_PATH` がなければ manual ui-reference warning を検証し、設定済みなら localhost capture と `ImageContent` を検証します。`ITAD_API_KEY` がなければ timeline は `priceHistory: null` と設定 warning、設定済みなら履歴配列と currency を検証します。
+live test の固定 appid は Hades `1145360`、SteamSpy discovery tag は `Action Roguelike` です。live package smokeは分離した一時data homeでSteam取得→resultHandle保存→原本envelope一致を検証し、終了時に一時dataを削除します。`OBSCURA_PATH` がなければ manual ui-reference warning を検証し、設定済みなら localhost capture と `ImageContent` を検証します。`ITAD_API_KEY` がなければ timeline は `priceHistory: null` と設定 warning、設定済みなら履歴配列と currency を検証します。
 
 ## v1 から v1.1
 

@@ -69,6 +69,8 @@ intel:
 
 sourceToolはsteam_search、steam_discover、steam_fetch、steam_reviews、steam_timeline、derive_personas、ui_capture、manualのいずれかとする。
 
+外部取得とderive_personasの1 MiB以下の返り値は、meta.resultHandle付きの正規化されたtool envelopeとしてserver process内に最近32件を保持する。save_artifactはresultHandleだけでsourceTool、observedAt、warning、metaを含む原本payloadを原子的に保存できる。handleはserver再起動または32件超過で無効になり、不明なhandleはtool errorにする。従来のsourceTool、observedAt、payload直接入力は互換用に維持する。
+
 evaluation:
 
 - target
@@ -188,8 +190,8 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 2. 対象targetの過去evaluationを一覧・必要分読込。
 3. get_knowledgeでtemplate、rubric、personaを取得。
 4. steam_searchまたはsteam_discoverで競合候補を作る。
-5. Steam tool出力をsave_artifact kind=intelで保存。
-6. derive_personasの返り値をsourceTool=`derive_personas`のintel artifactとして保存し、Evidence Indexに追加してからsave_personaを実行。
+5. Steam tool出力のmeta.resultHandleを取得直後にsave_artifact kind=intelへ渡し、モデルがpayloadを再serializeせず原本保存。
+6. derive_personasの返り値もresultHandleでintel artifactとして原本保存し、Evidence Indexに追加してからsave_personaを実行。
 7. 選択domainだけ評価し、必要な場合だけUI画像を取得・比較。
 8. save_artifact kind=evaluationでレポート保存。
 9. return dataのrepo-relative pathと未解決事項をユーザーへ報告。

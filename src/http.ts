@@ -17,6 +17,7 @@ export interface FetchMeta {
   sources?: FetchSource[];
   request?: JsonValue;
   methodology?: JsonValue;
+  resultHandle?: string;
 }
 
 export interface FetchResult<T> {

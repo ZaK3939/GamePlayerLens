@@ -174,6 +174,7 @@ try {
 
   let liveSearch = false;
   let liveDiscovery = false;
+  let liveResultHandles = false;
   if (process.argv.includes("--live")) {
     const search = await client.callTool({
       name: "steam_search",
@@ -183,6 +184,11 @@ try {
     assert(
       JSON.stringify(search.structuredContent).includes("1145360"),
       "steam_search did not find Hades appid 1145360",
+    );
+    const searchMeta = search.structuredContent?.meta as Record<string, unknown> | undefined;
+    assert(
+      typeof searchMeta?.resultHandle === "string",
+      "steam_search did not expose an exact-save result handle",
     );
     liveSearch = true;
 
@@ -218,7 +224,15 @@ try {
       discoveryData?.candidates?.every((candidate) => candidate.appid !== 1145350),
       "steam_discover did not exclude the target appid",
     );
+    const discoveryMeta = discovery.structuredContent?.meta as
+      | Record<string, unknown>
+      | undefined;
+    assert(
+      typeof discoveryMeta?.resultHandle === "string",
+      "steam_discover did not expose an exact-save result handle",
+    );
     liveDiscovery = true;
+    liveResultHandles = true;
   }
 
   assert(protocolErrors.length === 0, `stdio protocol errors: ${protocolErrors.join("; ")}`);
@@ -228,6 +242,7 @@ try {
     prompts: prompts.length,
     liveSearch,
     liveDiscovery,
+    liveResultHandles,
     protocolErrors: protocolErrors.length,
   };
 } catch (error) {

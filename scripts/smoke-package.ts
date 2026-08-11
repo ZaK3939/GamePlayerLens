@@ -24,6 +24,7 @@ assert(cliArgumentIndex < 0 || cliArgument !== undefined, "--cli requires a path
 const cliPath = cliArgument
   ? resolve(cliArgument)
   : join(repositoryRoot, "dist", "cli.js");
+const live = process.argv.includes("--live");
 const manifest = JSON.parse(
   await readFile(join(repositoryRoot, "package.json"), "utf8"),
 ) as {
@@ -71,6 +72,7 @@ transport.stderr?.on("data", (chunk) => {
 
 const client = new Client({name: "game-player-lens-package-smoke", version: "1.0.0"});
 let connected = false;
+let liveExactSave = false;
 try {
   await client.connect(transport);
   connected = true;
@@ -89,6 +91,49 @@ try {
     "packaged CLI returned the wrong canonical template",
   );
 
+  if (live) {
+    const search = await client.callTool({
+      name: "steam_search",
+      arguments: {query: "Hades"},
+    });
+    assert(search.isError !== true, "packaged CLI steam_search returned a tool error");
+    const searchEnvelope = search.structuredContent as {
+      meta?: {resultHandle?: unknown};
+    } | undefined;
+    const resultHandle = searchEnvelope?.meta?.resultHandle;
+    assert(typeof resultHandle === "string", "steam_search result handle is missing");
+
+    const saved = await client.callTool({
+      name: "save_artifact",
+      arguments: {
+        kind: "intel",
+        target: "Hades",
+        id: "Live Search Exact",
+        resultHandle,
+      },
+    });
+    assert(saved.isError !== true, "result-handle artifact save returned a tool error");
+    const read = await client.callTool({
+      name: "get_artifact",
+      arguments: {kind: "intel", target: "Hades", id: "Live Search Exact"},
+    });
+    const record = read.structuredContent?.data as {
+      sourceTool?: unknown;
+      observedAt?: unknown;
+      payload?: unknown;
+    } | undefined;
+    assert(record?.sourceTool === "steam_search", "sourceTool was not inferred from handle");
+    assert(
+      record.observedAt === (search.structuredContent?.meta as {observedAt?: unknown})?.observedAt,
+      "observedAt was not inferred from handle",
+    );
+    assert(
+      JSON.stringify(record.payload) === JSON.stringify(search.structuredContent),
+      "saved payload is not the exact normalized tool envelope",
+    );
+    liveExactSave = true;
+  }
+
   for (const relativePath of [
     "knowledge/personas",
     "knowledge/intel/captures",
@@ -106,6 +151,7 @@ try {
     tools: tools.length,
     prompts: prompts.length,
     isolatedDataHome: true,
+    liveExactSave,
   }));
 } catch (error) {
   if (stderr.trim()) console.error(`server stderr: ${stderr.trim().slice(-1_000)}`);
