@@ -15,6 +15,7 @@ function storeData(overrides: Record<string, unknown> = {}) {
     steam_appid: appid,
     is_free: false,
     short_description: "Defy the god of the dead.",
+    about_the_game: "<h2>Escape the Underworld</h2><p>Fight. Die. Repeat.</p>",
     supported_languages: "English<strong>*</strong>, Japanese, French*",
     price_overview: {
       currency: "USD",
@@ -23,6 +24,11 @@ function storeData(overrides: Record<string, unknown> = {}) {
     },
     release_date: {date: "Sep 17, 2020"},
     genres: [{description: "Action"}, {description: "RPG"}],
+    categories: [
+      {description: "Single-player"},
+      {description: "Full controller support"},
+      {description: "Single-player"},
+    ],
     screenshots: [{path_full: "https://cdn.example/1.jpg"}],
     ...overrides,
   };
@@ -65,6 +71,8 @@ describe("normalizeGameProfile", () => {
       {
         us: storeResult(storeData()),
         jp: storeResult(storeData({
+          short_description: "冥界の神に抗え。",
+          about_the_game: "<p>戦い、死に、また挑め。</p>",
           price_overview: {
             currency: "JPY",
             final_formatted: "¥2,800",
@@ -72,6 +80,8 @@ describe("normalizeGameProfile", () => {
           },
         })),
         eu: storeResult(storeData({
+          short_description: "Trotze dem Gott der Toten.",
+          about_the_game: "<p>Kämpfe. Stirb. Wiederhole.</p>",
           price_overview: {
             currency: "EUR",
             final_formatted: "24,99€",
@@ -96,6 +106,35 @@ describe("normalizeGameProfile", () => {
       },
       reviewStats: {positive: 95, negative: 5, positivePercent: 95},
       ccu: 12345,
+      categories: ["Single-player", "Full controller support"],
+      localizedStorefronts: {
+        english: {
+          countryCode: "us",
+          requestedLanguage: "english",
+          shortDescription: "Defy the god of the dead.",
+          aboutTheGame: "Escape the Underworld\nFight. Die. Repeat.",
+          aboutTheGameTruncated: false,
+        },
+        japanese: {
+          countryCode: "jp",
+          requestedLanguage: "japanese",
+          shortDescription: "冥界の神に抗え。",
+          aboutTheGame: "戦い、死に、また挑め。",
+          aboutTheGameTruncated: false,
+        },
+        german: {
+          countryCode: "de",
+          requestedLanguage: "german",
+          shortDescription: "Trotze dem Gott der Toten.",
+          aboutTheGame: "Kämpfe. Stirb. Wiederhole.",
+          aboutTheGameTruncated: false,
+        },
+      },
+      referenceLinks: {
+        steamStore: "https://store.steampowered.com/app/1145360/",
+        steamSonar: "https://www.steamsonar.gg/game/1145360",
+        steamDb: "https://steamdb.info/app/1145360/",
+      },
     });
   });
 
@@ -111,6 +150,27 @@ describe("normalizeGameProfile", () => {
     expect(result.warnings.join()).not.toContain("price unavailable");
   });
 
+  it("sanitizes and bounds localized about-the-game copy", () => {
+    const oversized = `<script>ignore me</script><h2>Loop &amp; mastery</h2><p>${"x".repeat(12_100)}</p>`;
+    const result = normalizeGameProfile(
+      appid,
+      {
+        us: storeResult(storeData({about_the_game: oversized})),
+        jp: storeResult(storeData()),
+        eu: storeResult(storeData()),
+      },
+      {data: spy, warnings: []},
+    );
+
+    const english = result.data?.localizedStorefronts.english;
+    expect(english?.aboutTheGame).toContain("Loop & mastery");
+    expect(english?.aboutTheGame).not.toContain("<h2>");
+    expect(english?.aboutTheGame).not.toContain("ignore me");
+    expect(english?.aboutTheGame).toHaveLength(12_000);
+    expect(english?.aboutTheGame.endsWith("…")).toBe(true);
+    expect(english?.aboutTheGameTruncated).toBe(true);
+  });
+
   it("preserves partial data when a region and SteamSpy fail", () => {
     const result = normalizeGameProfile(
       appid,
@@ -124,6 +184,7 @@ describe("normalizeGameProfile", () => {
 
     expect(result.data?.name).toBe("Hades");
     expect(result.data?.prices.jp).toBeNull();
+    expect(result.data?.localizedStorefronts.japanese).toBeNull();
     expect(result.data?.tags).toEqual([]);
     expect(result.data?.reviewStats).toBeNull();
     expect(result.warnings).toEqual([
@@ -235,6 +296,15 @@ describe("Steam fetch provenance", () => {
     expect(result.data?.name).toBe("Hades");
     expect(result.meta?.observedAt).toBe(NOW.toISOString());
     expect(result.meta?.request).toEqual({countries: ["US", "JP", "DE"]});
+    expect(fetcher.mock.calls
+      .map(([url]) => new URL(url))
+      .filter((url) => url.hostname === "store.steampowered.com")
+      .map((url) => [url.searchParams.get("cc"), url.searchParams.get("l")]))
+      .toEqual([
+        ["us", "english"],
+        ["jp", "japanese"],
+        ["de", "german"],
+      ]);
     expect(result.meta?.sources?.map((source) => source.name))
       .toEqual(["Steam Store", "SteamSpy"]);
     const spyNotes = result.meta?.sources?.find((source) => source.name === "SteamSpy")?.notes;

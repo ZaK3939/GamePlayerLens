@@ -114,7 +114,18 @@ UI の change 相談:
 }
 ```
 
-`mode=change` では `currentState` と `proposal` が必要です。不足時は評価開始前に確認質問を行う recipe になります。`domains` は `ui,price,localization,competition` の comma-separated list または `auto` です。UI が scope 外なら capture、blind compare、UI gate は N/A であり、不合格理由にはなりません。
+`mode=change` では `currentState` と `proposal` が必要です。不足時は評価開始前に確認質問を行う recipe になります。`domains` は `gameplay,storefront,ui,price,localization,competition` の comma-separated list または `auto` です。UI が scope 外なら capture、blind compare、UI gate は N/A であり、不合格理由にはなりません。
+
+### 分析できる範囲
+
+| Domain | 根拠付きで扱う内容 | 断定しない境界 |
+|---|---|---|
+| `gameplay` | コアループ、目標、進行、失敗→再挑戦、継続動機 | tagsやレビューだけでは内部コード・状態遷移・数式の正しさを断定しない |
+| `storefront` | 英/日/独のrequested-locale copy、価値提案、screenshots、Steam Sonar dashboard、競合との期待差 | Steam fallbackの可能性を残し、未取得リンク先を根拠扱いしない |
+| `ui` | captureの階層、可読性、密度、状態、入力feedback | 画像なしで視覚品質を断定しない |
+| `price` | US/JP/DE現在価格、値引き、任意のITAD履歴、購入タイミング | 現在価格から過去傾向を推測しない |
+| `localization` | 対応言語、localized store copy、対象言語レビュー、ゲーム内capture | 対応言語一覧だけで翻訳品質・文化適合・フォント品質を断定しない |
+| `competition` | tag交差、同一項目のstorefront/gameplay proxy/価格/review比較 | tag一致だけを最終的な類似性としない |
 
 ## Tools
 
@@ -123,7 +134,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | Tool | 用途 |
 |---|---|
 | `steam_search` | 既知名から Steam appid 候補を検索 |
-| `steam_fetch` | US / JP / Germany の価格、言語、タグ、レビュー統計、SteamSpy 情報を取得 |
+| `steam_fetch` | 3地域価格、英/日/独store copy、categories、画像、Steam Sonar/SteamDBリンク、SteamSpy情報を取得 |
 | `steam_reviews` | 言語・極性・最低プレイ時間で recent review を取得 |
 | `steam_timeline` | SteamSpy snapshot と任意の ITAD 価格履歴を取得 |
 | `derive_personas` | 件数を調整できるレビュー出典、Persona JSON Schema、生成指示をまとめる |
@@ -188,6 +199,8 @@ repo内の直接起動では上記layoutの起点はrepository rootです。npm 
 SteamSpy の owners、CCU、playtime、review 系の値は推定または取得時点の snapshot です。owners は販売本数ではなく所有推定範囲で、recent release や小標本では特に不確かです。`average_forever=0` は欠損相当の reported zero として扱いますが、CCU 0 は有効な snapshot として保持します。
 
 `steam_timeline.currentCcu` は `observedAt` 時点の現在値であり、24時間ピーク、史上最高、過去CCUではありません。ITAD の `priceHistory` とは時間軸も出典も分けて解釈してください。
+
+`steam_fetch.localizedStorefronts` はenglish=US、japanese=JP、german=DEとしてrequested localeを記録します。Steamが未翻訳時にfallback copyを返す可能性があるため、文字列が存在するだけで翻訳済みとは判定しません。`referenceLinks` は追加調査の入口であり、リンク先をcaptureまたはartifactとして保存するまではEvidenceに数えません。
 
 ## 検証
 

@@ -14,12 +14,21 @@ const STEAMSPY_SOURCE = {
 } as const;
 
 export type StoreRegion = "us" | "jp" | "eu";
+export type StorefrontLanguage = "english" | "japanese" | "german";
 
 const REGION_COUNTRY = {
   us: "us",
   jp: "jp",
   eu: "de",
 } as const satisfies Record<StoreRegion, "us" | "jp" | "de">;
+
+const REGION_LANGUAGE = {
+  us: "english",
+  jp: "japanese",
+  eu: "german",
+} as const satisfies Record<StoreRegion, StorefrontLanguage>;
+
+const STOREFRONT_TEXT_MAX_LENGTH = 12_000;
 
 export interface SearchHit {
   appid: number;
@@ -33,6 +42,14 @@ export interface RegionPrice {
   discountPercent: number;
 }
 
+export interface LocalizedStorefront {
+  countryCode: "us" | "jp" | "de";
+  requestedLanguage: StorefrontLanguage;
+  shortDescription: string;
+  aboutTheGame: string;
+  aboutTheGameTruncated: boolean;
+}
+
 export interface GameProfile {
   appid: number;
   name: string;
@@ -41,7 +58,9 @@ export interface GameProfile {
   isFree: boolean;
   tags: string[];
   genres: string[];
+  categories: string[];
   languages: string[];
+  localizedStorefronts: Record<StorefrontLanguage, LocalizedStorefront | null>;
   prices: Record<StoreRegion, RegionPrice | null>;
   reviewStats: {
     positive: number;
@@ -51,6 +70,11 @@ export interface GameProfile {
   ccu: number | null;
   owners: string | null;
   screenshots: string[];
+  referenceLinks: {
+    steamStore: string;
+    steamSonar: string;
+    steamDb: string;
+  };
 }
 
 interface StorePriceOverview {
@@ -64,10 +88,12 @@ interface StoreGameData {
   steam_appid?: unknown;
   is_free?: unknown;
   short_description?: unknown;
+  about_the_game?: unknown;
   supported_languages?: unknown;
   price_overview?: StorePriceOverview;
   release_date?: {date?: unknown};
   genres?: Array<{description?: unknown}>;
+  categories?: Array<{description?: unknown}>;
   screenshots?: Array<{path_full?: unknown}>;
 }
 
@@ -106,8 +132,74 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
 function uniqueWarning(warnings: string[], warning: string): void {
   if (!warnings.includes(warning)) warnings.push(warning);
+}
+
+function decodeHtmlEntities(value: string): string {
+  const named: Record<string, string> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
+  };
+  return value.replace(/&(#(?:x[0-9a-f]+|\d+)|[a-z]+);/gi, (entity, token: string) => {
+    if (!token.startsWith("#")) return named[token.toLowerCase()] ?? entity;
+    const numeric = token[1]?.toLowerCase() === "x"
+      ? Number.parseInt(token.slice(2), 16)
+      : Number.parseInt(token.slice(1), 10);
+    try {
+      return Number.isInteger(numeric) && numeric >= 0
+        ? String.fromCodePoint(numeric)
+        : entity;
+    } catch {
+      return entity;
+    }
+  });
+}
+
+function normalizeStorefrontText(value: unknown): {text: string; truncated: boolean} {
+  if (typeof value !== "string") return {text: "", truncated: false};
+  const normalized = decodeHtmlEntities(value
+    .replace(/<(?:script|style)(?:\s[^>]*)?>[\s\S]*?<\/(?:script|style)>/gi, " ")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<li(?:\s[^>]*)?>/gi, "\n• ")
+    .replace(/<\/(?:div|h[1-6]|li|p)>/gi, "\n")
+    .replace(/<[^>]+>/g, " "))
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+    .replace(/[\t ]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (normalized.length <= STOREFRONT_TEXT_MAX_LENGTH) {
+    return {text: normalized, truncated: false};
+  }
+  return {
+    text: `${normalized.slice(0, STOREFRONT_TEXT_MAX_LENGTH - 1).trimEnd()}…`,
+    truncated: true,
+  };
+}
+
+function normalizeLocalizedStorefront(
+  region: StoreRegion,
+  data: StoreGameData | null,
+): LocalizedStorefront | null {
+  if (!data) return null;
+  const shortDescription = normalizeStorefrontText(data.short_description);
+  const aboutTheGame = normalizeStorefrontText(data.about_the_game);
+  return {
+    countryCode: REGION_COUNTRY[region],
+    requestedLanguage: REGION_LANGUAGE[region],
+    shortDescription: shortDescription.text,
+    aboutTheGame: aboutTheGame.text,
+    aboutTheGameTruncated: aboutTheGame.truncated,
+  };
 }
 
 function storeData(
@@ -223,27 +315,49 @@ export function normalizeGameProfile(
       : null;
 
   const genres = Array.isArray(us.genres)
-    ? us.genres.map((genre) => stringValue(genre.description)).filter(Boolean)
+    ? uniqueStrings(us.genres
+        .map((genre) => stringValue(genre.description))
+        .filter(Boolean))
+    : [];
+  const categories = Array.isArray(us.categories)
+    ? uniqueStrings(us.categories
+        .map((category) => stringValue(category.description))
+        .filter(Boolean))
     : [];
   const screenshots = Array.isArray(us.screenshots)
-    ? us.screenshots.map((shot) => stringValue(shot.path_full)).filter(Boolean)
+    ? uniqueStrings(us.screenshots
+        .map((shot) => stringValue(shot.path_full))
+        .filter(Boolean))
     : [];
+  const localizedStorefronts = {
+    english: normalizeLocalizedStorefront("us", us),
+    japanese: normalizeLocalizedStorefront("jp", jp),
+    german: normalizeLocalizedStorefront("eu", eu),
+  } satisfies Record<StorefrontLanguage, LocalizedStorefront | null>;
+  const primaryShortDescription = localizedStorefronts.english?.shortDescription ?? "";
 
   return {
     data: {
       appid,
       name: stringValue(us.name),
-      shortDescription: stringValue(us.short_description),
+      shortDescription: primaryShortDescription,
       releaseDate: stringValue(us.release_date?.date),
       isFree,
       tags: spyTags ? Object.keys(spyTags) : [],
       genres,
+      categories,
       languages: parseSupportedLanguages(us.supported_languages),
+      localizedStorefronts,
       prices,
       reviewStats,
       ccu: ccu !== null && ccu >= 0 ? ccu : null,
       owners,
       screenshots,
+      referenceLinks: {
+        steamStore: `https://store.steampowered.com/app/${appid}/`,
+        steamSonar: `https://www.steamsonar.gg/game/${appid}`,
+        steamDb: `https://steamdb.info/app/${appid}/`,
+      },
     },
     warnings,
   };
@@ -285,6 +399,13 @@ function gameMeta(observed: string): FetchMeta {
     request: {countries: ["US", "JP", "DE"]},
     methodology: {
       regionalPricing: "Steam Store country snapshots",
+      storefrontLanguages: {
+        US: "english",
+        JP: "japanese",
+        DE: "german",
+      },
+      storefrontFallback: "Steam may return fallback copy when the requested localization is unavailable.",
+      storefrontTextLimit: STOREFRONT_TEXT_MAX_LENGTH,
       steamSpyValues: "estimates",
     },
   };
@@ -336,7 +457,7 @@ export function createGameFetcher(
         storeUrl("appdetails", {
           appids: String(appid),
           cc: country,
-          l: "english",
+          l: REGION_LANGUAGE[region],
         }),
         {source: `steam store ${region}`},
       ) as FetchResult<StoreEnvelope>;

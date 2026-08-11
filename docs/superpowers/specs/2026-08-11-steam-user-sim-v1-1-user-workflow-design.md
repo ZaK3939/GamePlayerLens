@@ -28,7 +28,7 @@ v1.1で直接受ける対象入力は仕様テキストとHTTP(S) URL。zipはMC
 | Tool | v1.1 role |
 |---|---|
 | steam_search | 既知名からappid候補を検索 |
-| steam_fetch | 3地域価格、言語、タグ、SteamSpy情報 |
+| steam_fetch | 3地域価格、英/日/独requested-locale store copy、categories、画像、Steam Sonar/SteamDB deep link、SteamSpy情報 |
 | steam_reviews | 条件付きrecent review |
 | steam_timeline | SteamSpy snapshotと任意ITAD履歴 |
 | derive_personas | 出典付きpersona素材。市場代表サンプルではないことをmetaへ明記 |
@@ -162,7 +162,7 @@ run-sim promptは次のstring argumentsを持つ。
 - target、required
 - topic、required
 - mode: baselineまたはchange、default baseline
-- domains: ui、price、localization、competitionのcomma-separated list。default auto
+- domains: gameplay、storefront、ui、price、localization、competitionのcomma-separated list。default auto
 - specification
 - uiUrl
 - currentState
@@ -175,6 +175,10 @@ run-sim promptは次のstring argumentsを持つ。
 prompt callbackはrecipe本文と入力を明確に区切って1つのuser messageへする。changeでcurrentStateまたはproposalがない場合は、評価開始前に不足入力を質問するよう指示する。
 
 auto scopeはtopicと入力から必要領域を選び、その理由を最初に宣言する。UIがscope外ならui_capture、blind compare、UI rubricはN/Aであり不合格理由にしない。
+
+gameplayはプレイヤーから観測できるコアループ、目標、feedback、進行、失敗/再挑戦を扱う。description、categories、tags、reviewsはplayer-perceived proxyであり、内部コード、状態遷移、数式、バランス実装の直接根拠ではない。内部ロジックの評価には仕様、build、動画、telemetry、playtestのいずれかを要求する。
+
+storefrontは短文・詳細説明、価値提案、localized copy、capsule/screenshots、競合との期待差を扱う。localizedStorefrontsはenglish=US、japanese=JP、german=DEのrequested localeで、Steam fallbackの可能性をmethodologyに残す。referenceLinksはnavigation用であり、リンク先をcaptureまたはartifact保存するまでは取得済みEvidenceにしない。
 
 ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityTierを受け取る。AAAを全案件の固定基準にせず、指定qualityTierと同等の出荷済み製品に対する品質差を評価する。
 

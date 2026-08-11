@@ -1,6 +1,13 @@
 import {z} from "zod";
 
-const DOMAIN_ORDER = ["ui", "price", "localization", "competition"] as const;
+const DOMAIN_ORDER = [
+  "gameplay",
+  "storefront",
+  "ui",
+  "price",
+  "localization",
+  "competition",
+] as const;
 const DOMAIN_VALUES = new Set<string>(DOMAIN_ORDER);
 
 const NonEmptyTrimmedStringSchema = z.string().trim().min(1);

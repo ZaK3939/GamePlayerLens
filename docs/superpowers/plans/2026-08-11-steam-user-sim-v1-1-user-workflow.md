@@ -328,7 +328,7 @@ Candidate:
 - target required
 - topic required
 - mode optional baselineまたはchange
-- domains optional comma-separated ui、price、localization、competition、またはauto
+- domains optional comma-separated gameplay、storefront、ui、price、localization、competition、またはauto
 - specification
 - uiUrl
 - currentState

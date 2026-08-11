@@ -7,10 +7,12 @@ Mode の規則を混同しないでください。`baseline` は現状だけを�
 Mode、Selected Domains、選択外領域の明示的な N/A 理由は、必ずレポートの最初に記録します。
 
 - Mode: ［`baseline` | `change`］
-- Selected Domains: ［`ui` / `price` / `localization` / `competition` から選択］
+- Selected Domains: ［`gameplay` / `storefront` / `ui` / `price` / `localization` / `competition` から選択］
 
 | Domain | Status | 選択理由 / N/A 理由 |
 |---|---|---|
+| ゲームプレイ | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
+| ストア訴求 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
 | UI | ［Selected / N/A］ | ［評価する理由、またはトピックと入力から見て対象外とする具体的理由］ |
 | 価格 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
 | ローカライズ | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
@@ -71,6 +73,24 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 以下の各項目は、`baseline` では現状だけ、`change` では現状 vs 変更案を記入します。Selected Domains の選択外なら、所見を作らず、冒頭と同じ明示的な N/A 理由だけを記録します。
 
+### ゲームプレイ
+
+- Status: ［Selected / N/A と理由］
+- Mode result: ［プレイヤーから観測できるコアループ、目標、入力→反応、進行、失敗→再挑戦、継続動機 / change の場合は現状 vs 変更案］
+- 観測とproxyの境界: ［仕様・build・動画・telemetry・playtestによる直接根拠 / description・categories・tags・reviewsによるプレイヤー知覚のproxy］
+- 未検証の内部ロジック: ［コード、状態遷移、数式、難易度曲線など、直接根拠がなく断定できないもの］
+- ペルソナ反応: ［gameplay / difficulty / grind / replayability等のvoice出典］
+- 根拠: ［`steam_fetch` / `steam_reviews` / 提供仕様・build・playtestの Evidence ID。なければ「根拠不足」］
+
+### ストア訴求
+
+- Status: ［Selected / N/A と理由］
+- Mode result: ［短文・詳細説明の価値提案、想定プレイヤー、独自性、CTA、スクリーンショットとの整合、期待と実プレイ評価の差 / change の場合は現状 vs 変更案］
+- Copy比較: ［`localizedStorefronts`のenglish / japanese / german。requested localeとSteam fallbackの可能性を明記］
+- Visual比較: ［対象と競合のstore page、Steam Sonar game dashboard、capsule / screenshots。未取得なら「根拠不足」］
+- ペルソナ反応: ［購入前期待、価値、誤解に関するvoice出典］
+- 根拠: ［`steam_fetch` / `ui_capture` / `steam_reviews` の Evidence ID。なければ「根拠不足」］
+
 ### UI
 
 - Status: ［Selected / N/A と理由］
@@ -90,6 +110,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 - Status: ［Selected / N/A と理由］
 - Mode result: ［現状の対応言語、翻訳調、フォント、文化的含意、入力表示 / change の場合は現状 vs 変更案］
+- Store copy: ［`localizedStorefronts`のrequested locale / fallback注意。対応言語一覧だけで翻訳品質を判定しない］
 - ペルソナ反応: ［対象言語レビュー由来の persona ID と voice 出典］
 - 根拠: ［`steam_reviews` の language、recommendationId を含む Evidence ID。なければ「根拠不足」］
 

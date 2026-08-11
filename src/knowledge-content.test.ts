@@ -37,7 +37,7 @@ describe("canonical adoption evaluation template", () => {
 
   it("requires evidence or an explicit evidence gap in every domain", async () => {
     const content = await read("knowledge/templates/adoption-eval.md");
-    for (const domain of ["UI", "価格", "ローカライズ", "競合"]) {
+    for (const domain of ["ゲームプレイ", "ストア訴求", "UI", "価格", "ローカライズ", "競合"]) {
       expect(content).toMatch(new RegExp(`### ${domain}[\\s\\S]*?根拠:`));
     }
     expect(content).toContain("knowledge/intel/");
@@ -111,6 +111,14 @@ describe("harsh critic rubric", () => {
     expect(content).toContain("reported-zero");
     expect(content).toContain("missing");
     expect(content).toContain("estimated");
+  });
+
+  it("rejects unsupported gameplay and localization quality claims", async () => {
+    const content = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(content).toMatch(/タグ[\s\S]*ゲームロジック[\s\S]*断定[\s\S]*差し戻す/);
+    expect(content).toMatch(/対応言語[\s\S]*翻訳品質[\s\S]*断定[\s\S]*差し戻す/);
+    expect(content).toMatch(/ストア訴求[\s\S]*localizedStorefronts/);
   });
 });
 

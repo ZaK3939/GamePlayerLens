@@ -16,6 +16,11 @@ describe.runIf(process.env.RUN_LIVE === "1")(
       expect(result.data?.name).toBe("Hades");
       expect(result.data?.languages).toContain("Japanese");
       expect(result.data?.prices.jp?.currency).toBe("JPY");
+      expect(result.data?.localizedStorefronts.english?.shortDescription).toBeTruthy();
+      expect(result.data?.localizedStorefronts.japanese?.requestedLanguage).toBe("japanese");
+      expect(result.data?.referenceLinks.steamSonar).toBe(
+        "https://www.steamsonar.gg/game/1145360",
+      );
       expect(result.data?.tags.length).toBeGreaterThan(3);
       expect(result.meta?.request).toEqual({countries: ["US", "JP", "DE"]});
       expect(result.meta?.sources?.some((source) => source.name === "SteamSpy")).toBe(true);

@@ -162,7 +162,7 @@ export function buildServer(
   server.registerTool(
     "steam_fetch",
     {
-      description: "Steam Store details in US, JP, and Germany plus SteamSpy",
+      description: "Steam Store pricing and requested-locale copy for US/JP/DE, reference links, and SteamSpy",
       inputSchema: z.object({appid: AppidSchema}),
       outputSchema: ResultEnvelopeSchema,
     },

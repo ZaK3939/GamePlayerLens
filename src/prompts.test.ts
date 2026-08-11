@@ -31,6 +31,14 @@ describe("run-sim prompt arguments", () => {
       target: "Example Game",
       topic: "launch",
     })).toMatchObject({mode: "baseline", domains: "auto"});
+
+    expect(RunSimPromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "full product review",
+      domains: "competition, storefront,gameplay,ui,storefront",
+    })).toMatchObject({
+      domains: "gameplay,storefront,ui,competition",
+    });
   });
 
   it.each([
@@ -114,6 +122,9 @@ describe("repository prompt recipes", () => {
     expect(content).toMatch(/change[\s\S]*currentState[\s\S]*proposal[\s\S]*評価開始前[\s\S]*質問/);
     expect(content).toMatch(/price[\s\S]*competition[\s\S]*ui_capture[\s\S]*ui-blind-compare[\s\S]*UI gate[\s\S]*N\/A[\s\S]*不合格理由にしない/);
     expect(content).toMatch(/ui[\s\S]*get_artifact[\s\S]*capture[\s\S]*ui-reference[\s\S]*ui-blind-compare/);
+    expect(content).toMatch(/gameplay[\s\S]*storefront[\s\S]*localizedStorefronts/);
+    expect(content).toMatch(/Steam Sonar[\s\S]*referenceLinks[\s\S]*steamSonar/);
+    expect(content).toMatch(/タグ[\s\S]*ゲームロジック[\s\S]*断定/);
     expect(content).toMatch(/subagent[\s\S]*利用できない[\s\S]*sequential independent pass/);
     expect(content).toMatch(/archive[\s\S]*client-side extraction[\s\S]*prompt/);
   });
