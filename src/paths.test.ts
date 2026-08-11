@@ -54,6 +54,14 @@ describe("safe paths", () => {
     expect(path).toMatch(/knowledge[/\\]intel[/\\]captures[/\\][a-z0-9-]+\.png$/);
   });
 
+  it("resolves only basename markdown skill files", () => {
+    const resolver = createPathResolver(root);
+    expect(resolver.resolveSkillPath("run-sim.md"))
+      .toMatch(/skills[/\\]run-sim\.md$/);
+    expect(() => resolver.resolveSkillPath("../run-sim.md")).toThrow();
+    expect(() => resolver.resolveSkillPath("run-sim.txt")).toThrow();
+  });
+
   it("rejects existing symlinks that escape the knowledge root", () => {
     const outside = join(root, "outside.md");
     const link = join(root, "knowledge/rubrics/escape.md");

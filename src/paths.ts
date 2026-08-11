@@ -63,6 +63,7 @@ export interface PathResolver {
   resolveKnowledgePath(kind: KnowledgeKind, id: string): string;
   resolvePersonaPath(id: string): string;
   resolveCapturePath(name?: string): string;
+  resolveSkillPath(id: string): string;
 }
 
 export function createPathResolver(rootPath: string): PathResolver {
@@ -113,6 +114,20 @@ export function createPathResolver(rootPath: string): PathResolver {
       const fileName = `${safeCaptureSlug(name)}-${randomUUID()}.png`;
       return resolveIn(join("knowledge", "intel", "captures"), fileName);
     },
+
+    resolveSkillPath(id) {
+      if (
+        basename(id) !== id
+        || id === "."
+        || id === ".."
+        || id.startsWith(".")
+        || !KNOWLEDGE_ID.test(id)
+        || extensionOf(id) !== ".md"
+      ) {
+        throw new Error("invalid skill id");
+      }
+      return resolveIn("skills", id);
+    },
   };
 }
 
@@ -145,4 +160,8 @@ export function resolvePersonaPath(id: string): string {
 
 export function resolveCapturePath(name?: string): string {
   return getDefaultResolver().resolveCapturePath(name);
+}
+
+export function resolveSkillPath(id: string): string {
+  return getDefaultResolver().resolveSkillPath(id);
 }
