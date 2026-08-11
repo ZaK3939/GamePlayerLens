@@ -17,14 +17,15 @@
 
 ## 実行手順
 
-1. `get_knowledge` で templates の `adoption-eval.md`、rubrics の `harsh-critic.md`、既存 personas を読みます。過去の `workspaces/` 評価を取得できる場合は相談履歴として読みます。
+1. `get_artifact` を kind=`evaluation`、target 省略で呼び、既存 target を確認します。対象 target の evaluation を一覧し、必要なものだけを読み、過去の相談履歴として使います。`get_knowledge` は templates の `adoption-eval.md`、rubrics の `harsh-critic.md`、既存 personas の読み込みにだけ使います。
 2. `ui` が選択され、対象が URL なら `ui_capture` で主要状態を取得します。保存済みの capture または ui-reference は `get_artifact` で画像として読みます。失敗時は warning に従って手動画像を依頼し、画像未取得の UI 断言を止めます。`ui` が選択外ならこの手順は N/A です。
-3. `steam_search` で競合候補を広く探し、`steam_fetch` のタグ、言語、地域価格、レビュー統計から類似3〜5本を選びます。選定理由も根拠として保存します。
-4. 各競合に `steam_timeline` を使い、現在CCUスナップショット、owners、平均プレイ時間、取得可能なら価格履歴を集めます。現在値から過去トレンドを推測しません。
-5. 必要な言語・極性・プレイ時間条件を `steam_reviews` で確認します。続いて競合 appid 群を `derive_personas` に渡します。返された schema とレビュー出典から指定件数の異なる persona JSON を生成し、その後に各 JSON を `save_persona` で保存します。`derive_personas` → `save_persona` の順序を逆にしてはいけません。
-6. 選択された領域ごとの subagent に、同一の対象仕様・変更案・intel・persona を渡して独立評価させます。subagent が利用できないクライアントでは、同じ領域分離を保った sequential independent pass として順番に実行します。各主張に取得値または voice の recommendation ID を付け、別領域の結論を先入観として持ち込みません。
-7. `ui` が選択された場合だけ `ui-blind-compare` の手順で対象 UI と比較画像を評価し、正解開示前の判定を固定します。続いて harsh-critic rubric で選択領域だけを審査し、差し戻しを修正します。同一の根拠欠損が反復したら rubric の停止条件に従います。UI 選択外では blind comparison と UI gate は N/A です。
-8. `knowledge/templates/adoption-eval.md` を埋め、クライアントが保存手段を持つ場合は `workspaces/<target>/<date>-<topic>.md` に保存します。baseline は現状単独、change は「現状 vs 変更案」で記述します。
+3. `competitors` に既知の競合名がある場合は、各名を `steam_search` で appid 候補に解決します。既知の競合がない場合は、対象の tag または genre を根拠とともに選び、`steam_discover` で競合候補を作ります。どちらの経路でも、`steam_fetch` のタグ、言語、地域価格、レビュー統計で候補を検証し、類似3〜5本と選定理由を確定します。
+4. 各競合に `steam_timeline` を使い、現在CCUスナップショット、owners、平均プレイ時間、取得可能なら価格履歴を集めます。現在値から過去トレンドを推測しません。必要な言語・極性・プレイ時間条件は `steam_reviews` で確認します。
+5. 評価で参照する `steam_search`、`steam_discover`、`steam_fetch`、`steam_timeline`、`steam_reviews` の出力を、対応する sourceTool と observedAt を指定して `save_artifact` の kind=`intel` で保存します。返された repository-relative path を Evidence Index に記録し、保存できなかった根拠は warning として明示します。
+6. 競合 appid 群を `derive_personas` に渡します。返された schema とレビュー出典から指定件数の異なる persona JSON を生成し、その後に各 JSON を `save_persona` で保存します。`derive_personas` → `save_persona` の順序を逆にしてはいけません。
+7. 選択された領域ごとの subagent に、同一の対象仕様・変更案・intel・persona を渡して独立評価させます。subagent が利用できないクライアントでは、同じ領域分離を保った sequential independent pass として順番に実行します。各主張に取得値または voice の recommendation ID を付け、別領域の結論を先入観として持ち込みません。
+8. `ui` が選択された場合だけ `ui-blind-compare` の手順で対象 UI と比較画像を評価し、正解開示前の判定を固定します。続いて harsh-critic rubric で選択領域だけを審査し、差し戻しを修正します。同一の根拠欠損が反復したら rubric の停止条件に従います。UI 選択外では blind comparison と UI gate は N/A です。
+9. `knowledge/templates/adoption-eval.md` を埋め、baseline は現状単独、change は「現状 vs 変更案」で記述します。完成した Markdown は `save_artifact` の kind=`evaluation` で保存し、返された `workspaces/<target>/<date>-<topic>.md` 形式の repo-relative path をユーザーへ報告します。
 
 ## 完了条件
 
@@ -32,4 +33,4 @@
 - 利用した tool の役割を混同せず、外部 warning と根拠不足をレポートに残した。
 - ペルソナ発言に `source_appid` と `recommendation_id` がある。
 - Flow Summary と Overall Assessment が領域別所見と矛盾しない。
-- 出力先と、次に検証すべき未解決事項を報告した。
+- `save_artifact` で保存した evaluation の repo-relative path と、次に検証すべき未解決事項を報告した。

@@ -44,6 +44,41 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("根拠不足");
     expect(content).toContain("現状 vs 変更案");
   });
+
+  it("starts with mode, selected domains, and explicit N/A reasons", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+    const reportStart = content.slice(0, content.indexOf("## Overall Assessment"));
+
+    expect(reportStart).toContain("Mode");
+    expect(reportStart).toContain("Selected Domains");
+    expect(reportStart).toContain("N/A");
+    expect(reportStart).toContain("理由");
+    expect(content).toMatch(/baseline[\s\S]*現状だけ/);
+    expect(content).toMatch(/change[\s\S]*現状 vs 変更案/);
+  });
+
+  it("qualifies flow size and separates zero, missing, and estimates", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+
+    expect(content).toContain("reviewStats");
+    expect(content).toMatch(/owners[\s\S]*推定[\s\S]*売上本数ではない/);
+    expect(content).toContain("外部根拠");
+    expect(content).toContain("reported-zero");
+    expect(content).toContain("missing");
+    expect(content).toContain("estimated");
+    expect(content).toMatch(/balanced[\s\S]*市場母集団の比率ではない/);
+  });
+
+  it("requires an evidence index and an actionable final recommendation", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+
+    expect(content).toContain("## Evidence Index");
+    expect(content).toContain("artifact repository-relative path");
+    expect(content).toContain("observedAt");
+    expect(content).toContain("source");
+    expect(content).toContain("confidence");
+    expect(content).toContain("next validation");
+  });
 });
 
 describe("harsh critic rubric", () => {
@@ -51,20 +86,40 @@ describe("harsh critic rubric", () => {
     const content = await read("knowledge/rubrics/harsh-critic.md");
     expect(content).toContain("根拠なし主張が1つでもあれば差し戻し");
     expect(content).toContain("ブラインド比較");
-    expect(content).toContain("AAAに見えなければ続行");
     expect(content).toContain("voice[].text");
     expect(content).toContain("source_appid");
     expect(content).toContain("recommendation_id");
     expect(content).toContain("同一指摘");
     expect(content).toContain("根拠不足として停止");
   });
+
+  it("conditions UI review on scope and compares against the requested tier", async () => {
+    const content = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(content).toMatch(/UI[\s\S]*Selected Domains[\s\S]*選択/);
+    expect(content).toMatch(/UI[\s\S]*選択外[\s\S]*N\/A[\s\S]*不合格理由にしない/);
+    expect(content).toMatch(/qualityTier[\s\S]*同等[\s\S]*出荷済み製品/);
+    expect(content).not.toContain("AAA");
+  });
+
+  it("rejects population claims from balanced samples and qualifies SteamSpy data", async () => {
+    const content = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(content).toContain("representative: false");
+    expect(content).toContain("population ratio");
+    expect(content).toMatch(/SteamSpy[\s\S]*owners[\s\S]*推定[\s\S]*売上本数ではない/);
+    expect(content).toContain("reported-zero");
+    expect(content).toContain("missing");
+    expect(content).toContain("estimated");
+  });
 });
 
 describe("MCP prompt source recipes", () => {
-  it("run-sim references every v1 tool and saves derived personas in order", async () => {
+  it("run-sim references every workflow tool and saves derived personas in order", async () => {
     const content = await read("skills/run-sim.md");
     for (const tool of [
       "steam_search",
+      "steam_discover",
       "steam_fetch",
       "steam_reviews",
       "steam_timeline",
@@ -72,6 +127,8 @@ describe("MCP prompt source recipes", () => {
       "save_persona",
       "ui_capture",
       "get_knowledge",
+      "save_artifact",
+      "get_artifact",
     ]) {
       expect(content).toContain(`\`${tool}\``);
     }
@@ -79,6 +136,14 @@ describe("MCP prompt source recipes", () => {
       content.indexOf("`save_persona`"),
     );
     expect(content).toContain("workspaces/");
+  });
+
+  it("requires the saved evaluation relative path for completion", async () => {
+    const content = await read("skills/run-sim.md");
+    const completion = content.slice(content.indexOf("## 完了条件"));
+
+    expect(completion).toContain("evaluation");
+    expect(completion).toContain("repo-relative path");
   });
 
   it("keeps both prompt files non-empty and freezes blind results before reveal", async () => {
