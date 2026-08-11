@@ -124,6 +124,7 @@ describe("repository prompt recipes", () => {
     expect(content).toMatch(/ui[\s\S]*get_artifact[\s\S]*capture[\s\S]*ui-reference[\s\S]*ui-blind-compare/);
     expect(content).toMatch(/gameplay[\s\S]*storefront[\s\S]*localizedStorefronts/);
     expect(content).toMatch(/Steam Sonar[\s\S]*referenceLinks[\s\S]*steamSonar/);
+    expect(content).toMatch(/steam_fetch\.screenshots[\s\S]*steamstatic\.com[\s\S]*steam-image/);
     expect(content).toMatch(/タグ[\s\S]*ゲームロジック[\s\S]*断定/);
     expect(content).toMatch(/derive_personas[\s\S]*resultHandle[\s\S]*save_artifact[\s\S]*Evidence Index/);
     expect(content).toMatch(/resultHandle[\s\S]*再serialize[\s\S]*抜粋/);

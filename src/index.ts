@@ -286,10 +286,11 @@ export function buildServer(
   server.registerTool(
     "ui_capture",
     {
-      description: "Capture an HTTP(S) UI through Obscura CDP to a server-owned PNG path",
+      description: "Capture a page through Obscura, or securely download a Steam Store screenshot from steamstatic.com",
       inputSchema: z.object({
         url: z.string().url(),
         name: z.string().optional(),
+        sourceType: z.enum(["page", "steam-image"]).optional(),
         viewport: z.object({
           width: z.number().int().min(320).max(3840),
           height: z.number().int().min(240).max(2160),
@@ -298,8 +299,8 @@ export function buildServer(
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({url, name, viewport, fullPage}) => imageEnvelope(
-      await services.captureUrl(url, {name, viewport, fullPage}),
+    async ({url, name, sourceType, viewport, fullPage}) => imageEnvelope(
+      await services.captureUrl(url, {name, sourceType, viewport, fullPage}),
     ),
   );
 

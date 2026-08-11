@@ -9,6 +9,7 @@ import {randomUUID} from "node:crypto";
 import {basename, isAbsolute, join, relative, resolve, sep} from "node:path";
 
 export type KnowledgeKind = "personas" | "templates" | "rubrics" | "intel";
+export type CaptureImageExtension = "png" | "jpg";
 
 const PERSONA_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 const KNOWLEDGE_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
@@ -117,7 +118,7 @@ export interface PathResolver {
   readonly assetRoot: string;
   resolveKnowledgePath(kind: KnowledgeKind, id: string): string;
   resolvePersonaPath(id: string): string;
-  resolveCapturePath(name?: string): string;
+  resolveCapturePath(name?: string, extension?: CaptureImageExtension): string;
   resolveSkillPath(id: string): string;
   resolveIntelArtifactPath(target: string, id: string): ResolvedIntelArtifactPath;
   resolveEvaluationPath(
@@ -125,7 +126,10 @@ export interface PathResolver {
     date: string,
     topic: string,
   ): ResolvedEvaluationPath;
-  resolveCaptureReadPath(id: string): ResolvedImagePath;
+  resolveCaptureReadPath(
+    id: string,
+    extension?: CaptureImageExtension,
+  ): ResolvedImagePath;
   resolveUiReferencePath(id: string): ResolvedImagePath;
 }
 
@@ -186,6 +190,13 @@ function createSplitPathResolver(
     };
   }
 
+  function captureExtension(value: CaptureImageExtension = "png"): CaptureImageExtension {
+    if (value !== "png" && value !== "jpg") {
+      throw new Error("invalid capture image extension");
+    }
+    return value;
+  }
+
   return {
     root,
     assetRoot,
@@ -214,8 +225,8 @@ function createSplitPathResolver(
       return resolveIn(root, join("knowledge", "personas"), `${id}.json`);
     },
 
-    resolveCapturePath(name) {
-      const fileName = `${safeCaptureSlug(name)}-${randomUUID()}.png`;
+    resolveCapturePath(name, extension = "png") {
+      const fileName = `${safeCaptureSlug(name)}-${randomUUID()}.${captureExtension(extension)}`;
       return resolveIn(root, join("knowledge", "intel", "captures"), fileName);
     },
 
@@ -256,12 +267,12 @@ function createSplitPathResolver(
       return {targetId, topicId, ...resolvedPath(absolutePath)};
     },
 
-    resolveCaptureReadPath(id) {
+    resolveCaptureReadPath(id, extension = "png") {
       const canonicalId = safeSlug(id);
       const absolutePath = resolveIn(
         root,
         join("knowledge", "intel", "captures"),
-        `${canonicalId}.png`,
+        `${canonicalId}.${captureExtension(extension)}`,
       );
       return {id: canonicalId, ...resolvedPath(absolutePath)};
     },
@@ -376,8 +387,11 @@ export function resolvePersonaPath(id: string): string {
   return getDefaultResolver().resolvePersonaPath(id);
 }
 
-export function resolveCapturePath(name?: string): string {
-  return getDefaultResolver().resolveCapturePath(name);
+export function resolveCapturePath(
+  name?: string,
+  extension?: CaptureImageExtension,
+): string {
+  return getDefaultResolver().resolveCapturePath(name, extension);
 }
 
 export function resolveSkillPath(id: string): string {
@@ -399,8 +413,11 @@ export function resolveEvaluationPath(
   return getDefaultResolver().resolveEvaluationPath(target, date, topic);
 }
 
-export function resolveCaptureReadPath(id: string): ResolvedImagePath {
-  return getDefaultResolver().resolveCaptureReadPath(id);
+export function resolveCaptureReadPath(
+  id: string,
+  extension?: CaptureImageExtension,
+): ResolvedImagePath {
+  return getDefaultResolver().resolveCaptureReadPath(id, extension);
 }
 
 export function resolveUiReferencePath(id: string): ResolvedImagePath {

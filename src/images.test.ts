@@ -15,6 +15,7 @@ import {
 import {createPathResolver} from "./paths.js";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
 const roots: string[] = [];
 
 function pngBytes(size = PNG_SIGNATURE.length): Buffer {
@@ -77,6 +78,50 @@ describe("image content", () => {
       .rejects.toThrow(/PNG signature/i);
   });
 
+  it("returns MCP ImageContent for a JPEG capture", async () => {
+    const resolver = await tempResolver();
+    const resolved = resolver.resolveCaptureReadPath("Store Hero", "jpg");
+    await writeFile(resolved.absolutePath, JPEG_BYTES);
+    const images = createImageService(resolver);
+
+    const result = await images.readImage("capture", "Store Hero");
+
+    expect(result).toEqual({
+      data: {
+        id: "store-hero",
+        kind: "capture",
+        relativePath: "knowledge/intel/captures/store-hero.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: JPEG_BYTES.length,
+        modifiedAt: expect.any(String),
+        imageIncluded: true,
+      },
+      warnings: [],
+      imageContent: {
+        type: "image",
+        data: JPEG_BYTES.toString("base64"),
+        mimeType: "image/jpeg",
+      },
+    });
+  });
+
+  it("rejects invalid JPEG signatures and ambiguous capture ids", async () => {
+    const resolver = await tempResolver();
+    const invalid = resolver.resolveCaptureReadPath("Invalid JPEG", "jpg");
+    await writeFile(invalid.absolutePath, Buffer.from("not a jpeg"));
+    const images = createImageService(resolver);
+    await expect(images.readImage("capture", "Invalid JPEG"))
+      .rejects.toThrow(/JPEG signature/i);
+
+    await writeFile(resolver.resolveCaptureReadPath("Duplicate").absolutePath, pngBytes());
+    await writeFile(
+      resolver.resolveCaptureReadPath("Duplicate", "jpg").absolutePath,
+      JPEG_BYTES,
+    );
+    await expect(images.readImage("capture", "Duplicate"))
+      .rejects.toThrow(/ambiguous/i);
+  });
+
   it("returns metadata and a warning above 6 MiB without base64 encoding", async () => {
     const resolver = await tempResolver();
     const resolved = resolver.resolveCaptureReadPath("Oversized");
@@ -105,12 +150,14 @@ describe("image content", () => {
 });
 
 describe("image service roots and listing", () => {
-  it("lists and reads capture and UI-reference PNGs from separate safe roots", async () => {
+  it("lists capture PNG/JPEG and UI-reference PNGs from separate safe roots", async () => {
     const resolver = await tempResolver();
     const capture = resolver.resolveCaptureReadPath("Game Hero");
     const reference = resolver.resolveUiReferencePath("Main Menu");
+    const store = resolver.resolveCaptureReadPath("Store Shot", "jpg");
     await writeFile(capture.absolutePath, pngBytes());
     await writeFile(reference.absolutePath, pngBytes(12));
+    await writeFile(store.absolutePath, JPEG_BYTES);
     const images = createImageService(resolver);
 
     expect(await images.listImages("capture")).toEqual([
@@ -120,6 +167,14 @@ describe("image service roots and listing", () => {
         relativePath: "knowledge/intel/captures/game-hero.png",
         mimeType: "image/png",
         sizeBytes: PNG_SIGNATURE.length,
+        modifiedAt: expect.any(String),
+      },
+      {
+        id: "store-shot",
+        kind: "capture",
+        relativePath: "knowledge/intel/captures/store-shot.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: JPEG_BYTES.length,
         modifiedAt: expect.any(String),
       },
     ]);
@@ -137,7 +192,7 @@ describe("image service roots and listing", () => {
     await expect(images.readImage("ui-reference", "Game Hero")).rejects.toThrow();
   });
 
-  it("keeps list metadata-only and ignores nested, non-PNG, and dotfile entries", async () => {
+  it("keeps list metadata-only and ignores nested, unsupported, and dotfile entries", async () => {
     const resolver = await tempResolver();
     const captureRoot = join(resolver.root, "knowledge", "intel", "captures");
     await writeFile(join(captureRoot, "valid.png"), pngBytes());

@@ -139,7 +139,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `steam_timeline` | SteamSpy snapshot と任意の ITAD 価格履歴を取得 |
 | `derive_personas` | 件数を調整できるレビュー出典、Persona JSON Schema、生成指示をまとめる |
 | `save_persona` | 生成済み persona を検証し、原子的に保存 |
-| `ui_capture` | Obscura CDP で HTTP(S) UI を PNG 保存し、上限内なら `ImageContent` も返す |
+| `ui_capture` | 通常ページをObscuraでPNG capture、またはSteam CDN画像をJPEG保存し、上限内なら `ImageContent` も返す |
 | `get_knowledge` | canonical templates、rubrics、personas、互換用 intel を一覧・取得 |
 | `steam_discover` | SteamSpy のtag/genreを単独検索、または最大4条件で交差して競合候補を取得 |
 | `save_artifact` | intel JSON または evaluation Markdown を安全かつ原子的に保存 |
@@ -161,6 +161,20 @@ v1.1 の tool surface は次の exactly 11 tools です。
 
 交差時の各候補には `matchedValues` と `sourceRanks` が付きます。これはSteamSpy tagの重なりであり、最終的な類似性保証ではないため、候補は `steam_fetch` で再検証してください。
 
+### `ui_capture`
+
+通常のURLは既定の `sourceType=page` で、従来どおりObscura CDPを使ってPNG captureします。`steam_fetch.screenshots` が返すSteam Store画像は `sourceType=steam-image` を指定すると、ObscuraなしでJPEGを保存して `ImageContent` として読めます。
+
+```json
+{
+  "url": "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1145350/example.jpg",
+  "name": "hades-ii-store-shot",
+  "sourceType": "steam-image"
+}
+```
+
+直接取得は `https://steamstatic.com` とそのsubdomainだけに限定されます。認証情報、独自port、redirect、JPEG以外、6 MiB超は拒否します。`viewport` と `fullPage` は `sourceType=page` 専用です。Steam SonarやSteamDBなどのHTML dashboardは `sourceType=page` を使います。
+
 ### `save_artifact` / `get_artifact`
 
 `save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`observedAt`、`payload` を直接渡す方式も維持します。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。どの方式も `overwrite` の default は `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
@@ -172,8 +186,8 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `intel` / `evaluation` | `target` なし | target ID 一覧 |
 | `intel` / `evaluation` | `target` あり、`id` なし | artifact metadata 一覧 |
 | `intel` / `evaluation` | `target` と `id` あり | JSON / Markdown 内容 |
-| `capture` / `ui-reference` | `id` なし | PNG metadata 一覧 |
-| `capture` / `ui-reference` | `id` あり | metadata と、6 MiB 以下の有効な PNG なら `ImageContent` |
+| `capture` / `ui-reference` | `id` なし | 画像 metadata 一覧（captureはPNG/JPEG、ui-referenceはPNG） |
+| `capture` / `ui-reference` | `id` あり | metadata と、6 MiB 以下の有効な画像なら `ImageContent` |
 
 text artifact の `id` 単独指定と、image artifact の `target` 指定は無効です。一覧 metadata は canonical ID、repo-relative path、size、更新時刻を返します。画像は client filesystem access なしで読めます。
 
@@ -182,11 +196,11 @@ text artifact の `id` 単独指定と、image artifact の `target` 指定は�
 ```text
 knowledge/intel/{targetId}/{artifactId}.json
 workspaces/{targetId}/{date}-{topicId}.md
-knowledge/intel/captures/{captureId}.png
+knowledge/intel/captures/{captureId}.{png|jpg}
 knowledge/ui-references/{referenceId}.png
 ```
 
-入力された表示名は安全な canonical ID へ正規化され、tool result に repo-relative path が返ります。任意 path、traversal、symlink 経由の root 外アクセスは受け付けません。intel payload は最大 1 MiB、evaluation は最大 512 KiB、inline PNG は最大 6 MiB です。
+入力された表示名は安全な canonical ID へ正規化され、tool result に repo-relative path が返ります。任意 path、traversal、symlink 経由の root 外アクセスは受け付けません。intel payload は最大 1 MiB、evaluation は最大 512 KiB、inline imageは最大 6 MiB です。
 
 repo内の直接起動では上記layoutの起点はrepository rootです。npm `bin`では `GAME_PLAYER_LENS_HOME`、未設定なら `~/.game-player-lens` が起点です。toolが返すpathは、どちらの実行方式でもそのdata rootからの相対パスです。
 
@@ -214,7 +228,7 @@ pnpm smoke:stdio --live
 pnpm exec tsx scripts/smoke-package.ts --live
 ```
 
-live test の固定 appid は Hades `1145360`、SteamSpy discovery tag は `Action Roguelike` です。live package smokeは分離した一時data homeでSteam取得→resultHandle保存→原本envelope一致を検証し、終了時に一時dataを削除します。`OBSCURA_PATH` がなければ manual ui-reference warning を検証し、設定済みなら localhost capture と `ImageContent` を検証します。`ITAD_API_KEY` がなければ timeline は `priceHistory: null` と設定 warning、設定済みなら履歴配列と currency を検証します。
+live test の固定 appid はHades `1145360`、Steam画像captureはHades II `1145350`、SteamSpy discovery tagは `Action Roguelike` です。live package smokeは分離した一時data homeでSteam取得→resultHandle保存→原本envelope一致を検証し、終了時に一時dataを削除します。Steam画像captureはObscuraなしでも実行され、生成したJPEGを終了時に削除します。`OBSCURA_PATH` がなければ通常page captureのmanual ui-reference warningを検証し、設定済みならlocalhost captureと `ImageContent` を検証します。`ITAD_API_KEY` がなければtimelineは `priceHistory: null` と設定warning、設定済みなら履歴配列とcurrencyを検証します。
 
 ## v1 から v1.1
 

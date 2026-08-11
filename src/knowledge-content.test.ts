@@ -158,6 +158,15 @@ describe("MCP prompt source recipes", () => {
     expect(completion).toContain("repo-relative path");
   });
 
+  it("uses the bounded Steam CDN image path for storefront screenshots", async () => {
+    const content = await read("skills/run-sim.md");
+
+    expect(content).toMatch(
+      /steam_fetch\.screenshots[\s\S]*steamstatic\.com[\s\S]*sourceType[\s\S]*steam-image/,
+    );
+    expect(content).toMatch(/Steam Sonar[\s\S]*sourceType[\s\S]*page[\s\S]*Obscura/);
+  });
+
   it("keeps both prompt files non-empty and freezes blind results before reveal", async () => {
     const runSim = await read("skills/run-sim.md");
     const blind = await read("skills/ui-blind-compare.md");

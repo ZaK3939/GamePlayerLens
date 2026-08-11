@@ -65,6 +65,11 @@ describe("safe paths", () => {
     const resolver = createPathResolver(root);
     const path = resolver.resolveCapturePath("../../unsafe name");
     expect(path).toMatch(/knowledge[/\\]intel[/\\]captures[/\\][a-z0-9-]+\.png$/);
+
+    const jpegPath = resolver.resolveCapturePath("Store screenshot", "jpg");
+    expect(jpegPath).toMatch(
+      /knowledge[/\\]intel[/\\]captures[/\\]store-screenshot-[a-f0-9-]+\.jpg$/,
+    );
   });
 
   it("resolves only basename markdown skill files", () => {
@@ -194,7 +199,7 @@ describe("safe paths", () => {
       .toThrow(/date/i);
   });
 
-  it("resolves capture and UI reference ids only to basename PNG files", () => {
+  it("resolves capture PNG/JPEG and UI reference PNG ids to safe basenames", () => {
     const resolver = createPathResolver(root);
 
     expect(resolver.resolveCaptureReadPath("Hero Capture")).toEqual({
@@ -210,7 +215,16 @@ describe("safe paths", () => {
       absolutePath: join(resolver.root, "knowledge/ui-references/main-menu.png"),
       relativePath: "knowledge/ui-references/main-menu.png",
     });
+    expect(resolver.resolveCaptureReadPath("Hero Capture", "jpg")).toEqual({
+      id: "hero-capture",
+      absolutePath: join(
+        resolver.root,
+        "knowledge/intel/captures/hero-capture.jpg",
+      ),
+      relativePath: "knowledge/intel/captures/hero-capture.jpg",
+    });
     expect(() => resolver.resolveCaptureReadPath("../capture.png")).toThrow();
+    expect(() => resolver.resolveCaptureReadPath("capture", "gif" as never)).toThrow();
     expect(() => resolver.resolveUiReferencePath("nested/reference.png")).toThrow();
   });
 

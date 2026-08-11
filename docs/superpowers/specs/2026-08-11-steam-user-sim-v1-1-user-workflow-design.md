@@ -33,7 +33,7 @@ v1.1で直接受ける対象入力は仕様テキストとHTTP(S) URL。zipはMC
 | steam_timeline | SteamSpy snapshotと任意ITAD履歴 |
 | derive_personas | 出典付きpersona素材。市場代表サンプルではないことをmetaへ明記 |
 | save_persona | schema検証済みpersonaを保存 |
-| ui_capture | PNG保存に加え、上限内ならImageContentを同じresultへ含める |
+| ui_capture | pageをPNG capture、Steam CDN画像をJPEG保存し、上限内ならImageContentを同じresultへ含める |
 | get_knowledge | canonical templates、rubrics、personasを取得 |
 | steam_discover | SteamSpyのtagまたはgenreから競合候補を取得 |
 | save_artifact | intel JSONまたはevaluation Markdownを安全に保存 |
@@ -47,7 +47,7 @@ v1.1で直接受ける対象入力は仕様テキストとHTTP(S) URL。zipはMC
 
 - knowledge/intel/{targetId}/{artifactId}.json
 - workspaces/{targetId}/{date}-{topicId}.md
-- knowledge/intel/captures/{captureId}.png
+- knowledge/intel/captures/{captureId}.png または .jpg
 - knowledge/ui-references/{referenceId}.png
 
 target、topic、idは1〜80文字の表示名として受ける。ただし正規化前に`/`、`\\`、NUL、絶対path、dot-onlyをrejectする。サーバーは残りを最大64文字の安全なslugへ正規化し、空または上限超過ならrejectする。return dataにはcanonical IDとrepo-relative pathを返し、クライアント入力に任意のpathを公開しない。
@@ -88,18 +88,18 @@ kindはintel、evaluation、capture、ui-reference。
 - intel/evaluationでtarget省略: target一覧
 - targetあり、id省略: artifact一覧
 - targetとidあり: 内容取得
-- capture/ui-referenceでid省略: PNG一覧
+- capture/ui-referenceでid省略: 画像一覧（captureはPNG/JPEG、ui-referenceはPNG）
 - idあり: metadataとImageContent
 
 一覧はid、repo-relative path、sizeBytes、modifiedAtを返す。MarkdownとJSONはstructured dataとtext contentへ含める。画像はstructured dataにmetadataを入れ、contentへbase64 ImageContentを追加する。
 
 ## Image delivery
 
-ui_capture成功resultは既存のdataとwarningsを維持し、PNGが6 MiB以下かつPNG signatureを持つ場合にImageContentを追加する。
+ui_captureの既定 `sourceType=page` は既存のObscura経路でPNGを生成する。`sourceType=steam-image` は `steam_fetch.screenshots` 用で、HTTPSの `steamstatic.com` とsubdomainだけからJPEGを直接取得する。credentials、custom port、redirect、non-JPEG responseを拒否し、viewport/fullPageは受け付けない。成功resultは既存のdataとwarningsを維持し、有効なPNG/JPEGが6 MiB以下ならImageContentを追加する。
 
-6 MiBを超える場合、capture自体は成功としてpathを返すが、imageIncluded=falseとinline上限warningを返す。MCP stdioの既定10 MiB message limitにbase64 overheadを含めて収めるため、raw image上限を6 MiBとする。
+page captureが6 MiBを超える場合、capture自体は成功としてpathを返すが、imageIncluded=falseとinline上限warningを返す。Steam直接取得はstreamとContent-Lengthの両方で6 MiBをhard limitにし、超過時は保存しない。MCP stdioの既定10 MiB message limitにbase64 overheadを含めて収めるため、raw image上限を6 MiBとする。
 
-get_artifactでcaptureまたはui-referenceを読む場合も同じ上限とsignature検証を使う。symlinkと許可root外はtool error。
+get_artifactでcaptureを読む場合はPNG/JPEG、ui-referenceはPNGに限定し、同じ上限と形式別signature検証を使う。同一capture IDのPNG/JPEGが両方存在する場合は曖昧性errorにする。symlinkと許可root外はtool error。
 
 ## Result provenance
 
@@ -200,18 +200,19 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 
 - 既存8 toolの名前を変更しない。
 - FetchResultのdataとwarningsを維持し、metaはoptional追加。
-- ui_captureのstructured dataは既存fieldを維持し、imageIncluded、id、relativePathを追加。
+- ui_captureのstructured dataは既存fieldを維持し、imageIncluded、id、relativePath、sourceTypeを追加。
 - get_knowledgeの既存kindと動作を維持する。dynamic artifactはget_artifactへ分離。
 - save_personaの保存形式を変更しない。
 
 ## Security and limits
 
 - 全artifact pathは共通resolverを通す。
+- Steam画像の直接取得はHTTPS `steamstatic.com` allowlist、redirect禁止、6 MiB hard limitを通す。
 - knowledge、skillsに加えworkspacesの存在をstartup時に検証する。
 - target/id/date/topicのbasename、slug、拡張子、containment、symlinkを検証する。
 - writeはatomic、overwrite default false。
-- intel JSON 1 MiB、evaluation Markdown 512 KiB、inline PNG 6 MiB。
-- JSON parse失敗、PNG signature違反、path違反はtool error。
+- intel JSON 1 MiB、evaluation Markdown 512 KiB、inline image 6 MiB。
+- JSON parse失敗、PNG/JPEG signature違反、path違反はtool error。
 - 外部APIの期待される失敗は引き続きdata、warnings、metaの部分成功。
 
 ## Non-goals

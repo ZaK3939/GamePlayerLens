@@ -11,6 +11,7 @@ import {createPathResolver} from "./paths.js";
 import {createPersonaStore, type Persona} from "./personas.js";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
 const NOW = new Date("2026-08-11T09:10:11.000Z");
 const roots: string[] = [];
 
@@ -308,6 +309,7 @@ describe("MCP server contract", () => {
           required: capture.required,
           url: pickSchema(schemaProperty(capture, "url"), ["type"]),
           name: pickSchema(schemaProperty(capture, "name"), ["type"]),
+          sourceType: pickSchema(schemaProperty(capture, "sourceType"), ["type", "enum"]),
           viewportFields: Object.keys(viewport.properties as object),
           viewportRequired: viewport.required,
           width: pickSchema(schemaProperty(viewport, "width"), ["type", "minimum", "maximum"]),
@@ -512,6 +514,7 @@ describe("MCP server contract", () => {
             "fields": [
               "url",
               "name",
+              "sourceType",
               "viewport",
               "fullPage",
             ],
@@ -530,6 +533,13 @@ describe("MCP server contract", () => {
             "required": [
               "url",
             ],
+            "sourceType": {
+              "enum": [
+                "page",
+                "steam-image",
+              ],
+              "type": "string",
+            },
             "url": {
               "type": "string",
             },
@@ -1003,6 +1013,46 @@ describe("MCP server contract", () => {
     }
   });
 
+  it("lists and reads JPEG captures through get_artifact", async () => {
+    const {client, resolver, server} = await createHarness();
+    await writeFile(
+      resolver.resolveCaptureReadPath("Store Shot", "jpg").absolutePath,
+      JPEG_BYTES,
+    );
+    try {
+      const listed = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "capture"},
+      });
+      expect(listed.structuredContent).toMatchObject({
+        data: [expect.objectContaining({
+          id: "store-shot",
+          mimeType: "image/jpeg",
+          relativePath: "knowledge/intel/captures/store-shot.jpg",
+        })],
+        warnings: [],
+      });
+
+      const read = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "capture", id: "Store Shot"},
+      });
+      expect(read.isError).not.toBe(true);
+      expect(read.content[1]).toEqual({
+        type: "image",
+        data: JPEG_BYTES.toString("base64"),
+        mimeType: "image/jpeg",
+      });
+      expect(read.structuredContent).toMatchObject({
+        data: {id: "store-shot", mimeType: "image/jpeg", imageIncluded: true},
+        warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("returns successful metadata and a warning without ImageContent for oversized PNGs", async () => {
     const {client, resolver, server} = await createHarness();
     await writeFile(
@@ -1036,10 +1086,19 @@ describe("MCP server contract", () => {
     try {
       const result = await client.callTool({
         name: "ui_capture",
-        arguments: {url: "https://example.com/menu", name: "Menu"},
+        arguments: {
+          url: "https://example.com/menu",
+          name: "Menu",
+          sourceType: "page",
+        },
       });
       expect(result.isError).not.toBe(true);
-      expect(captureUrl).toHaveBeenCalledOnce();
+      expect(captureUrl).toHaveBeenCalledWith("https://example.com/menu", {
+        name: "Menu",
+        sourceType: "page",
+        viewport: undefined,
+        fullPage: undefined,
+      });
       expect(result.content.map((item) => item.type)).toEqual(["text", "image"]);
       expect(result.content[1]).toMatchObject({type: "image", mimeType: "image/png"});
       expect(result.structuredContent).toMatchObject({

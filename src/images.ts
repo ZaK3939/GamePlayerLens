@@ -11,11 +11,17 @@ import {
   type ImageArtifactKind,
 } from "./artifacts.js";
 import type {FetchResult} from "./http.js";
-import type {PathResolver, ResolvedImagePath} from "./paths.js";
+import type {
+  CaptureImageExtension,
+  PathResolver,
+  ResolvedImagePath,
+} from "./paths.js";
 
 export const MAX_INLINE_IMAGE_BYTES = 6 * 1024 * 1024;
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
 const PNG_MIME_TYPE = "image/png";
+const JPEG_MIME_TYPE = "image/jpeg";
 const INLINE_LIMIT_WARNING =
   "image exceeds the 6 MiB inline limit; returning metadata only";
 
@@ -50,7 +56,7 @@ export interface ImageMetadata {
   id: string;
   kind: ImageArtifactKind;
   relativePath: string;
-  mimeType: typeof PNG_MIME_TYPE;
+  mimeType: ImageMimeType;
   sizeBytes: number;
   modifiedAt: string;
 }
@@ -64,13 +70,15 @@ export interface ImageFetchResult<T> extends FetchResult<T> {
 }
 
 export interface InlineImageResult {
-  mimeType: typeof PNG_MIME_TYPE;
+  mimeType: ImageMimeType;
   sizeBytes: number;
   modifiedAt: string;
   imageIncluded: boolean;
   imageContent?: ImageContent;
   warnings: string[];
 }
+
+export type ImageMimeType = typeof PNG_MIME_TYPE | typeof JPEG_MIME_TYPE;
 
 export interface ImageService {
   listImages(kind: ImageArtifactKind): Promise<ImageMetadata[]>;
@@ -100,10 +108,11 @@ function resolveImage(
   resolver: ImageResolver,
   kind: ImageArtifactKind,
   id: string,
+  extension: CaptureImageExtension = "png",
 ): ResolvedImagePath {
-  return kind === "capture"
-    ? resolver.resolveCaptureReadPath(id)
-    : resolver.resolveUiReferencePath(id);
+  if (kind === "capture") return resolver.resolveCaptureReadPath(id, extension);
+  if (extension !== "png") throw new Error("UI references must be PNG files");
+  return resolver.resolveUiReferencePath(id);
 }
 
 function rootDirectory(resolver: ImageResolver, kind: ImageArtifactKind): string {
@@ -124,10 +133,35 @@ function imageMetadata(
     id: resolved.id,
     kind,
     relativePath: resolved.relativePath,
-    mimeType: PNG_MIME_TYPE,
+    mimeType: imageFormat(resolved).mimeType,
     sizeBytes: stats.size,
     modifiedAt: stats.mtime.toISOString(),
   };
+}
+
+function imageFormat(resolved: ResolvedImagePath): {
+  extension: CaptureImageExtension;
+  mimeType: ImageMimeType;
+  signature: Buffer;
+  signatureName: "PNG" | "JPEG";
+} {
+  if (resolved.absolutePath.endsWith(".png") && resolved.relativePath.endsWith(".png")) {
+    return {
+      extension: "png",
+      mimeType: PNG_MIME_TYPE,
+      signature: PNG_SIGNATURE,
+      signatureName: "PNG",
+    };
+  }
+  if (resolved.absolutePath.endsWith(".jpg") && resolved.relativePath.endsWith(".jpg")) {
+    return {
+      extension: "jpg",
+      mimeType: JPEG_MIME_TYPE,
+      signature: JPEG_SIGNATURE,
+      signatureName: "JPEG",
+    };
+  }
+  throw new Error("unsupported image extension");
 }
 
 function isNodeError(error: unknown, code: string): boolean {
@@ -170,10 +204,15 @@ export function createImageService(
 
   function verifyResolverIssuedPath(path: ResolvedImagePath): void {
     for (const kind of ImageArtifactKindSchema.options) {
-      try {
-        if (isSameResolvedPath(path, resolveImage(resolver, kind, path.id))) return;
-      } catch {
-        // A resolver can have only one image root available to a narrow caller.
+      const extensions: CaptureImageExtension[] = kind === "capture"
+        ? ["png", "jpg"]
+        : ["png"];
+      for (const extension of extensions) {
+        try {
+          if (isSameResolvedPath(path, resolveImage(resolver, kind, path.id, extension))) return;
+        } catch {
+          // A resolver can have only one image root available to a narrow caller.
+        }
       }
     }
     throw new Error("image path must be issued by the configured resolver");
@@ -181,22 +220,23 @@ export function createImageService(
 
   async function imageContentFor(path: ResolvedImagePath): Promise<InlineImageResult> {
     verifyResolverIssuedPath(path);
+    const format = imageFormat(path);
     const {handle, stats} = await openRegularImage(path);
     try {
-      const signature = Buffer.alloc(PNG_SIGNATURE.length);
+      const signature = Buffer.alloc(format.signature.length);
       const {bytesRead} = await handle.read(
         signature,
         0,
         signature.length,
         0,
       );
-      if (bytesRead !== PNG_SIGNATURE.length || !signature.equals(PNG_SIGNATURE)) {
-        throw new Error(`invalid PNG signature at ${path.relativePath}`);
+      if (bytesRead !== format.signature.length || !signature.equals(format.signature)) {
+        throw new Error(`invalid ${format.signatureName} signature at ${path.relativePath}`);
       }
 
       if (stats.size > MAX_INLINE_IMAGE_BYTES) {
         return {
-          mimeType: PNG_MIME_TYPE,
+          mimeType: format.mimeType,
           sizeBytes: stats.size,
           modifiedAt: stats.mtime.toISOString(),
           imageIncluded: false,
@@ -210,14 +250,14 @@ export function createImageService(
         throw new Error(`image changed while reading ${path.relativePath}`);
       }
       return {
-        mimeType: PNG_MIME_TYPE,
+        mimeType: format.mimeType,
         sizeBytes: stats.size,
         modifiedAt: stats.mtime.toISOString(),
         imageIncluded: true,
         imageContent: {
           type: "image",
           data: encodeBase64(bytes),
-          mimeType: PNG_MIME_TYPE,
+          mimeType: format.mimeType,
         },
         warnings: [],
       };
@@ -233,11 +273,17 @@ export function createImageService(
     });
     const metadata: ImageMetadata[] = [];
     for (const entry of entries) {
-      if (entry.name.startsWith(".") || !entry.name.endsWith(".png")) continue;
+      if (entry.name.startsWith(".")) continue;
+      const extension: CaptureImageExtension | null = entry.name.endsWith(".png")
+        ? "png"
+        : parsedKind === "capture" && entry.name.endsWith(".jpg")
+          ? "jpg"
+          : null;
+      if (!extension) continue;
       if (entry.isSymbolicLink()) throw new Error("symlink images are not allowed");
       if (!entry.isFile()) continue;
       const id = entry.name.slice(0, -4);
-      const resolved = resolveImage(resolver, parsedKind, id);
+      const resolved = resolveImage(resolver, parsedKind, id, extension);
       if (resolved.id !== id || basename(resolved.absolutePath) !== entry.name) continue;
       const {handle, stats} = await openRegularImage(resolved);
       try {
@@ -254,7 +300,27 @@ export function createImageService(
     id: string,
   ): Promise<ImageFetchResult<ImageReadResult>> {
     const parsedKind = ImageArtifactKindSchema.parse(kind);
-    const resolved = resolveImage(resolver, parsedKind, id);
+    let resolved = resolveImage(resolver, parsedKind, id);
+    if (parsedKind === "capture") {
+      const candidates = [
+        resolveImage(resolver, parsedKind, id, "png"),
+        resolveImage(resolver, parsedKind, id, "jpg"),
+      ];
+      const existing: ResolvedImagePath[] = [];
+      for (const candidate of candidates) {
+        try {
+          const {handle} = await openRegularImage(candidate);
+          await handle.close();
+          existing.push(candidate);
+        } catch (error) {
+          if (!isNodeError(error, "ENOENT")) throw error;
+        }
+      }
+      if (existing.length > 1) {
+        throw new Error(`ambiguous capture image id: ${existing[0]!.id}`);
+      }
+      resolved = existing[0] ?? candidates[0]!;
+    }
     const inline = await imageContentFor(resolved);
     return {
       data: {

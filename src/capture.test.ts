@@ -1,5 +1,5 @@
 import {EventEmitter} from "node:events";
-import {access, mkdtemp, mkdir, rm, writeFile} from "node:fs/promises";
+import {access, mkdtemp, mkdir, readdir, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {basename, join, relative} from "node:path";
 import {PassThrough} from "node:stream";
@@ -10,6 +10,9 @@ import {createPathResolver} from "./paths.js";
 
 const roots: string[] = [];
 const PNG_BYTES = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
+const STEAM_IMAGE_URL =
+  "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1145350/ss_hades.jpg";
 
 async function tempResolver() {
   const root = await mkdtemp(join(tmpdir(), "steam-user-sim-capture-"));
@@ -100,9 +103,166 @@ describe("normalizeCaptureRequest", () => {
       resolver,
     )).toThrow(/viewport/);
   });
+
+  it("allows direct downloads only from the HTTPS Steam image CDN", async () => {
+    const resolver = await tempResolver();
+    const request = normalizeCaptureRequest(
+      STEAM_IMAGE_URL,
+      {sourceType: "steam-image", name: "Hades II hero"},
+      resolver,
+    );
+    expect(request).toMatchObject({sourceType: "steam-image", url: STEAM_IMAGE_URL});
+    expect(request.path).toMatch(/hades-ii-hero-[a-f0-9-]+\.jpg$/);
+
+    for (const url of [
+      STEAM_IMAGE_URL.replace("https:", "http:"),
+      "https://steamstatic.com.evil.example/store/shot.jpg",
+      "https://user:pass@shared.akamai.steamstatic.com/store/shot.jpg",
+      "https://shared.akamai.steamstatic.com:444/store/shot.jpg",
+    ]) {
+      expect(() => normalizeCaptureRequest(
+        url,
+        {sourceType: "steam-image"},
+        resolver,
+      )).toThrow(/Steam CDN|HTTPS|credentials|port/i);
+    }
+    expect(() => normalizeCaptureRequest(
+      STEAM_IMAGE_URL,
+      {sourceType: "steam-image", fullPage: true},
+      resolver,
+    )).toThrow(/viewport|fullPage/i);
+  });
 });
 
 describe("capture service", () => {
+  it("downloads a Steam Store screenshot as JPEG without Obscura", async () => {
+    const resolver = await tempResolver();
+    const fetchImage = vi.fn(async () => new Response(JPEG_BYTES, {
+      status: 200,
+      headers: {
+        "content-length": String(JPEG_BYTES.length),
+        "content-type": "image/jpeg",
+      },
+    }));
+    const spawn = vi.fn();
+    const capture = createCaptureService({
+      resolver,
+      obscuraPath: " ",
+      fetchImage,
+      spawn: spawn as never,
+      now: () => new Date("2026-08-11T00:00:00.000Z"),
+    });
+
+    const result = await capture(STEAM_IMAGE_URL, {
+      sourceType: "steam-image",
+      name: "Hades II store",
+    });
+
+    expect(result).toMatchObject({
+      data: {
+        id: expect.stringMatching(/^hades-ii-store-[a-f0-9-]+$/),
+        path: expect.stringMatching(/hades-ii-store-[a-f0-9-]+\.jpg$/),
+        relativePath: expect.stringMatching(
+          /^knowledge\/intel\/captures\/hades-ii-store-[a-f0-9-]+\.jpg$/,
+        ),
+        url: STEAM_IMAGE_URL,
+        sourceType: "steam-image",
+        capturedAt: "2026-08-11T00:00:00.000Z",
+        imageIncluded: true,
+        sizeBytes: JPEG_BYTES.length,
+      },
+      warnings: [],
+      imageContent: {
+        type: "image",
+        data: JPEG_BYTES.toString("base64"),
+        mimeType: "image/jpeg",
+      },
+    });
+    expect(fetchImage).toHaveBeenCalledWith(STEAM_IMAGE_URL, expect.objectContaining({
+      redirect: "error",
+      signal: expect.any(AbortSignal),
+    }));
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["HTTP failure", new Response(null, {status: 503})],
+    ["wrong content type", new Response(JPEG_BYTES, {
+      status: 200,
+      headers: {"content-type": "text/html"},
+    })],
+    ["oversized content length", new Response(JPEG_BYTES, {
+      status: 200,
+      headers: {
+        "content-length": String(6 * 1024 * 1024 + 1),
+        "content-type": "image/jpeg",
+      },
+    })],
+    ["invalid JPEG", new Response(Buffer.from("not a jpeg"), {
+      status: 200,
+      headers: {"content-type": "image/jpeg"},
+    })],
+  ])("cleans its output after Steam image %s", async (_label, response) => {
+    const resolver = await tempResolver();
+    const captureRoot = join(resolver.root, "knowledge", "intel", "captures");
+    await writeFile(join(captureRoot, "existing.png"), PNG_BYTES);
+    const capture = createCaptureService({
+      resolver,
+      obscuraPath: " ",
+      fetchImage: vi.fn(async () => response),
+    });
+
+    const result = await capture(STEAM_IMAGE_URL, {sourceType: "steam-image"});
+
+    expect(result.data).toBeNull();
+    expect(result.warnings.join(" ")).toMatch(/Steam image download failed/i);
+    expect(await readdir(captureRoot)).toEqual(["existing.png"]);
+  });
+
+  it("enforces the Steam image limit while streaming without Content-Length", async () => {
+    const resolver = await tempResolver();
+    const captureRoot = join(resolver.root, "knowledge", "intel", "captures");
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(JPEG_BYTES);
+        controller.enqueue(Buffer.alloc(6 * 1024 * 1024));
+        controller.close();
+      },
+    });
+    const capture = createCaptureService({
+      resolver,
+      fetchImage: vi.fn(async () => new Response(body, {
+        headers: {"content-type": "image/jpeg"},
+      })),
+    });
+
+    const result = await capture(STEAM_IMAGE_URL, {sourceType: "steam-image"});
+
+    expect(result.data).toBeNull();
+    expect(result.warnings.join(" ")).toMatch(/Steam image download failed/i);
+    expect(await readdir(captureRoot)).toEqual([]);
+  });
+
+  it("never deletes a pre-existing path when exclusive Steam image creation fails", async () => {
+    const resolver = await tempResolver();
+    const existing = resolver.resolveCaptureReadPath("claimed-output", "jpg");
+    await writeFile(existing.absolutePath, JPEG_BYTES);
+    const capture = createCaptureService({
+      resolver: {
+        ...resolver,
+        resolveCapturePath: () => existing.absolutePath,
+      },
+      fetchImage: vi.fn(async () => new Response(JPEG_BYTES, {
+        headers: {"content-type": "image/jpeg"},
+      })),
+    });
+
+    const result = await capture(STEAM_IMAGE_URL, {sourceType: "steam-image"});
+
+    expect(result.data).toBeNull();
+    await expect(access(existing.absolutePath)).resolves.toBeUndefined();
+  });
+
   it("returns install and manual fallback guidance when Obscura is unset", async () => {
     const capture = createCaptureService({
       resolver: await tempResolver(),

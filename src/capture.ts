@@ -1,7 +1,7 @@
 import {createServer} from "node:net";
 import {spawn as nodeSpawn, type ChildProcessByStdio} from "node:child_process";
 import {once} from "node:events";
-import {unlink} from "node:fs/promises";
+import {open, unlink} from "node:fs/promises";
 import {basename} from "node:path";
 import type {Readable} from "node:stream";
 import {
@@ -10,7 +10,7 @@ import {
   type ConnectOptions,
 } from "puppeteer-core";
 import type {ImageFetchResult} from "./images.js";
-import {createImageService} from "./images.js";
+import {MAX_INLINE_IMAGE_BYTES, createImageService} from "./images.js";
 import {
   resolveCapturePath,
   resolveCaptureReadPath,
@@ -20,6 +20,7 @@ import {
 
 const CONNECT_TIMEOUT_MS = 8_000;
 const NAVIGATION_TIMEOUT_MS = 15_000;
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 8_000;
 const DEFAULT_VIEWPORT = {width: 1440, height: 900};
 const MANUAL_FALLBACK = "knowledge/ui-references/";
 
@@ -27,7 +28,10 @@ export interface CaptureOptions {
   name?: string;
   viewport?: {width: number; height: number};
   fullPage?: boolean;
+  sourceType?: CaptureSourceType;
 }
+
+export type CaptureSourceType = "page" | "steam-image";
 
 export interface CaptureResult {
   id: string;
@@ -37,6 +41,7 @@ export interface CaptureResult {
   capturedAt: string;
   imageIncluded: boolean;
   sizeBytes: number;
+  sourceType: CaptureSourceType;
 }
 
 export interface NormalizedCaptureRequest {
@@ -44,6 +49,7 @@ export interface NormalizedCaptureRequest {
   url: string;
   viewport: {width: number; height: number};
   fullPage: boolean;
+  sourceType: CaptureSourceType;
 }
 
 type BrowserConnector = (options: ConnectOptions) => Promise<Browser>;
@@ -63,6 +69,7 @@ export interface CaptureDependencies {
   connect?: BrowserConnector;
   spawn?: ProcessSpawner;
   findPort?: () => Promise<number>;
+  fetchImage?: typeof fetch;
 }
 
 function defaultResolver(): Pick<
@@ -92,6 +99,37 @@ export function normalizeCaptureRequest(
   } catch {
     throw new TypeError("url must be a valid http or https URL");
   }
+  const sourceType = opts.sourceType ?? "page";
+  if (sourceType !== "page" && sourceType !== "steam-image") {
+    throw new TypeError("sourceType must be page or steam-image");
+  }
+
+  if (sourceType === "steam-image") {
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    if (url.protocol !== "https:") {
+      throw new TypeError("Steam CDN image URLs must use HTTPS");
+    }
+    if (url.username || url.password) {
+      throw new TypeError("Steam CDN image URLs cannot include credentials");
+    }
+    if (url.port && url.port !== "443") {
+      throw new TypeError("Steam CDN image URLs cannot use a custom port");
+    }
+    if (hostname !== "steamstatic.com" && !hostname.endsWith(".steamstatic.com")) {
+      throw new TypeError("Steam CDN image URLs must use steamstatic.com");
+    }
+    if (opts.viewport !== undefined || opts.fullPage !== undefined) {
+      throw new TypeError("viewport and fullPage apply only to page captures");
+    }
+    return {
+      path: resolver.resolveCapturePath(opts.name, "jpg"),
+      url: url.toString(),
+      viewport: {...DEFAULT_VIEWPORT},
+      fullPage: true,
+      sourceType,
+    };
+  }
+
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new TypeError("url must use http or https");
   }
@@ -109,6 +147,7 @@ export function normalizeCaptureRequest(
     url: url.toString(),
     viewport: {...viewport},
     fullPage: opts.fullPage ?? true,
+    sourceType,
   };
 }
 
@@ -168,6 +207,67 @@ function captureFailureWarning(): string {
   return `UI capture failed; place a PNG manually in ${MANUAL_FALLBACK}`;
 }
 
+function steamImageFailureWarning(): string {
+  return `Steam image download failed; retry or place a PNG manually in ${MANUAL_FALLBACK}`;
+}
+
+async function rejectSteamImageResponse(
+  response: Response,
+  message: string,
+): Promise<never> {
+  await response.body?.cancel().catch(() => undefined);
+  throw new Error(message);
+}
+
+async function readBoundedJpeg(response: Response): Promise<Buffer> {
+  if (!response.ok) {
+    await rejectSteamImageResponse(response, `Steam image HTTP ${response.status}`);
+  }
+  if (response.redirected) {
+    await rejectSteamImageResponse(response, "Steam image redirects are not allowed");
+  }
+  const contentType = response.headers.get("content-type")
+    ?.split(";", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (contentType !== "image/jpeg") {
+    await rejectSteamImageResponse(response, "Steam image response must be image/jpeg");
+  }
+  const contentLength = response.headers.get("content-length");
+  if (contentLength !== null) {
+    if (!/^\d+$/.test(contentLength)) {
+      await rejectSteamImageResponse(response, "invalid Steam image content length");
+    }
+    if (Number(contentLength) > MAX_INLINE_IMAGE_BYTES) {
+      await rejectSteamImageResponse(
+        response,
+        "Steam image exceeds the 6 MiB download limit",
+      );
+    }
+  }
+  if (!response.body) throw new Error("Steam image response has no body");
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value);
+      size += chunk.length;
+      if (size > MAX_INLINE_IMAGE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error("Steam image exceeds the 6 MiB download limit");
+      }
+      chunks.push(chunk);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, size);
+}
+
 function isLoopbackUrl(value: string): boolean {
   const hostname = new URL(value).hostname
     .toLowerCase()
@@ -194,9 +294,61 @@ export function createCaptureService(
   const spawn = dependencies.spawn
     ?? ((command, args) => nodeSpawn(command, args, {stdio: ["ignore", "pipe", "pipe"]}));
   const findPort = dependencies.findPort ?? findLoopbackPort;
+  const fetchImage = dependencies.fetchImage ?? fetch;
 
   return async (url: string, opts: CaptureOptions = {}) => {
     const request = normalizeCaptureRequest(url, opts, resolver);
+    const resultFor = async (extension: "png" | "jpg") => {
+      const capturedAt = now();
+      if (Number.isNaN(capturedAt.getTime())) throw new Error("capture clock is invalid");
+      const id = basename(request.path, `.${extension}`);
+      const resolved = resolver.resolveCaptureReadPath(id, extension);
+      if (resolved.absolutePath !== request.path) {
+        throw new Error("capture output does not match its resolver path");
+      }
+      const inline = await createImageService(resolver).imageContentFor(resolved);
+      return {
+        data: {
+          id: resolved.id,
+          path: request.path,
+          relativePath: resolved.relativePath,
+          url: request.url,
+          capturedAt: capturedAt.toISOString(),
+          imageIncluded: inline.imageIncluded,
+          sizeBytes: inline.sizeBytes,
+          sourceType: request.sourceType,
+        },
+        warnings: inline.warnings,
+        ...(inline.imageContent ? {imageContent: inline.imageContent} : {}),
+      } satisfies ImageFetchResult<CaptureResult>;
+    };
+
+    if (request.sourceType === "steam-image") {
+      let ownsOutput = false;
+      try {
+        const response = await fetchImage(request.url, {
+          headers: {
+            Accept: "image/jpeg",
+            "User-Agent": "game-player-lens/0.1",
+          },
+          redirect: "error",
+          signal: AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS),
+        });
+        const bytes = await readBoundedJpeg(response);
+        const output = await open(request.path, "wx", 0o600);
+        ownsOutput = true;
+        try {
+          await output.writeFile(bytes);
+        } finally {
+          await output.close();
+        }
+        return await resultFor("jpg");
+      } catch {
+        if (ownsOutput) await unlink(request.path).catch(() => undefined);
+        return {data: null, warnings: [steamImageFailureWarning()]};
+      }
+    }
+
     const obscuraPath =
       (dependencies.obscuraPath ?? process.env.OBSCURA_PATH ?? "").trim();
     if (!obscuraPath) {
@@ -243,27 +395,7 @@ export function createCaptureService(
         fullPage: request.fullPage,
       });
 
-      const capturedAt = now();
-      if (Number.isNaN(capturedAt.getTime())) throw new Error("capture clock is invalid");
-      const id = basename(request.path, ".png");
-      const resolved = resolver.resolveCaptureReadPath(id);
-      if (resolved.absolutePath !== request.path) {
-        throw new Error("capture output does not match its resolver path");
-      }
-      const inline = await createImageService(resolver).imageContentFor(resolved);
-      return {
-        data: {
-          id: resolved.id,
-          path: request.path,
-          relativePath: resolved.relativePath,
-          url: request.url,
-          capturedAt: capturedAt.toISOString(),
-          imageIncluded: inline.imageIncluded,
-          sizeBytes: inline.sizeBytes,
-        },
-        warnings: inline.warnings,
-        ...(inline.imageContent ? {imageContent: inline.imageContent} : {}),
-      };
+      return await resultFor("png");
     } catch {
       await unlink(request.path).catch(() => undefined);
       return {data: null, warnings: [captureFailureWarning()]};

@@ -3,9 +3,44 @@ import type {AddressInfo} from "node:net";
 import {unlink} from "node:fs/promises";
 import {describe, expect, it} from "vitest";
 import {captureUrl} from "./capture.js";
+import {fetchGame} from "./steam.js";
 
 const runLive = process.env.RUN_LIVE === "1";
 const obscuraConfigured = Boolean((process.env.OBSCURA_PATH ?? "").trim());
+
+describe.runIf(runLive)("Steam Store image capture (live)", () => {
+  it("downloads a Hades II screenshot and returns JPEG ImageContent", async () => {
+    const game = await fetchGame(1145350);
+    const screenshot = game.data?.screenshots[0];
+    expect(screenshot).toMatch(/^https:\/\/[^/]*\.steamstatic\.com\//);
+    let artifactPath: string | undefined;
+
+    try {
+      const result = await captureUrl(screenshot!, {
+        name: "live-hades-ii-store-image",
+        sourceType: "steam-image",
+      });
+      artifactPath = result.data?.path;
+
+      expect(result.warnings).toEqual([]);
+      expect(result.data).toMatchObject({
+        sourceType: "steam-image",
+        imageIncluded: true,
+        sizeBytes: expect.any(Number),
+      });
+      expect(artifactPath).toMatch(/knowledge\/intel\/captures\/.*\.jpg$/);
+      expect(result.imageContent).toMatchObject({
+        type: "image",
+        mimeType: "image/jpeg",
+        data: expect.any(String),
+      });
+      expect(Buffer.from(result.imageContent!.data, "base64").subarray(0, 3))
+        .toEqual(Buffer.from([0xff, 0xd8, 0xff]));
+    } finally {
+      if (artifactPath) await unlink(artifactPath);
+    }
+  }, 30_000);
+});
 
 describe.runIf(runLive && !obscuraConfigured)("UI capture (live contract, Obscura unset)", () => {
   it("returns the manual ui-reference fallback without creating a capture", async () => {
