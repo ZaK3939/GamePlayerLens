@@ -62,15 +62,15 @@ intel:
 - target
 - id
 - sourceTool
-- observedAt
+- observedAt、省略可
 - payload
 - overwrite、省略時false
 
-保存JSONはschemaVersion、targetId、artifactId、sourceTool、observedAt、savedAt、payloadを持つ。payloadのserialized sizeは1 MiB以下。
+保存JSONはschemaVersion、targetId、artifactId、sourceTool、observedAt、savedAt、payloadを持つ。直接入力でobservedAtを省略した場合は、1回だけ取得したサーバー時刻をobservedAtとsavedAtの両方に使う。権威ある観測時刻をクライアントが保持している場合は明示値を維持する。payloadのserialized sizeは1 MiB以下。
 
 sourceToolはsteam_search、steam_discover、steam_fetch、steam_reviews、steam_timeline、derive_personas、ui_capture、manualのいずれかとする。
 
-外部取得とderive_personasの1 MiB以下の返り値は、meta.resultHandle付きの正規化されたtool envelopeとしてserver process内に最近32件を保持する。save_artifactはresultHandleだけでsourceTool、observedAt、warning、metaを含む原本payloadを原子的に保存できる。handleはserver再起動または32件超過で無効になり、不明なhandleはtool errorにする。従来のsourceTool、observedAt、payload直接入力は互換用に維持する。
+外部取得とderive_personasの1 MiB以下の返り値は、meta.resultHandle付きの正規化されたtool envelopeとしてserver process内に最近32件を保持する。save_artifactはresultHandleだけでsourceTool、observedAt、warning、metaを含む原本payloadを原子的に保存できる。handleはserver再起動または32件超過で無効になり、不明なhandleはtool errorにする。sourceTool、payload、任意のobservedAtを渡す直接入力は互換用に維持する。
 
 evaluation:
 

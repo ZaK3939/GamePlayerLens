@@ -187,7 +187,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 
 ### `save_artifact` / `get_artifact`
 
-`save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`observedAt`、`payload` を直接渡す方式も維持します。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
+`save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`payload`、任意の `observedAt` を直接渡す方式も維持します。直接保存で `observedAt` を省略すると、サーバーが `savedAt` と同じ時刻を設定します。取得時刻を確実に把握している場合だけ明示してください。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
 
 `kind=run` は、evaluation 保存後に simulation を再生・監査するための ledger を封印します。Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済み evidence refs、連続した各 pass の rounds、warnings、confidence / `calibrationStatus`、最終 evaluation ref を受けます。サーバーは参照先を実際に読み、persona・evidence・現在の `skills/run-sim.md` の SHA-256 と `reportedByClient=true` を記録して、UUIDごとの JSON を作ります。run は常に immutable で、overwrite入力はありません。これは同じ入力からモデル出力が決定的に再生成されるという保証ではなく、「どのrecipe・根拠・申告モデルから、どのround出力を得たか」を後から検証する記録です。
 

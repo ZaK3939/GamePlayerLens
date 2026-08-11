@@ -91,6 +91,22 @@ describe("intel artifact store", () => {
     });
   });
 
+  it("uses one server-clock instant for omitted observedAt and savedAt", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const {observedAt: _observedAt, ...manualIntel} = intel({sourceTool: "manual"});
+
+    const saved = await store.saveIntel(manualIntel);
+
+    expect(saved).toMatchObject({
+      observedAt: now.toISOString(),
+      savedAt: now.toISOString(),
+    });
+    await expect(store.readIntel("Hades II", "価格 Snapshot")).resolves.toMatchObject({
+      observedAt: now.toISOString(),
+      savedAt: now.toISOString(),
+    });
+  });
+
   it("lists intel artifact ids ascending and only returns metadata", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
     await store.saveIntel(intel({id: "Zulu", payload: {secret: "payload"}}));

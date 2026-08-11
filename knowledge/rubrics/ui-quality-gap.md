@@ -15,6 +15,8 @@
 
 各referenceは画像とは別に、`save_artifact` の kind=`intel`、sourceTool=`manual` で次を保存する。不明項目は創作せず `unknown` とする。
 
+top-level `observedAt` は権威ある取得時刻を保持している場合だけ渡す。不明なら推測せず省略し、サーバーが `savedAt` と同じ時刻を設定する。
+
 - source site とHTTPS page URL
 - accessedAt
 - game title

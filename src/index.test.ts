@@ -604,7 +604,7 @@ describe("MCP server contract", () => {
         {
           kind: "intel",
           fields: ["kind", "target", "id", "sourceTool", "observedAt", "payload", "overwrite"],
-          required: ["kind", "target", "id", "sourceTool", "observedAt", "payload"],
+          required: ["kind", "target", "id", "sourceTool", "payload"],
         },
         {
           kind: "intel",
@@ -911,6 +911,46 @@ describe("MCP server contract", () => {
       });
       expect(JSON.parse(resultText(evaluationRead))).toEqual(evaluationRead.structuredContent);
       expect(resultText(evaluationRead)).toContain("Ship the stronger capsule.");
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("defaults direct intel observedAt to the server clock", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const saved = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Hades",
+          id: "Manual Provenance",
+          sourceTool: "manual",
+          payload: {sourceSite: "manual"},
+        },
+      });
+
+      expect(saved.isError).not.toBe(true);
+      expect(saved.structuredContent).toMatchObject({
+        data: {
+          observedAt: NOW.toISOString(),
+          savedAt: NOW.toISOString(),
+        },
+        warnings: [],
+      });
+
+      const read = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "intel", target: "Hades", id: "Manual Provenance"},
+      });
+      expect(read.structuredContent).toMatchObject({
+        data: {
+          observedAt: NOW.toISOString(),
+          savedAt: NOW.toISOString(),
+        },
+        warnings: [],
+      });
     } finally {
       await client.close();
       await server.close();

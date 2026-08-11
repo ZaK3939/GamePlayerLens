@@ -136,7 +136,7 @@ export const SaveIntelInputSchema = z.object({
   target: z.string().min(1),
   id: z.string().min(1),
   sourceTool: SourceToolSchema,
-  observedAt: IsoDateTimeSchema,
+  observedAt: IsoDateTimeSchema.optional(),
   payload: JsonSafeInputSchema,
 }).strict();
 
@@ -468,13 +468,14 @@ export function createArtifactStore(
     }
     const savedAt = clock().toISOString();
     IsoDateTimeSchema.parse(savedAt);
+    const observedAt = parsed.observedAt ?? savedAt;
     const resolved = await ensureIntelDestination(parsed.target, parsed.id);
     const record = IntelRecordSchema.parse({
       schemaVersion: 1,
       targetId: resolved.targetId,
       artifactId: resolved.artifactId,
       sourceTool: parsed.sourceTool,
-      observedAt: parsed.observedAt,
+      observedAt,
       savedAt,
       payload: parsed.payload,
     });

@@ -79,7 +79,7 @@ scored軸にmaterial deficitはなかった。speaker name、role、portrait、l
 
 ## 今回観測したfriction
 
-- manual provenanceの`observedAt`をmodelが申告した結果、serverの`savedAt`より約31分先になった。時刻の信頼境界を改善するため、manual保存ではserver clockを既定値にする候補を最優先で検討する。
+- manual provenanceの`observedAt`をmodelが申告した結果、serverの`savedAt`より約31分先になった。2026-08-12に、manualを含む直接保存では`observedAt`を任意にし、省略時は1回取得したserver clockを`observedAt`と`savedAt`の両方へ使うよう修正した。Fableが`observedAt`を送らない保存とreadbackを実行し、両時刻の完全一致を確認した。権威ある観測時刻を持つresultHandleと明示入力は従来どおり保持する。
 - `get_knowledge(kind=personas)`がrepository-relative pathを返さず、run seal後までpathを確定確認できなかった。
 - 単一imageの`get_artifact`はmetadata-only読込がなく、検証readbackでも画像本文を再送する。list endpointで回避できるがtoken効率が悪い。
 - invalidated captureとui-referenceをMCPから安全にcleanupする経路がない。最終runからは除外したがprivate listingには残る。
