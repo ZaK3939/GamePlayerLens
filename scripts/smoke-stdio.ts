@@ -159,6 +159,32 @@ try {
     "run-sim did not normalize the supplied arguments",
   );
 
+  const playtestPrompt = await client.getPrompt({
+    name: "run-sim",
+    arguments: {
+      target: "Protocol Fixture Game",
+      topic: "First-session playtest wiring",
+      mode: "baseline",
+      domains: "gameplay,ui",
+      playtestUrl: "http://127.0.0.1:4173/play#new-game",
+      playtestTask: "Start a new run and reach the tutorial checkpoint",
+      playtestBuild: "protocol-fixture-1",
+      playtestControls: "keyboard and mouse",
+      playtestDurationMinutes: "20",
+    },
+  });
+  const playtestContent = playtestPrompt.messages[0]?.content;
+  assert(playtestContent?.type === "text", "run-sim playtest prompt must return text content");
+  assert(
+    playtestContent.text.includes('"playtestUrl": "http://127.0.0.1:4173/play#new-game"')
+      && playtestContent.text.includes('"playtestTask": "Start a new run and reach the tutorial checkpoint"')
+      && playtestContent.text.includes('"playtestBuild": "protocol-fixture-1"')
+      && playtestContent.text.includes('"playtestControls": "keyboard and mouse"')
+      && playtestContent.text.includes('"playtestDurationMinutes": "20"')
+      && playtestContent.text.includes('"selectedDomains": [\n    "gameplay",\n    "ui"\n  ]'),
+    "run-sim did not round-trip the supplied playtest protocol",
+  );
+
   const knowledge = await client.callTool({
     name: "get_knowledge",
     arguments: {kind: "templates", id: "adoption-eval.md"},
@@ -265,6 +291,7 @@ try {
     ok: true,
     tools: tools.length,
     prompts: prompts.length,
+    playtestPromptRoundTrip: true,
     liveSearch,
     liveDiscovery,
     liveResultHandles,

@@ -76,6 +76,7 @@ const client = new Client({name: "game-player-lens-package-smoke", version: "1.0
 let connected = false;
 let liveExactSave = false;
 let packageRunRoundTrip = false;
+let playtestPromptRoundTrip = false;
 try {
   await client.connect(transport);
   connected = true;
@@ -121,6 +122,33 @@ try {
     "packaged CLI returned the wrong playtest rubric",
   );
 
+  const playtestPrompt = await client.getPrompt({
+    name: "run-sim",
+    arguments: {
+      target: "Package Smoke Game",
+      topic: "Playtest protocol wiring",
+      mode: "baseline",
+      domains: "gameplay",
+      playtestUrl: "http://127.0.0.1:4173/play#package-smoke",
+      playtestTask: "Reach the first checkpoint",
+      playtestBuild: "package-smoke-fixture-1",
+      playtestControls: "keyboard and mouse",
+      playtestDurationMinutes: "15",
+    },
+  });
+  const playtestContent = playtestPrompt.messages[0]?.content;
+  assert(playtestContent?.type === "text", "packaged run-sim did not return text");
+  assert(
+    playtestContent.text.includes('"playtestUrl": "http://127.0.0.1:4173/play#package-smoke"')
+      && playtestContent.text.includes('"playtestTask": "Reach the first checkpoint"')
+      && playtestContent.text.includes('"playtestBuild": "package-smoke-fixture-1"')
+      && playtestContent.text.includes('"playtestControls": "keyboard and mouse"')
+      && playtestContent.text.includes('"playtestDurationMinutes": "15"')
+      && playtestContent.text.includes('"selectedDomains": [\n    "gameplay"\n  ]'),
+    "packaged run-sim did not round-trip the playtest protocol",
+  );
+  playtestPromptRoundTrip = true;
+
   const persona = await client.callTool({
     name: "save_persona",
     arguments: {
@@ -148,10 +176,17 @@ try {
     arguments: {
       kind: "intel",
       target: "Package Smoke Game",
-      id: "Store Evidence",
+      id: "Playtest Protocol Fixture",
       sourceTool: "manual",
       observedAt: "2026-08-11T00:00:00.000Z",
-      payload: {storefront: "fixture"},
+      payload: {
+        synthetic: true,
+        purpose: "Package wiring only; no game was operated",
+        buildId: "package-smoke-fixture-1",
+        task: "Reach the first checkpoint",
+        verdict: "blocked",
+        stopReason: "No playable build is started by this smoke test",
+      },
     },
   });
   assert(intel.isError !== true, "packaged CLI could not save run intel");
@@ -162,7 +197,7 @@ try {
       target: "Package Smoke Game",
       topic: "Package Run",
       date: "2026-08-11",
-      content: "# Package run evaluation\n\nFixture evidence only.",
+      content: "# Package run evaluation\n\nSynthetic protocol fixture only. No game was operated.",
     },
   });
   assert(evaluation.isError !== true, "packaged CLI could not save run evaluation");
@@ -173,7 +208,7 @@ try {
       target: "Package Smoke Game",
       topic: "Package run",
       mode: "baseline",
-      selectedDomains: ["storefront"],
+      selectedDomains: ["gameplay"],
       model: {provider: "smoke", name: "package-client"},
       scenarios: [{
         id: "current",
@@ -183,10 +218,10 @@ try {
       personaIds: ["package-smoke-player"],
       evidence: [
         {
-          ref: "store",
+          ref: "playtest-protocol",
           kind: "intel",
           target: "Package Smoke Game",
-          id: "Store Evidence",
+          id: "Playtest Protocol Fixture",
         },
         {
           ref: "evaluation",
@@ -202,34 +237,34 @@ try {
           actor: "package-smoke-player",
           personaId: "package-smoke-player",
           scenarioId: "current",
-          output: "The storefront promise is testable.",
-          evidenceRefs: ["store"],
+          output: "The fixture proves protocol transport only and contains no observed play.",
+          evidenceRefs: ["playtest-protocol"],
         },
         {
           sequence: 2,
           phase: "domain",
-          actor: "storefront-reviewer",
-          domain: "storefront",
+          actor: "gameplay-reviewer",
+          domain: "gameplay",
           scenarioId: "current",
-          output: "The stored fixture supports only a smoke assertion.",
-          evidenceRefs: ["store"],
+          output: "Gameplay remains unobserved because this synthetic session is blocked.",
+          evidenceRefs: ["playtest-protocol"],
         },
         {
           sequence: 3,
           phase: "critic",
           actor: "harsh-critic",
-          output: "Fixture evidence cannot support a player-behavior claim.",
-          evidenceRefs: ["store"],
+          output: "Synthetic protocol evidence cannot support a player-behavior claim.",
+          evidenceRefs: ["playtest-protocol"],
         },
         {
           sequence: 4,
           phase: "synthesis",
           actor: "lead-synthesizer",
           output: "The package persistence path is verified, not the game hypothesis.",
-          evidenceRefs: ["store"],
+          evidenceRefs: ["playtest-protocol"],
         },
       ],
-      warnings: ["Package smoke uses fixture evidence"],
+      warnings: ["Package smoke uses a synthetic fixture and did not operate a game"],
       confidence: {
         level: "low",
         basis: "Protocol and persistence smoke only",
@@ -337,6 +372,7 @@ try {
     tools: tools.length,
     prompts: prompts.length,
     isolatedDataHome: true,
+    playtestPromptRoundTrip,
     packageRunRoundTrip,
     liveExactSave,
   }));
