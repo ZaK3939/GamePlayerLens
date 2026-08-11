@@ -57,7 +57,7 @@ pnpm smoke:stdio
 pnpm smoke:stdio --live
 ```
 
-`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 11 tools、2 prompts、prompt arguments、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search` と `steam_discover` を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
+`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 12 tools、2 prompts、prompt arguments、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search`、`steam_discover`、`steam_updates` とresultHandle原本保存を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
 
 ## 任意設定
 
@@ -135,6 +135,12 @@ Selected Domainごとに固定dimensionを持つData Coverage Matrixを作り、
 
 change runは全`scenario × Selected Domain`と全`persona × scenario`のroundを要求します。final evaluation以外の全evidenceは少なくとも1 roundで使用し、synthesis後に作る`finalEvaluationRef`をroundから参照する循環は拒否します。これにより「変更案だけ評価した」「保存したが判断に使わなかった」データをmachine gateで検出します。
 
+### 更新戦略と意思決定結果
+
+既存ゲームの更新判断では`steam_updates`がSteam公式`ISteamNews/GetNewsForApp/v2`を使い、公式Community Announcementから更新履歴を返します。既定の`updates` scopeはSteamの`patchnotes` tagまたはboundedなtitle keywordだけでupdate-like項目を選び、本文中の単語だけでは選びません。分類語彙はSteamSonarの`major / content / balance / fixes / event / demo / localization / sale / community / general`を踏襲し、`updateEvidence`、`updateConfidence`、`typeConfidence`、`classificationBasis`、`platformHints`、highlights、取得範囲、更新間隔中央値、SteamSonar dashboard linkを保持します。
+
+`patchnotes` tagによる選定はSteam由来、titleによる選定とtypeはheuristicです。種類の確度と「更新らしさ」の確度を混ぜません。`platformHints`はtitleに明記されたSwitch、mobile、Mac、Steam Deckなどを示し、Steam build更新の証明ではありません。更新頻度や最終告知日だけで品質、開発速度、放置、売上、retention効果を断定しません。レポートはDecision Card、Update inventory、Persona Update Impact Matrix、Prioritized Update Backlogを使い、`fix-now / test-next-build / investigate / defer`、最小変更、success signal、guardrailを明示します。詳細は`get_knowledge(kind=rubrics, id=update-strategy.md)`で取得できます。
+
 ### 実buildのtest play
 
 `run-sim`へ`playtestUrl`、`playtestTask`、`playtestBuild`、`playtestControls`、`playtestDurationMinutes`を渡せます。gameplayを選択した相談では`get_knowledge(kind=rubrics, id=playtest.md)`のprotocolを使い、build ID、start/end state、操作条件を固定して、実際のAction → response、time to first meaningful action、task completion、誤入力、feedback、failure → retryを時系列で記録します。
@@ -165,7 +171,7 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 
 ## Tools
 
-v1.1 の tool surface は次の exactly 11 tools です。
+現在の tool surface は次の exactly 12 tools です。
 
 | Tool | 用途 |
 |---|---|
@@ -173,6 +179,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `steam_fetch` | 3地域価格、英/日/独store copy、categories、画像、Steam Sonar/SteamDBリンク、SteamSpy情報を取得 |
 | `steam_reviews` | 言語・極性・最低プレイ時間で recent review を取得 |
 | `steam_timeline` | SteamSpy snapshot と任意の ITAD 価格履歴を取得 |
+| `steam_updates` | Steam公式更新履歴をSteamSonar互換分類、highlights、cadence、分類根拠付きで取得 |
 | `derive_personas` | 件数を調整できるレビュー出典、Persona JSON Schema、生成指示をまとめる |
 | `save_persona` | 生成済み persona を検証し、原子的に保存 |
 | `ui_capture` | 通常ページをObscuraでPNG capture、またはSteam CDN画像をJPEG保存し、上限内なら `ImageContent` も返す |
@@ -181,7 +188,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `save_artifact` | intel JSON、evaluation Markdown、またはハッシュ付き immutable simulation run を安全に保存 |
 | `get_artifact` | intel、evaluation、run、capture、ui-reference を一覧または読出し |
 
-外部取得 tool は `{data, warnings, meta?}` を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。入力違反と path 境界違反は tool error です。
+外部取得 tool は `{data, warnings, meta?}` を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`steam_updates`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。入力違反と path 境界違反は tool error です。
 
 `steam_discover` は `value` を主条件とし、任意の `additionalValues` 最大3件をすべて満たす候補だけを返せます。交差検索は各条件のSteamSpy上位50件を使い、各API順位の合計が小さい順に並べます。対象自身や既知の不適合候補は `excludeAppids` 最大50件で除外します。たとえばHades IIに近い候補は次の入力で探索できます。
 
@@ -248,13 +255,17 @@ repo内の直接起動では上記layoutの起点はrepository rootです。npm 
 
 ## データの解釈
 
-`derive_personas.reviewsPerPolarity` は1 appid・1極性あたり3〜25件を指定でき、既定値は後方互換の25件です。通常の3〜5 persona生成には8件、深掘り監査には25件を目安にしてください。Japanese-first で肯定・否定を同数収集し、appidと極性をラウンドロビンに並べるため、出力冒頭が単一ゲームや肯定だけに偏りません。
+`derive_personas.reviewsPerPolarity` は1 appid・1極性あたり3〜25件を指定でき、既定値は後方互換の25件です。通常の3〜5 persona生成には8件、深掘り監査には25件を目安にしてください。`language`で指定した言語を先に集め、不足分だけall-languageで補い、appidと極性をラウンドロビンに並べます。`targetAppid`、`market`、`language`、`focus`を明示すると、各reviewにtarget / competitor / referenceのsource roleが付き、playtime band・言語・投稿日rangeのsample coverageも返ります。未指定時は後方互換としてJapan / japaneseを使います。
+
+新しく生成するpersonaはv2 schemaを使い、`target_context`、購入・継続・離脱・更新反応を持つ`decision_profile`、voiceへ逆参照できるobserved patterns、分離されたinferred traits、limitations、overall confidenceを必須にします。既存のv1 personaは読込・run監査のため引き続き有効です。v2の`update_reaction`に直接根拠がなければ、推論またはunknownとして記録し、市場比率へ変換しません。
 
 この素材は問題発見用の polarity-balanced sample です。`representative: false` であり、市場やレビュー母集団の比率を表しません。この50対50の設計比率から Flow size や adoption likelihood を推定せず、母集団の好評率には `steam_fetch.reviewStats` など別の根拠を使ってください。
 
 SteamSpy の owners、CCU、playtime、review 系の値は推定または取得時点の snapshot です。owners は販売本数ではなく所有推定範囲で、recent release や小標本では特に不確かです。`average_forever=0` は欠損相当の reported zero として扱いますが、CCU 0 は有効な snapshot として保持します。
 
 `steam_timeline.currentCcu` は `observedAt` 時点の現在値であり、24時間ピーク、史上最高、過去CCUではありません。ITAD の `priceHistory` とは時間軸も出典も分けて解釈してください。
+
+`steam_updates`の既定scope=`updates`は公式feedから`patchnotes` tagまたはtitle根拠を持つupdate-like項目を選びます。本文は選定後のtype補助だけに使います。`updateEvidence=steam-tag`と`title-inference`、selected / fetchedのtag件数を分けて確認してください。scope=`official`はevent・sale・community告知も含み、scope=`all`だけが外部記事を含みます。`before`は過去windowの続きを取得するためのexclusive upper boundです。`medianIntervalDays`は返却項目間の記述統計で、適正cadenceや因果効果ではありません。
 
 `steam_fetch.localizedStorefronts` はenglish=US、japanese=JP、german=DEとしてrequested localeを記録します。Steamが未翻訳時にfallback copyを返す可能性があるため、文字列が存在するだけで翻訳済みとは判定しません。`matchesEnglishCopy` は正規化後の英語copyとの完全一致だけを示す `boolean | null` で、fallbackの理由や翻訳品質を証明しません。`referenceLinks` は追加調査の入口であり、リンク先をcaptureまたはartifactとして保存するまではEvidenceに数えません。
 
@@ -276,6 +287,6 @@ fixture / smokeとは別に、保存した実相談でproduct workflowを検証�
 
 ## v1 から v1.1
 
-v1 の既存8 tool 名と主要 input/output shape は互換です。`FetchResult.data` と `warnings` は維持され、`meta` が optional field として追加されました。`ui_capture` も既存 field を維持しつつ image metadata と標準 `ImageContent` を追加します。v1.1 の新規 tool は `steam_discover`、`save_artifact`、`get_artifact` です。canonical knowledge の既存 `get_knowledge` semantics は維持し、dynamic artifact の list/read は `get_artifact` を使用します。
+v1 の既存8 tool名とv1.1の11 tool surfaceは互換です。`FetchResult.data` と `warnings` は維持され、`meta` が optional field として追加されました。`ui_capture` も既存 field を維持しつつ image metadata と標準 `ImageContent` を追加します。v1.1 の新規 tool は `steam_discover`、`save_artifact`、`get_artifact` です。今回のfollow-upで`steam_updates`を追加し、現在は12 toolsです。canonical knowledge の既存 `get_knowledge` semantics は維持し、dynamic artifact の list/read は `get_artifact` を使用します。
 
 現在の判断は [v1.1 設計](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)、実装・検証条件は [v1.1 計画](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md) を参照してください。旧 [v1 設計](docs/superpowers/specs/2026-08-10-steam-user-sim-design.md) と [v1 計画](docs/superpowers/plans/2026-08-10-steam-user-sim.md) は履歴として残しています。npm `bin` packagingは実装済みです。過去CCUとremote deploymentは今後の対象です。

@@ -21,6 +21,9 @@
 - SteamSpy `owners` は所有数の推定範囲であり、売上本数ではない。売上、販売速度、成長を断定する根拠に使わない。
 - SteamSpy `average_forever=0` は、原値を reported-zero として残した上で、欠損相当とした解釈と warning を記録する。CCU=0 は有効な観測時点の値として保持する。
 - `evidence-coverage.md`の固定dimensionをSelected Domainごとに埋め、Coverage rateとDirect observation rateを分ける。取得失敗をN/Aへ変えた場合、estimatedを直接観測へ数えた場合、blocking missingを平均coverageで隠した場合は差し戻す。
+- 更新施策を勧告する場合は`update-strategy.md`を読み、Decision Card、Update inventory、Persona Update Impact Matrix、Prioritized Update Backlogを要求する。`steam_updates`の`patchnotes` tagとheuristic分類を混同した場合、取得windowやunderfilled warningを落とした場合は差し戻す。
+- 更新頻度、最終announcement日、競合precedentから、品質、開発速度、放置、売上、retention効果を断定した場合は差し戻す。対象ゲームのplayer problem根拠と、update後に観測するsuccess signal / guardrailがなければ`fix-now`にしない。
+- persona v2の`update_reaction`がreviewで直接観測されたのか、dealbreaker等から推論したのか、unknownなのかを区別しない場合は差し戻す。polarity-balanced persona件数をaffected player shareに変換しない。
 
 ## 3. ゲームプレイ・ストア訴求・ローカライズ品質ゲート
 

@@ -80,6 +80,7 @@ async function createHarness(overrides: BuildServerOverrides = {}) {
     fetchGame: vi.fn(async (appid: number) => ({data: {appid}, warnings: []})),
     fetchReviews: vi.fn(async (appid: number) => ({data: {appid}, warnings: []})),
     fetchTimeline: vi.fn(async (appid: number) => ({data: {appid}, warnings: []})),
+    fetchUpdates: vi.fn(async (appid: number) => ({data: {appid}, warnings: []})),
     buildDerivationPack: vi.fn(async (appids: number[]) => ({data: {appids}, warnings: []})),
     savePersona: personaStore.savePersona,
     captureUrl,
@@ -169,7 +170,7 @@ function persona(): Persona {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly eleven tools and two prompts", async () => {
+  it("exposes exactly twelve tools and two prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -183,6 +184,7 @@ describe("MCP server contract", () => {
         "steam_reviews",
         "steam_search",
         "steam_timeline",
+        "steam_updates",
         "ui_capture",
       ]);
       expect((await client.listPrompts()).prompts.map((prompt) => prompt.name).sort()).toEqual([
@@ -200,7 +202,8 @@ describe("MCP server contract", () => {
       appids: number[],
       count?: number,
       reviewsPerPolarity?: number,
-    ) => ({data: {appids, count, reviewsPerPolarity}, warnings: []}));
+      options?: unknown,
+    ) => ({data: {appids, count, reviewsPerPolarity, options}, warnings: []}));
     const {client, server} = await createHarness({buildDerivationPack});
     try {
       const result = await client.callTool({
@@ -209,6 +212,10 @@ describe("MCP server contract", () => {
           appids: [1145350, 1145360],
           count: 3,
           reviewsPerPolarity: 8,
+          targetAppid: 1145350,
+          market: " Japan ",
+          language: "JAPANESE",
+          focus: ["adoption", "retention", "update-response"],
         },
       });
 
@@ -217,9 +224,57 @@ describe("MCP server contract", () => {
           appids: [1145350, 1145360],
           count: 3,
           reviewsPerPolarity: 8,
+          options: {
+            targetAppid: 1145350,
+            market: "Japan",
+            language: "japanese",
+            focus: ["adoption", "retention", "update-response"],
+          },
         },
       });
-      expect(buildDerivationPack).toHaveBeenCalledWith([1145350, 1145360], 3, 8);
+      expect(buildDerivationPack).toHaveBeenCalledWith([1145350, 1145360], 3, 8, {
+        targetAppid: 1145350,
+        market: "Japan",
+        language: "japanese",
+        focus: ["adoption", "retention", "update-response"],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("dispatches bounded Steam update history options", async () => {
+    const fetchUpdates = vi.fn(async (appid: number, options: unknown) => ({
+      data: {appid, options, items: []},
+      warnings: ["fixture update warning"],
+      meta: {observedAt: NOW.toISOString()},
+    }));
+    const {client, server} = await createHarness({fetchUpdates});
+    try {
+      const result = await client.callTool({
+        name: "steam_updates",
+        arguments: {
+          appid: 1145360,
+          scope: "updates",
+          limit: 8,
+          contentChars: 900,
+          before: "2026-08-01T00:00:00.000Z",
+        },
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect(fetchUpdates).toHaveBeenCalledWith(1145360, {
+        scope: "updates",
+        limit: 8,
+        contentChars: 900,
+        before: "2026-08-01T00:00:00.000Z",
+      });
+      expect(result.structuredContent).toMatchObject({
+        data: {appid: 1145360, items: []},
+        warnings: ["fixture update warning"],
+        meta: {observedAt: NOW.toISOString(), resultHandle: expect.any(String)},
+      });
     } finally {
       await client.close();
       await server.close();
@@ -240,6 +295,7 @@ describe("MCP server contract", () => {
       const voiceItem = voice.items as Record<string, unknown>;
       const reviews = tools.steam_reviews as Record<string, unknown>;
       const timeline = tools.steam_timeline as Record<string, unknown>;
+      const updates = tools.steam_updates as Record<string, unknown>;
       const capture = tools.ui_capture as Record<string, unknown>;
       const viewport = schemaProperty(capture, "viewport");
       const contract = {
@@ -253,6 +309,13 @@ describe("MCP server contract", () => {
             "minimum",
             "maximum",
           ]),
+          targetAppid: pickSchema(schemaProperty(derive, "targetAppid"), [
+            "type",
+            "exclusiveMinimum",
+          ]),
+          market: pickSchema(schemaProperty(derive, "market"), ["type", "minLength", "maxLength"]),
+          language: pickSchema(schemaProperty(derive, "language"), ["type", "pattern"]),
+          focus: pickSchema(schemaProperty(derive, "focus"), ["type", "minItems", "maxItems"]),
         },
         get_knowledge: {
           fields: Object.keys(knowledge.properties as object),
@@ -304,6 +367,19 @@ describe("MCP server contract", () => {
           since: pickSchema(schemaProperty(timeline, "since"), ["type"]),
           country: pickSchema(schemaProperty(timeline, "country"), ["type", "minLength", "maxLength"]),
         },
+        steam_updates: {
+          fields: Object.keys(updates.properties as object),
+          required: updates.required,
+          appid: pickSchema(schemaProperty(updates, "appid"), ["type", "exclusiveMinimum"]),
+          scope: pickSchema(schemaProperty(updates, "scope"), ["type", "enum"]),
+          limit: pickSchema(schemaProperty(updates, "limit"), ["type", "minimum", "maximum"]),
+          contentChars: pickSchema(schemaProperty(updates, "contentChars"), [
+            "type",
+            "minimum",
+            "maximum",
+          ]),
+          before: pickSchema(schemaProperty(updates, "before"), ["type", "format"]),
+        },
         ui_capture: {
           fields: Object.keys(capture.properties as object),
           required: capture.required,
@@ -336,13 +412,35 @@ describe("MCP server contract", () => {
               "appids",
               "count",
               "reviewsPerPolarity",
+              "targetAppid",
+              "market",
+              "language",
+              "focus",
             ],
+            "focus": {
+              "maxItems": 6,
+              "minItems": 1,
+              "type": "array",
+            },
+            "language": {
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+              "type": "string",
+            },
+            "market": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string",
+            },
             "required": [
               "appids",
             ],
             "reviewsPerPolarity": {
               "maximum": 25,
               "minimum": 3,
+              "type": "integer",
+            },
+            "targetAppid": {
+              "exclusiveMinimum": 0,
               "type": "integer",
             },
           },
@@ -385,6 +483,10 @@ describe("MCP server contract", () => {
               "voice",
               "dealbreakers",
               "price_sensitivity",
+              "schema_version",
+              "target_context",
+              "decision_profile",
+              "evidence_basis",
             ],
             "personaId": {
               "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
@@ -507,6 +609,44 @@ describe("MCP server contract", () => {
               "appid",
             ],
             "since": {
+              "type": "string",
+            },
+          },
+          "steam_updates": {
+            "appid": {
+              "exclusiveMinimum": 0,
+              "type": "integer",
+            },
+            "before": {
+              "format": "date-time",
+              "type": "string",
+            },
+            "contentChars": {
+              "maximum": 4000,
+              "minimum": 100,
+              "type": "integer",
+            },
+            "fields": [
+              "appid",
+              "scope",
+              "limit",
+              "contentChars",
+              "before",
+            ],
+            "limit": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+            },
+            "required": [
+              "appid",
+            ],
+            "scope": {
+              "enum": [
+                "updates",
+                "official",
+                "all",
+              ],
               "type": "string",
             },
           },
@@ -664,7 +804,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(11);
+      expect(tools).toHaveLength(12);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),

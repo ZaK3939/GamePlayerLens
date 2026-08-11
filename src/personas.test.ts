@@ -4,6 +4,7 @@ import {join} from "node:path";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {createPathResolver} from "./paths.js";
 import {
+  GeneratedPersonaSchema,
   PersonaSchema,
   createPersonaDeriver,
   createPersonaStore,
@@ -56,6 +57,44 @@ function review(id: string, votedUp: boolean, language = "japanese"): Review {
   };
 }
 
+function personaV2(overrides: Record<string, unknown> = {}) {
+  return {
+    ...persona(),
+    schema_version: 2,
+    target_context: {
+      market: "Japan",
+      language: "japanese",
+      source_roles: [{appid: 1145360, role: "target"}],
+    },
+    decision_profile: {
+      adoption_trigger: "日本語品質と操作感を確認できる",
+      retention_trigger: "周回ごとの物語変化が続く",
+      churn_trigger: "訳文または入力反応が期待を下回る",
+      update_reaction: "既知の不満に対応するpatch noteを確認して再評価する",
+    },
+    evidence_basis: {
+      observed_patterns: [
+        {
+          claim: "日本語品質を評価軸にする",
+          evidence: [{source_appid: 1145360, recommendation_id: "rec-0"}],
+        },
+        {
+          claim: "操作感を評価軸にする",
+          evidence: [{source_appid: 1145360, recommendation_id: "rec-1"}],
+        },
+      ],
+      inferred_traits: [{
+        claim: "更新後に再評価する",
+        basis: "更新反応を直接述べるレビューはなく、dealbreaker解消を条件にした推論",
+        confidence: "low",
+      }],
+      limitations: ["polarity-balanced recent review sampleで市場構成比を表さない"],
+      overall_confidence: "medium",
+    },
+    ...overrides,
+  };
+}
+
 describe("PersonaSchema", () => {
   it("requires three to five traceable voice examples", () => {
     expect(PersonaSchema.safeParse(persona({voice: persona().voice.slice(0, 2)})).success)
@@ -67,6 +106,35 @@ describe("PersonaSchema", () => {
     const missingSource = structuredClone(persona()) as Record<string, unknown>;
     delete (missingSource.voice as Array<Record<string, unknown>>)[0]?.recommendation_id;
     expect(PersonaSchema.safeParse(missingSource).success).toBe(false);
+  });
+
+  it("keeps legacy reads but requires a traceable decision profile for generated v2 personas", () => {
+    expect(PersonaSchema.safeParse(persona()).success).toBe(true);
+    expect(GeneratedPersonaSchema.safeParse(persona()).success).toBe(false);
+    expect(GeneratedPersonaSchema.safeParse(personaV2()).success).toBe(true);
+
+    const missingDecisionProfile = personaV2();
+    delete missingDecisionProfile.decision_profile;
+    expect(PersonaSchema.safeParse(missingDecisionProfile).success).toBe(false);
+  });
+
+  it("rejects v2 evidence and source roles that are not present in persona voice", () => {
+    expect(GeneratedPersonaSchema.safeParse(personaV2({
+      evidence_basis: {
+        ...personaV2().evidence_basis,
+        observed_patterns: [{
+          claim: "unsupported",
+          evidence: [{source_appid: 1145360, recommendation_id: "missing"}],
+        }],
+      },
+    })).success).toBe(false);
+    expect(GeneratedPersonaSchema.safeParse(personaV2({
+      target_context: {
+        market: "Japan",
+        language: "japanese",
+        source_roles: [{appid: 588650, role: "competitor"}],
+      },
+    })).success).toBe(false);
   });
 });
 
@@ -161,7 +229,7 @@ describe("persona derivation pack", () => {
     expect(result.meta).toMatchObject({
       observedAt: NOW.toISOString(),
       methodology: {
-        strategy: "recent-polarity-balanced",
+        strategy: "requested-language-first-recent-polarity-balanced",
         ordering: "round-robin-appid-polarity",
         representative: false,
         requestedPerPolarity: 25,
@@ -169,8 +237,8 @@ describe("persona derivation pack", () => {
           appid: 1145360,
           population: {positive: 900, negative: 100, positivePercent: 90},
           sample: {
-            positive: {japaneseSelected: 1, fallbackSelected: 24, totalSelected: 25},
-            negative: {japaneseSelected: 1, fallbackSelected: 24, totalSelected: 25},
+            positive: {requestedLanguageSelected: 1, fallbackSelected: 24, totalSelected: 25},
+            negative: {requestedLanguageSelected: 1, fallbackSelected: 24, totalSelected: 25},
             positivePercent: 50,
           },
         }],
@@ -201,7 +269,12 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145350, 1145360], 3, 3);
+    })([1145350, 1145360], 3, 3, {
+      targetAppid: 1145350,
+      market: "Japan",
+      language: "japanese",
+      focus: ["adoption", "retention", "update-response"],
+    });
 
     expect(result.data?.reviews).toHaveLength(12);
     expect(result.data?.reviews.map(({sourceAppid, votedUp}) => [sourceAppid, votedUp]))
@@ -219,10 +292,34 @@ describe("persona derivation pack", () => {
         [1145360, true],
         [1145360, false],
       ]);
+    expect(result.data?.reviews.map(({sourceRole}) => sourceRole))
+      .toEqual([
+        "target", "target", "competitor", "competitor",
+        "target", "target", "competitor", "competitor",
+        "target", "target", "competitor", "competitor",
+      ]);
+    expect(result.data?.brief).toMatchObject({
+      targetAppid: 1145350,
+      market: "Japan",
+      language: "japanese",
+      focus: ["adoption", "retention", "update-response"],
+      sources: [
+        {appid: 1145350, role: "target"},
+        {appid: 1145360, role: "competitor"},
+      ],
+    });
     expect(fetchReviews).toHaveBeenCalledTimes(4);
     expect(fetchReviews.mock.calls.every(([, opts]) => opts.limit === 3)).toBe(true);
     expect(result.meta).toMatchObject({
-      request: {appids: [1145350, 1145360], count: 3, reviewsPerPolarity: 3},
+      request: {
+        appids: [1145350, 1145360],
+        count: 3,
+        reviewsPerPolarity: 3,
+        targetAppid: 1145350,
+        market: "Japan",
+        language: "japanese",
+        focus: ["adoption", "retention", "update-response"],
+      },
       methodology: {
         ordering: "round-robin-appid-polarity",
         requestedPerPolarity: 3,
@@ -255,8 +352,8 @@ describe("persona derivation pack", () => {
       appids: Array<{sample: Record<string, unknown>}>;
     }).appids[0]?.sample;
     expect(sampling).toMatchObject({
-      positive: {japaneseSelected: 25, fallbackSelected: 0, totalSelected: 25},
-      negative: {japaneseSelected: 25, fallbackSelected: 0, totalSelected: 25},
+      positive: {requestedLanguageSelected: 25, fallbackSelected: 0, totalSelected: 25},
+      negative: {requestedLanguageSelected: 25, fallbackSelected: 0, totalSelected: 25},
     });
   });
 
@@ -284,8 +381,8 @@ describe("persona derivation pack", () => {
         appid: 1145360,
         population: {positive: null, negative: null, positivePercent: null},
         sample: {
-          positive: {japaneseSelected: 1, fallbackSelected: 0, totalSelected: 1},
-          negative: {japaneseSelected: 1, fallbackSelected: 0, totalSelected: 1},
+          positive: {requestedLanguageSelected: 1, fallbackSelected: 0, totalSelected: 1},
+          negative: {requestedLanguageSelected: 1, fallbackSelected: 0, totalSelected: 1},
         },
       }],
     });

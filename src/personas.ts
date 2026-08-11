@@ -18,6 +18,14 @@ export const MIN_REVIEWS_PER_POLARITY = 3;
 export const MAX_REVIEWS_PER_POLARITY = 25;
 export const DEFAULT_REVIEWS_PER_POLARITY = MAX_REVIEWS_PER_POLARITY;
 export const MAX_DERIVATION_APPIDS = 12;
+export const PERSONA_FOCUS_VALUES = [
+  "adoption",
+  "retention",
+  "churn",
+  "price",
+  "localization",
+  "update-response",
+] as const;
 
 export const VoiceEvidenceSchema = z.object({
   text: z.string().min(1),
@@ -27,7 +35,44 @@ export const VoiceEvidenceSchema = z.object({
   voted_up: z.boolean(),
 }).strict();
 
-export const PersonaSchema = z.object({
+const SourceRoleSchema = z.object({
+  appid: z.number().int().positive(),
+  role: z.enum(["target", "competitor", "reference"]),
+}).strict();
+
+const TargetContextSchema = z.object({
+  market: z.string().trim().min(1).max(80),
+  language: z.string().trim().min(1).max(32),
+  source_roles: z.array(SourceRoleSchema).min(1).max(MAX_DERIVATION_APPIDS),
+}).strict();
+
+const DecisionProfileSchema = z.object({
+  adoption_trigger: z.string().trim().min(1).max(1_000),
+  retention_trigger: z.string().trim().min(1).max(1_000),
+  churn_trigger: z.string().trim().min(1).max(1_000),
+  update_reaction: z.string().trim().min(1).max(1_000),
+}).strict();
+
+const VoiceReferenceSchema = z.object({
+  source_appid: z.number().int().positive(),
+  recommendation_id: z.string().min(1),
+}).strict();
+
+const EvidenceBasisSchema = z.object({
+  observed_patterns: z.array(z.object({
+    claim: z.string().trim().min(1).max(1_000),
+    evidence: z.array(VoiceReferenceSchema).min(1).max(5),
+  }).strict()).min(2).max(8),
+  inferred_traits: z.array(z.object({
+    claim: z.string().trim().min(1).max(1_000),
+    basis: z.string().trim().min(1).max(2_000),
+    confidence: z.enum(["low", "medium", "high"]),
+  }).strict()).max(8),
+  limitations: z.array(z.string().trim().min(1).max(1_000)).min(1).max(8),
+  overall_confidence: z.enum(["low", "medium", "high"]),
+}).strict();
+
+const PersonaBaseShape = {
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i),
   source_appids: z.array(z.number().int().positive()).min(1),
   archetype: z.string().min(1),
@@ -36,7 +81,115 @@ export const PersonaSchema = z.object({
   voice: z.array(VoiceEvidenceSchema).min(3).max(5),
   dealbreakers: z.array(z.string().min(1)),
   price_sensitivity: z.string().min(1),
-}).strict();
+};
+
+interface PersonaIssue {
+  path: Array<string | number>;
+  message: string;
+}
+
+function personaIssues(value: {
+  source_appids: number[];
+  voice: Array<{source_appid: number; recommendation_id: string}>;
+  schema_version?: 2;
+  target_context?: z.infer<typeof TargetContextSchema>;
+  decision_profile?: z.infer<typeof DecisionProfileSchema>;
+  evidence_basis?: z.infer<typeof EvidenceBasisSchema>;
+}): PersonaIssue[] {
+  const issues: PersonaIssue[] = [];
+  const sourceAppids = new Set(value.source_appids);
+  if (sourceAppids.size !== value.source_appids.length) {
+    issues.push({path: ["source_appids"], message: "source_appids must be unique"});
+  }
+  const voiceKeys = new Set<string>();
+  for (const [index, voice] of value.voice.entries()) {
+    if (!sourceAppids.has(voice.source_appid)) {
+      issues.push({
+        path: ["voice", index, "source_appid"],
+        message: "voice source_appid must be listed in source_appids",
+      });
+    }
+    const key = `${voice.source_appid}:${voice.recommendation_id}`;
+    if (voiceKeys.has(key)) {
+      issues.push({
+        path: ["voice", index, "recommendation_id"],
+        message: "voice evidence references must be unique",
+      });
+    }
+    voiceKeys.add(key);
+  }
+
+  const hasV2 = value.schema_version !== undefined
+    || value.target_context !== undefined
+    || value.decision_profile !== undefined
+    || value.evidence_basis !== undefined;
+  if (!hasV2) return issues;
+  if (value.schema_version !== 2) {
+    issues.push({path: ["schema_version"], message: "v2 persona requires schema_version 2"});
+  }
+  for (const field of ["target_context", "decision_profile", "evidence_basis"] as const) {
+    if (value[field] === undefined) {
+      issues.push({path: [field], message: `v2 persona requires ${field}`});
+    }
+  }
+  if (value.target_context) {
+    const roleAppids = value.target_context.source_roles.map((source) => source.appid);
+    if (new Set(roleAppids).size !== roleAppids.length) {
+      issues.push({
+        path: ["target_context", "source_roles"],
+        message: "source role appids must be unique",
+      });
+    }
+    const sameAppids = roleAppids.length === sourceAppids.size
+      && roleAppids.every((appid) => sourceAppids.has(appid));
+    if (!sameAppids) {
+      issues.push({
+        path: ["target_context", "source_roles"],
+        message: "source roles must cover exactly source_appids",
+      });
+    }
+    if (value.target_context.source_roles.filter((source) => source.role === "target").length > 1) {
+      issues.push({
+        path: ["target_context", "source_roles"],
+        message: "at most one source appid may be the target",
+      });
+    }
+  }
+  for (const [patternIndex, pattern] of (value.evidence_basis?.observed_patterns ?? []).entries()) {
+    for (const [evidenceIndex, evidence] of pattern.evidence.entries()) {
+      if (!voiceKeys.has(`${evidence.source_appid}:${evidence.recommendation_id}`)) {
+        issues.push({
+          path: ["evidence_basis", "observed_patterns", patternIndex, "evidence", evidenceIndex],
+          message: "observed pattern evidence must reference persona voice",
+        });
+      }
+    }
+  }
+  return issues;
+}
+
+function addPersonaIssues(
+  value: Parameters<typeof personaIssues>[0],
+  context: {addIssue(issue: {code: "custom"; path: Array<string | number>; message: string}): void},
+): void {
+  for (const issue of personaIssues(value)) context.addIssue({code: "custom", ...issue});
+}
+
+export const PersonaSchema = z.object({
+  ...PersonaBaseShape,
+  schema_version: z.literal(2).optional(),
+  target_context: TargetContextSchema.optional(),
+  decision_profile: DecisionProfileSchema.optional(),
+  evidence_basis: EvidenceBasisSchema.optional(),
+}).strict().superRefine(addPersonaIssues);
+
+export const GeneratedPersonaSchema = z.object({
+  ...PersonaBaseShape,
+  schema_version: z.literal(2),
+  target_context: TargetContextSchema,
+  decision_profile: DecisionProfileSchema,
+  evidence_basis: EvidenceBasisSchema,
+}).strict().superRefine(addPersonaIssues);
 
 export type Persona = z.infer<typeof PersonaSchema>;
 
@@ -161,11 +314,31 @@ export function listPersonas(): Promise<Persona[]> {
 
 export interface DerivationReview extends Review {
   sourceAppid: number;
+  sourceRole: "target" | "competitor" | "reference";
+}
+
+export type PersonaFocus = typeof PERSONA_FOCUS_VALUES[number];
+
+export interface PersonaDerivationOptions {
+  targetAppid?: number;
+  market?: string;
+  language?: string;
+  focus?: PersonaFocus[];
 }
 
 export interface DerivationPack {
   requestedCount: number;
   schema: Record<string, unknown>;
+  brief: {
+    targetAppid: number | null;
+    market: string;
+    language: string;
+    focus: PersonaFocus[];
+    sources: Array<{
+      appid: number;
+      role: "target" | "competitor" | "reference";
+    }>;
+  };
   games: GameProfile[];
   reviews: DerivationReview[];
   instruction: string;
@@ -178,14 +351,14 @@ export interface PersonaDeriverDependencies {
 }
 
 interface PolaritySelectionStats extends Record<string, number> {
-  japaneseSelected: number;
+  requestedLanguageSelected: number;
   fallbackSelected: number;
   totalSelected: number;
 }
 
 interface PolarityEvidence {
   reviews: Review[];
-  selectedFrom: Map<string, "japanese" | "fallback">;
+  selectedFrom: Map<string, "requested-language" | "fallback">;
   warnings: string[];
 }
 
@@ -202,26 +375,27 @@ async function fetchPolarityEvidence(
   polarity: "positive" | "negative",
   reviewFetcher: typeof fetchReviews,
   reviewsPerPolarity: number,
+  language: string,
 ): Promise<PolarityEvidence> {
-  const japanese = await reviewFetcher(appid, {
-    language: "japanese",
+  const requestedLanguage = await reviewFetcher(appid, {
+    language,
     type: polarity,
     limit: reviewsPerPolarity,
   });
-  const warnings = contextualWarnings(appid, polarity, japanese.warnings);
+  const warnings = contextualWarnings(appid, polarity, requestedLanguage.warnings);
   const selected: Review[] = [];
   const seen = new Set<string>();
-  const selectedFrom = new Map<string, "japanese" | "fallback">();
+  const selectedFrom = new Map<string, "requested-language" | "fallback">();
 
-  for (const review of japanese.data ?? []) {
+  for (const review of requestedLanguage.data ?? []) {
     if (!review.review || seen.has(review.recommendationId)) continue;
     seen.add(review.recommendationId);
     selected.push(review);
-    selectedFrom.set(review.recommendationId, "japanese");
+    selectedFrom.set(review.recommendationId, "requested-language");
     if (selected.length === reviewsPerPolarity) break;
   }
 
-  if (selected.length < reviewsPerPolarity) {
+  if (language !== "all" && selected.length < reviewsPerPolarity) {
     const fallback = await reviewFetcher(appid, {
       language: "all",
       type: polarity,
@@ -260,6 +434,8 @@ function personaMeta(
   count: number,
   reviewsPerPolarity: number,
   sampling: JsonValue[],
+  options: Required<Pick<PersonaDerivationOptions, "market" | "language" | "focus">>
+    & Pick<PersonaDerivationOptions, "targetAppid">,
 ): FetchMeta {
   return {
     observedAt,
@@ -271,14 +447,86 @@ function personaMeta(
         notes: "Review population counts are estimates; recent releases and small samples can be unreliable.",
       },
     ],
-    request: {appids, count, reviewsPerPolarity},
+    request: {
+      appids,
+      count,
+      reviewsPerPolarity,
+      ...(options.targetAppid ? {targetAppid: options.targetAppid} : {}),
+      market: options.market,
+      language: options.language,
+      focus: options.focus,
+    },
     methodology: {
-      strategy: "recent-polarity-balanced",
+      strategy: "requested-language-first-recent-polarity-balanced",
       ordering: "round-robin-appid-polarity",
       representative: false,
+      requestedLanguage: options.language,
       requestedPerPolarity: reviewsPerPolarity,
       appids: sampling,
-      caveat: "Balanced samples support issue discovery and do not represent population shares; use game-profile reviewStats for population ratios.",
+      caveat: "Balanced samples support issue discovery and do not represent population shares; source roles and playtime coverage describe the sample, not market segment size.",
+    },
+  };
+}
+
+const DEFAULT_PERSONA_FOCUS: PersonaFocus[] = [
+  "adoption",
+  "retention",
+  "churn",
+  "update-response",
+];
+
+function normalizeDerivationOptions(
+  uniqueAppids: number[],
+  input: PersonaDerivationOptions,
+): Required<Pick<PersonaDerivationOptions, "market" | "language" | "focus">>
+  & Pick<PersonaDerivationOptions, "targetAppid"> {
+  const market = input.market?.trim() || "Japan";
+  if (market.length > 80) throw new TypeError("market must contain at most 80 characters");
+  const language = (input.language?.trim() || "japanese").toLowerCase();
+  if (!/^[a-z][a-z0-9_-]{0,31}$/.test(language)) {
+    throw new TypeError("language must be a Steam language code");
+  }
+  if (input.targetAppid !== undefined && !uniqueAppids.includes(input.targetAppid)) {
+    throw new TypeError("targetAppid must be included in appids");
+  }
+  const focus = input.focus ?? DEFAULT_PERSONA_FOCUS;
+  if (focus.length === 0 || focus.length > PERSONA_FOCUS_VALUES.length) {
+    throw new TypeError("focus must contain 1 to 6 values");
+  }
+  const allowed = new Set<string>(PERSONA_FOCUS_VALUES);
+  if (focus.some((value) => !allowed.has(value)) || new Set(focus).size !== focus.length) {
+    throw new TypeError("focus values must be known and unique");
+  }
+  return {targetAppid: input.targetAppid, market, language, focus: [...focus]};
+}
+
+function sourceRole(
+  appid: number,
+  targetAppid: number | undefined,
+): "target" | "competitor" | "reference" {
+  if (targetAppid === undefined) return "reference";
+  return appid === targetAppid ? "target" : "competitor";
+}
+
+function sampleCoverage(reviews: DerivationReview[]): JsonValue {
+  const playtimeBands = {under2h: 0, from2to20h: 0, from20to100h: 0, over100h: 0};
+  const languages: Record<string, number> = {};
+  const timestamps: number[] = [];
+  for (const review of reviews) {
+    if (review.playtimeHours < 2) playtimeBands.under2h += 1;
+    else if (review.playtimeHours < 20) playtimeBands.from2to20h += 1;
+    else if (review.playtimeHours < 100) playtimeBands.from20to100h += 1;
+    else playtimeBands.over100h += 1;
+    languages[review.language] = (languages[review.language] ?? 0) + 1;
+    if (Number.isFinite(review.timestamp) && review.timestamp > 0) timestamps.push(review.timestamp);
+  }
+  timestamps.sort((left, right) => left - right);
+  return {
+    playtimeBands,
+    languages,
+    publishedRange: {
+      earliest: timestamps.length > 0 ? new Date(timestamps[0]! * 1_000).toISOString() : null,
+      latest: timestamps.length > 0 ? new Date(timestamps.at(-1)! * 1_000).toISOString() : null,
     },
   };
 }
@@ -289,6 +537,7 @@ export function createPersonaDeriver(
   appids: number[],
   count?: number,
   reviewsPerPolarity?: number,
+  options?: PersonaDerivationOptions,
 ) => Promise<FetchResult<DerivationPack>> {
   const gameFetcher = dependencies.fetchGame ?? fetchGame;
   const reviewFetcher = dependencies.fetchReviews ?? fetchReviews;
@@ -298,6 +547,7 @@ export function createPersonaDeriver(
     appids: number[],
     count = 5,
     reviewsPerPolarity = DEFAULT_REVIEWS_PER_POLARITY,
+    inputOptions: PersonaDerivationOptions = {},
   ) => {
     if (!Number.isInteger(count) || count < 1 || count > 12) {
       throw new TypeError("count must be an integer from 1 to 12");
@@ -321,6 +571,7 @@ export function createPersonaDeriver(
     if (uniqueAppids.some((appid) => !Number.isInteger(appid) || appid <= 0)) {
       throw new TypeError("appids must contain positive integers");
     }
+    const options = normalizeDerivationOptions(uniqueAppids, inputOptions);
 
     const games: GameProfile[] = [];
     const reviews: DerivationReview[] = [];
@@ -339,8 +590,20 @@ export function createPersonaDeriver(
     for (const appid of uniqueAppids) {
       const [game, positive, negative] = await Promise.all([
         gameFetcher(appid),
-        fetchPolarityEvidence(appid, "positive", reviewFetcher, reviewsPerPolarity),
-        fetchPolarityEvidence(appid, "negative", reviewFetcher, reviewsPerPolarity),
+        fetchPolarityEvidence(
+          appid,
+          "positive",
+          reviewFetcher,
+          reviewsPerPolarity,
+          options.language,
+        ),
+        fetchPolarityEvidence(
+          appid,
+          "negative",
+          reviewFetcher,
+          reviewsPerPolarity,
+          options.language,
+        ),
       ]);
       warnings.push(...contextualWarnings(appid, "game", game.warnings));
       warnings.push(...positive.warnings, ...negative.warnings);
@@ -356,8 +619,8 @@ export function createPersonaDeriver(
     >>();
     for (const {appid} of evidenceByAppid) {
       const actualSelection = {
-        positive: {japaneseSelected: 0, fallbackSelected: 0, totalSelected: 0},
-        negative: {japaneseSelected: 0, fallbackSelected: 0, totalSelected: 0},
+        positive: {requestedLanguageSelected: 0, fallbackSelected: 0, totalSelected: 0},
+        negative: {requestedLanguageSelected: 0, fallbackSelected: 0, totalSelected: 0},
       } satisfies Record<"positive" | "negative", PolaritySelectionStats>;
       actualSelectionByAppid.set(appid, actualSelection);
     }
@@ -369,11 +632,17 @@ export function createPersonaDeriver(
           if (!review) continue;
           if (globalReviewIds.has(review.recommendationId)) continue;
           globalReviewIds.add(review.recommendationId);
-          reviews.push({...review, sourceAppid: evidence.appid});
+          reviews.push({
+            ...review,
+            sourceAppid: evidence.appid,
+            sourceRole: sourceRole(evidence.appid, options.targetAppid),
+          });
           const actualSelection = actualSelectionByAppid.get(evidence.appid);
           if (!actualSelection) continue;
           const source = evidence[polarity].selectedFrom.get(review.recommendationId);
-          if (source === "japanese") actualSelection[polarity].japaneseSelected += 1;
+          if (source === "requested-language") {
+            actualSelection[polarity].requestedLanguageSelected += 1;
+          }
           else if (source === "fallback") actualSelection[polarity].fallbackSelected += 1;
           actualSelection[polarity].totalSelected += 1;
         }
@@ -384,8 +653,10 @@ export function createPersonaDeriver(
       const actualSelection = actualSelectionByAppid.get(appid);
       if (!actualSelection) continue;
       const population = game.data?.reviewStats ?? null;
+      const selectedReviews = reviews.filter((review) => review.sourceAppid === appid);
       sampling.push({
         appid,
+        role: sourceRole(appid, options.targetAppid),
         population: {
           positive: population?.positive ?? null,
           negative: population?.negative ?? null,
@@ -397,6 +668,7 @@ export function createPersonaDeriver(
             actualSelection.positive.totalSelected,
             actualSelection.negative.totalSelected,
           ),
+          coverage: sampleCoverage(selectedReviews),
         },
       });
     }
@@ -407,16 +679,30 @@ export function createPersonaDeriver(
       count,
       reviewsPerPolarity,
       sampling,
+      options,
     );
     return {
       data: {
         requestedCount: count,
-        schema: z.toJSONSchema(PersonaSchema) as Record<string, unknown>,
+        schema: z.toJSONSchema(GeneratedPersonaSchema) as Record<string, unknown>,
+        brief: {
+          targetAppid: options.targetAppid ?? null,
+          market: options.market,
+          language: options.language,
+          focus: options.focus,
+          sources: uniqueAppids.map((appid) => ({
+            appid,
+            role: sourceRole(appid, options.targetAppid),
+          })),
+        },
         games,
         reviews,
         instruction: [
           `この根拠素材から異なるペルソナを ${count} 件生成してください。`,
           "voice の各項目は reviews の本文・sourceAppid・recommendationId・language・votedUp に直接対応させてください。",
+          "schema_version=2 とし、target_context、decision_profile、evidence_basisを省略しないでください。",
+          "observed_patternsはvoiceを参照し、inferred_traitsとlimitationsを分離してください。更新反応の根拠がなければupdate_reactionをunknownとして不足根拠を記録してください。",
+          "targetとcompetitorのsourceRoleを混同せず、各personaのadoption/retention/churn triggerが実質的に異なることを確認してください。",
           "The polarity-balanced review sample is not representative of population shares.",
           "生成した各 JSON は Persona schema で検証し、save_persona で1件ずつ保存してください。",
         ].join(" "),

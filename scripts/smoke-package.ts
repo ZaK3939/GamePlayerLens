@@ -44,6 +44,7 @@ for (const runtimePath of [
   join(repositoryRoot, "knowledge", "rubrics", "harsh-critic.md"),
   join(repositoryRoot, "knowledge", "rubrics", "evidence-coverage.md"),
   join(repositoryRoot, "knowledge", "rubrics", "playtest.md"),
+  join(repositoryRoot, "knowledge", "rubrics", "update-strategy.md"),
   join(repositoryRoot, "skills", "run-sim.md"),
 ]) {
   await access(runtimePath);
@@ -75,6 +76,7 @@ transport.stderr?.on("data", (chunk) => {
 const client = new Client({name: "game-player-lens-package-smoke", version: "1.0.0"});
 let connected = false;
 let liveExactSave = false;
+let liveUpdates = false;
 let packageRunRoundTrip = false;
 let playtestPromptRoundTrip = false;
 try {
@@ -82,7 +84,7 @@ try {
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 11, "packaged CLI did not expose eleven tools");
+  assert(tools.length === 12, "packaged CLI did not expose twelve tools");
   assert(prompts.length === 2, "packaged CLI did not expose two prompts");
 
   const knowledge = await client.callTool({
@@ -120,6 +122,15 @@ try {
   assert(
     JSON.stringify(playtestRubric.structuredContent).includes("Action → response"),
     "packaged CLI returned the wrong playtest rubric",
+  );
+  const updateRubric = await client.callTool({
+    name: "get_knowledge",
+    arguments: {kind: "rubrics", id: "update-strategy.md"},
+  });
+  assert(updateRubric.isError !== true, "packaged CLI could not read update strategy rubric");
+  assert(
+    JSON.stringify(updateRubric.structuredContent).includes("Persona Update Impact Matrix"),
+    "packaged CLI returned the wrong update strategy rubric",
   );
 
   const playtestPrompt = await client.getPrompt({
@@ -352,6 +363,61 @@ try {
       JSON.stringify(record.payload) === JSON.stringify(search.structuredContent),
       "saved payload is not the exact normalized tool envelope",
     );
+
+    const updates = await client.callTool({
+      name: "steam_updates",
+      arguments: {appid: 1145360, scope: "updates", limit: 8, contentChars: 600},
+    });
+    assert(updates.isError !== true, "packaged CLI steam_updates returned a tool error");
+    const updateItems = (updates.structuredContent?.data as {
+      items?: Array<{
+        official?: unknown;
+        isUpdateLike?: unknown;
+        updateEvidence?: unknown;
+        updateConfidence?: unknown;
+        typeConfidence?: unknown;
+        platformHints?: unknown;
+      }>;
+    } | undefined)?.items;
+    const updateHandle = (updates.structuredContent?.meta as {
+      resultHandle?: unknown;
+    } | undefined)?.resultHandle;
+    assert(
+      (updateItems?.length ?? 0) > 0
+      && updateItems?.every((item) =>
+        item.official === true
+        && item.isUpdateLike === true
+        && (item.updateEvidence === "steam-tag" || item.updateEvidence === "title-inference")
+        && typeof item.updateConfidence === "number"
+        && typeof item.typeConfidence === "number"
+        && Array.isArray(item.platformHints)),
+      "packaged CLI steam_updates returned no classified official updates",
+    );
+    assert(typeof updateHandle === "string", "steam_updates result handle is missing");
+    const savedUpdates = await client.callTool({
+      name: "save_artifact",
+      arguments: {
+        kind: "intel",
+        target: "Hades",
+        id: "Live Updates Exact",
+        resultHandle: updateHandle,
+      },
+    });
+    assert(savedUpdates.isError !== true, "steam_updates exact save returned a tool error");
+    const readUpdates = await client.callTool({
+      name: "get_artifact",
+      arguments: {kind: "intel", target: "Hades", id: "Live Updates Exact"},
+    });
+    const updateRecord = readUpdates.structuredContent?.data as {
+      sourceTool?: unknown;
+      payload?: unknown;
+    } | undefined;
+    assert(updateRecord?.sourceTool === "steam_updates", "steam_updates sourceTool was not retained");
+    assert(
+      JSON.stringify(updateRecord.payload) === JSON.stringify(updates.structuredContent),
+      "saved steam_updates payload is not the exact normalized tool envelope",
+    );
+    liveUpdates = true;
     liveExactSave = true;
   }
 
@@ -374,6 +440,7 @@ try {
     isolatedDataHome: true,
     playtestPromptRoundTrip,
     packageRunRoundTrip,
+    liveUpdates,
     liveExactSave,
   }));
 } catch (error) {

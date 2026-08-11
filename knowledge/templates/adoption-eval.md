@@ -18,6 +18,20 @@ Mode、Selected Domains、選択外領域の明示的な N/A 理由は、必ず�
 | ローカライズ | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
 | 競合 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
 
+## Decision Card
+
+長文所見の前に、現時点の意思決定を1画面で固定します。根拠不足なら無理に`fix-now`を選ばず、`investigate`または`defer`にします。
+
+- Decision: ［`fix-now` / `test-next-build` / `investigate` / `defer`］
+- Player problem: ［誰が、どの状態で、何に阻害されるか］
+- Affected persona / Flow: ［persona ID。市場構成比ではない］
+- Smallest next update: ［独立して検証できる最小変更。baselineで変更を提案しない場合はN/A］
+- Evidence status: ［observed / inferred / unknown とEvidence ID］
+- Confidence: ［high / medium / low とblocking missing］
+- Success signal: ［build、cohort、期間、行動指標］
+- Guardrail / rollback: ［悪化を止める指標と戻せる単位］
+- Revisit condition: ［何が取得・発生したら判断を更新するか］
+
 ## Overall Assessment
 
 使用する Mode に対応する表だけをレポートに残します。
@@ -68,6 +82,32 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 | ［Flow名］ | ［要約］ | ［要約］ | ［要約］ | ［大/中/小］ | ［reviewStats / owners caveat / 外部根拠］ | ［施策］ | ［現状だけ / 現状 vs 変更案］ | 根拠不足 |
 
 優先順位は Current size だけで決めず、阻害の重大度、変更可能性、根拠の確度を併記します。
+
+## Update Strategy
+
+更新やroadmapを扱う場合は`update-strategy.md`に従います。扱わない場合は、topicとSelected Domainsに基づくN/A理由を1文で記します。
+
+### Update inventory
+
+| Game / appid | Window / scope | Tagged patch notes | Inferred updates | Type mix | Median interval | Latest | Warning / limitation | Evidence ID |
+|---|---|---:|---:|---|---:|---|---|---|
+| ［game］ | ［取得範囲］ | ［件数］ | ［件数］ | ［分類］ | ［days / N/A］ | ［ISO］ | ［heuristic・underfilled等］ | ［ID］ |
+
+更新頻度はdescriptiveであり、開発速度・品質・retention・売上効果ではありません。Steam由来の`patchnotes` tag、titleによるupdate inference、heuristic typeを分け、`platformHints`がある項目は対象platformを確認します。
+
+### Persona Update Impact Matrix
+
+| Persona | Adoption trigger | Retention trigger | Churn trigger | Update reaction | Status | Evidence / limitation |
+|---|---|---|---|---|---|---|
+| ［persona ID］ | ［trigger］ | ［trigger］ | ［trigger］ | ［再評価・復帰・無反応等］ | ［observed / inferred / unknown］ | ［voice / evidence_basis / limitation］ |
+
+### Prioritized Update Backlog
+
+| Decision | Player problem | Persona / Flow | Evidence | Smallest update | Expected player response | Confidence | Validation | Guardrail |
+|---|---|---|---|---|---|---|---|---|
+| ［fix-now / test-next-build / investigate / defer］ | ［問題］ | ［対象］ | ［ID / missing］ | ［最小変更］ | ［行動仮説］ | ［高/中/低］ | ［build・指標・期間］ | ［停止・rollback条件］ |
+
+競合precedentは実装可能性の参考に留め、対象ゲームのplayer problem根拠がなければ`investigate`または`defer`にします。
 
 ## Domain Findings
 

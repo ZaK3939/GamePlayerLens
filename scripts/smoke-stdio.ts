@@ -15,6 +15,7 @@ const EXPECTED_TOOLS = [
   "steam_reviews",
   "steam_search",
   "steam_timeline",
+  "steam_updates",
   "ui_capture",
 ];
 const EXPECTED_PROMPTS = ["run-sim", "ui-blind-compare"];
@@ -225,6 +226,7 @@ try {
 
   let liveSearch = false;
   let liveDiscovery = false;
+  let liveUpdates = false;
   let liveResultHandles = false;
   if (process.argv.includes("--live")) {
     const search = await client.callTool({
@@ -283,6 +285,41 @@ try {
       "steam_discover did not expose an exact-save result handle",
     );
     liveDiscovery = true;
+
+    const updates = await client.callTool({
+      name: "steam_updates",
+      arguments: {appid: 1145360, scope: "updates", limit: 8, contentChars: 600},
+    });
+    assert(updates.isError !== true, "steam_updates returned a tool error");
+    const updatesData = structuredData(updates) as {
+      items?: Array<{
+        official?: unknown;
+        isUpdateLike?: unknown;
+        updateEvidence?: unknown;
+        updateConfidence?: unknown;
+        typeConfidence?: unknown;
+        platformHints?: unknown;
+      }>;
+      summary?: {taggedPatchNotesCount?: unknown; fetchedTaggedPatchNotesCount?: unknown};
+    } | null;
+    assert(
+      (updatesData?.items?.length ?? 0) > 0
+      && updatesData?.items?.every((item) =>
+        item.official === true
+        && item.isUpdateLike === true
+        && (item.updateEvidence === "steam-tag" || item.updateEvidence === "title-inference")
+        && typeof item.updateConfidence === "number"
+        && typeof item.typeConfidence === "number"
+        && Array.isArray(item.platformHints))
+      && typeof updatesData?.summary?.taggedPatchNotesCount === "number",
+      "steam_updates did not return classified official Hades updates",
+    );
+    assert(
+      typeof (updates.structuredContent?.meta as Record<string, unknown> | undefined)
+        ?.resultHandle === "string",
+      "steam_updates did not expose an exact-save result handle",
+    );
+    liveUpdates = true;
     liveResultHandles = true;
   }
 
@@ -294,6 +331,7 @@ try {
     playtestPromptRoundTrip: true,
     liveSearch,
     liveDiscovery,
+    liveUpdates,
     liveResultHandles,
     runListing: true,
     protocolErrors: protocolErrors.length,

@@ -13,8 +13,10 @@ describe("canonical adoption evaluation template", () => {
     const content = await read("knowledge/templates/adoption-eval.md");
     for (const heading of [
       "Overall Assessment",
+      "Decision Card",
       "Who Plays and Why — Flow Analysis",
       "Flow Summary",
+      "Update Strategy",
       "Domain Findings",
       "Change Delta",
     ]) {
@@ -100,6 +102,18 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("target - median");
     expect(content).toContain("static-only");
     expect(content).toContain("unscored");
+  });
+
+  it("turns findings into a bounded update decision and persona impact backlog", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+
+    expect(content).toContain("fix-now");
+    expect(content).toContain("Smallest next update");
+    expect(content).toContain("Success signal");
+    expect(content).toContain("Guardrail / rollback");
+    expect(content).toContain("Update inventory");
+    expect(content).toContain("Persona Update Impact Matrix");
+    expect(content).toContain("Prioritized Update Backlog");
   });
 });
 
@@ -209,6 +223,25 @@ describe("playtest rubric", () => {
   });
 });
 
+describe("update strategy rubric", () => {
+  it("separates official history, heuristic classification, persona response, and causality", async () => {
+    const content = await read("knowledge/rubrics/update-strategy.md");
+
+    expect(content).toContain("steam_updates");
+    expect(content).toContain("patchnotes");
+    expect(content).toContain("heuristic");
+    expect(content).toContain("updateEvidence");
+    expect(content).toContain("typeConfidence");
+    expect(content).toContain("platformHints");
+    expect(content).toMatch(/本文中の単語だけではupdateとして選定しません/);
+    expect(content).toContain("medianIntervalDays");
+    expect(content).toContain("Persona Update Impact Matrix");
+    expect(content).toContain("fix-now / test-next-build / investigate / defer");
+    expect(content).toMatch(/更新頻度[\s\S]*品質[\s\S]*retention/);
+    expect(content).toMatch(/競合[\s\S]*証明ではありません/);
+  });
+});
+
 describe("UI quality gap rubric", () => {
   it("uses matched cohorts, provenance, ordinal anchors, and evidence boundaries", async () => {
     const content = await read("knowledge/rubrics/ui-quality-gap.md");
@@ -235,6 +268,7 @@ describe("MCP prompt source recipes", () => {
       "steam_fetch",
       "steam_reviews",
       "steam_timeline",
+      "steam_updates",
       "derive_personas",
       "save_persona",
       "ui_capture",

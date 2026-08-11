@@ -36,6 +36,7 @@ export const SourceToolSchema = z.enum([
   "steam_fetch",
   "steam_reviews",
   "steam_timeline",
+  "steam_updates",
   "derive_personas",
   "ui_capture",
   "manual",

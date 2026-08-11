@@ -35,14 +35,15 @@ READMEや`docs/examples/`へ昇格できるのは、次を満たすsanitized成�
 
 v1.1 workflowは `Dogfood-validated` です。これはworkflow acceptanceであり、予測結果のoutcome calibration完了を意味しません。
 
-2026-08-12のanalysis integrity / evidence coverage / playtest protocol follow-upは、unit・MCP・package smokeまで実装済みですが、実ゲームbuildを使うdogfoodは未完了です。次の相談では、開発中ゲームのHTTP(S) buildまたはrecordingを使い、playtest session、Data Coverage Matrix、新規runの`integrity.status=verified`を同時に検証します。core v1.1の過去3件と、このfollow-upのvalidation状態を混同しません。
+2026-08-12のanalysis integrity / evidence coverage / playtest protocol follow-upは、unit・MCP・package smokeまで実装済みです。さらに[Hades update / persona v2](2026-08-12-hades-update-persona-v2.md)で、更新履歴、targetを含むpersona入力、Decision Card、Data Coverage Matrix、新規runの`integrity.status=verified`を実dataで確認しました。ただし操作可能buildはなく、実ゲームtest playは未完了です。次の相談では、開発中ゲームのHTTP(S) buildまたはrecordingを使い、playtest sessionを同時に検証します。更新戦略のdogfoodと実操作validationを混同しません。
 
 既存のHades UI runを新しいreadbackで監査すると、12 dependencyはverified、recordは旧形式のためunsealed、更新後の`run-sim.md`は保存hashとmismatchになり、全体statusはfailed・issueCount 2となった。過去runを新gateへ遡及合格させず、evidence driftと通常のrecipe更新をdependency別に区別できることを実dataで確認した。
 
 | 条件 | 進捗 | 記録 |
 |---|---:|---|
-| 保存済み実相談 | 3 / 3 | [Hades baseline](2026-08-11-hades-japan-baseline.md)、[JP copy change](2026-08-11-hades-jp-store-copy-change.md)、[dialogue UI gap](2026-08-11-hades-dialogue-ui-gap.md) |
+| 保存済み実相談 | 4 / 3 minimum | [Hades baseline](2026-08-11-hades-japan-baseline.md)、[JP copy change](2026-08-11-hades-jp-store-copy-change.md)、[dialogue UI gap](2026-08-11-hades-dialogue-ui-gap.md)、[update / persona v2](2026-08-12-hades-update-persona-v2.md) |
 | 別session replay audit | 1 / 1 | PASS（同記録内） |
 | UI quality-gap | 1 / 1 | PASS（non-blind / static-only境界を保持） |
+| 更新戦略 + persona v2 | 1 / 1 | PASS（3作品、48 reviews、3 v2 personas、verified run） |
 
-3件はbaseline、change、UI gapで異なるworkflowを通し、同じ結論の反復にはしていません。今後は未知競合のdiscovery、別ユーザー/別MCP client、実際のoutcomeを使ったcalibrationを追加検証します。
+4件はbaseline、store copy change、UI gap、update strategy changeで異なるworkflowを通し、同じ結論の反復にはしていません。今後は未知競合のdiscovery、開発中buildのtest play、別ユーザー/別MCP client、実際のoutcomeを使ったcalibrationを追加検証します。

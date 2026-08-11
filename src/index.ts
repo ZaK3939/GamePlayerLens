@@ -24,6 +24,7 @@ import {
   MAX_DERIVATION_APPIDS,
   MAX_REVIEWS_PER_POLARITY,
   MIN_REVIEWS_PER_POLARITY,
+  PERSONA_FOCUS_VALUES,
   PersonaSchema,
   type PersonaStore,
 } from "./personas.js";
@@ -48,6 +49,7 @@ import {
 } from "./runs.js";
 import {fetchGame, searchGames} from "./steam.js";
 import {fetchTimeline} from "./timeline.js";
+import {fetchUpdates} from "./updates.js";
 
 const ResultEnvelopeSchema = z.object({
   data: z.json().nullable(),
@@ -102,6 +104,7 @@ export interface ServerServices {
   fetchGame: typeof fetchGame;
   fetchReviews: typeof fetchReviews;
   fetchTimeline: typeof fetchTimeline;
+  fetchUpdates: typeof fetchUpdates;
   buildDerivationPack: typeof buildDerivationPack;
   savePersona: PersonaStore["savePersona"];
   captureUrl: ReturnType<typeof createCaptureService>;
@@ -155,6 +158,7 @@ function createServerServices(overrides: Partial<ServerServices>): ServerService
     fetchGame,
     fetchReviews,
     fetchTimeline,
+    fetchUpdates,
     buildDerivationPack,
     savePersona: personaStore.savePersona,
     captureUrl: createCaptureService({resolver}),
@@ -258,6 +262,26 @@ export function buildServer(
   );
 
   server.registerTool(
+    "steam_updates",
+    {
+      description: "Official Steam update history with SteamSonar-compatible classification, bounded summaries, cadence, and explicit heuristic provenance",
+      inputSchema: z.object({
+        appid: AppidSchema,
+        scope: z.enum(["updates", "official", "all"]).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        contentChars: z.number().int().min(100).max(4_000).optional(),
+        before: z.iso.datetime({offset: true}).optional(),
+      }),
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async ({appid, scope, limit, contentChars, before}) => trackedJsonEnvelope(
+      services.resultStore,
+      "steam_updates",
+      await services.fetchUpdates(appid, {scope, limit, contentChars, before}),
+    ),
+  );
+
+  server.registerTool(
     "derive_personas",
     {
       description: "Build a traceable review evidence pack and Persona JSON Schema",
@@ -268,13 +292,35 @@ export function buildServer(
           .min(MIN_REVIEWS_PER_POLARITY)
           .max(MAX_REVIEWS_PER_POLARITY)
           .optional(),
+        targetAppid: AppidSchema.optional(),
+        market: z.string().trim().min(1).max(80).optional(),
+        language: z.string().trim().toLowerCase()
+          .regex(/^[a-z][a-z0-9_-]{0,31}$/)
+          .optional(),
+        focus: z.array(z.enum(PERSONA_FOCUS_VALUES))
+          .min(1)
+          .max(PERSONA_FOCUS_VALUES.length)
+          .optional(),
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({appids, count, reviewsPerPolarity}) => trackedJsonEnvelope(
+    async ({
+      appids,
+      count,
+      reviewsPerPolarity,
+      targetAppid,
+      market,
+      language,
+      focus,
+    }) => trackedJsonEnvelope(
       services.resultStore,
       "derive_personas",
-      await services.buildDerivationPack(appids, count, reviewsPerPolarity),
+      await services.buildDerivationPack(appids, count, reviewsPerPolarity, {
+        targetAppid,
+        market,
+        language,
+        focus,
+      }),
     ),
   );
 
