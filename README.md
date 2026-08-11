@@ -130,11 +130,25 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `save_persona` | 生成済み persona を検証し、原子的に保存 |
 | `ui_capture` | Obscura CDP で HTTP(S) UI を PNG 保存し、上限内なら `ImageContent` も返す |
 | `get_knowledge` | canonical templates、rubrics、personas、互換用 intel を一覧・取得 |
-| `steam_discover` | SteamSpy の tag または genre から競合候補を取得 |
+| `steam_discover` | SteamSpy のtag/genreを単独検索、または最大4条件で交差して競合候補を取得 |
 | `save_artifact` | intel JSON または evaluation Markdown を安全かつ原子的に保存 |
 | `get_artifact` | intel、evaluation、capture、ui-reference を一覧または読出し |
 
 外部取得 tool は `{data, warnings, meta?}` を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。入力違反と path 境界違反は tool error です。
+
+`steam_discover` は `value` を主条件とし、任意の `additionalValues` 最大3件をすべて満たす候補だけを返せます。交差検索は各条件のSteamSpy上位50件を使い、各API順位の合計が小さい順に並べます。対象自身や既知の不適合候補は `excludeAppids` 最大50件で除外します。たとえばHades IIに近い候補は次の入力で探索できます。
+
+```json
+{
+  "kind": "tag",
+  "value": "Action Roguelike",
+  "additionalValues": ["Rogue-lite", "Hack and Slash"],
+  "excludeAppids": [1145350],
+  "limit": 10
+}
+```
+
+交差時の各候補には `matchedValues` と `sourceRanks` が付きます。これはSteamSpy tagの重なりであり、最終的な類似性保証ではないため、候補は `steam_fetch` で再検証してください。
 
 ### `save_artifact` / `get_artifact`
 

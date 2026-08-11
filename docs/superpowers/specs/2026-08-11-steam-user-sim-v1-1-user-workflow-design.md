@@ -133,22 +133,24 @@ meta.methodologyへ次を入れる。
 
 ## Competitor discovery
 
-steam_discoverはSteamSpy APIのtagまたはgenre requestを使用する。
+steam_discoverはSteamSpy APIのtagまたはgenre requestを使用する。単独の`value`は従来どおりAPI順を保つ。任意の`additionalValues`（最大3件）がある場合は各条件の上位50件を交差し、API順位合計で並べる。対象自身などは`excludeAppids`（最大50件）で除外できる。交差候補には`matchedValues`と`sourceRanks`を付け、最終候補はsteam_fetchで再検証する。
 
 Input:
 
 - kind: tagまたはgenre
 - value: 1〜80文字
+- additionalValues: 任意、1〜80文字を最大3件。指定時はvalueを含む全条件で交差
+- excludeAppids: 任意、positive safe integerを最大50件
 - limit: 1〜50、default 20
 
 Output:
 
 - query
 - observedAt
-- candidates: rank、appid、name、owners、ccu、positive、negative、positivePercent
-- methodology: SteamSpy推定値の注意
+- candidates: rank、appid、name、owners、ccu、positive、negative、positivePercent。交差時はmatchedValues、sourceRanksも含む
+- methodology: SteamSpy推定値の注意。交差時はpoolとranking規則も含む
 
-APIの順序をrankとして保存し、client側で根拠なく再ランキングしない。malformed entryは除外し、除外数をwarningへ出す。空結果は成功dataとwarningを返す。
+単独条件ではAPIの順序をrankとして保存し、client側で根拠なく再ランキングしない。交差条件では各API順位をsourceRanksへ保存し、その合計だけでrankを決める。malformed entryは除外し、除外数をwarningへ出す。空結果は成功dataとwarningを返す。交差のいずれかのrequestが失敗した場合は確定不能としてdataをnullにし、理由をwarningへ出す。
 
 ## Prompt inputs and scoped workflow
 

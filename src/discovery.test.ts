@@ -115,6 +115,85 @@ describe("createDiscoveryFetcher", () => {
       ]);
   });
 
+  it("intersects additional values, excludes appids, and ranks by summed source position", async () => {
+    const bodies: Record<string, string> = {
+      "Action Roguelike": orderedObject([
+        ["10", game(10, "Primary first")],
+        ["20", game(20, "Primary second")],
+        ["30", game(30, "Target to exclude")],
+        ["40", game(40, "Primary only")],
+      ]),
+      "Rogue-lite": orderedObject([
+        ["20", game(20, "Secondary first")],
+        ["10", game(10, "Secondary second")],
+        ["30", game(30, "Target to exclude")],
+      ]),
+      "Hack and Slash": orderedObject([
+        ["20", game(20, "Third first")],
+        ["30", game(30, "Target to exclude")],
+        ["10", game(10, "Third third")],
+      ]),
+    };
+    const request = vi.fn(async (url: string | URL) => {
+      const value = new URL(String(url)).searchParams.get("tag") ?? "";
+      return new Response(bodies[value] ?? "{}");
+    });
+    const response = await createDiscoveryFetcher({now: () => NOW, request})({
+      kind: "tag",
+      value: "Action Roguelike",
+      additionalValues: [" Rogue-lite ", "Hack and Slash"],
+      excludeAppids: [30],
+      limit: 5,
+    });
+
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(response.data?.query).toEqual({
+      kind: "tag",
+      value: "Action Roguelike",
+      additionalValues: ["Rogue-lite", "Hack and Slash"],
+      excludeAppids: [30],
+      limit: 5,
+    });
+    expect(response.data?.candidates).toMatchObject([
+      {
+        rank: 1,
+        appid: 20,
+        name: "Primary second",
+        matchedValues: ["Action Roguelike", "Rogue-lite", "Hack and Slash"],
+        sourceRanks: {"Action Roguelike": 2, "Rogue-lite": 1, "Hack and Slash": 1},
+      },
+      {
+        rank: 2,
+        appid: 10,
+        name: "Primary first",
+        matchedValues: ["Action Roguelike", "Rogue-lite", "Hack and Slash"],
+        sourceRanks: {"Action Roguelike": 1, "Rogue-lite": 2, "Hack and Slash": 3},
+      },
+    ]);
+    expect(JSON.stringify(response.data?.methodology)).toMatch(/intersect/i);
+    expect(JSON.stringify(response.data?.methodology)).toMatch(/first 50/i);
+  });
+
+  it("returns no intersection with an explicit warning when any value request fails", async () => {
+    const request = vi.fn(async (url: string | URL) => {
+      const value = new URL(String(url)).searchParams.get("tag");
+      return value === "Rogue-lite"
+        ? new Response("maintenance", {status: 503})
+        : new Response(orderedObject([["10", game(10, "Primary")]]));
+    });
+    const response = await createDiscoveryFetcher({now: () => NOW, request})({
+      kind: "tag",
+      value: "Action Roguelike",
+      additionalValues: ["Rogue-lite"],
+    });
+
+    expect(response.data).toBeNull();
+    expect(response.warnings).toEqual([
+      "steamspy discovery HTTP 503",
+      "steamspy discovery intersection unavailable because one or more value requests failed",
+    ]);
+  });
+
   it("accepts strict numeric strings and trims names and owners", async () => {
     const request = requestJson({
       "1145360": {
@@ -248,6 +327,13 @@ describe("createDiscoveryFetcher", () => {
       {kind: "tag", value: "   "},
       {kind: "tag", value: "x".repeat(81)},
       {kind: "unknown", value: "Action"},
+      {kind: "tag", value: "Action", additionalValues: "Rogue-lite"},
+      {kind: "tag", value: "Action", additionalValues: [" "]},
+      {kind: "tag", value: "Action", additionalValues: ["x".repeat(81)]},
+      {kind: "tag", value: "Action", additionalValues: ["a", "b", "c", "d"]},
+      {kind: "tag", value: "Action", excludeAppids: [0]},
+      {kind: "tag", value: "Action", excludeAppids: [1.5]},
+      {kind: "tag", value: "Action", excludeAppids: Array.from({length: 51}, (_, i) => i + 1)},
     ];
 
     for (const input of invalidInputs) {

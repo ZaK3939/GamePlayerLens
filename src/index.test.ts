@@ -528,6 +528,14 @@ describe("MCP server contract", () => {
         minimum: 1,
         maximum: 50,
       });
+      expect(schemaProperty(discover, "additionalValues")).toMatchObject({
+        type: "array",
+        maxItems: 3,
+      });
+      expect(schemaProperty(discover, "excludeAppids")).toMatchObject({
+        type: "array",
+        maxItems: 50,
+      });
 
       const save = tools.save_artifact!.inputSchema as Record<string, unknown>;
       expect(save.properties).toBeUndefined();
@@ -618,12 +626,20 @@ describe("MCP server contract", () => {
     try {
       const result = await client.callTool({
         name: "steam_discover",
-        arguments: {kind: "tag", value: "  Action Roguelike  ", limit: 7},
+        arguments: {
+          kind: "tag",
+          value: "  Action Roguelike  ",
+          additionalValues: [" Rogue-lite ", "Hack and Slash"],
+          excludeAppids: [1145350],
+          limit: 7,
+        },
       });
       expect(result.isError).not.toBe(true);
       expect(discoverGames).toHaveBeenCalledWith({
         kind: "tag",
         value: "Action Roguelike",
+        additionalValues: ["Rogue-lite", "Hack and Slash"],
+        excludeAppids: [1145350],
         limit: 7,
       });
       expect(result.structuredContent).toMatchObject({
@@ -646,6 +662,11 @@ describe("MCP server contract", () => {
     {kind: "tag", value: "Action", limit: 0},
     {kind: "tag", value: "Action", limit: 51},
     {kind: "tag", value: "Action", limit: 1.5},
+    {kind: "tag", value: "Action", additionalValues: [" "]},
+    {kind: "tag", value: "Action", additionalValues: ["x".repeat(81)]},
+    {kind: "tag", value: "Action", additionalValues: ["a", "b", "c", "d"]},
+    {kind: "tag", value: "Action", excludeAppids: [0]},
+    {kind: "tag", value: "Action", excludeAppids: [1.5]},
   ])("rejects invalid steam_discover input through MCP: %j", async (arguments_) => {
     const {client, server} = await createHarness();
     try {

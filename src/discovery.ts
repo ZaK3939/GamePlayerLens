@@ -7,18 +7,25 @@ const STEAMSPY_SOURCE = "steamspy discovery";
 const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_JSON_DEPTH = 128;
+const MAX_ADDITIONAL_VALUES = 3;
+const MAX_EXCLUDED_APPIDS = 50;
+const INTERSECTION_POOL_LIMIT = 50;
 
 export type DiscoveryKind = "tag" | "genre";
 
 export interface DiscoveryInput {
   kind: DiscoveryKind;
   value: string;
+  additionalValues?: string[];
+  excludeAppids?: number[];
   limit?: number;
 }
 
 export interface DiscoveryQuery {
   kind: DiscoveryKind;
   value: string;
+  additionalValues?: string[];
+  excludeAppids?: number[];
   limit: number;
 }
 
@@ -31,6 +38,8 @@ export interface DiscoveryCandidate {
   positive: number | null;
   negative: number | null;
   positivePercent: number | null;
+  matchedValues?: string[];
+  sourceRanks?: Record<string, number>;
 }
 
 export interface DiscoveryMethodology {
@@ -39,6 +48,8 @@ export interface DiscoveryMethodology {
   owners: string;
   reliability: string;
   representative: boolean;
+  matching?: string;
+  pool?: string;
 }
 
 export interface DiscoveryResult {
@@ -388,11 +399,56 @@ function resolveInput(input: DiscoveryInput): DiscoveryQuery {
   if (value.length < 1 || value.length > 80) {
     throw new TypeError("value must be between 1 and 80 characters");
   }
+  if (
+    input.additionalValues !== undefined
+    && (!Array.isArray(input.additionalValues)
+      || input.additionalValues.length > MAX_ADDITIONAL_VALUES)
+  ) {
+    throw new TypeError(`additionalValues must contain at most ${MAX_ADDITIONAL_VALUES} values`);
+  }
+  const seenValues = new Set([value.toLowerCase()]);
+  const additionalValues: string[] = [];
+  for (const rawValue of input.additionalValues ?? []) {
+    if (typeof rawValue !== "string") {
+      throw new TypeError("additionalValues entries must be strings");
+    }
+    const normalized = rawValue.trim();
+    if (normalized.length < 1 || normalized.length > 80) {
+      throw new TypeError("additionalValues entries must be between 1 and 80 characters");
+    }
+    const key = normalized.toLowerCase();
+    if (seenValues.has(key)) continue;
+    seenValues.add(key);
+    additionalValues.push(normalized);
+  }
+  if (
+    input.excludeAppids !== undefined
+    && (!Array.isArray(input.excludeAppids)
+      || input.excludeAppids.length > MAX_EXCLUDED_APPIDS)
+  ) {
+    throw new TypeError(`excludeAppids must contain at most ${MAX_EXCLUDED_APPIDS} appids`);
+  }
+  const excludeAppids: number[] = [];
+  const seenAppids = new Set<number>();
+  for (const appid of input.excludeAppids ?? []) {
+    if (!Number.isSafeInteger(appid) || appid <= 0) {
+      throw new TypeError("excludeAppids entries must be positive safe integers");
+    }
+    if (seenAppids.has(appid)) continue;
+    seenAppids.add(appid);
+    excludeAppids.push(appid);
+  }
   const limit = input.limit ?? 20;
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
     throw new TypeError("limit must be an integer between 1 and 50");
   }
-  return {kind: input.kind, value, limit};
+  return {
+    kind: input.kind,
+    value,
+    ...(additionalValues.length > 0 ? {additionalValues} : {}),
+    ...(excludeAppids.length > 0 ? {excludeAppids} : {}),
+    limit,
+  };
 }
 
 function positiveSafeInteger(value: unknown): number | null {
@@ -452,7 +508,21 @@ function normalizeCandidate(
   };
 }
 
-function metadata(observedAt: string, query: DiscoveryQuery): FetchMeta {
+function methodologyFor(query: DiscoveryQuery): DiscoveryMethodology {
+  if (!query.additionalValues?.length) return {...METHODOLOGY};
+  return {
+    ...METHODOLOGY,
+    ranking: "Candidates were intersected across every requested value and ranked by ascending sum of their SteamSpy API positions; ties retain primary-value order.",
+    matching: "Every candidate matched the primary value and every additional value.",
+    pool: `Intersection uses the first ${INTERSECTION_POOL_LIMIT} valid SteamSpy entries for each value.`,
+  };
+}
+
+function metadata(
+  observedAt: string,
+  query: DiscoveryQuery,
+  methodology: DiscoveryMethodology,
+): FetchMeta {
   return {
     observedAt,
     sources: [{
@@ -461,8 +531,25 @@ function metadata(observedAt: string, query: DiscoveryQuery): FetchMeta {
       notes: "SteamSpy figures are estimates; recent and small-sample games may be unreliable.",
     }],
     request: {...query},
-    methodology: {...METHODOLOGY} as Record<string, JsonValue>,
+    methodology: {...methodology} as Record<string, JsonValue>,
   };
+}
+
+function normalizePool(
+  data: OrderedTopLevelObject,
+  limit: number,
+): {candidates: DiscoveryCandidate[]; invalidCount: number} {
+  const candidates: DiscoveryCandidate[] = [];
+  let invalidCount = 0;
+  for (const [index, key] of data.keys.entries()) {
+    const candidate = normalizeCandidate(key, data.values[key], index + 1);
+    if (candidate === null) {
+      invalidCount += 1;
+    } else if (candidates.length < limit) {
+      candidates.push(candidate);
+    }
+  }
+  return {candidates, invalidCount};
 }
 
 export function createDiscoveryFetcher(
@@ -478,30 +565,67 @@ export function createDiscoveryFetcher(
       throw new TypeError("now must be valid");
     }
     const observedAt = observed.toISOString();
-    const meta = metadata(observedAt, query);
-
-    const url = new URL(STEAMSPY_API);
-    url.searchParams.set("request", query.kind);
-    url.searchParams.set(query.kind, query.value);
-    const fetched = await loadOrderedSteamSpyObject(url, request);
-
-    if (fetched.data === null) {
-      return {data: null, warnings: fetched.warnings, meta};
-    }
-
-    const candidates: DiscoveryCandidate[] = [];
-    let invalidCount = 0;
-    for (const [index, key] of fetched.data.keys.entries()) {
-      const value = fetched.data.values[key];
-      const candidate = normalizeCandidate(key, value, index + 1);
-      if (candidate === null) {
-        invalidCount += 1;
-      } else if (candidates.length < query.limit) {
-        candidates.push(candidate);
+    const methodology = methodologyFor(query);
+    const meta = metadata(observedAt, query, methodology);
+    const values = [query.value, ...(query.additionalValues ?? [])];
+    const fetched = await Promise.all(values.map(async (value) => {
+      const url = new URL(STEAMSPY_API);
+      url.searchParams.set("request", query.kind);
+      url.searchParams.set(query.kind, value);
+      return loadOrderedSteamSpyObject(url, request);
+    }));
+    const warnings = [...new Set(fetched.flatMap((result) => result.warnings))];
+    if (fetched.some((result) => result.data === null)) {
+      if (values.length > 1) {
+        warnings.push(
+          `${STEAMSPY_SOURCE} intersection unavailable because one or more value requests failed`,
+        );
       }
+      return {data: null, warnings, meta};
     }
 
-    const warnings = [...fetched.warnings];
+    const poolLimit = values.length > 1 || (query.excludeAppids?.length ?? 0) > 0
+      ? INTERSECTION_POOL_LIMIT
+      : query.limit;
+    const pools = fetched.map((result) =>
+      normalizePool(result.data!, poolLimit));
+    const invalidCount = pools.reduce((total, pool) => total + pool.invalidCount, 0);
+    const excluded = new Set(query.excludeAppids ?? []);
+    let candidates: DiscoveryCandidate[];
+    if (values.length === 1) {
+      candidates = pools[0]!.candidates
+        .filter((candidate) => !excluded.has(candidate.appid))
+        .slice(0, query.limit);
+    } else {
+      const secondaryByAppid = pools.slice(1).map((pool) =>
+        new Map(pool.candidates.map((candidate) => [candidate.appid, candidate])));
+      candidates = pools[0]!.candidates
+        .filter((candidate) =>
+          !excluded.has(candidate.appid)
+          && secondaryByAppid.every((pool) => pool.has(candidate.appid)))
+        .map((candidate) => {
+          const sourceRanks = Object.fromEntries([
+            [values[0]!, candidate.rank],
+            ...secondaryByAppid.map((pool, index) => [
+              values[index + 1]!,
+              pool.get(candidate.appid)!.rank,
+            ] as const),
+          ]);
+          return {
+            ...candidate,
+            matchedValues: [...values],
+            sourceRanks,
+          };
+        })
+        .sort((left, right) => {
+          const leftTotal = Object.values(left.sourceRanks).reduce((sum, rank) => sum + rank, 0);
+          const rightTotal = Object.values(right.sourceRanks).reduce((sum, rank) => sum + rank, 0);
+          return leftTotal - rightTotal || left.rank - right.rank || left.appid - right.appid;
+        })
+        .slice(0, query.limit)
+        .map((candidate, index) => ({...candidate, rank: index + 1}));
+    }
+
     if (invalidCount > 0) {
       warnings.push(`${STEAMSPY_SOURCE} skipped ${invalidCount} invalid entries`);
     }
@@ -514,7 +638,7 @@ export function createDiscoveryFetcher(
         query,
         observedAt,
         candidates,
-        methodology: {...METHODOLOGY},
+        methodology,
       },
       warnings,
       meta,

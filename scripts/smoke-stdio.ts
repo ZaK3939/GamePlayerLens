@@ -188,19 +188,35 @@ try {
 
     const discovery = await client.callTool({
       name: "steam_discover",
-      arguments: {kind: "tag", value: "Action Roguelike", limit: 5},
+      arguments: {
+        kind: "tag",
+        value: "Action Roguelike",
+        additionalValues: ["Rogue-lite", "Hack and Slash"],
+        excludeAppids: [1145350],
+        limit: 10,
+      },
     });
     assert(discovery.isError !== true, "steam_discover returned a tool error");
     const discoveryData = structuredData(discovery) as {
-      candidates?: Array<{appid?: unknown; name?: unknown}>;
+      candidates?: Array<{
+        appid?: unknown;
+        name?: unknown;
+        matchedValues?: unknown[];
+        sourceRanks?: Record<string, unknown>;
+      }>;
     } | null;
     assert(
       discoveryData?.candidates?.some((candidate) =>
-        Number.isSafeInteger(candidate.appid)
-        && Number(candidate.appid) > 0
+        (candidate.appid === 1145360 || candidate.appid === 588650)
         && typeof candidate.name === "string"
-        && candidate.name.trim().length > 0),
-      "steam_discover did not return a valid Action Roguelike candidate",
+        && candidate.name.trim().length > 0
+        && candidate.matchedValues?.length === 3
+        && Object.keys(candidate.sourceRanks ?? {}).length === 3),
+      "steam_discover did not return an intersected Hades or Dead Cells candidate",
+    );
+    assert(
+      discoveryData?.candidates?.every((candidate) => candidate.appid !== 1145350),
+      "steam_discover did not exclude the target appid",
     );
     liveDiscovery = true;
   }

@@ -47,6 +47,8 @@ const KnowledgeKindSchema = z.enum(["personas", "templates", "rubrics", "intel"]
 const DiscoveryInputSchema = z.object({
   kind: z.enum(["tag", "genre"]),
   value: z.string().trim().min(1).max(80),
+  additionalValues: z.array(z.string().trim().min(1).max(80)).max(3).optional(),
+  excludeAppids: z.array(z.number().int().positive()).max(50).optional(),
   limit: z.number().int().min(1).max(50).optional(),
 }).strict();
 const SaveArtifactInputSchema = z.discriminatedUnion("kind", [
@@ -148,7 +150,7 @@ export function buildServer(
   server.registerTool(
     "steam_discover",
     {
-      description: "Discover Steam games by SteamSpy tag or genre",
+      description: "Discover Steam games by one SteamSpy tag/genre, or intersect it with up to three additional values; optionally exclude known appids",
       inputSchema: DiscoveryInputSchema,
       outputSchema: ResultEnvelopeSchema,
     },
