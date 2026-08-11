@@ -21,6 +21,8 @@ import {
   buildDerivationPack,
   createPersonaStore,
   MAX_DERIVATION_APPIDS,
+  MAX_REVIEWS_PER_POLARITY,
+  MIN_REVIEWS_PER_POLARITY,
   PersonaSchema,
   type PersonaStore,
 } from "./personas.js";
@@ -208,11 +210,15 @@ export function buildServer(
       inputSchema: z.object({
         appids: z.array(AppidSchema).min(1).max(MAX_DERIVATION_APPIDS),
         count: z.number().int().min(1).max(12).optional(),
+        reviewsPerPolarity: z.number().int()
+          .min(MIN_REVIEWS_PER_POLARITY)
+          .max(MAX_REVIEWS_PER_POLARITY)
+          .optional(),
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({appids, count}) => jsonEnvelope(
-      await services.buildDerivationPack(appids, count),
+    async ({appids, count, reviewsPerPolarity}) => jsonEnvelope(
+      await services.buildDerivationPack(appids, count, reviewsPerPolarity),
     ),
   );
 

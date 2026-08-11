@@ -148,6 +148,12 @@ describe("persona derivation pack", () => {
     const result = await derive([1145360]);
     expect(result.data?.requestedCount).toBe(5);
     expect(result.data?.reviews).toHaveLength(50);
+    expect(result.data?.reviews.slice(0, 4).map((item) => item.votedUp)).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ]);
     expect(new Set(result.data?.reviews.map((item) => item.recommendationId)).size).toBe(50);
     expect(result.data?.instruction).toContain("save_persona");
     expect(fetchReviews).toHaveBeenCalledTimes(4);
@@ -156,6 +162,7 @@ describe("persona derivation pack", () => {
       observedAt: NOW.toISOString(),
       methodology: {
         strategy: "recent-polarity-balanced",
+        ordering: "round-robin-appid-polarity",
         representative: false,
         requestedPerPolarity: 25,
         appids: [{
@@ -170,6 +177,57 @@ describe("persona derivation pack", () => {
       },
     });
     expect(result.data?.instruction).toMatch(/balanced.*not representative.*population shares/i);
+  });
+
+  it("bounds and round-robins evidence across appids and polarities", async () => {
+    const fetchGame = vi.fn(async (appid: number) => ({
+      data: {
+        appid,
+        name: `Game ${appid}`,
+        reviewStats: {positive: 90, negative: 10, positivePercent: 90},
+      },
+      warnings: [],
+    }));
+    const fetchReviews = vi.fn(async (
+      appid: number,
+      opts: ReviewOptions = {},
+    ) => ({
+      data: Array.from({length: 3}, (_, index) =>
+        review(`${appid}-${opts.type}-${index}`, opts.type === "positive")),
+      warnings: [],
+    }));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([1145350, 1145360], 3, 3);
+
+    expect(result.data?.reviews).toHaveLength(12);
+    expect(result.data?.reviews.map(({sourceAppid, votedUp}) => [sourceAppid, votedUp]))
+      .toEqual([
+        [1145350, true],
+        [1145350, false],
+        [1145360, true],
+        [1145360, false],
+        [1145350, true],
+        [1145350, false],
+        [1145360, true],
+        [1145360, false],
+        [1145350, true],
+        [1145350, false],
+        [1145360, true],
+        [1145360, false],
+      ]);
+    expect(fetchReviews).toHaveBeenCalledTimes(4);
+    expect(fetchReviews.mock.calls.every(([, opts]) => opts.limit === 3)).toBe(true);
+    expect(result.meta).toMatchObject({
+      request: {appids: [1145350, 1145360], count: 3, reviewsPerPolarity: 3},
+      methodology: {
+        ordering: "round-robin-appid-polarity",
+        requestedPerPolarity: 3,
+      },
+    });
   });
 
   it("does not request fallback when Japanese evidence alone fills each polarity", async () => {
@@ -240,6 +298,15 @@ describe("persona derivation pack", () => {
     });
     await expect(derive([1145360], 0)).rejects.toThrow(/1 to 12/);
     await expect(derive([1145360], 13)).rejects.toThrow(/1 to 12/);
+  });
+
+  it("rejects review evidence limits outside 3 through 25", async () => {
+    const derive = createPersonaDeriver({
+      fetchGame: vi.fn(),
+      fetchReviews: vi.fn(),
+    });
+    await expect(derive([1145360], 5, 2)).rejects.toThrow(/3 to 25/);
+    await expect(derive([1145360], 5, 26)).rejects.toThrow(/3 to 25/);
   });
 
   it("rejects more than twelve source appids before fetching", async () => {

@@ -118,11 +118,14 @@ SteamSpyがaverage_forever=0を返した場合、avgPlaytimeHoursはnullとし�
 
 ## Persona sampling contract
 
-derive_personasは引き続き1 appidあたりpositive 25件、negative 25件をJapanese-firstで集める。この50対50は問題発見用の意図的なpolarity-balanced sampleであり、レビュー母集団の比率を表さない。
+derive_personasは1 appid・1極性あたりの件数を`reviewsPerPolarity` 3〜25件で受け、未指定時は後方互換の25件とする。通常の3〜5 persona生成には8件を推奨し、深掘り監査では25件を使える。Japanese-firstで集めた後、appidとpositive/negativeをラウンドロビンに並べ、出力位置による単一appid・単一極性への偏りを抑える。
+
+肯定・否定の同数抽出は問題発見用の意図的なpolarity-balanced sampleであり、レビュー母集団の比率を表さない。
 
 meta.methodologyへ次を入れる。
 
 - strategy: recent-polarity-balanced
+- ordering: round-robin-appid-polarity
 - representative: false
 - requestedPerPolarity
 - appidごとのpopulation positive/negative

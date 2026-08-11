@@ -126,7 +126,7 @@ v1.1 の tool surface は次の exactly 11 tools です。
 | `steam_fetch` | US / JP / Germany の価格、言語、タグ、レビュー統計、SteamSpy 情報を取得 |
 | `steam_reviews` | 言語・極性・最低プレイ時間で recent review を取得 |
 | `steam_timeline` | SteamSpy snapshot と任意の ITAD 価格履歴を取得 |
-| `derive_personas` | レビュー出典、Persona JSON Schema、生成指示をまとめる |
+| `derive_personas` | 件数を調整できるレビュー出典、Persona JSON Schema、生成指示をまとめる |
 | `save_persona` | 生成済み persona を検証し、原子的に保存 |
 | `ui_capture` | Obscura CDP で HTTP(S) UI を PNG 保存し、上限内なら `ImageContent` も返す |
 | `get_knowledge` | canonical templates、rubrics、personas、互換用 intel を一覧・取得 |
@@ -181,9 +181,13 @@ repo内の直接起動では上記layoutの起点はrepository rootです。npm 
 
 ## データの解釈
 
-`derive_personas` は1 appid ごとに positive 25件と negative 25件を Japanese-first で集める、問題発見用の polarity-balanced sample です。`representative: false` であり、市場やレビュー母集団の比率を表しません。この50対50から Flow size や adoption likelihood を推定せず、母集団の好評率には `steam_fetch.reviewStats` など別の根拠を使ってください。
+`derive_personas.reviewsPerPolarity` は1 appid・1極性あたり3〜25件を指定でき、既定値は後方互換の25件です。通常の3〜5 persona生成には8件、深掘り監査には25件を目安にしてください。Japanese-first で肯定・否定を同数収集し、appidと極性をラウンドロビンに並べるため、出力冒頭が単一ゲームや肯定だけに偏りません。
+
+この素材は問題発見用の polarity-balanced sample です。`representative: false` であり、市場やレビュー母集団の比率を表しません。この50対50の設計比率から Flow size や adoption likelihood を推定せず、母集団の好評率には `steam_fetch.reviewStats` など別の根拠を使ってください。
 
 SteamSpy の owners、CCU、playtime、review 系の値は推定または取得時点の snapshot です。owners は販売本数ではなく所有推定範囲で、recent release や小標本では特に不確かです。`average_forever=0` は欠損相当の reported zero として扱いますが、CCU 0 は有効な snapshot として保持します。
+
+`steam_timeline.currentCcu` は `observedAt` 時点の現在値であり、24時間ピーク、史上最高、過去CCUではありません。ITAD の `priceHistory` とは時間軸も出典も分けて解釈してください。
 
 ## 検証
 

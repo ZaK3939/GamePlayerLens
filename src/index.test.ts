@@ -194,6 +194,37 @@ describe("MCP server contract", () => {
     }
   });
 
+  it("forwards bounded persona evidence size to the derivation service", async () => {
+    const buildDerivationPack = vi.fn(async (
+      appids: number[],
+      count?: number,
+      reviewsPerPolarity?: number,
+    ) => ({data: {appids, count, reviewsPerPolarity}, warnings: []}));
+    const {client, server} = await createHarness({buildDerivationPack});
+    try {
+      const result = await client.callTool({
+        name: "derive_personas",
+        arguments: {
+          appids: [1145350, 1145360],
+          count: 3,
+          reviewsPerPolarity: 8,
+        },
+      });
+
+      expect(JSON.parse(resultText(result))).toMatchObject({
+        data: {
+          appids: [1145350, 1145360],
+          count: 3,
+          reviewsPerPolarity: 8,
+        },
+      });
+      expect(buildDerivationPack).toHaveBeenCalledWith([1145350, 1145360], 3, 8);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("keeps meaningful snapshots of every pre-existing tool input contract", async () => {
     const {client, server} = await createHarness();
     try {
@@ -216,6 +247,11 @@ describe("MCP server contract", () => {
           required: derive.required,
           appids: pickSchema(schemaProperty(derive, "appids"), ["type", "minItems", "maxItems"]),
           count: pickSchema(schemaProperty(derive, "count"), ["type", "minimum", "maximum"]),
+          reviewsPerPolarity: pickSchema(schemaProperty(derive, "reviewsPerPolarity"), [
+            "type",
+            "minimum",
+            "maximum",
+          ]),
         },
         get_knowledge: {
           fields: Object.keys(knowledge.properties as object),
@@ -297,10 +333,16 @@ describe("MCP server contract", () => {
             "fields": [
               "appids",
               "count",
+              "reviewsPerPolarity",
             ],
             "required": [
               "appids",
             ],
+            "reviewsPerPolarity": {
+              "maximum": 25,
+              "minimum": 3,
+              "type": "integer",
+            },
           },
           "get_knowledge": {
             "fields": [
