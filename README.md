@@ -10,7 +10,7 @@ Steam の実データに接地したゲーム開発コンサル用 MCP サーバ
 - MCP prompts を取得できる
 - 標準 MCP `ImageContent` を表示するかモデルへ渡せる
 
-ローカル filesystem tool、subagent、独自の画像読取 tool は任意です。subagent がなければ、同じモデルが領域ごとの independent pass を順番に実行できます。v1.1 が直接受ける対象入力は仕様テキストと HTTP(S) URL です。zip はクライアント側で展開し、必要なテキストを prompt の `specification` などへ渡してください。サーバーは zip や任意のローカルパスを読みません。
+ローカル filesystem tool、subagent、独自の画像読取 tool は任意です。subagent がなければ、同じモデルが領域ごとの independent pass を順番に実行できます。browser/desktop controlを持つclientはHTTP(S) buildを実際にtest playでき、持たないclientはユーザー実行のrecording、連続capture、input logを根拠にします。v1.1 が直接受ける対象入力は仕様テキストと HTTP(S) URL です。zip はクライアント側で展開し、必要なテキストを prompt の `specification` などへ渡してください。サーバーはzip、任意のローカル実行file、credentialを受け取りません。
 
 ## 必要環境とセットアップ
 
@@ -57,7 +57,7 @@ pnpm smoke:stdio
 pnpm smoke:stdio --live
 ```
 
-`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 11 tools、2 prompts、prompt arguments、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで persona・intel・evaluationを作り、simulation runの封印と再読込まで確認します。`--live` はさらに `steam_search` と `steam_discover` を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
+`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 11 tools、2 prompts、prompt arguments、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで persona・intel・evaluationを作り、simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search` と `steam_discover` を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
 
 ## 任意設定
 
@@ -129,6 +129,32 @@ UI の change 相談:
 | `localization` | 対応言語、localized store copy、対象言語レビュー、ゲーム内capture | 対応言語一覧だけで翻訳品質・文化適合・フォント品質を断定しない |
 | `competition` | tag交差、同一項目のstorefront/gameplay proxy/価格/review比較 | tag一致だけを最終的な類似性としない |
 
+### Data coverage と分析精度
+
+Selected Domainごとに固定dimensionを持つData Coverage Matrixを作り、`observed`、`reported-zero`、`estimated`、`missing`、`N/A`を区別します。`Coverage rate`は推定を含む取得充足率、`Direct observation rate`は直接観測と明示的な0だけの比率です。どちらも成功確率ではなく、blocking dimensionがmissingなら平均値が高くてもconfidenceをhighにしません。固定dimensionと計算規則は`get_knowledge(kind=rubrics, id=evidence-coverage.md)`で取得できます。
+
+change runは全`scenario × Selected Domain`と全`persona × scenario`のroundを要求します。final evaluation以外の全evidenceは少なくとも1 roundで使用し、synthesis後に作る`finalEvaluationRef`をroundから参照する循環は拒否します。これにより「変更案だけ評価した」「保存したが判断に使わなかった」データをmachine gateで検出します。
+
+### 実buildのtest play
+
+`run-sim`へ`playtestUrl`、`playtestTask`、`playtestBuild`、`playtestControls`、`playtestDurationMinutes`を渡せます。gameplayを選択した相談では`get_knowledge(kind=rubrics, id=playtest.md)`のprotocolを使い、build ID、start/end state、操作条件を固定して、実際のAction → response、time to first meaningful action、task completion、誤入力、feedback、failure → retryを時系列で記録します。
+
+browser/desktop controlを持つAI clientでは実buildを操作します。操作能力がない場合はページ閲覧をtest playと呼ばず、recordingまたはユーザー同席sessionへ切り替えます。AI 1 testerは再現可能な操作摩擦の発見には使えますが、人間の楽しさ、需要、completion rate、retentionの代表ではありません。native buildの任意実行はMCP server自身では行いません。
+
+```json
+{
+  "target": "Project Nyx",
+  "topic": "First 20 minutes playtest",
+  "mode": "baseline",
+  "domains": "gameplay,ui",
+  "playtestUrl": "http://127.0.0.1:4173/play",
+  "playtestTask": "Start a new run, understand the first objective, defeat the tutorial enemy, and retry once after failure",
+  "playtestBuild": "0.4.2-dev",
+  "playtestControls": "keyboard and mouse",
+  "playtestDurationMinutes": "20"
+}
+```
+
 ### UI実力差の比較
 
 UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interface In Game](https://interfaceingame.com/screenshots/) などを、出荷済みreference候補の探索に使います。Game UI Databaseのscreen type、controls、HUD elements、layout、texture、patterns、color、font size、icon usage、colorblind visualizer、video flowを比較条件へ使います。ただしcatalog掲載、like数、人気順、ゲーム売上はUI品質の根拠ではありません。
@@ -189,7 +215,9 @@ v1.1 の tool surface は次の exactly 11 tools です。
 
 `save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`payload`、任意の `observedAt` を直接渡す方式も維持します。直接保存で `observedAt` を省略すると、サーバーが `savedAt` と同じ時刻を設定します。取得時刻を確実に把握している場合だけ明示してください。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
 
-`kind=run` は、evaluation 保存後に simulation を再生・監査するための ledger を封印します。Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済み evidence refs、連続した各 pass の rounds、warnings、confidence / `calibrationStatus`、最終 evaluation ref を受けます。サーバーは参照先を実際に読み、persona・evidence・現在の `skills/run-sim.md` の SHA-256 と `reportedByClient=true` を記録して、UUIDごとの JSON を作ります。run は常に immutable で、overwrite入力はありません。これは同じ入力からモデル出力が決定的に再生成されるという保証ではなく、「どのrecipe・根拠・申告モデルから、どのround出力を得たか」を後から検証する記録です。
+`kind=run` は、evaluation 保存後に simulation を再生・監査するための ledger を封印します。Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済み evidence refs、連続した各 pass の rounds、warnings、confidence / `calibrationStatus`、最終 evaluation ref を受けます。サーバーは参照先を実際に読み、persona・evidence・現在の `skills/run-sim.md` の SHA-256、構造coverage、run recordのcanonical SHA-256 seal、`reportedByClient=true`を記録してUUIDごとのJSONを作ります。runは常にimmutableで、overwrite入力はありません。これは同じ入力からモデル出力が決定的に再生成されるという保証ではなく、「どのrecipe・根拠・申告モデルから、どのround出力を得たか」を後から検証する記録です。
+
+runを`get_artifact`で読むと、保存recordに加えて現在のrecipe、persona、全evidenceを再読込してSHA-256とpathを照合した`integrity` reportを返します。`verified`は全照合成功、`failed`はmissing / mismatch / unreadable、`legacy-unsealed`は旧recordを読めるがcanonical sealを持たない状態です。依存artifactのdriftはrun本文を失敗させずwarningと個別statusで可視化します。canonical sealは偶発的な編集・driftを検出するchecksumであり、署名や外部attestationではありません。data rootへ書込権限を持つ攻撃者がrecordとsealを同時に改変する脅威までは防ぎません。
 
 `get_artifact` は read-only で、list/read semantics は次のとおりです。
 
@@ -197,7 +225,8 @@ v1.1 の tool surface は次の exactly 11 tools です。
 |---|---|---|
 | `intel` / `evaluation` / `run` | `target` なし | target ID 一覧 |
 | `intel` / `evaluation` / `run` | `target` あり、`id` なし | artifact metadata 一覧（run本文・round出力は含めない） |
-| `intel` / `evaluation` / `run` | `target` と `id` あり | JSON / Markdown / run metadata＋record |
+| `intel` / `evaluation` | `target` と `id` あり | JSON / Markdown |
+| `run` | `target` と `id` あり | run metadata＋record＋integrity report |
 | `capture` / `ui-reference` | `id` なし | 画像 metadata 一覧（captureはPNG/JPEG、ui-referenceはPNG） |
 | `capture` / `ui-reference` | `id` あり | metadata と、6 MiB 以下の有効な画像なら `ImageContent` |
 
@@ -243,7 +272,7 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 live test の固定 appid はHades `1145360`、Steam画像captureはHades II `1145350`、SteamSpy discovery tagは `Action Roguelike` です。live package smokeは分離した一時data homeでSteam取得→resultHandle保存→原本envelope一致を検証し、終了時に一時dataを削除します。Steam画像captureはObscuraなしでも実行され、生成したJPEGを終了時に削除します。`OBSCURA_PATH` がなければ通常page captureのmanual ui-reference warningを検証し、設定済みならlocalhost captureと `ImageContent` を検証します。`ITAD_API_KEY` がなければtimelineは `priceHistory: null` と設定warning、設定済みなら履歴配列とcurrencyを検証します。
 
-fixture / smokeとは別に、保存した実相談でproduct workflowを検証します。raw artifactはgit管理外へ隔離し、公開可能な集計と監査結果だけを [dogfood data policy](docs/dogfood/README.md) に記録します。3件の実相談、別session replay audit、UI quality-gapが完了し、v1.1 workflowはdogfood-validatedです。予測結果のoutcome calibrationは未完了です。
+fixture / smokeとは別に、保存した実相談でproduct workflowを検証します。raw artifactはgit管理外へ隔離し、公開可能な集計と監査結果だけを [dogfood data policy](docs/dogfood/README.md) に記録します。3件の実相談、別session replay audit、UI quality-gapが完了し、core v1.1 workflowはdogfood-validatedです。2026-08-12追加のintegrity / coverage / playtest protocolはpackage smokeまで完了し、実ゲームbuildでのdogfoodと予測結果のoutcome calibrationは未完了です。
 
 ## v1 から v1.1
 

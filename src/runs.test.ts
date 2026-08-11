@@ -123,6 +123,24 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
       },
       {
         sequence: 2,
+        phase: "persona",
+        actor: "jp-skeptic",
+        personaId: "jp-skeptic",
+        scenarioId: "proposal",
+        output: "The proposal is clearer but still needs validation.",
+        evidenceRefs: ["profile"],
+      },
+      {
+        sequence: 3,
+        phase: "domain",
+        actor: "storefront-reviewer",
+        domain: "storefront",
+        scenarioId: "current",
+        output: "The current value proposition is generic.",
+        evidenceRefs: ["profile"],
+      },
+      {
+        sequence: 4,
         phase: "domain",
         actor: "storefront-reviewer",
         domain: "storefront",
@@ -131,7 +149,16 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         evidenceRefs: ["profile"],
       },
       {
-        sequence: 3,
+        sequence: 5,
+        phase: "domain",
+        actor: "ui-reviewer",
+        domain: "ui",
+        scenarioId: "current",
+        output: "The current capsule hierarchy is serviceable.",
+        evidenceRefs: ["hero"],
+      },
+      {
+        sequence: 6,
         phase: "domain",
         actor: "ui-reviewer",
         domain: "ui",
@@ -140,7 +167,7 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         evidenceRefs: ["hero"],
       },
       {
-        sequence: 4,
+        sequence: 7,
         phase: "critic",
         actor: "harsh-critic",
         scenarioId: "proposal",
@@ -148,11 +175,11 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         evidenceRefs: ["profile", "hero"],
       },
       {
-        sequence: 5,
+        sequence: 8,
         phase: "synthesis",
         actor: "lead-synthesizer",
         output: "Test the proposal before making a conversion claim.",
-        evidenceRefs: ["profile", "evaluation", "hero"],
+        evidenceRefs: ["profile", "hero"],
       },
     ],
     warnings: ["No observed post-change telemetry"],
@@ -180,6 +207,12 @@ describe("run input schema", () => {
       runInput({personaIds: ["jp-skeptic", "jp-skeptic"]}),
       runInput({evidence: [runInput().evidence[0]!, runInput().evidence[0]!]}),
       runInput({rounds: runInput().rounds.filter((round) => round.domain !== "ui")}),
+      runInput({rounds: runInput().rounds.filter((round) => !(
+        round.phase === "persona" && round.scenarioId === "proposal"
+      ))}),
+      runInput({rounds: runInput().rounds.filter((round) => !(
+        round.phase === "domain" && round.domain === "ui" && round.scenarioId === "current"
+      ))}),
       runInput({rounds: runInput().rounds.filter((round) => round.phase !== "critic")}),
       runInput({rounds: runInput().rounds.filter((round) => round.phase !== "synthesis")}),
       runInput({rounds: runInput().rounds.map((round, index) => ({
@@ -190,10 +223,43 @@ describe("run input schema", () => {
         ...runInput().rounds[0]!,
         evidenceRefs: ["missing"],
       }, ...runInput().rounds.slice(1)]}),
+      runInput({rounds: runInput().rounds.map((round) => ({
+        ...round,
+        evidenceRefs: round.evidenceRefs.map((ref) => ref === "hero" ? "profile" : ref),
+      }))}),
+      runInput({rounds: runInput().rounds.map((round, index) => index === 0
+        ? {...round, evidenceRefs: ["evaluation"]}
+        : round)}),
       runInput({finalEvaluationRef: "profile"}),
     ]) {
       expect(() => SaveRunInputSchema.parse(invalid)).toThrow();
     }
+  });
+
+  it("rejects structurally valid but incomplete scenario and persona matrices", () => {
+    const withoutUiCurrent = runInput().rounds
+      .filter((round) => !(
+        round.phase === "domain" && round.domain === "ui" && round.scenarioId === "current"
+      ))
+      .map((round, index) => ({...round, sequence: index + 1}));
+    const domainResult = SaveRunInputSchema.safeParse(runInput({rounds: withoutUiCurrent}));
+    expect(domainResult.success).toBe(false);
+    if (domainResult.success) throw new Error("expected missing scenario/domain cell");
+    expect(domainResult.error.issues.map((issue) => issue.message)).toContain(
+      "scenario/domain cell has no recorded round: current/ui",
+    );
+
+    const withoutProposalPersona = runInput().rounds
+      .filter((round) => !(
+        round.phase === "persona" && round.scenarioId === "proposal"
+      ))
+      .map((round, index) => ({...round, sequence: index + 1}));
+    const personaResult = SaveRunInputSchema.safeParse(runInput({rounds: withoutProposalPersona}));
+    expect(personaResult.success).toBe(false);
+    if (personaResult.success) throw new Error("expected missing persona/scenario cell");
+    expect(personaResult.error.issues.map((issue) => issue.message)).toContain(
+      "persona/scenario cell has no recorded round: jp-skeptic/proposal",
+    );
   });
 
   it("accepts one scenario for baseline and rejects extra scenario claims", () => {
@@ -226,7 +292,7 @@ describe("run store", () => {
       mode: "change",
       selectedDomains: ["storefront", "ui"],
       savedAt: NOW.toISOString(),
-      roundCount: 5,
+      roundCount: 8,
       evidenceCount: 3,
       sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
@@ -270,12 +336,45 @@ describe("run store", () => {
           sha256: sha256(PNG_BYTES),
         }),
       ],
+      coverage: {
+        scenarioDomain: {covered: 4, total: 4, ratio: 1, missing: []},
+        personaScenario: {covered: 2, total: 2, ratio: 1, missing: []},
+        analysisEvidence: {referenced: 2, total: 2, ratio: 1, unusedRefs: []},
+        domains: [
+          expect.objectContaining({
+            domain: "storefront",
+            scenarioIds: ["current", "proposal"],
+            evidenceRefs: ["profile"],
+            sourceTools: ["steam_fetch"],
+          }),
+          expect.objectContaining({
+            domain: "ui",
+            scenarioIds: ["current", "proposal"],
+            evidenceRefs: ["hero"],
+            evidenceKinds: ["capture"],
+          }),
+        ],
+      },
+      seal: {
+        algorithm: "sha256",
+        canonicalSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
       confidence: {
         level: "medium",
         basis: "Store data and screenshot evidence only",
         calibrationStatus: "not-calibrated",
         reportedByClient: true,
       },
+    });
+    expect(read.integrity).toMatchObject({
+      status: "verified",
+      record: {status: "verified"},
+      issueCount: 0,
+      dependencies: expect.arrayContaining([
+        expect.objectContaining({type: "recipe", status: "verified"}),
+        expect.objectContaining({type: "persona", ref: "jp-skeptic", status: "verified"}),
+        expect.objectContaining({type: "evidence", ref: "profile", status: "verified"}),
+      ]),
     });
     expect(saved.sha256).toBe(sha256(await readFile(
       resolver.resolveRunPath("Hades II", RUN_ID).absolutePath,
@@ -352,19 +451,11 @@ describe("run store", () => {
 
   it("rejects oversized serialized runs before creating a file", async () => {
     const {resolver, store} = await harness();
-    const seed = runInput().rounds[0]!;
+    const baseRounds = runInput().rounds;
+    const seed = baseRounds[0]!;
     const rounds = Array.from({length: 30}, (_, index) => ({
-      ...seed,
+      ...(baseRounds[index] ?? seed),
       sequence: index + 1,
-      phase: index < 2
-        ? "domain" as const
-        : index === 28
-          ? "critic" as const
-          : index === 29
-            ? "synthesis" as const
-            : "persona" as const,
-      domain: index === 0 ? "storefront" as const : index === 1 ? "ui" as const : undefined,
-      scenarioId: index === 0 ? "current" : "proposal",
       output: "x".repeat(80_000),
     }));
 
@@ -384,6 +475,67 @@ describe("run store", () => {
     await writeFile(path, JSON.stringify(record));
 
     await expect(store.readRun("Hades II", RUN_ID)).rejects.toThrow(/run schema/i);
+  });
+
+  it("reports valid-schema run edits and dependency drift on read", async () => {
+    const {artifacts, resolver, store} = await harness();
+    await store.saveRun(runInput());
+
+    await artifacts.saveIntel({
+      target: "Hades II",
+      id: "Profile",
+      sourceTool: "steam_fetch",
+      observedAt: "2026-08-11T11:00:00.000Z",
+      payload: {appid: 1145350, changed: true},
+    }, {overwrite: true});
+
+    const path = resolver.resolveRunPath("Hades II", RUN_ID).absolutePath;
+    const record = JSON.parse(await readFile(path, "utf8")) as {
+      rounds: Array<{output: string}>;
+    };
+    record.rounds[0]!.output = "Edited after the run was sealed.";
+    await writeFile(path, `${JSON.stringify(record, null, 2)}\n`);
+
+    const read = await store.readRun("Hades II", RUN_ID);
+    expect(read.integrity).toMatchObject({
+      status: "failed",
+      record: {status: "mismatch"},
+      dependencies: expect.arrayContaining([
+        expect.objectContaining({
+          type: "evidence",
+          ref: "profile",
+          status: "mismatch",
+        }),
+      ]),
+    });
+    expect(read.integrity.issueCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("reports missing dependencies and preserves legacy unsealed run readability", async () => {
+    const {resolver, store} = await harness();
+    await store.saveRun(runInput());
+    await rm(resolver.resolveCaptureReadPath("Store Hero").absolutePath);
+
+    const missing = await store.readRun("Hades II", RUN_ID);
+    expect(missing.integrity).toMatchObject({
+      status: "failed",
+      dependencies: expect.arrayContaining([
+        expect.objectContaining({type: "evidence", ref: "hero", status: "missing"}),
+      ]),
+    });
+
+    const path = resolver.resolveRunPath("Hades II", RUN_ID).absolutePath;
+    const record = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    delete record.seal;
+    await writeFile(path, `${JSON.stringify(record, null, 2)}\n`);
+    await writeFile(resolver.resolveCaptureReadPath("Store Hero").absolutePath, PNG_BYTES);
+
+    const legacy = await store.readRun("Hades II", RUN_ID);
+    expect(legacy.integrity).toMatchObject({
+      status: "legacy-unsealed",
+      record: {status: "unsealed"},
+      issueCount: 1,
+    });
   });
 
   it("rejects symlinked workspace targets while listing", async () => {

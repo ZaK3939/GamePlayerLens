@@ -26,6 +26,10 @@
 
 UI実力差follow-upでは、run-simへ`uiBenchmarkTask`と最大8件の`uiReferenceUrls`を追加し、Game UI Database / Interface In Gameをmatched reference探索へ組み込む。新しい`ui-quality-gap.md` rubricで、2〜4本の出荷済みcohort、reference provenance、匿名pre-reveal採点、0〜4 anchor、reference中央値との差、static/videoの証拠境界を固定する。公開APIやbulk scrapingは仮定せず、画像とmanual intel provenanceを分離保存する。
 
+分析精度・integrity follow-upでは、11-tool surfaceを維持したまま、run保存時に全scenario × domain、全persona × scenario、全analysis evidence利用を機械検証し、final evaluationの循環参照を拒否する。新規runは構造coverageとcanonical SHA-256 sealを持ち、read時にrecipe、persona、全evidenceを再hashしてverified / failed / legacy-unsealedを返す。canonical `evidence-coverage.md`はdomain別の固定dimension、Coverage rate、Direct observation rate、blocking missingのconfidence境界を定義する。
+
+test play follow-upではrun-simにboundedなplaytestUrl/task/build/controls/duration入力を追加し、browser/desktop controlを持つclientによる実操作、またはユーザー実行recordingを`playtest.md`で標準化する。Action → response、first meaningful action、task completion、failure/retryを保存し、AI 1 testerを人間行動の代表値へ変換しない。
+
 ---
 
 ## Task 1: Result metaとartifact path境界

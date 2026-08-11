@@ -81,6 +81,15 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("next validation");
   });
 
+  it("separates substantive data coverage from direct observation and integrity", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+
+    expect(content).toContain("## Data Coverage Matrix");
+    expect(content).toContain("Coverage rate");
+    expect(content).toContain("Direct observation rate");
+    expect(content).toContain("observed / reported-zero / estimated / missing / N/A");
+  });
+
   it("reports matched UI benchmark provenance and axis-level quality gaps", async () => {
     const content = await read("knowledge/templates/adoption-eval.md");
 
@@ -146,6 +155,8 @@ describe("harsh critic rubric", () => {
     expect(content).toContain("reportedByClient");
     expect(content).toContain("calibrationStatus");
     expect(content).toMatch(/実測[\s\S]*calibrated[\s\S]*差し戻す/);
+    expect(content).toContain("integrity.status=verified");
+    expect(content).toMatch(/finalEvaluationRef[\s\S]*round[\s\S]*循環参照/);
   });
 
   it("rejects unmatched or unsupported UI quality comparisons", async () => {
@@ -155,6 +166,46 @@ describe("harsh critic rubric", () => {
     expect(content).toContain("provenance artifact");
     expect(content).toContain("gap = target - median");
     expect(content).toMatch(/static screenshot[\s\S]*motion[\s\S]*unscored/);
+  });
+});
+
+describe("evidence coverage rubric", () => {
+  it("defines fixed domain dimensions, two coverage rates, and confidence boundaries", async () => {
+    const content = await read("knowledge/rubrics/evidence-coverage.md");
+
+    for (const domain of [
+      "gameplay",
+      "storefront",
+      "ui",
+      "price",
+      "localization",
+      "competition",
+    ]) {
+      expect(content).toContain(`### ${domain}`);
+    }
+    expect(content).toContain("Coverage rate");
+    expect(content).toContain("Direct observation rate");
+    expect(content).toContain("reported-zero");
+    expect(content).toContain("estimated");
+    expect(content).toContain("missing");
+    expect(content).toContain("N/A");
+    expect(content).toMatch(/blocking[\s\S]*confidence[\s\S]*high/);
+  });
+});
+
+describe("playtest rubric", () => {
+  it("requires a bounded protocol, chronological observations, and human-validity limits", async () => {
+    const content = await read("knowledge/rubrics/playtest.md");
+
+    expect(content).toContain("build ID");
+    expect(content).toContain("player task");
+    expect(content).toContain("start state");
+    expect(content).toContain("end state");
+    expect(content).toContain("Action → response");
+    expect(content).toContain("time to first meaningful action");
+    expect(content).toContain("failure → retry");
+    expect(content).toMatch(/AI[\s\S]*人間[\s\S]*代表/);
+    expect(content).toContain("playtest provenance");
   });
 });
 
@@ -219,6 +270,11 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("reportedByClient");
     expect(content).toContain("calibrationStatus");
     expect(content).toContain("SHA-256");
+    expect(content).toContain("evidence-coverage.md");
+    expect(content).toContain("scenario × Selected Domain");
+    expect(content).toContain("persona × scenario");
+    expect(content).toMatch(/finalEvaluationRef[\s\S]*evidenceRefs[\s\S]*含め/);
+    expect(content).toContain("integrity.status");
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

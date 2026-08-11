@@ -38,10 +38,20 @@ describe("run-sim prompt arguments", () => {
       domains: "competition, storefront,gameplay,ui,storefront",
       uiBenchmarkTask: "  controller inventory navigation  ",
       uiReferenceUrls: "https://www.gameuidatabase.com/example\nhttps://interfaceingame.com/example\nhttps://www.gameuidatabase.com/example#duplicate",
+      playtestUrl: "http://127.0.0.1:4173/play",
+      playtestTask: "  Complete the first combat encounter  ",
+      playtestBuild: "  0.4.2-dev  ",
+      playtestControls: "  keyboard and mouse  ",
+      playtestDurationMinutes: "20",
     })).toMatchObject({
       domains: "gameplay,storefront,ui,competition",
       uiBenchmarkTask: "controller inventory navigation",
       uiReferenceUrls: "https://www.gameuidatabase.com/example\nhttps://interfaceingame.com/example",
+      playtestUrl: "http://127.0.0.1:4173/play",
+      playtestTask: "Complete the first combat encounter",
+      playtestBuild: "0.4.2-dev",
+      playtestControls: "keyboard and mouse",
+      playtestDurationMinutes: "20",
     });
   });
 
@@ -70,6 +80,28 @@ describe("run-sim prompt arguments", () => {
       topic: "topic",
       uiReferenceUrls: Array.from({length: 9}, (_, index) =>
         `https://example.com/reference-${index}`).join("\n"),
+    }],
+    ["unsafe playtest URL", {
+      target: "Game",
+      topic: "topic",
+      playtestUrl: "file:///tmp/game.html",
+      playtestTask: "Reach the first checkpoint",
+    }],
+    ["credentialed playtest URL", {
+      target: "Game",
+      topic: "topic",
+      playtestUrl: "https://user:pass@example.com/play",
+      playtestTask: "Reach the first checkpoint",
+    }],
+    ["playtest URL without a task", {
+      target: "Game",
+      topic: "topic",
+      playtestUrl: "https://example.com/play",
+    }],
+    ["invalid playtest duration", {
+      target: "Game",
+      topic: "topic",
+      playtestDurationMinutes: "121",
     }],
   ])("rejects %s", (_label, input) => {
     expect(() => RunSimPromptArgumentsSchema.parse(input)).toThrow();
@@ -115,6 +147,23 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain(
       '"uiReferenceUrls": [\n    "https://www.gameuidatabase.com/game-a",\n    "https://interfaceingame.com/game-b/"\n  ]',
     );
+  });
+
+  it("serializes a bounded playtest protocol as input data", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "first-session playtest",
+      domains: "gameplay,ui",
+      playtestUrl: "http://localhost:4173/play#new-game",
+      playtestTask: "Start a new run and defeat the tutorial enemy",
+      playtestBuild: "0.4.2-dev",
+      playtestControls: "keyboard and mouse",
+      playtestDurationMinutes: "20",
+    });
+
+    expect(result).toContain('"playtestUrl": "http://localhost:4173/play#new-game"');
+    expect(result).toContain('"playtestTask": "Start a new run and defeat the tutorial enemy"');
+    expect(result).toContain('"playtestDurationMinutes": "20"');
   });
 
   it("does not echo rejected URL credentials in validation errors", () => {

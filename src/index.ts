@@ -378,7 +378,7 @@ export function buildServer(
   server.registerTool(
     "get_artifact",
     {
-      description: "For intel/evaluation/run, omit target to list targets, use target without id to list item metadata, and use target+id to read the saved record; id without target is invalid. For capture/ui-reference, target is invalid, omit id to list image metadata, and use id to read metadata plus optional MCP ImageContent.",
+      description: "For intel/evaluation/run, omit target to list targets, use target without id to list item metadata, and use target+id to read the saved record; run reads also verify the record seal and current recipe/persona/evidence SHA-256 integrity. An id without target is invalid. For capture/ui-reference, target is invalid, omit id to list image metadata, and use id to read metadata plus optional MCP ImageContent.",
       inputSchema: GetArtifactInputSchema,
       outputSchema: ResultEnvelopeSchema,
     },
@@ -403,12 +403,19 @@ export function buildServer(
             warnings: [],
           });
         }
+        if (kind === "run") {
+          const run = await services.runStore.readRun(target, id);
+          return jsonEnvelope({
+            data: run,
+            warnings: run.integrity.status === "verified"
+              ? []
+              : [`run integrity check: ${run.integrity.status} (${run.integrity.issueCount} issue(s))`],
+          });
+        }
         return jsonEnvelope({
-          data: kind === "run"
-            ? await services.runStore.readRun(target, id)
-            : kind === "intel"
-              ? await services.artifactStore.readIntel(target, id)
-              : await services.artifactStore.readEvaluation(target, id),
+          data: kind === "intel"
+            ? await services.artifactStore.readIntel(target, id)
+            : await services.artifactStore.readEvaluation(target, id),
           warnings: [],
         });
       }

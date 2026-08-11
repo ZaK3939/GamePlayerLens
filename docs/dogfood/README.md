@@ -35,6 +35,10 @@ READMEや`docs/examples/`へ昇格できるのは、次を満たすsanitized成�
 
 v1.1 workflowは `Dogfood-validated` です。これはworkflow acceptanceであり、予測結果のoutcome calibration完了を意味しません。
 
+2026-08-12のanalysis integrity / evidence coverage / playtest protocol follow-upは、unit・MCP・package smokeまで実装済みですが、実ゲームbuildを使うdogfoodは未完了です。次の相談では、開発中ゲームのHTTP(S) buildまたはrecordingを使い、playtest session、Data Coverage Matrix、新規runの`integrity.status=verified`を同時に検証します。core v1.1の過去3件と、このfollow-upのvalidation状態を混同しません。
+
+既存のHades UI runを新しいreadbackで監査すると、12 dependencyはverified、recordは旧形式のためunsealed、更新後の`run-sim.md`は保存hashとmismatchになり、全体statusはfailed・issueCount 2となった。過去runを新gateへ遡及合格させず、evidence driftと通常のrecipe更新をdependency別に区別できることを実dataで確認した。
+
 | 条件 | 進捗 | 記録 |
 |---|---:|---|
 | 保存済み実相談 | 3 / 3 | [Hades baseline](2026-08-11-hades-japan-baseline.md)、[JP copy change](2026-08-11-hades-jp-store-copy-change.md)、[dialogue UI gap](2026-08-11-hades-dialogue-ui-gap.md) |

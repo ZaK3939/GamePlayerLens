@@ -88,12 +88,43 @@ const UiReferenceUrlsSchema = z.string().max(8_192).transform((input, context) =
   return unique.join("\n");
 });
 
+const PlaytestUrlSchema = z.string().trim().max(2_048).transform((input, context) => {
+  try {
+    const parsed = new URL(input);
+    if (
+      (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+      || parsed.hostname === ""
+      || parsed.username !== ""
+      || parsed.password !== ""
+    ) {
+      throw new Error("invalid playtest URL");
+    }
+    return parsed.href;
+  } catch {
+    context.addIssue({
+      code: "custom",
+      message: "playtestUrl must be a credential-free HTTP(S) URL",
+    });
+    return z.NEVER;
+  }
+});
+
+const PlaytestDurationSchema = z.string().trim().regex(/^\d{1,3}$/).refine(
+  (value) => Number(value) >= 1 && Number(value) <= 120,
+  "playtestDurationMinutes must be between 1 and 120",
+);
+
 export const RunSimPromptArgumentsSchema = z.object({
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
   topic: NonEmptyTrimmedStringSchema.describe("Consultation topic"),
   mode: z.enum(["baseline", "change"]).default("baseline"),
   domains: DomainsSchema.default("auto"),
   specification: z.string().max(50_000).optional(),
+  playtestUrl: PlaytestUrlSchema.optional(),
+  playtestTask: z.string().trim().min(1).max(1_000).optional(),
+  playtestBuild: z.string().trim().min(1).max(200).optional(),
+  playtestControls: z.string().trim().min(1).max(500).optional(),
+  playtestDurationMinutes: PlaytestDurationSchema.optional(),
   uiUrl: z.string().optional(),
   uiBenchmarkTask: z.string().trim().min(1).max(500).optional(),
   uiReferenceUrls: UiReferenceUrlsSchema.optional(),
@@ -103,6 +134,14 @@ export const RunSimPromptArgumentsSchema = z.object({
   market: z.string().optional(),
   language: z.string().optional(),
   qualityTier: z.string().optional(),
+}).superRefine((value, context) => {
+  if (value.playtestUrl && !value.playtestTask) {
+    context.addIssue({
+      code: "custom",
+      path: ["playtestTask"],
+      message: "playtestTask is required when playtestUrl is provided",
+    });
+  }
 });
 
 export const UiBlindComparePromptArgumentsSchema = z.object({

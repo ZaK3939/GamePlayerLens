@@ -77,6 +77,9 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 - Status: ［Selected / N/A と理由］
 - Mode result: ［プレイヤーから観測できるコアループ、目標、入力→反応、進行、失敗→再挑戦、継続動機 / change の場合は現状 vs 変更案］
+- Playtest protocol: ［build ID、player task、start state、end state、platform、controls、duration、tester prior knowledge / 未実施ならmissing理由］
+- Playtest observations: ［time to first meaningful action、task completion、Action → response、誤入力、feedback、failure → retry、次目標の認識とEvidence ID］
+- Human-validity boundary: ［AI 1 testerの観測を人間のfun、completion rate、retentionの代表値へ変換しない］
 - 観測とproxyの境界: ［仕様・build・動画・telemetry・playtestによる直接根拠 / description・categories・tags・reviewsによるプレイヤー知覚のproxy］
 - 未検証の内部ロジック: ［コード、状態遷移、数式、難易度曲線など、直接根拠がなく断定できないもの］
 - ペルソナ反応: ［gameplay / difficulty / grind / replayability等のvoice出典］
@@ -156,6 +159,20 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 - `reported-zero`: source が明示的に 0 を返した値。ただし SteamSpy `average_forever=0` のように仕様上、欠損相当と扱う場合は、原値と解釈を両方記録する。
 - `missing`: source が値を返さなかった、または取得できなかった状態。0 で補完しない。
 - `estimated`: 推定値。推定主体、方法、範囲、caveat を併記する。SteamSpy `owners` は所有数の推定であり、売上本数ではない。
+
+## Data Coverage Matrix
+
+`evidence-coverage.md`にあるSelected Domainごとの固定dimensionを省略せず、`observed / reported-zero / estimated / missing / N/A`のいずれかで記録します。取得失敗をN/Aへ変えず、N/Aには具体的なscope理由を付けます。
+
+| Domain | Dimension | Status | Evidence IDs | Limitation / mismatch | Decision impact |
+|---|---|---|---|---|---|
+| ［domain］ | ［固定dimension］ | ［status］ | ［ID / なし］ | ［観測範囲・不一致］ | ［confidence・勧告への影響］ |
+
+- Coverage rate: ［`(observed + reported-zero + estimated) / applicable dimensions` をdomain別・全体で記録］
+- Direct observation rate: ［`(observed + reported-zero) / applicable dimensions` をdomain別・全体で記録］
+- Blocking missing dimensions: ［意思決定を止めるmissingと、その取得条件］
+
+coverageはデータ充足率であり、結論の正しさや成功確率ではありません。blocking dimensionがmissingなら、平均coverageだけを理由にconfidenceをhighにしません。
 
 ## Evidence Index
 

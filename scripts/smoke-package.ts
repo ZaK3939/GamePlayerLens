@@ -42,6 +42,8 @@ for (const runtimePath of [
   cliPath,
   join(repositoryRoot, "knowledge", "templates", "adoption-eval.md"),
   join(repositoryRoot, "knowledge", "rubrics", "harsh-critic.md"),
+  join(repositoryRoot, "knowledge", "rubrics", "evidence-coverage.md"),
+  join(repositoryRoot, "knowledge", "rubrics", "playtest.md"),
   join(repositoryRoot, "skills", "run-sim.md"),
 ]) {
   await access(runtimePath);
@@ -99,6 +101,24 @@ try {
   assert(
     JSON.stringify(uiGapRubric.structuredContent).includes("Game UI Database"),
     "packaged CLI returned the wrong UI gap rubric",
+  );
+  const coverageRubric = await client.callTool({
+    name: "get_knowledge",
+    arguments: {kind: "rubrics", id: "evidence-coverage.md"},
+  });
+  assert(coverageRubric.isError !== true, "packaged CLI could not read coverage rubric");
+  assert(
+    JSON.stringify(coverageRubric.structuredContent).includes("Direct observation rate"),
+    "packaged CLI returned the wrong coverage rubric",
+  );
+  const playtestRubric = await client.callTool({
+    name: "get_knowledge",
+    arguments: {kind: "rubrics", id: "playtest.md"},
+  });
+  assert(playtestRubric.isError !== true, "packaged CLI could not read playtest rubric");
+  assert(
+    JSON.stringify(playtestRubric.structuredContent).includes("Action → response"),
+    "packaged CLI returned the wrong playtest rubric",
   );
 
   const persona = await client.callTool({
@@ -199,14 +219,14 @@ try {
           phase: "critic",
           actor: "harsh-critic",
           output: "Fixture evidence cannot support a player-behavior claim.",
-          evidenceRefs: ["store", "evaluation"],
+          evidenceRefs: ["store"],
         },
         {
           sequence: 4,
           phase: "synthesis",
           actor: "lead-synthesizer",
           output: "The package persistence path is verified, not the game hypothesis.",
-          evidenceRefs: ["store", "evaluation"],
+          evidenceRefs: ["store"],
         },
       ],
       warnings: ["Package smoke uses fixture evidence"],
@@ -229,19 +249,31 @@ try {
     record?: {
       runId?: unknown;
       recipe?: {sha256?: unknown};
+      coverage?: {scenarioDomain?: {ratio?: unknown}};
+      seal?: {canonicalSha256?: unknown};
       model?: {reportedByClient?: unknown};
       confidence?: {reportedByClient?: unknown};
       rounds?: unknown[];
     };
+    integrity?: {status?: unknown; issueCount?: unknown};
   } | undefined)?.record;
+  const runIntegrity = (runRead.structuredContent?.data as {
+    integrity?: {status?: unknown; issueCount?: unknown};
+  } | undefined)?.integrity;
   assert(runRead.isError !== true, "packaged CLI could not read a simulation run");
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     typeof runRecord.recipe?.sha256 === "string"
       && runRecord.model?.reportedByClient === true
       && runRecord.confidence?.reportedByClient === true
+      && runRecord.coverage?.scenarioDomain?.ratio === 1
+      && typeof runRecord.seal?.canonicalSha256 === "string"
       && runRecord.rounds?.length === 4,
     "packaged CLI run record is incomplete",
+  );
+  assert(
+    runIntegrity?.status === "verified" && runIntegrity.issueCount === 0,
+    "packaged CLI run integrity check failed",
   );
   packageRunRoundTrip = true;
 

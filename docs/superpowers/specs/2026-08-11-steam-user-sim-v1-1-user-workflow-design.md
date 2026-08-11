@@ -91,7 +91,11 @@ run:
 - 1から連続するpersona/domain/critic/synthesis rounds
 - warnings、confidence、calibrationStatus、finalEvaluationRef
 
-サーバーはpersona、evidence、現在のrun-sim recipeを実際に読み、各exact bytesのSHA-256をrecordへ入れる。modelとconfidenceはserver attestationではないため`reportedByClient=true`を付ける。UUID run IDごとに最大2 MiBのJSONをatomicに作成し、overwriteを受け付けない。参照欠落、symlink、不正schema、record/path不一致はtool error。これにより入力と出力の監査・再生材料を固定するが、LLM出力の決定性は保証しない。
+サーバーは各scenario × Selected Domain、各persona × scenario、final evaluation以外の全evidence利用を完全性ゲートにする。synthesis後に作るfinalEvaluationRefをroundが参照する循環はrejectする。
+
+サーバーはpersona、evidence、現在のrun-sim recipeを実際に読み、各exact bytesのSHA-256、domain別のevidence kind/source toolを含む構造coverage、recordのcanonical SHA-256 sealを入れる。modelとconfidenceはserver attestationではないため`reportedByClient=true`を付ける。UUID run IDごとに最大2 MiBのJSONをatomicに作成し、overwriteを受け付けない。参照欠落、symlink、不正schema、record/path不一致はtool error。これにより入力と出力の監査・再生材料を固定するが、LLM出力の決定性は保証しない。
+
+runの単体readは保存recordに加え、recipe、persona、evidenceを現在のpathから安全に再読込してSHA-256を照合したintegrity reportを返す。statusはverified、failed、legacy-unsealed。failedはmissing、mismatch、unreadableをdependency別に返し、record自体が読める場合は本文を隠さない。legacy runはsealとcoverageをoptionalとして読めるが、integrity合格とはみなさない。canonical sealは偶発編集検知用checksumであり、署名や外部attestationではない。
 
 ### get_artifact
 
@@ -99,7 +103,7 @@ kindはintel、evaluation、run、capture、ui-reference。
 
 - intel/evaluation/runでtarget省略: target一覧
 - targetあり、id省略: artifact一覧
-- targetとidあり: 内容取得
+- targetとidあり: 内容取得。runはmetadata、record、integrity report
 - capture/ui-referenceでid省略: 画像一覧（captureはPNG/JPEG、ui-referenceはPNG）
 - idあり: metadataとImageContent
 
@@ -178,6 +182,11 @@ run-sim promptは次のstring argumentsを持つ。
 - mode: baselineまたはchange、default baseline
 - domains: gameplay、storefront、ui、price、localization、competitionのcomma-separated list。default auto
 - specification
+- playtestUrl: credentialなしHTTP(S) URL。指定時はplaytestTask必須
+- playtestTask
+- playtestBuild
+- playtestControls
+- playtestDurationMinutes: 1〜120のstring
 - uiUrl
 - uiBenchmarkTask
 - uiReferenceUrls: credentialなしHTTPS URLを改行またはcomma区切りで最大8件
@@ -194,7 +203,7 @@ auto scopeはtopicと入力から必要領域を選び、その理由を最初�
 
 UIがscope内なら、具体的なplayer task、開始・完了状態、platform、controlsを`uiBenchmarkTask`で固定する。Game UI Database、Interface In Gameなどの`uiReferenceUrls`はreference候補探索に使い、同じtask、screen state、platform、controls、近い情報量、qualityTierの出荷済み製品を2〜4本選ぶ。catalog掲載や人気を品質根拠にせず、source URL、accessedAt、game、screen state、capture IDをmanual intel artifactへ保存する。公開APIやbulk scrapingを仮定せず、robots、認証、利用条件、download制限を回避しない。
 
-gameplayはプレイヤーから観測できるコアループ、目標、feedback、進行、失敗/再挑戦を扱う。description、categories、tags、reviewsはplayer-perceived proxyであり、内部コード、状態遷移、数式、バランス実装の直接根拠ではない。内部ロジックの評価には仕様、build、動画、telemetry、playtestのいずれかを要求する。
+gameplayはプレイヤーから観測できるコアループ、目標、feedback、進行、失敗/再挑戦を扱う。description、categories、tags、reviewsはplayer-perceived proxyであり、内部コード、状態遷移、数式、バランス実装の直接根拠ではない。内部ロジックの評価には仕様、build、動画、telemetry、playtestのいずれかを要求する。browser/desktop controlを持つclientは固定したbuild ID、task、start/end state、controls、時間上限で実操作し、Action → responseの時系列logをmanual intelとして保存する。操作能力がなければユーザー実行のrecording等へ切り替え、ページ閲覧だけをtest playと呼ばない。AI 1 testerを人間のfun、completion rate、retentionの代表値にしない。
 
 storefrontは短文・詳細説明、価値提案、localized copy、capsule/screenshots、競合との期待差を扱う。localizedStorefrontsはenglish=US、japanese=JP、german=DEのrequested localeで、Steam fallbackの可能性をmethodologyに残す。`matchesEnglishCopy` は正規化後の英語copyとの完全一致だけを表し、fallbackの理由や翻訳品質は断定しない。referenceLinksはnavigation用であり、リンク先をcaptureまたはartifact保存するまでは取得済みEvidenceにしない。
 
@@ -210,8 +219,10 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 6. derive_personasの返り値もresultHandleでintel artifactとして原本保存し、Evidence Indexに追加してからsave_personaを実行。
 7. 選択domainだけ評価する。UIではGame UI Database等からmatched cohortを選び、画像とprovenanceを保存してblind comparisonと軸別gapを実行。
 8. save_artifact kind=evaluationでレポート保存。
-9. save_artifact kind=runでscenarios、persona、evidence、全round、warning、confidence、最終evaluationをimmutable ledgerへ封印。
-10. evaluation path、run ID、run path、未解決事項をユーザーへ報告。
+9. evidence-coverage rubricの固定dimensionからCoverage rateとDirect observation rateを作り、blocking missingをconfidenceへ反映。
+10. save_artifact kind=runでscenarios、persona、evidence、全round、warning、confidence、最終evaluationをimmutable ledgerへ封印。
+11. get_artifact kind=runでreadbackし、integrity.status=verifiedを確認。
+12. evaluation path、run ID、run path、coverage、integrity、未解決事項をユーザーへ報告。
 
 ## Compatibility
 

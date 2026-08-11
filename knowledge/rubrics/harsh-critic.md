@@ -20,10 +20,12 @@
 - `observed`（source が観測時点の実値を返した通常値）、`reported-zero`（source が 0 を明示）、`missing`（未取得または欠損）、`estimated`（推定）を区別する。observed から履歴や将来値を推測せず、missing を 0 で補完せず、estimated には方法と caveat を付ける。
 - SteamSpy `owners` は所有数の推定範囲であり、売上本数ではない。売上、販売速度、成長を断定する根拠に使わない。
 - SteamSpy `average_forever=0` は、原値を reported-zero として残した上で、欠損相当とした解釈と warning を記録する。CCU=0 は有効な観測時点の値として保持する。
+- `evidence-coverage.md`の固定dimensionをSelected Domainごとに埋め、Coverage rateとDirect observation rateを分ける。取得失敗をN/Aへ変えた場合、estimatedを直接観測へ数えた場合、blocking missingを平均coverageで隠した場合は差し戻す。
 
 ## 3. ゲームプレイ・ストア訴求・ローカライズ品質ゲート
 
 - タグ（tags）やcategoriesだけからゲームロジック、内部状態遷移、バランス実装を断定した場合は差し戻す。description、tags、categories、reviewsはプレイヤー知覚のproxyであり、内部ロジックの評価には仕様、build、動画、telemetry、playtestの直接根拠を要求する。
+- gameplayを選択し操作可能なbuildがある場合は`playtest.md`に従い、build ID、player task、start/end state、controls、時間上限、Action → responseの時系列logを要求する。ページを閲覧しただけでtest playと呼んだ場合、AI 1 testerを人間のfun、completion rate、retentionの代表とした場合は差し戻す。
 - ストア訴求を選択した場合は、`localizedStorefronts`のcopy、screenshotsまたはcapture、競合の同種根拠、レビュー上の期待差を分けて示す。deep linkを貼っただけでリンク先の内容を取得済み根拠にしない。
 - 対応言語一覧だけから翻訳品質、文化適合、フォント可読性を断定した場合は差し戻す。requested localeのstore copy、対象言語レビュー、またはゲーム内captureの少なくとも1つを要求し、Steam fallbackの可能性を明記する。`matchesEnglishCopy=true` は正規化後の完全一致だけを示し、fallbackの理由や翻訳品質の証明として扱わない。`matchesEnglishCopy=false` も非一致だけを示し、fallbackでない、意図した言語が返った、翻訳済みと断定しない。
 
@@ -62,7 +64,10 @@
 
 - 最終 evaluation の保存後に、同じ `save_artifact` の kind=`run` で immutable な run artifact を保存できない場合は完了として扱わない。
 - run artifact に Mode と全 scenario、Selected Domains、使用した persona ID、全 independent pass の連続した rounds、warning、最終 evaluation 参照がなければ差し戻す。change で現状または変更案の round が欠ける場合、選択領域に対応する round がない場合も差し戻す。
+- 各`scenario × Selected Domain`と各`persona × scenario`のroundが1件以上なければ差し戻す。保存された構造coverageが100%でも、Data Coverage Matrixのmissingを解消したことにはしない。
+- `finalEvaluationRef`はsynthesis後に生成されるため、いずれかのroundの`evidenceRefs`に含まれていれば循環参照として差し戻す。final evaluation以外のevidenceがどのroundにも使われていない場合も差し戻す。
 - serverが記録する `recipe SHA-256`、各 persona と `evidence SHA-256` により、使用時点の recipe と根拠を固定する。pathだけ、deep linkだけ、未保存のtool出力だけを evidence として渡した run は差し戻す。
+- run保存直後に`get_artifact(kind=run)`でreadbackし、`integrity.status=verified`でなければ完了扱いにしない。`failed`のmissing / mismatch / unreadableを修正し、`legacy-unsealed`は旧run互換であって現在のintegrity合格ではない。
 - model と confidence の `reportedByClient=true` はクライアント申告であってserverによるモデル同定や品質保証ではない。この境界をレポートで逆転させた場合は差し戻す。
 - `calibrationStatus` は実測結果との比較範囲を表す。予測対象、判定基準、観測結果を対応付けた実測がないのに `calibrated` とした場合は差し戻す。実測比較がなければ `not-calibrated`、一部だけなら `partially-calibrated` とし、confidenceの理由に未検証範囲を残す。
 

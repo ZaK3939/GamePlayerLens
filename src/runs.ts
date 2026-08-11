@@ -15,6 +15,7 @@ import {
   IntelRecordSchema,
   MAX_EVALUATION_BYTES,
   MAX_INTEL_PAYLOAD_BYTES,
+  SourceToolSchema,
 } from "./artifacts.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {PersonaSchema} from "./personas.js";
@@ -213,6 +214,56 @@ function validateRelations(
   }
 }
 
+function validateSaveCompleteness(
+  value: RelationShape,
+  context: z.RefinementCtx,
+): void {
+  const issue = (path: Array<string | number>, message: string) => {
+    context.addIssue({code: "custom", path, message});
+  };
+  for (const scenario of value.scenarios) {
+    for (const domain of value.selectedDomains) {
+      if (!value.rounds.some((round) =>
+        round.phase === "domain"
+        && round.scenarioId === scenario.id
+        && round.domain === domain)) {
+        issue(
+          ["rounds"],
+          `scenario/domain cell has no recorded round: ${scenario.id}/${domain}`,
+        );
+      }
+    }
+  }
+  for (const personaId of value.personaIds) {
+    for (const scenario of value.scenarios) {
+      if (!value.rounds.some((round) =>
+        round.phase === "persona"
+        && round.personaId === personaId
+        && round.scenarioId === scenario.id)) {
+        issue(
+          ["rounds"],
+          `persona/scenario cell has no recorded round: ${personaId}/${scenario.id}`,
+        );
+      }
+    }
+  }
+
+  value.rounds.forEach((round, index) => {
+    if (round.evidenceRefs.includes(value.finalEvaluationRef)) {
+      issue(
+        ["rounds", index, "evidenceRefs"],
+        "rounds cannot cite the final evaluation created after synthesis",
+      );
+    }
+  });
+  const usedEvidence = new Set(value.rounds.flatMap((round) => round.evidenceRefs));
+  for (const evidence of value.evidenceRefs) {
+    if (evidence.ref !== value.finalEvaluationRef && !usedEvidence.has(evidence.ref)) {
+      issue(["evidence"], `analysis evidence is not used by any round: ${evidence.ref}`);
+    }
+  }
+}
+
 export const SaveRunInputBaseSchema = z.object({
   target: z.string().min(1),
   topic: z.string().trim().min(1).max(120),
@@ -229,11 +280,13 @@ export const SaveRunInputBaseSchema = z.object({
 }).strict();
 
 export const SaveRunInputSchema = SaveRunInputBaseSchema.superRefine((value, context) => {
-  validateRelations({
+  const relations = {
     ...value,
     personaIds: value.personaIds,
     evidenceRefs: value.evidence,
-  }, context);
+  };
+  validateRelations(relations, context);
+  validateSaveCompleteness(relations, context);
 });
 
 const ResolvedPersonaSchema = z.object({
@@ -249,9 +302,51 @@ const ResolvedEvidenceSchema = z.object({
   id: z.string().min(1),
   path: z.string().min(1),
   sha256: Sha256Schema,
+  sourceTool: SourceToolSchema.optional(),
 }).strict();
 
-const RunRecordBaseSchema = z.object({
+const CoverageRatioSchema = z.number().min(0).max(1);
+const RunCoverageSchema = z.object({
+  scenarioDomain: z.object({
+    covered: z.number().int().nonnegative(),
+    total: z.number().int().positive(),
+    ratio: CoverageRatioSchema,
+    missing: z.array(z.object({
+      scenarioId: ReferenceIdSchema,
+      domain: SimulationDomainSchema,
+    }).strict()),
+  }).strict(),
+  personaScenario: z.object({
+    covered: z.number().int().nonnegative(),
+    total: z.number().int().positive(),
+    ratio: CoverageRatioSchema,
+    missing: z.array(z.object({
+      personaId: ReferenceIdSchema,
+      scenarioId: ReferenceIdSchema,
+    }).strict()),
+  }).strict(),
+  analysisEvidence: z.object({
+    referenced: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+    ratio: CoverageRatioSchema,
+    unusedRefs: z.array(ReferenceIdSchema),
+  }).strict(),
+  domains: z.array(z.object({
+    domain: SimulationDomainSchema,
+    scenarioIds: z.array(ReferenceIdSchema),
+    roundCount: z.number().int().nonnegative(),
+    evidenceRefs: z.array(ReferenceIdSchema),
+    evidenceKinds: z.array(z.enum(["intel", "evaluation", "capture", "ui-reference"])),
+    sourceTools: z.array(SourceToolSchema),
+  }).strict()),
+}).strict();
+
+const RunSealSchema = z.object({
+  algorithm: z.literal("sha256"),
+  canonicalSha256: Sha256Schema,
+}).strict();
+
+const RunRecordCoreSchema = z.object({
   schemaVersion: z.literal(1),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
@@ -272,6 +367,11 @@ const RunRecordBaseSchema = z.object({
   confidence: ConfidenceInputSchema.extend({reportedByClient: z.literal(true)}).strict(),
   finalEvaluationRef: ReferenceIdSchema,
   savedAt: IsoDateTimeSchema,
+  coverage: RunCoverageSchema.optional(),
+}).strict();
+
+const RunRecordBaseSchema = RunRecordCoreSchema.extend({
+  seal: RunSealSchema.optional(),
 }).strict();
 
 export const RunRecordSchema = RunRecordBaseSchema.superRefine((value, context) => {
@@ -297,13 +397,39 @@ export const RunArtifactMetadataSchema = z.object({
   sha256: Sha256Schema,
 }).strict();
 
+const RunIntegrityDependencySchema = z.object({
+  type: z.enum(["recipe", "persona", "evidence"]),
+  ref: z.string().min(1),
+  path: z.string().min(1),
+  status: z.enum(["verified", "missing", "mismatch", "unreadable"]),
+  expectedSha256: Sha256Schema,
+  actualSha256: Sha256Schema.optional(),
+  actualPath: z.string().min(1).optional(),
+  message: z.string().min(1).max(2_000).optional(),
+}).strict();
+
+export const RunIntegrityReportSchema = z.object({
+  status: z.enum(["verified", "failed", "legacy-unsealed"]),
+  checkedAt: IsoDateTimeSchema,
+  record: z.object({
+    status: z.enum(["verified", "mismatch", "unsealed"]),
+    expectedSha256: Sha256Schema.optional(),
+    actualSha256: Sha256Schema,
+  }).strict(),
+  dependencies: z.array(RunIntegrityDependencySchema),
+  verifiedCount: z.number().int().nonnegative(),
+  issueCount: z.number().int().nonnegative(),
+}).strict();
+
 export type SaveRunInput = z.infer<typeof SaveRunInputSchema>;
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 export type RunArtifactMetadata = z.infer<typeof RunArtifactMetadataSchema>;
+export type RunIntegrityReport = z.infer<typeof RunIntegrityReportSchema>;
 
 export interface RunArtifact {
   metadata: RunArtifactMetadata;
   record: RunRecord;
+  integrity: RunIntegrityReport;
 }
 
 interface RunFileHandle {
@@ -359,6 +485,44 @@ function hash(bytes: string | Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) throw new Error("run record is not JSON serializable");
+    return serialized;
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+    .join(",")}}`;
+}
+
+function canonicalHash(value: unknown): string {
+  return hash(canonicalJson(value));
+}
+
+function ratio(covered: number, total: number): number {
+  return total === 0 ? 1 : covered / total;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isMissingError(error: unknown): boolean {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if (isNodeError(current, "ENOENT") || /does not exist/i.test(current.message)) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
 function relativeAssetPath(resolver: PathResolver, absolutePath: string): string {
   return relative(resolver.assetRoot, absolutePath).split(sep).join("/");
 }
@@ -367,6 +531,87 @@ function evaluationId(id: string): {date: string; topic: string} {
   const match = /^(\d{4}-\d{2}-\d{2})-(.+)$/.exec(id);
   if (!match?.[1] || !match[2]) throw new Error("invalid evaluation artifact id");
   return {date: match[1], topic: match[2]};
+}
+
+function buildCoverage(
+  input: SaveRunInput,
+  evidence: Array<z.infer<typeof ResolvedEvidenceSchema>>,
+): z.infer<typeof RunCoverageSchema> {
+  const scenarioDomainMissing: Array<{
+    scenarioId: string;
+    domain: z.infer<typeof SimulationDomainSchema>;
+  }> = [];
+  for (const scenario of input.scenarios) {
+    for (const domain of input.selectedDomains) {
+      if (!input.rounds.some((round) =>
+        round.phase === "domain"
+        && round.scenarioId === scenario.id
+        && round.domain === domain)) {
+        scenarioDomainMissing.push({scenarioId: scenario.id, domain});
+      }
+    }
+  }
+
+  const personaScenarioMissing: Array<{personaId: string; scenarioId: string}> = [];
+  for (const personaId of input.personaIds) {
+    for (const scenario of input.scenarios) {
+      if (!input.rounds.some((round) =>
+        round.phase === "persona"
+        && round.personaId === personaId
+        && round.scenarioId === scenario.id)) {
+        personaScenarioMissing.push({personaId, scenarioId: scenario.id});
+      }
+    }
+  }
+
+  const usedEvidence = new Set(input.rounds.flatMap((round) => round.evidenceRefs));
+  const analysisEvidence = evidence.filter((item) => item.ref !== input.finalEvaluationRef);
+  const unusedRefs = analysisEvidence
+    .filter((item) => !usedEvidence.has(item.ref))
+    .map((item) => item.ref);
+
+  const domains = input.selectedDomains.map((domain) => {
+    const rounds = input.rounds.filter((round) =>
+      round.phase === "domain" && round.domain === domain);
+    const roundEvidence = new Set(rounds.flatMap((round) => round.evidenceRefs));
+    const selectedEvidence = evidence.filter((item) => roundEvidence.has(item.ref));
+    return {
+      domain,
+      scenarioIds: input.scenarios
+        .filter((scenario) => rounds.some((round) => round.scenarioId === scenario.id))
+        .map((scenario) => scenario.id),
+      roundCount: rounds.length,
+      evidenceRefs: selectedEvidence.map((item) => item.ref),
+      evidenceKinds: [...new Set(selectedEvidence.map((item) => item.kind))],
+      sourceTools: [...new Set(selectedEvidence.flatMap((item) =>
+        item.sourceTool ? [item.sourceTool] : []))],
+    };
+  });
+
+  const scenarioDomainTotal = input.scenarios.length * input.selectedDomains.length;
+  const personaScenarioTotal = input.personaIds.length * input.scenarios.length;
+  const referencedEvidence = analysisEvidence.length - unusedRefs.length;
+  return RunCoverageSchema.parse({
+    scenarioDomain: {
+      covered: scenarioDomainTotal - scenarioDomainMissing.length,
+      total: scenarioDomainTotal,
+      ratio: ratio(scenarioDomainTotal - scenarioDomainMissing.length, scenarioDomainTotal),
+      missing: scenarioDomainMissing,
+    },
+    personaScenario: {
+      covered: personaScenarioTotal - personaScenarioMissing.length,
+      total: personaScenarioTotal,
+      ratio: ratio(personaScenarioTotal - personaScenarioMissing.length, personaScenarioTotal),
+      missing: personaScenarioMissing,
+    },
+    analysisEvidence: {
+      referenced: referencedEvidence,
+      total: analysisEvidence.length,
+      ratio: ratio(referencedEvidence, analysisEvidence.length),
+      unusedRefs,
+    },
+    domains,
+  });
 }
 
 export function createRunStore(
@@ -474,6 +719,7 @@ export function createRunStore(
         id: resolved.artifactId,
         path: resolved.relativePath,
         sha256: hash(bytes),
+        sourceTool: record.sourceTool,
       };
     }
     if (input.kind === "evaluation") {
@@ -545,6 +791,119 @@ export function createRunStore(
     return {id: RUN_RECIPE_ID, path: relativePath, sha256: hash(bytes)};
   }
 
+  async function auditDependency(
+    type: z.infer<typeof RunIntegrityDependencySchema>["type"],
+    ref: string,
+    expectedPath: string,
+    expectedSha256: string,
+    loadCurrent: () => Promise<{path: string; sha256: string}>,
+  ): Promise<z.infer<typeof RunIntegrityDependencySchema>> {
+    try {
+      const current = await loadCurrent();
+      const matches = current.path === expectedPath && current.sha256 === expectedSha256;
+      return RunIntegrityDependencySchema.parse({
+        type,
+        ref,
+        path: expectedPath,
+        status: matches ? "verified" : "mismatch",
+        expectedSha256,
+        actualSha256: current.sha256,
+        actualPath: current.path,
+        ...(matches ? {} : {message: "stored path or SHA-256 no longer matches"}),
+      });
+    } catch (error) {
+      return RunIntegrityDependencySchema.parse({
+        type,
+        ref,
+        path: expectedPath,
+        status: isMissingError(error) ? "missing" : "unreadable",
+        expectedSha256,
+        message: errorMessage(error).slice(0, 2_000),
+      });
+    }
+  }
+
+  async function auditRun(record: RunRecord): Promise<RunIntegrityReport> {
+    const {seal, ...unsealedInput} = record;
+    const core = RunRecordCoreSchema.parse(unsealedInput);
+    const actualRecordSha256 = canonicalHash(core);
+    const recordStatus = seal === undefined
+      ? "unsealed" as const
+      : seal.canonicalSha256 === actualRecordSha256
+        ? "verified" as const
+        : "mismatch" as const;
+
+    const dependencies: Array<z.infer<typeof RunIntegrityDependencySchema>> = [];
+    dependencies.push(await auditDependency(
+      "recipe",
+      record.recipe.id,
+      record.recipe.path,
+      record.recipe.sha256,
+      async () => {
+        const current = await recipeRecord();
+        return {path: current.path, sha256: current.sha256};
+      },
+    ));
+    for (const persona of record.personas) {
+      dependencies.push(await auditDependency(
+        "persona",
+        persona.id,
+        persona.path,
+        persona.sha256,
+        async () => {
+          const [current] = await resolvePersonas([persona.id]);
+          if (!current) throw new Error("persona evidence does not exist");
+          return {path: current.path, sha256: current.sha256};
+        },
+      ));
+    }
+    for (const evidence of record.evidence) {
+      dependencies.push(await auditDependency(
+        "evidence",
+        evidence.ref,
+        evidence.path,
+        evidence.sha256,
+        async () => {
+          let input: z.infer<typeof EvidenceReferenceInputSchema>;
+          if (evidence.kind === "intel" || evidence.kind === "evaluation") {
+            if (!evidence.targetId) throw new Error("target-scoped evidence is missing targetId");
+            input = {
+              ref: evidence.ref,
+              kind: evidence.kind,
+              target: evidence.targetId,
+              id: evidence.id,
+            };
+          } else {
+            input = {ref: evidence.ref, kind: evidence.kind, id: evidence.id};
+          }
+          const current = await resolveEvidence(input);
+          return {path: current.path, sha256: current.sha256};
+        },
+      ));
+    }
+
+    const dependencyIssues = dependencies.filter((item) => item.status !== "verified").length;
+    const issueCount = dependencyIssues + (recordStatus === "verified" ? 0 : 1);
+    const status = recordStatus === "unsealed" && dependencyIssues === 0
+      ? "legacy-unsealed" as const
+      : issueCount > 0
+        ? "failed" as const
+        : "verified" as const;
+    const checkedAt = IsoDateTimeSchema.parse(clock().toISOString());
+    return RunIntegrityReportSchema.parse({
+      status,
+      checkedAt,
+      record: {
+        status: recordStatus,
+        ...(seal ? {expectedSha256: seal.canonicalSha256} : {}),
+        actualSha256: actualRecordSha256,
+      },
+      dependencies,
+      verifiedCount: dependencies.length - dependencyIssues,
+      issueCount,
+    });
+  }
+
   async function ensureDestination(target: string, runId: string): Promise<ResolvedRunPath> {
     const initial = resolver.resolveRunPath(target, runId);
     await ops.mkdir(dirname(initial.absolutePath), {recursive: true});
@@ -607,7 +966,7 @@ export function createRunStore(
   async function parseStoredRun(
     target: string,
     id: string,
-  ): Promise<RunArtifact> {
+  ): Promise<{metadata: RunArtifactMetadata; record: RunRecord}> {
     const resolved = resolver.resolveRunPath(target, RunIdSchema.parse(id));
     try {
       const {bytes} = await readRegularBytes(resolved.absolutePath, MAX_RUN_BYTES);
@@ -635,7 +994,7 @@ export function createRunStore(
     for (const reference of parsed.evidence) {
       evidence.push(await resolveEvidence(reference));
     }
-    const record = RunRecordSchema.parse({
+    const core = RunRecordCoreSchema.parse({
       schemaVersion: 1,
       runId: resolved.runId,
       targetId: resolved.targetId,
@@ -652,6 +1011,14 @@ export function createRunStore(
       confidence: {...parsed.confidence, reportedByClient: true},
       finalEvaluationRef: parsed.finalEvaluationRef,
       savedAt,
+      coverage: buildCoverage(parsed, evidence),
+    });
+    const record = RunRecordSchema.parse({
+      ...core,
+      seal: {
+        algorithm: "sha256",
+        canonicalSha256: canonicalHash(core),
+      },
     });
     const serialized = `${JSON.stringify(record, null, 2)}\n`;
     const bytes = Buffer.from(serialized, "utf8");
@@ -708,10 +1075,15 @@ export function createRunStore(
     return targets.sort((left, right) => left.localeCompare(right));
   }
 
+  async function readRun(target: string, id: string): Promise<RunArtifact> {
+    const stored = await parseStoredRun(target, id);
+    return {...stored, integrity: await auditRun(stored.record)};
+  }
+
   return {
     saveRun,
     listTargets,
     listRuns,
-    readRun: parseStoredRun,
+    readRun,
   };
 }

@@ -652,7 +652,7 @@ describe("MCP server contract", () => {
       ]);
 
       expect(tools.get_artifact!.description).toBe(
-        "For intel/evaluation/run, omit target to list targets, use target without id to list item metadata, and use target+id to read the saved record; id without target is invalid. For capture/ui-reference, target is invalid, omit id to list image metadata, and use id to read metadata plus optional MCP ImageContent.",
+        "For intel/evaluation/run, omit target to list targets, use target without id to list item metadata, and use target+id to read the saved record; run reads also verify the record seal and current recipe/persona/evidence SHA-256 integrity. An id without target is invalid. For capture/ui-reference, target is invalid, omit id to list image metadata, and use id to read metadata plus optional MCP ImageContent.",
       );
     } finally {
       await client.close();
@@ -958,7 +958,7 @@ describe("MCP server contract", () => {
   });
 
   it("seals and replays a simulation run through save_artifact and get_artifact", async () => {
-    const {client, server} = await createHarness();
+    const {artifactStore, client, server} = await createHarness();
     try {
       await client.callTool({
         name: "save_persona",
@@ -1033,23 +1033,32 @@ describe("MCP server contract", () => {
               phase: "domain",
               actor: "storefront-reviewer",
               domain: "storefront",
+              scenarioId: "current",
+              output: "The current value proposition remains generic.",
+              evidenceRefs: ["profile"],
+            },
+            {
+              sequence: 4,
+              phase: "domain",
+              actor: "storefront-reviewer",
+              domain: "storefront",
               scenarioId: "proposal",
               output: "The value proposition is more differentiated.",
               evidenceRefs: ["profile"],
             },
             {
-              sequence: 4,
+              sequence: 5,
               phase: "critic",
               actor: "harsh-critic",
               output: "This predicts direction, not measured conversion lift.",
-              evidenceRefs: ["profile", "evaluation"],
+              evidenceRefs: ["profile"],
             },
             {
-              sequence: 5,
+              sequence: 6,
               phase: "synthesis",
               actor: "lead-synthesizer",
               output: "Run the proposed store promise as a measured experiment.",
-              evidenceRefs: ["profile", "evaluation"],
+              evidenceRefs: ["profile"],
             },
           ],
           warnings: ["No observed post-change telemetry"],
@@ -1067,7 +1076,7 @@ describe("MCP server contract", () => {
           targetId: "hades-ii",
           id: expect.stringMatching(/^[0-9a-f-]{36}$/),
           mode: "change",
-          roundCount: 5,
+          roundCount: 6,
           evidenceCount: 2,
           sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         },
@@ -1086,7 +1095,7 @@ describe("MCP server contract", () => {
         arguments: {kind: "run", target: "Hades II"},
       });
       expect(listed.structuredContent).toMatchObject({
-        data: [{id: runId, roundCount: 5, evidenceCount: 2}],
+        data: [{id: runId, roundCount: 6, evidenceCount: 2}],
         warnings: [],
       });
       expect(JSON.stringify(listed.structuredContent)).not.toContain(
@@ -1110,6 +1119,21 @@ describe("MCP server contract", () => {
               expect.objectContaining({ref: "profile", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
               expect.objectContaining({ref: "evaluation", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
             ],
+            coverage: {
+              scenarioDomain: {covered: 2, total: 2, ratio: 1, missing: []},
+              personaScenario: {covered: 2, total: 2, ratio: 1, missing: []},
+              analysisEvidence: {referenced: 1, total: 1, ratio: 1, unusedRefs: []},
+              domains: [expect.objectContaining({
+                domain: "storefront",
+                scenarioIds: ["current", "proposal"],
+                evidenceRefs: ["profile"],
+                sourceTools: ["steam_fetch"],
+              })],
+            },
+            seal: {
+              algorithm: "sha256",
+              canonicalSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+            },
             rounds: expect.arrayContaining([
               expect.objectContaining({output: "This predicts direction, not measured conversion lift."}),
             ]),
@@ -1118,6 +1142,38 @@ describe("MCP server contract", () => {
           },
         },
         warnings: [],
+      });
+      expect(read.structuredContent).toMatchObject({
+        data: {
+          integrity: {
+            status: "verified",
+            record: {status: "verified"},
+            issueCount: 0,
+          },
+        },
+      });
+
+      await artifactStore.saveIntel({
+        target: "Hades II",
+        id: "Store Profile",
+        sourceTool: "steam_fetch",
+        observedAt: "2026-08-11T09:30:00.000Z",
+        payload: {appid: 1145350, changed: true},
+      }, {overwrite: true});
+      const drifted = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "run", target: "Hades II", id: runId},
+      });
+      expect(drifted.structuredContent).toMatchObject({
+        data: {
+          integrity: {
+            status: "failed",
+            dependencies: expect.arrayContaining([
+              expect.objectContaining({ref: "profile", status: "mismatch"}),
+            ]),
+          },
+        },
+        warnings: ["run integrity check: failed (1 issue(s))"],
       });
       expect(JSON.parse(resultText(read))).toEqual(read.structuredContent);
     } finally {
@@ -1434,6 +1490,11 @@ describe("MCP server contract", () => {
         "mode",
         "domains",
         "specification",
+        "playtestUrl",
+        "playtestTask",
+        "playtestBuild",
+        "playtestControls",
+        "playtestDurationMinutes",
         "uiUrl",
         "uiBenchmarkTask",
         "uiReferenceUrls",
