@@ -5,12 +5,13 @@ import {
   realpathSync,
 } from "node:fs";
 import {randomUUID} from "node:crypto";
-import {basename, dirname, isAbsolute, join, relative, resolve, sep} from "node:path";
+import {basename, isAbsolute, join, relative, resolve, sep} from "node:path";
 
 export type KnowledgeKind = "personas" | "templates" | "rubrics" | "intel";
 
 const PERSONA_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 const KNOWLEDGE_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
+const EVALUATION_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const EXTENSIONS: Record<KnowledgeKind, ReadonlySet<string>> = {
   personas: new Set([".json"]),
   templates: new Set([".md"]),
@@ -32,19 +33,63 @@ function isWithin(root: string, candidate: string): boolean {
 }
 
 function validateExistingPath(allowedRoot: string, candidate: string): void {
-  if (!existsSync(candidate)) {
-    const parent = dirname(candidate);
-    if (existsSync(parent) && !isWithin(allowedRoot, realpathSync(parent))) {
-      throw new Error("resolved parent escapes allowed root");
-    }
-    return;
+  if (!isWithin(allowedRoot, candidate)) {
+    throw new Error("path escapes allowed root");
   }
 
-  if (lstatSync(candidate).isSymbolicLink()) {
-    throw new Error("symlink paths are not allowed");
+  const pathFromRoot = relative(allowedRoot, candidate);
+  let current = allowedRoot;
+  for (const part of pathFromRoot.split(sep).filter(Boolean)) {
+    current = join(current, part);
+    if (!existsSync(current)) break;
+
+    const stats = lstatSync(current);
+    if (stats.isSymbolicLink()) {
+      throw new Error("symlink paths are not allowed");
+    }
+    if (!isWithin(allowedRoot, realpathSync(current))) {
+      throw new Error("resolved path escapes allowed root");
+    }
+    if (current !== candidate && !stats.isDirectory()) {
+      throw new Error("artifact parent path is not a directory");
+    }
   }
-  if (!isWithin(allowedRoot, realpathSync(candidate))) {
-    throw new Error("resolved path escapes allowed root");
+}
+
+function safeSlug(displayName: string): string {
+  if (
+    typeof displayName !== "string"
+    || displayName.length < 1
+    || displayName.length > 80
+    || isAbsolute(displayName)
+    || displayName.includes("/")
+    || displayName.includes("\\")
+    || displayName.includes("\0")
+  ) {
+    throw new Error("invalid display name");
+  }
+
+  const trimmed = displayName.trim();
+  if (/^\.+$/.test(trimmed)) {
+    throw new Error("invalid dot-only display name");
+  }
+
+  const slug = trimmed
+    .normalize("NFKD")
+    .replace(/(\p{Script=Latin})\p{M}+/gu, "$1")
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{Nd}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+  if (slug.length < 1 || slug.length > 64) {
+    throw new Error("canonical id must contain 1 to 64 characters");
+  }
+  return slug;
+}
+
+function validateEvaluationDate(date: string): void {
+  if (!EVALUATION_DATE.test(date)) {
+    throw new Error("invalid evaluation date");
   }
 }
 
@@ -64,6 +109,33 @@ export interface PathResolver {
   resolvePersonaPath(id: string): string;
   resolveCapturePath(name?: string): string;
   resolveSkillPath(id: string): string;
+  resolveIntelArtifactPath(target: string, id: string): ResolvedIntelArtifactPath;
+  resolveEvaluationPath(
+    target: string,
+    date: string,
+    topic: string,
+  ): ResolvedEvaluationPath;
+  resolveCaptureReadPath(id: string): ResolvedImagePath;
+  resolveUiReferencePath(id: string): ResolvedImagePath;
+}
+
+export interface ResolvedPath {
+  absolutePath: string;
+  relativePath: string;
+}
+
+export interface ResolvedIntelArtifactPath extends ResolvedPath {
+  targetId: string;
+  artifactId: string;
+}
+
+export interface ResolvedEvaluationPath extends ResolvedPath {
+  targetId: string;
+  topicId: string;
+}
+
+export interface ResolvedImagePath extends ResolvedPath {
+  id: string;
 }
 
 export function createPathResolver(rootPath: string): PathResolver {
@@ -73,6 +145,10 @@ export function createPathResolver(rootPath: string): PathResolver {
     const resolvedBase = resolve(root, base);
     if (!existsSync(resolvedBase)) {
       throw new Error(`required repository directory is missing: ${base}`);
+    }
+    const baseStats = lstatSync(resolvedBase);
+    if (baseStats.isSymbolicLink() || !baseStats.isDirectory()) {
+      throw new Error("allowed directory is missing or invalid");
     }
     const realBase = realpathSync(resolvedBase);
     if (!isWithin(root, realBase)) {
@@ -84,6 +160,16 @@ export function createPathResolver(rootPath: string): PathResolver {
     }
     validateExistingPath(realBase, candidate);
     return candidate;
+  }
+
+  function resolvedPath(absolutePath: string): ResolvedPath {
+    if (!isWithin(root, absolutePath)) {
+      throw new Error("resolved path escapes repository root");
+    }
+    return {
+      absolutePath,
+      relativePath: relative(root, absolutePath).split(sep).join("/"),
+    };
   }
 
   return {
@@ -128,6 +214,45 @@ export function createPathResolver(rootPath: string): PathResolver {
       }
       return resolveIn("skills", id);
     },
+
+    resolveIntelArtifactPath(target, id) {
+      const targetId = safeSlug(target);
+      const artifactId = safeSlug(id);
+      const absolutePath = resolveIn(
+        join("knowledge", "intel"),
+        join(targetId, `${artifactId}.json`),
+      );
+      return {targetId, artifactId, ...resolvedPath(absolutePath)};
+    },
+
+    resolveEvaluationPath(target, date, topic) {
+      const targetId = safeSlug(target);
+      const topicId = safeSlug(topic);
+      validateEvaluationDate(date);
+      const absolutePath = resolveIn(
+        "workspaces",
+        join(targetId, `${date}-${topicId}.md`),
+      );
+      return {targetId, topicId, ...resolvedPath(absolutePath)};
+    },
+
+    resolveCaptureReadPath(id) {
+      const canonicalId = safeSlug(id);
+      const absolutePath = resolveIn(
+        join("knowledge", "intel", "captures"),
+        `${canonicalId}.png`,
+      );
+      return {id: canonicalId, ...resolvedPath(absolutePath)};
+    },
+
+    resolveUiReferencePath(id) {
+      const canonicalId = safeSlug(id);
+      const absolutePath = resolveIn(
+        join("knowledge", "ui-references"),
+        `${canonicalId}.png`,
+      );
+      return {id: canonicalId, ...resolvedPath(absolutePath)};
+    },
   };
 }
 
@@ -141,7 +266,7 @@ function findRepoRoot(cwd: string): string {
   if (packageJson.name !== "steam-user-sim") {
     throw new Error("current directory is not the steam-user-sim repository root");
   }
-  for (const directory of ["knowledge", "skills"]) {
+  for (const directory of ["knowledge", "skills", "workspaces"]) {
     const candidate = join(root, directory);
     const stats = existsSync(candidate) ? lstatSync(candidate) : null;
     if (
@@ -184,4 +309,27 @@ export function resolveCapturePath(name?: string): string {
 
 export function resolveSkillPath(id: string): string {
   return getDefaultResolver().resolveSkillPath(id);
+}
+
+export function resolveIntelArtifactPath(
+  target: string,
+  id: string,
+): ResolvedIntelArtifactPath {
+  return getDefaultResolver().resolveIntelArtifactPath(target, id);
+}
+
+export function resolveEvaluationPath(
+  target: string,
+  date: string,
+  topic: string,
+): ResolvedEvaluationPath {
+  return getDefaultResolver().resolveEvaluationPath(target, date, topic);
+}
+
+export function resolveCaptureReadPath(id: string): ResolvedImagePath {
+  return getDefaultResolver().resolveCaptureReadPath(id);
+}
+
+export function resolveUiReferencePath(id: string): ResolvedImagePath {
+  return getDefaultResolver().resolveUiReferencePath(id);
 }

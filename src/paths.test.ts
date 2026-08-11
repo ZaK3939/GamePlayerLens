@@ -1,8 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPathResolver } from "./paths.js";
+import { createPathResolver, initializeRepositoryPaths } from "./paths.js";
 
 let root = "";
 
@@ -13,6 +20,7 @@ beforeAll(() => {
     "knowledge/templates",
     "knowledge/rubrics",
     "knowledge/intel/captures",
+    "knowledge/ui-references",
     "skills",
     "workspaces",
   ]) {
@@ -84,4 +92,170 @@ describe("safe paths", () => {
     expect(() => resolver.resolveKnowledgePath("rubrics", "x.md"))
       .toThrow(/directory|root/i);
   });
+
+  it("normalizes display target and artifact ids for intel JSON", () => {
+    const resolver = createPathResolver(root);
+    const result = resolver.resolveIntelArtifactPath("Hades II", "Price Snapshot");
+
+    expect(result).toEqual({
+      targetId: "hades-ii",
+      artifactId: "price-snapshot",
+      absolutePath: join(
+        resolver.root,
+        "knowledge/intel/hades-ii/price-snapshot.json",
+      ),
+      relativePath: "knowledge/intel/hades-ii/price-snapshot.json",
+    });
+    expect(isAbsolute(result.absolutePath)).toBe(true);
+  });
+
+  it("normalizes display target and topic for evaluation Markdown", () => {
+    const resolver = createPathResolver(root);
+    const result = resolver.resolveEvaluationPath(
+      "Hades II",
+      "2026-08-11",
+      "JP price test",
+    );
+
+    expect(result).toEqual({
+      targetId: "hades-ii",
+      topicId: "jp-price-test",
+      absolutePath: join(
+        resolver.root,
+        "workspaces/hades-ii/2026-08-11-jp-price-test.md",
+      ),
+      relativePath: "workspaces/hades-ii/2026-08-11-jp-price-test.md",
+    });
+  });
+
+  it("preserves Japanese letters in evaluation target and topic ids", () => {
+    const resolver = createPathResolver(root);
+    const result = resolver.resolveEvaluationPath(
+      "ハデス II",
+      "2026-08-11",
+      "価格 改定",
+    );
+
+    expect(result).toEqual({
+      targetId: "ハデス-ii",
+      topicId: "価格-改定",
+      absolutePath: join(
+        resolver.root,
+        "workspaces/ハデス-ii/2026-08-11-価格-改定.md",
+      ),
+      relativePath: "workspaces/ハデス-ii/2026-08-11-価格-改定.md",
+    });
+  });
+
+  it("folds Latin diacritics while preserving Unicode canonical ids", () => {
+    const resolver = createPathResolver(root);
+    const result = resolver.resolveIntelArtifactPath("Hádès II", "価格 Snapshot");
+
+    expect(result.targetId).toBe("hades-ii");
+    expect(result.artifactId).toBe("価格-snapshot");
+    expect(result.relativePath)
+      .toBe("knowledge/intel/hades-ii/価格-snapshot.json");
+  });
+
+  it.each([
+    "",
+    "   ",
+    ".",
+    "..",
+    "...",
+    "../escape",
+    "a/b",
+    "a\\b",
+    "nul\0byte",
+    "/absolute",
+    "a".repeat(65),
+  ])("rejects unsafe artifact display names: %j", (name) => {
+    const resolver = createPathResolver(root);
+    expect(() => resolver.resolveIntelArtifactPath(name, "valid")).toThrow();
+    expect(() => resolver.resolveIntelArtifactPath("valid", name)).toThrow();
+    expect(() => resolver.resolveEvaluationPath("valid", "2026-08-11", name))
+      .toThrow();
+  });
+
+  it("rejects display names longer than 80 characters before normalization", () => {
+    const resolver = createPathResolver(root);
+    expect(() => resolver.resolveIntelArtifactPath(`${"a".repeat(64)}                 `, "x"))
+      .toThrow();
+  });
+
+  it("rejects invalid evaluation dates", () => {
+    const resolver = createPathResolver(root);
+    expect(() => resolver.resolveEvaluationPath("Hades II", "11-08-2026", "price"))
+      .toThrow(/date/i);
+  });
+
+  it("resolves capture and UI reference ids only to basename PNG files", () => {
+    const resolver = createPathResolver(root);
+
+    expect(resolver.resolveCaptureReadPath("Hero Capture")).toEqual({
+      id: "hero-capture",
+      absolutePath: join(
+        resolver.root,
+        "knowledge/intel/captures/hero-capture.png",
+      ),
+      relativePath: "knowledge/intel/captures/hero-capture.png",
+    });
+    expect(resolver.resolveUiReferencePath("Main Menu")).toEqual({
+      id: "main-menu",
+      absolutePath: join(resolver.root, "knowledge/ui-references/main-menu.png"),
+      relativePath: "knowledge/ui-references/main-menu.png",
+    });
+    expect(() => resolver.resolveCaptureReadPath("../capture.png")).toThrow();
+    expect(() => resolver.resolveUiReferencePath("nested/reference.png")).toThrow();
+  });
+
+  it("rejects symlinked artifact parents and existing artifact files", () => {
+    const resolver = createPathResolver(root);
+    const outsideDirectory = join(root, "artifact-outside");
+    mkdirSync(outsideDirectory);
+    symlinkSync(outsideDirectory, join(root, "knowledge/intel/linked-target"));
+    expect(() => resolver.resolveIntelArtifactPath("linked target", "snapshot"))
+      .toThrow(/symlink/i);
+
+    const capture = join(root, "knowledge/intel/captures/linked-capture.png");
+    const outsidePng = join(root, "outside.png");
+    writeFileSync(outsidePng, "not really a png");
+    symlinkSync(outsidePng, capture);
+    expect(() => resolver.resolveCaptureReadPath("linked capture"))
+      .toThrow(/symlink/i);
+  });
+
+  it("does not create target directories or artifact files", () => {
+    const resolver = createPathResolver(root);
+    const result = resolver.resolveIntelArtifactPath("Missing Target", "Snapshot");
+
+    expect(() => resolver.resolveIntelArtifactPath("Missing Target", "Snapshot"))
+      .not.toThrow();
+    expect(() => resolver.resolveCaptureReadPath("missing-capture")).not.toThrow();
+    expect(result.absolutePath).toContain("missing-target");
+    expect(existsSync(join(resolver.root, "knowledge/intel/missing-target")))
+      .toBe(false);
+    expect(existsSync(result.absolutePath)).toBe(false);
+  });
+});
+
+describe("production repository startup", () => {
+  it.each(["knowledge", "skills", "workspaces"])(
+    "fails immediately when %s is missing",
+    (missing) => {
+      const repo = mkdtempSync(join(tmpdir(), "steam-user-sim-startup-"));
+      writeFileSync(join(repo, "package.json"), JSON.stringify({name: "steam-user-sim"}));
+      for (const directory of ["knowledge", "skills", "workspaces"]) {
+        if (directory !== missing) mkdirSync(join(repo, directory));
+      }
+
+      try {
+        expect(() => initializeRepositoryPaths(repo)).toThrow(
+          new RegExp(`required repository directory.*${missing}`, "i"),
+        );
+      } finally {
+        rmSync(repo, {recursive: true, force: true});
+      }
+    },
+  );
 });

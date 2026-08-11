@@ -1,6 +1,28 @@
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | {[key: string]: JsonValue};
+
+export interface FetchSource {
+  name: string;
+  homepage?: string;
+  notes?: string;
+}
+
+export interface FetchMeta {
+  observedAt?: string;
+  sources?: FetchSource[];
+  request?: JsonValue;
+  methodology?: JsonValue;
+}
+
 export interface FetchResult<T> {
   data: T | null;
   warnings: string[];
+  meta?: FetchMeta;
 }
 
 export interface FetchJsonOptions {
