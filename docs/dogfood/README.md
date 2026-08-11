@@ -33,12 +33,12 @@ READMEや`docs/examples/`へ昇格できるのは、次を満たすsanitized成�
 
 設計とテストが完了していても、保存された実相談がなければ `Implemented, not dogfood-validated` と扱います。最低3件の実相談、1件のUI quality-gap、1件の別session replay auditが揃った時点で、dogfood validation完了を判断します。
 
-現在は `Dogfood validation in progress` です。
+v1.1 workflowは `Dogfood-validated` です。これはworkflow acceptanceであり、予測結果のoutcome calibration完了を意味しません。
 
 | 条件 | 進捗 | 記録 |
 |---|---:|---|
-| 保存済み実相談 | 2 / 3 | [Hades 日本市場 baseline](2026-08-11-hades-japan-baseline.md)、[Hades JP copy change](2026-08-11-hades-jp-store-copy-change.md) |
+| 保存済み実相談 | 3 / 3 | [Hades baseline](2026-08-11-hades-japan-baseline.md)、[JP copy change](2026-08-11-hades-jp-store-copy-change.md)、[dialogue UI gap](2026-08-11-hades-dialogue-ui-gap.md) |
 | 別session replay audit | 1 / 1 | PASS（同記録内） |
-| UI quality-gap | 0 / 1 | 未実施 |
+| UI quality-gap | 1 / 1 | PASS（non-blind / static-only境界を保持） |
 
-件数だけで完了にはしません。change比較は完了しました。残りではUI referenceを使った実力差評価を実際に通し、その後に未知競合のdiscoveryも追加検証します。
+3件はbaseline、change、UI gapで異なるworkflowを通し、同じ結論の反復にはしていません。今後は未知競合のdiscovery、別ユーザー/別MCP client、実際のoutcomeを使ったcalibrationを追加検証します。

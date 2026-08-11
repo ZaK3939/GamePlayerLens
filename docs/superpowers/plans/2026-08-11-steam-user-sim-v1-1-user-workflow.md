@@ -1,6 +1,6 @@
 # steam-user-sim v1.1 User-Complete Workflow Implementation Plan
 
-**Status:** Implemented. Dogfood validation in progress (2/3 consultations, replay audit PASS, UI quality-gap 0/1).
+**Status:** Implemented and dogfood-validated (3/3 consultations, replay audit PASS, UI quality-gap PASS). Outcome calibration is pending.
 **Design:** [v1.1 user workflow design](../specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)
 
 ## Goal

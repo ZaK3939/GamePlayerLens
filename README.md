@@ -243,7 +243,7 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 live test の固定 appid はHades `1145360`、Steam画像captureはHades II `1145350`、SteamSpy discovery tagは `Action Roguelike` です。live package smokeは分離した一時data homeでSteam取得→resultHandle保存→原本envelope一致を検証し、終了時に一時dataを削除します。Steam画像captureはObscuraなしでも実行され、生成したJPEGを終了時に削除します。`OBSCURA_PATH` がなければ通常page captureのmanual ui-reference warningを検証し、設定済みならlocalhost captureと `ImageContent` を検証します。`ITAD_API_KEY` がなければtimelineは `priceHistory: null` と設定warning、設定済みなら履歴配列とcurrencyを検証します。
 
-fixture / smokeとは別に、保存した実相談でproduct workflowを検証します。raw artifactはgit管理外へ隔離し、公開可能な集計と監査結果だけを [dogfood data policy](docs/dogfood/README.md) に記録します。現在は3件中2件と別session replay auditが完了し、UI quality-gapは未実施です。
+fixture / smokeとは別に、保存した実相談でproduct workflowを検証します。raw artifactはgit管理外へ隔離し、公開可能な集計と監査結果だけを [dogfood data policy](docs/dogfood/README.md) に記録します。3件の実相談、別session replay audit、UI quality-gapが完了し、v1.1 workflowはdogfood-validatedです。予測結果のoutcome calibrationは未完了です。
 
 ## v1 から v1.1
 
