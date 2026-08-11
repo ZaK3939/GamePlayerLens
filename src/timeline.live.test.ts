@@ -6,6 +6,10 @@ describe.runIf(process.env.RUN_LIVE === "1")("timeline (live API, Hades)", () =>
     const result = await fetchTimeline(1145360);
     expect(typeof result.data?.currentCcu).toBe("number");
     expect(result.data?.observedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(result.meta?.observedAt).toBe(result.data?.observedAt);
+    expect(result.meta?.request).toMatchObject({country: "US"});
+    expect(result.meta?.sources?.map((source) => source.name))
+      .toEqual(["SteamSpy", "IsThereAnyDeal"]);
 
     if ((process.env.ITAD_API_KEY ?? "").trim()) {
       expect(Array.isArray(result.data?.priceHistory)).toBe(true);

@@ -12,6 +12,7 @@ import {
 import type {Review, ReviewOptions} from "./reviews.js";
 
 const roots: string[] = [];
+const NOW = new Date("2026-08-11T12:34:56.000Z");
 
 async function tempResolver() {
   const root = await mkdtemp(join(tmpdir(), "steam-user-sim-personas-"));
@@ -118,7 +119,11 @@ describe("persona store", () => {
 describe("persona derivation pack", () => {
   it("fills Japanese shortages from all languages without duplicates", async () => {
     const fetchGame = vi.fn(async (appid: number) => ({
-      data: {appid, name: "Hades"},
+      data: {
+        appid,
+        name: "Hades",
+        reviewStats: {positive: 900, negative: 100, positivePercent: 90},
+      },
       warnings: [],
     }));
     const fetchReviews = vi.fn(async (
@@ -138,7 +143,7 @@ describe("persona derivation pack", () => {
         warnings: [],
       };
     });
-    const derive = createPersonaDeriver({fetchGame, fetchReviews});
+    const derive = createPersonaDeriver({fetchGame, fetchReviews, now: () => NOW});
 
     const result = await derive([1145360]);
     expect(result.data?.requestedCount).toBe(5);
@@ -147,6 +152,85 @@ describe("persona derivation pack", () => {
     expect(result.data?.instruction).toContain("save_persona");
     expect(fetchReviews).toHaveBeenCalledTimes(4);
     expect(result.data?.schema).toMatchObject({type: "object"});
+    expect(result.meta).toMatchObject({
+      observedAt: NOW.toISOString(),
+      methodology: {
+        strategy: "recent-polarity-balanced",
+        representative: false,
+        requestedPerPolarity: 25,
+        appids: [{
+          appid: 1145360,
+          population: {positive: 900, negative: 100, positivePercent: 90},
+          sample: {
+            positive: {japaneseSelected: 1, fallbackSelected: 24, totalSelected: 25},
+            negative: {japaneseSelected: 1, fallbackSelected: 24, totalSelected: 25},
+            positivePercent: 50,
+          },
+        }],
+      },
+    });
+    expect(result.data?.instruction).toMatch(/balanced.*not representative.*population shares/i);
+  });
+
+  it("does not request fallback when Japanese evidence alone fills each polarity", async () => {
+    const fetchGame = vi.fn(async (appid: number) => ({data: {
+      appid,
+      reviewStats: {positive: 3, negative: 1, positivePercent: 75},
+    }, warnings: []}));
+    const fetchReviews = vi.fn(async (
+      _appid: number,
+      opts: ReviewOptions = {},
+    ) => ({
+      data: Array.from({length: 25}, (_, index) =>
+        review(`jp-${opts.type}-${index}`, opts.type === "positive")),
+      warnings: [],
+    }));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([1145360]);
+
+    expect(fetchReviews).toHaveBeenCalledTimes(2);
+    const sampling = (result.meta?.methodology as {
+      appids: Array<{sample: Record<string, unknown>}>;
+    }).appids[0]?.sample;
+    expect(sampling).toMatchObject({
+      positive: {japaneseSelected: 25, fallbackSelected: 0, totalSelected: 25},
+      negative: {japaneseSelected: 25, fallbackSelected: 0, totalSelected: 25},
+    });
+  });
+
+  it("keeps sampling metadata and reviews when the game profile is unavailable", async () => {
+    const fetchGame = vi.fn(async () => ({data: null, warnings: ["steam store timeout"]}));
+    const fetchReviews = vi.fn(async (
+      _appid: number,
+      opts: ReviewOptions = {},
+    ) => ({
+      data: [review(`${opts.type}`, opts.type === "positive")],
+      warnings: [],
+    }));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([1145360]);
+
+    expect(result.data?.games).toEqual([]);
+    expect(result.data?.reviews).toHaveLength(2);
+    expect(result.warnings).toContain("appid 1145360 game profile unavailable");
+    expect(result.meta?.methodology).toMatchObject({
+      appids: [{
+        appid: 1145360,
+        population: {positive: null, negative: null, positivePercent: null},
+        sample: {
+          positive: {japaneseSelected: 1, fallbackSelected: 0, totalSelected: 1},
+          negative: {japaneseSelected: 1, fallbackSelected: 0, totalSelected: 1},
+        },
+      }],
+    });
   });
 
   it("rejects requested persona counts outside 1 through 12", async () => {

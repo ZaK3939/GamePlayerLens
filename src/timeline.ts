@@ -1,4 +1,4 @@
-import {fetchJson, type FetchResult} from "./http.js";
+import {fetchJson, type FetchMeta, type FetchResult} from "./http.js";
 import {strictFiniteNumber} from "./normalize.js";
 
 const STEAMSPY_API = "https://steamspy.com/api.php";
@@ -62,6 +62,11 @@ interface NormalizedHistory {
   points: PriceHistoryPoint[];
   invalidCount: number;
 }
+
+type AveragePlaytimeStatus =
+  | "reported"
+  | "reported-zero-treated-as-missing"
+  | "missing-or-invalid";
 
 type TimelineJsonFetcher = (
   url: string | URL,
@@ -161,20 +166,68 @@ export function normalizeTimelineSnapshot(
   const spyWarnings = spyResult.data !== null && !spyRecognized
     ? ["steamspy timeline returned an invalid response"]
     : [];
+  const reportedZeroWarnings = averageMinutes === 0
+    ? ["steamspy average playtime reported zero; treated as missing"]
+    : [];
   return {
     data: {
       observedAt: observedAt.toISOString(),
       currentCcu: ccu !== null && ccu >= 0 ? ccu : null,
       owners,
       avgPlaytimeHours:
-        averageMinutes !== null && averageMinutes >= 0
+        averageMinutes !== null && averageMinutes > 0
           ? Math.round((averageMinutes / 60) * 10) / 10
           : null,
       priceHistory: historyResult.data,
       priceHistorySince: historyResult.since,
       country,
     },
-    warnings: [...spyResult.warnings, ...spyWarnings, ...historyResult.warnings],
+    warnings: [
+      ...spyResult.warnings,
+      ...spyWarnings,
+      ...reportedZeroWarnings,
+      ...historyResult.warnings,
+    ],
+  };
+}
+
+function averagePlaytimeStatus(data: RawSteamSpy | null): AveragePlaytimeStatus {
+  const averageMinutes = strictFiniteNumber(data?.average_forever);
+  if (averageMinutes === 0) return "reported-zero-treated-as-missing";
+  return averageMinutes !== null && averageMinutes > 0
+    ? "reported"
+    : "missing-or-invalid";
+}
+
+function timelineMeta(
+  observedAt: string,
+  options: ResolvedTimelineOptions,
+  itadAvailable: boolean,
+  playtimeStatus: AveragePlaytimeStatus,
+): FetchMeta {
+  return {
+    observedAt,
+    sources: [
+      {
+        name: "SteamSpy",
+        homepage: "https://steamspy.com/about",
+        notes: "SteamSpy values are estimates; owners are ownership estimates, not sales. Recent releases or small samples can be unreliable.",
+      },
+      {
+        name: "IsThereAnyDeal",
+        homepage: "https://isthereanydeal.com/",
+        notes: itadAvailable
+          ? "Steam shop price history requested."
+          : "Price history unavailable because ITAD_API_KEY is not configured.",
+      },
+    ],
+    request: {country: options.country, since: options.since},
+    methodology: {
+      itadAvailable,
+      itadAvailability: itadAvailable ? "configured" : "disabled-no-api-key",
+      averagePlaytimeStatus: playtimeStatus,
+      ccuStatus: "current-snapshot",
+    },
   };
 }
 
@@ -297,7 +350,21 @@ export function createTimelineFetcher(
 
     const [rawSpy, history] = await Promise.all([spyPromise, historyPromise]);
     const spy = rawSpy as FetchResult<RawSteamSpy>;
-    return normalizeTimelineSnapshot(observedAt, options.country, spy, history);
+    const normalized = normalizeTimelineSnapshot(
+      observedAt,
+      options.country,
+      spy,
+      history,
+    );
+    return {
+      ...normalized,
+      meta: timelineMeta(
+        observedAt.toISOString(),
+        options,
+        apiKey !== "",
+        averagePlaytimeStatus(spy.data),
+      ),
+    };
   };
 }
 

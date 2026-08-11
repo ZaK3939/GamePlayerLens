@@ -1,7 +1,13 @@
-import {describe, expect, it} from "vitest";
-import {normalizeGameProfile, parseSupportedLanguages} from "./steam.js";
+import {describe, expect, it, vi} from "vitest";
+import {
+  createGameFetcher,
+  createSearchGamesFetcher,
+  normalizeGameProfile,
+  parseSupportedLanguages,
+} from "./steam.js";
 
 const appid = 1145360;
+const NOW = new Date("2026-08-11T12:34:56.000Z");
 
 function storeData(overrides: Record<string, unknown> = {}) {
   return {
@@ -179,5 +185,65 @@ describe("normalizeGameProfile", () => {
 
     expect(result.data).toBeNull();
     expect(result.warnings.join()).toContain("steam store us unavailable");
+  });
+});
+
+describe("Steam fetch provenance", () => {
+  it("adds deterministic, query-safe Steam Store metadata to search results", async () => {
+    const fetcher = vi.fn(async () => ({
+      data: {items: [{id: appid, name: "Hades"}]},
+      warnings: [],
+    }));
+    const searchGames = createSearchGamesFetcher({now: () => NOW, fetcher});
+
+    const result = await searchGames("  Hades  ");
+
+    expect(result.data).toEqual([{appid, name: "Hades"}]);
+    expect(result.meta).toEqual({
+      observedAt: NOW.toISOString(),
+      sources: [{
+        name: "Steam Store",
+        homepage: "https://store.steampowered.com/",
+      }],
+      request: {query: "Hades"},
+      methodology: {selection: "Steam Store search results"},
+    });
+    expect(JSON.stringify(result.meta)).not.toContain("?term=");
+    expect(JSON.stringify(result.meta)).not.toContain("l=english");
+  });
+
+  it("reports countries and explicit SteamSpy estimate caveats without request URLs", async () => {
+    const fetcher = vi.fn(async (url: string | URL) => {
+      const parsed = new URL(url);
+      if (parsed.hostname === "steamspy.com") return {data: spy, warnings: []};
+      const country = parsed.searchParams.get("cc");
+      return {
+        data: {[appid]: {success: true, data: storeData({
+          price_overview: {
+            currency: country === "jp" ? "JPY" : country === "de" ? "EUR" : "USD",
+            final_formatted: "24.99",
+            discount_percent: 0,
+          },
+        })}},
+        warnings: [],
+      };
+    });
+    const fetchGame = createGameFetcher({now: () => NOW, fetcher});
+
+    const result = await fetchGame(appid);
+
+    expect(result.data?.name).toBe("Hades");
+    expect(result.meta?.observedAt).toBe(NOW.toISOString());
+    expect(result.meta?.request).toEqual({countries: ["US", "JP", "DE"]});
+    expect(result.meta?.sources?.map((source) => source.name))
+      .toEqual(["Steam Store", "SteamSpy"]);
+    const spyNotes = result.meta?.sources?.find((source) => source.name === "SteamSpy")?.notes;
+    expect(spyNotes).toMatch(/owners.*estimate/i);
+    expect(spyNotes).toMatch(/not sales/i);
+    expect(spyNotes).toMatch(/recent.*small sample.*unreliable/i);
+    const metaJson = JSON.stringify(result.meta);
+    expect(metaJson).not.toContain("appids=");
+    expect(metaJson).not.toContain("request=appdetails");
+    expect(metaJson).not.toContain("api.php?");
   });
 });

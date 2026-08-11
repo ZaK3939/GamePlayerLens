@@ -1,4 +1,4 @@
-import {fetchJson, type FetchResult} from "./http.js";
+import {fetchJson, type FetchMeta, type FetchResult} from "./http.js";
 import {strictFiniteNumber} from "./normalize.js";
 
 const REVIEWS_API = "https://store.steampowered.com/appreviews";
@@ -42,6 +42,16 @@ interface NormalizedOptions {
   type: "all" | "positive" | "negative";
   minPlaytimeHours: number;
   limit: number;
+}
+
+type ReviewsJsonFetcher = (
+  url: string | URL,
+  opts?: {timeoutMs?: number; source?: string},
+) => Promise<FetchResult<unknown>>;
+
+export interface ReviewsFetcherDependencies {
+  now?: () => Date;
+  fetcher?: ReviewsJsonFetcher;
 }
 
 function normalizeOptions(opts: ReviewOptions = {}): NormalizedOptions {
@@ -160,52 +170,99 @@ function reviewUrl(
   return url;
 }
 
-export async function fetchReviews(
-  appid: number,
-  opts: ReviewOptions = {},
-): Promise<FetchResult<Review[]>> {
-  requireAppid(appid);
-  const options = normalizeOptions(opts);
-  const pages: RawReview[][] = [];
-  const warnings: string[] = [];
-  let cursor = "*";
-  let scanned = 0;
-
-  for (let page = 0; page < MAX_PAGES && scanned < MAX_RAW_REVIEWS; page += 1) {
-    const result = await fetchJson<ReviewsResponse>(
-      reviewUrl(appid, cursor, options),
-      {source: "steam reviews"},
-    );
-    warnings.push(...result.warnings);
-    if (!result.data) {
-      if (pages.length === 0) return {data: null, warnings};
-      break;
-    }
-    if (result.data.success !== 1) {
-      warnings.push("steam reviews API rejected request");
-      if (pages.length === 0) return {data: null, warnings};
-      break;
-    }
-
-    const remaining = MAX_RAW_REVIEWS - scanned;
-    const rawPage = Array.isArray(result.data.reviews)
-      ? result.data.reviews.slice(0, remaining)
-      : [];
-    pages.push(rawPage);
-    scanned += rawPage.length;
-
-    const normalized = normalizeReviewPages(pages, options);
-    if ((normalized.data?.length ?? 0) >= options.limit) break;
-
-    const nextCursor =
-      typeof result.data.cursor === "string" ? result.data.cursor : "";
-    if (!rawPage.length || !nextCursor || nextCursor === cursor) break;
-    cursor = nextCursor;
-  }
-
-  const normalized = normalizeReviewPages(pages, options);
+function reviewMeta(
+  observedAt: string,
+  options: NormalizedOptions,
+  scannedRawCount: number,
+  pagesScanned: number,
+): FetchMeta {
   return {
-    data: normalized.data,
-    warnings: [...warnings, ...normalized.warnings],
+    observedAt,
+    sources: [{
+      name: "Steam Store",
+      homepage: "https://store.steampowered.com/",
+      notes: "Recent user reviews returned by the Steam Store reviews endpoint.",
+    }],
+    request: {...options},
+    methodology: {
+      selection: "recent-first",
+      scannedRawCount,
+      pagesScanned,
+      deduplication: "recommendationId",
+      filtersAppliedBeforeLimit: true,
+    },
   };
 }
+
+export function createReviewsFetcher(
+  dependencies: ReviewsFetcherDependencies = {},
+): (appid: number, opts?: ReviewOptions) => Promise<FetchResult<Review[]>> {
+  const now = dependencies.now ?? (() => new Date());
+  const fetcher = dependencies.fetcher
+    ?? ((url, opts) => fetchJson<unknown>(url, opts));
+
+  return async (appid: number, opts: ReviewOptions = {}) => {
+    requireAppid(appid);
+    const options = normalizeOptions(opts);
+    const observed = now();
+    if (Number.isNaN(observed.getTime())) throw new TypeError("now must be valid");
+    const observedAt = observed.toISOString();
+    const pages: RawReview[][] = [];
+    const warnings: string[] = [];
+    let cursor = "*";
+    let scanned = 0;
+
+    for (let page = 0; page < MAX_PAGES && scanned < MAX_RAW_REVIEWS; page += 1) {
+      const result = await fetcher(
+        reviewUrl(appid, cursor, options),
+        {source: "steam reviews"},
+      ) as FetchResult<ReviewsResponse>;
+      warnings.push(...result.warnings);
+      if (!result.data) {
+        if (pages.length === 0) {
+          return {
+            data: null,
+            warnings,
+            meta: reviewMeta(observedAt, options, scanned, pages.length),
+          };
+        }
+        break;
+      }
+      if (result.data.success !== 1) {
+        warnings.push("steam reviews API rejected request");
+        if (pages.length === 0) {
+          return {
+            data: null,
+            warnings,
+            meta: reviewMeta(observedAt, options, scanned, pages.length),
+          };
+        }
+        break;
+      }
+
+      const remaining = MAX_RAW_REVIEWS - scanned;
+      const rawPage = Array.isArray(result.data.reviews)
+        ? result.data.reviews.slice(0, remaining)
+        : [];
+      pages.push(rawPage);
+      scanned += rawPage.length;
+
+      const normalized = normalizeReviewPages(pages, options);
+      if ((normalized.data?.length ?? 0) >= options.limit) break;
+
+      const nextCursor =
+        typeof result.data.cursor === "string" ? result.data.cursor : "";
+      if (!rawPage.length || !nextCursor || nextCursor === cursor) break;
+      cursor = nextCursor;
+    }
+
+    const normalized = normalizeReviewPages(pages, options);
+    return {
+      data: normalized.data,
+      warnings: [...warnings, ...normalized.warnings],
+      meta: reviewMeta(observedAt, options, scanned, pages.length),
+    };
+  };
+}
+
+export const fetchReviews = createReviewsFetcher();

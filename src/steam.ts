@@ -1,8 +1,17 @@
-import {fetchJson, type FetchResult} from "./http.js";
+import {fetchJson, type FetchMeta, type FetchResult} from "./http.js";
 import {strictFiniteNumber} from "./normalize.js";
 
 const STORE_API = "https://store.steampowered.com/api";
 const STEAMSPY_API = "https://steamspy.com/api.php";
+const STEAM_STORE_SOURCE = {
+  name: "Steam Store",
+  homepage: "https://store.steampowered.com/",
+} as const;
+const STEAMSPY_SOURCE = {
+  name: "SteamSpy",
+  homepage: "https://steamspy.com/about",
+  notes: "SteamSpy values are estimates; owners are ownership estimates, not sales. Recent releases or small samples can be unreliable.",
+} as const;
 
 export type StoreRegion = "us" | "jp" | "eu";
 
@@ -82,6 +91,16 @@ export type StoreRegionResults = Record<
   StoreRegion,
   FetchResult<StoreEnvelope>
 >;
+
+type SteamJsonFetcher = (
+  url: string | URL,
+  opts?: {timeoutMs?: number; source?: string},
+) => Promise<FetchResult<unknown>>;
+
+export interface SteamFetcherDependencies {
+  now?: () => Date;
+  fetcher?: SteamJsonFetcher;
+}
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -244,55 +263,103 @@ function storeUrl(path: string, params: Record<string, string>): URL {
   return url;
 }
 
-export async function searchGames(query: string): Promise<FetchResult<SearchHit[]>> {
-  const term = query.trim();
-  if (!term) throw new TypeError("query must not be empty");
-
-  const result = await fetchJson<{items?: Array<{id?: unknown; name?: unknown}>}>(
-    storeUrl("storesearch/", {term, cc: "us", l: "english"}),
-    {source: "steam store search"},
-  );
-
-  if (!result.data) return {data: null, warnings: result.warnings};
-  const hits = (result.data.items ?? []).flatMap((item) => {
-    const id = strictFiniteNumber(item.id);
-    const name = stringValue(item.name);
-    return id !== null && Number.isInteger(id) && id > 0 && name
-      ? [{appid: id, name}]
-      : [];
-  });
-  return {data: hits, warnings: result.warnings};
+function observedAt(now: () => Date): string {
+  const observed = now();
+  if (Number.isNaN(observed.getTime())) throw new TypeError("now must be valid");
+  return observed.toISOString();
 }
 
-export async function fetchGame(appid: number): Promise<FetchResult<GameProfile>> {
-  requireAppid(appid);
+function searchMeta(observed: string, query: string): FetchMeta {
+  return {
+    observedAt: observed,
+    sources: [{...STEAM_STORE_SOURCE}],
+    request: {query},
+    methodology: {selection: "Steam Store search results"},
+  };
+}
 
-  const regionRequests = (Object.entries(REGION_COUNTRY) as Array<
-    [StoreRegion, "us" | "jp" | "de"]
-  >).map(async ([region, country]) => {
-    const result = await fetchJson<StoreEnvelope>(
-      storeUrl("appdetails", {
-        appids: String(appid),
-        cc: country,
-        l: "english",
-      }),
-      {source: `steam store ${region}`},
+function gameMeta(observed: string): FetchMeta {
+  return {
+    observedAt: observed,
+    sources: [{...STEAM_STORE_SOURCE}, {...STEAMSPY_SOURCE}],
+    request: {countries: ["US", "JP", "DE"]},
+    methodology: {
+      regionalPricing: "Steam Store country snapshots",
+      steamSpyValues: "estimates",
+    },
+  };
+}
+
+export function createSearchGamesFetcher(
+  dependencies: SteamFetcherDependencies = {},
+): (query: string) => Promise<FetchResult<SearchHit[]>> {
+  const now = dependencies.now ?? (() => new Date());
+  const fetcher = dependencies.fetcher
+    ?? ((url, opts) => fetchJson<unknown>(url, opts));
+
+  return async (query: string) => {
+    const term = query.trim();
+    if (!term) throw new TypeError("query must not be empty");
+    const meta = searchMeta(observedAt(now), term);
+    const result = await fetcher(
+      storeUrl("storesearch/", {term, cc: "us", l: "english"}),
+      {source: "steam store search"},
+    ) as FetchResult<{items?: Array<{id?: unknown; name?: unknown}>}>;
+
+    if (!result.data) return {data: null, warnings: result.warnings, meta};
+    const hits = (result.data.items ?? []).flatMap((item) => {
+      const id = strictFiniteNumber(item.id);
+      const name = stringValue(item.name);
+      return id !== null && Number.isInteger(id) && id > 0 && name
+        ? [{appid: id, name}]
+        : [];
+    });
+    return {data: hits, warnings: result.warnings, meta};
+  };
+}
+
+export function createGameFetcher(
+  dependencies: SteamFetcherDependencies = {},
+): (appid: number) => Promise<FetchResult<GameProfile>> {
+  const now = dependencies.now ?? (() => new Date());
+  const fetcher = dependencies.fetcher
+    ?? ((url, opts) => fetchJson<unknown>(url, opts));
+
+  return async (appid: number) => {
+    requireAppid(appid);
+    const meta = gameMeta(observedAt(now));
+
+    const regionRequests = (Object.entries(REGION_COUNTRY) as Array<
+      [StoreRegion, "us" | "jp" | "de"]
+    >).map(async ([region, country]) => {
+      const result = await fetcher(
+        storeUrl("appdetails", {
+          appids: String(appid),
+          cc: country,
+          l: "english",
+        }),
+        {source: `steam store ${region}`},
+      ) as FetchResult<StoreEnvelope>;
+      return [region, result] as const;
+    });
+
+    const spyUrl = new URL(STEAMSPY_API);
+    spyUrl.searchParams.set("request", "appdetails");
+    spyUrl.searchParams.set("appid", String(appid));
+
+    const [regions, rawSpy] = await Promise.all([
+      Promise.all(regionRequests),
+      fetcher(spyUrl, {source: "steamspy"}),
+    ]);
+
+    const normalized = normalizeGameProfile(
+      appid,
+      Object.fromEntries(regions) as StoreRegionResults,
+      rawSpy as FetchResult<SteamSpyData>,
     );
-    return [region, result] as const;
-  });
-
-  const spyUrl = new URL(STEAMSPY_API);
-  spyUrl.searchParams.set("request", "appdetails");
-  spyUrl.searchParams.set("appid", String(appid));
-
-  const [regions, spy] = await Promise.all([
-    Promise.all(regionRequests),
-    fetchJson<SteamSpyData>(spyUrl, {source: "steamspy"}),
-  ]);
-
-  return normalizeGameProfile(
-    appid,
-    Object.fromEntries(regions) as StoreRegionResults,
-    spy,
-  );
+    return {...normalized, meta};
+  };
 }
+
+export const searchGames = createSearchGamesFetcher();
+export const fetchGame = createGameFetcher();

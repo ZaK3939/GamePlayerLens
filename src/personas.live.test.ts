@@ -9,5 +9,10 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
     const ids = result.data?.reviews.map((review) => review.recommendationId) ?? [];
     expect(new Set(ids).size).toBe(ids.length);
     expect(result.data?.instruction).toContain("save_persona");
+    expect(result.meta?.methodology).toMatchObject({
+      strategy: "recent-polarity-balanced",
+      representative: false,
+      requestedPerPolarity: 25,
+    });
   }, 45_000);
 });

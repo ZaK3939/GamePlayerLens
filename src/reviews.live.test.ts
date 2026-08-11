@@ -16,5 +16,8 @@ describe.runIf(process.env.RUN_LIVE === "1")("review fetcher (live API, Hades)",
       expect(typeof review.playtimeHours).toBe("number");
       expect(review.recommendationId).not.toBe("");
     }
+    expect(result.meta?.request).toMatchObject({language: "japanese", type: "negative", limit: 20});
+    expect((result.meta?.methodology as {scannedRawCount?: number})?.scannedRawCount)
+      .toBeGreaterThanOrEqual(result.data?.length ?? 0);
   }, 30_000);
 });
