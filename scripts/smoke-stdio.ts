@@ -6,8 +6,11 @@ import {StdioClientTransport} from "@modelcontextprotocol/client/stdio";
 
 const EXPECTED_TOOLS = [
   "derive_personas",
+  "get_artifact",
   "get_knowledge",
+  "save_artifact",
   "save_persona",
+  "steam_discover",
   "steam_fetch",
   "steam_reviews",
   "steam_search",
