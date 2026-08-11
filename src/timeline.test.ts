@@ -50,6 +50,16 @@ describe("createTimelineFetcher", () => {
     expect(result.warnings).toEqual([
       "ITAD price history disabled: create an API key at https://isthereanydeal.com/apps/my/ and set ITAD_API_KEY",
     ]);
+    expect(result.meta).toMatchObject({
+      observedAt: NOW.toISOString(),
+      request: {country: "US", since: "2025-08-11T00:00:00.000Z"},
+      methodology: {
+        itadAvailable: false,
+        averagePlaytimeStatus: "reported",
+      },
+    });
+    expect(result.meta?.sources?.map((source) => source.name))
+      .toEqual(["SteamSpy", "IsThereAnyDeal"]);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
@@ -91,6 +101,10 @@ describe("createTimelineFetcher", () => {
     expect(historyUrl.searchParams.get("shops")).toBe("61");
     expect(historyUrl.searchParams.get("country")).toBe("DE");
     expect(historyUrl.searchParams.get("since")).toBe("2026-01-01T00:00:00.000Z");
+    const metaJson = JSON.stringify(result.meta);
+    expect(metaJson).not.toContain("secret-key");
+    expect(metaJson).not.toContain("key=");
+    expect(metaJson).not.toContain("history/v2?");
   });
 
   it("warns when the ITAD lookup does not find the app", async () => {
@@ -172,6 +186,28 @@ describe("createTimelineFetcher", () => {
 
     expect(result.data?.currentCcu).toBeNull();
     expect(result.data?.avgPlaytimeHours).toBeNull();
+  });
+
+  it("treats reported-zero average playtime as missing but preserves zero CCU", async () => {
+    const fetcher = vi.fn(async () => ({
+      data: spyData({ccu: 0, average_forever: 0}),
+      warnings: [],
+    }));
+    const result = await createTimelineFetcher({
+      apiKey: " ",
+      now: () => NOW,
+      fetcher,
+    })(1145360);
+
+    expect(result.data?.currentCcu).toBe(0);
+    expect(result.data?.avgPlaytimeHours).toBeNull();
+    expect(result.warnings).toContain(
+      "steamspy average playtime reported zero; treated as missing",
+    );
+    expect(result.warnings.join(" ")).not.toMatch(/ccu.*zero/i);
+    expect(result.meta?.methodology).toMatchObject({
+      averagePlaytimeStatus: "reported-zero-treated-as-missing",
+    });
   });
 
   it("warns when SteamSpy returns an unrecognized object", async () => {

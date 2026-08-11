@@ -4,16 +4,33 @@ import {pathToFileURL} from "node:url";
 import {McpServer} from "@modelcontextprotocol/server";
 import {serveStdio} from "@modelcontextprotocol/server/stdio";
 import {z} from "zod";
-import {captureUrl} from "./capture.js";
+import {
+  AnyArtifactKindSchema,
+  JsonValueSchema,
+  SaveEvaluationInputSchema,
+  SaveIntelInputSchema,
+  createArtifactStore,
+  type ArtifactStore,
+} from "./artifacts.js";
+import {createCaptureService} from "./capture.js";
+import {discoverGames} from "./discovery.js";
 import type {FetchResult} from "./http.js";
-import {readKnowledge, type KnowledgeReader} from "./knowledge.js";
+import {createImageService, type ImageFetchResult, type ImageService} from "./images.js";
+import {createKnowledgeReader, type KnowledgeReader} from "./knowledge.js";
 import {
   buildDerivationPack,
+  createPersonaStore,
   MAX_DERIVATION_APPIDS,
   PersonaSchema,
-  savePersona,
+  type PersonaStore,
 } from "./personas.js";
-import {initializeRepositoryPaths, resolveSkillPath} from "./paths.js";
+import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
+import {
+  buildRunSimPrompt,
+  buildUiBlindComparePrompt,
+  RunSimPromptArgumentsSchema,
+  UiBlindComparePromptArgumentsSchema,
+} from "./prompts.js";
 import {fetchReviews} from "./reviews.js";
 import {fetchGame, searchGames} from "./steam.js";
 import {fetchTimeline} from "./timeline.js";
@@ -21,35 +38,51 @@ import {fetchTimeline} from "./timeline.js";
 const ResultEnvelopeSchema = z.object({
   data: z.json().nullable(),
   warnings: z.array(z.string()),
+  meta: z.record(z.string(), z.json()).optional(),
 });
 
 const AppidSchema = z.number().int().positive();
 const ReviewTypeSchema = z.enum(["all", "positive", "negative"]);
 const KnowledgeKindSchema = z.enum(["personas", "templates", "rubrics", "intel"]);
+const DiscoveryInputSchema = z.object({
+  kind: z.enum(["tag", "genre"]),
+  value: z.string().trim().min(1).max(80),
+  limit: z.number().int().min(1).max(50).optional(),
+}).strict();
+const SaveArtifactInputSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("intel"),
+    ...SaveIntelInputSchema.shape,
+    payload: JsonValueSchema,
+    overwrite: z.boolean().optional(),
+  }).strict(),
+  z.object({
+    kind: z.literal("evaluation"),
+    ...SaveEvaluationInputSchema.shape,
+    overwrite: z.boolean().optional(),
+  }).strict(),
+]);
+const GetArtifactInputSchema = z.object({
+  kind: AnyArtifactKindSchema,
+  target: z.string().min(1).optional(),
+  id: z.string().min(1).optional(),
+}).strict();
 
 export interface ServerServices {
+  resolver: PathResolver;
   searchGames: typeof searchGames;
+  discoverGames: typeof discoverGames;
   fetchGame: typeof fetchGame;
   fetchReviews: typeof fetchReviews;
   fetchTimeline: typeof fetchTimeline;
   buildDerivationPack: typeof buildDerivationPack;
-  savePersona: typeof savePersona;
-  captureUrl: typeof captureUrl;
+  savePersona: PersonaStore["savePersona"];
+  captureUrl: ReturnType<typeof createCaptureService>;
   readKnowledge: KnowledgeReader;
   readSkill(id: string): Promise<string>;
+  artifactStore: ArtifactStore;
+  imageService: ImageService;
 }
-
-const defaultServices: ServerServices = {
-  searchGames,
-  fetchGame,
-  fetchReviews,
-  fetchTimeline,
-  buildDerivationPack,
-  savePersona,
-  captureUrl,
-  readKnowledge,
-  readSkill: (id) => readFile(resolveSkillPath(id), "utf8"),
-};
 
 function jsonEnvelope(result: FetchResult<unknown>) {
   const structuredContent = ResultEnvelopeSchema.parse(
@@ -61,11 +94,42 @@ function jsonEnvelope(result: FetchResult<unknown>) {
   };
 }
 
+function imageEnvelope(result: ImageFetchResult<unknown>) {
+  const {imageContent, ...envelope} = result;
+  const response = jsonEnvelope(envelope);
+  return {
+    ...response,
+    content: imageContent
+      ? [...response.content, imageContent]
+      : response.content,
+  };
+}
+
+function createServerServices(overrides: Partial<ServerServices>): ServerServices {
+  const resolver = overrides.resolver ?? initializeRepositoryPaths();
+  const personaStore = createPersonaStore(resolver);
+  const defaults: ServerServices = {
+    resolver,
+    searchGames,
+    discoverGames,
+    fetchGame,
+    fetchReviews,
+    fetchTimeline,
+    buildDerivationPack,
+    savePersona: personaStore.savePersona,
+    captureUrl: createCaptureService({resolver}),
+    readKnowledge: createKnowledgeReader(resolver, personaStore),
+    readSkill: (id) => readFile(resolver.resolveSkillPath(id), "utf8"),
+    artifactStore: createArtifactStore(resolver),
+    imageService: createImageService(resolver),
+  };
+  return {...defaults, ...overrides, resolver};
+}
+
 export function buildServer(
   overrides: Partial<ServerServices> = {},
 ): McpServer {
-  initializeRepositoryPaths();
-  const services = {...defaultServices, ...overrides};
+  const services = createServerServices(overrides);
   const server = new McpServer(
     {name: "steam-user-sim", version: "0.1.0"},
     {capabilities: {tools: {}, prompts: {}}},
@@ -79,6 +143,16 @@ export function buildServer(
       outputSchema: ResultEnvelopeSchema,
     },
     async ({query}) => jsonEnvelope(await services.searchGames(query)),
+  );
+
+  server.registerTool(
+    "steam_discover",
+    {
+      description: "Discover Steam games by SteamSpy tag or genre",
+      inputSchema: DiscoveryInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async (input) => jsonEnvelope(await services.discoverGames(input)),
   );
 
   server.registerTool(
@@ -171,7 +245,7 @@ export function buildServer(
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({url, name, viewport, fullPage}) => jsonEnvelope(
+    async ({url, name, viewport, fullPage}) => imageEnvelope(
       await services.captureUrl(url, {name, viewport, fullPage}),
     ),
   );
@@ -192,21 +266,110 @@ export function buildServer(
     }),
   );
 
-  for (const prompt of [
-    {name: "run-sim", file: "run-sim.md", description: "Run an evidence-grounded adoption simulation"},
-    {name: "ui-blind-compare", file: "ui-blind-compare.md", description: "Blindly compare target and reference game UI"},
-  ] as const) {
-    server.registerPrompt(
-      prompt.name,
-      {description: prompt.description, argsSchema: z.object({})},
-      async () => ({
-        messages: [{
-          role: "user" as const,
-          content: {type: "text" as const, text: await services.readSkill(prompt.file)},
-        }],
-      }),
-    );
-  }
+  server.registerTool(
+    "save_artifact",
+    {
+      description: "Validate and atomically save intel JSON or evaluation Markdown",
+      inputSchema: SaveArtifactInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async (input) => {
+      if (input.kind === "intel") {
+        const {kind: _kind, overwrite, ...artifact} = input;
+        return jsonEnvelope({
+          data: await services.artifactStore.saveIntel(artifact, {overwrite}),
+          warnings: [],
+        });
+      }
+      const {kind: _kind, overwrite, ...artifact} = input;
+      return jsonEnvelope({
+        data: await services.artifactStore.saveEvaluation(artifact, {overwrite}),
+        warnings: [],
+      });
+    },
+  );
+
+  server.registerTool(
+    "get_artifact",
+    {
+      description: "For intel/evaluation, omit target to list targets, use target without id to list item metadata, and use target+id to read JSON/Markdown; id without target is invalid. For capture/ui-reference, target is invalid, omit id to list PNG metadata, and use id to read metadata plus optional MCP ImageContent.",
+      inputSchema: GetArtifactInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async ({kind, target, id}) => {
+      if (kind === "intel" || kind === "evaluation") {
+        if (id !== undefined && target === undefined) {
+          throw new Error("target is required when reading a text artifact");
+        }
+        if (target === undefined) {
+          return jsonEnvelope({
+            data: await services.artifactStore.listTargets(kind),
+            warnings: [],
+          });
+        }
+        if (id === undefined) {
+          return jsonEnvelope({
+            data: await services.artifactStore.listArtifacts(kind, target),
+            warnings: [],
+          });
+        }
+        return jsonEnvelope({
+          data: kind === "intel"
+            ? await services.artifactStore.readIntel(target, id)
+            : await services.artifactStore.readEvaluation(target, id),
+          warnings: [],
+        });
+      }
+
+      if (target !== undefined) {
+        throw new Error("target is invalid for image artifacts");
+      }
+      if (id === undefined) {
+        return jsonEnvelope({
+          data: await services.imageService.listImages(kind),
+          warnings: [],
+        });
+      }
+      return imageEnvelope(await services.imageService.readImage(kind, id));
+    },
+  );
+
+  server.registerPrompt(
+    "run-sim",
+    {
+      description: "Run an evidence-grounded adoption simulation",
+      argsSchema: RunSimPromptArgumentsSchema,
+    },
+    async (arguments_) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: buildRunSimPrompt(await services.readSkill("run-sim.md"), arguments_),
+        },
+      }],
+    }),
+  );
+
+  server.registerPrompt(
+    "ui-blind-compare",
+    {
+      description: "Blindly compare target and reference game UI",
+      argsSchema: UiBlindComparePromptArgumentsSchema,
+    },
+    async (arguments_) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: buildUiBlindComparePrompt(
+            await services.readSkill("ui-blind-compare.md"),
+            arguments_,
+          ),
+        },
+      }],
+    }),
+  );
 
   return server;
 }

@@ -3,6 +3,8 @@
 Date: 2026-08-10
 Status: Approved for v1 implementation
 
+> **Historical v1 design:** 現在の active design は [v1.1 user workflow design](2026-08-11-steam-user-sim-v1-1-user-workflow-design.md) です。v1.1 は、generic MCP client に local filesystem・subagent・独自画像toolを必須とせず、標準 `ImageContent` と `save_artifact` / `get_artifact` で workflow を完結させます。v1 の8 tool名と主要data shapeは維持し、`meta` はoptional追加です。以下のうち、serverがzipを直接扱う前提はclient-side extractionへ、固定AAA基準は`qualityTier`相当の出荷済み製品との比較へ、dynamic intelの`get_knowledge`読出しは`get_artifact`へ supersede されました。過去CCU、npm `bin` packaging、remote deploymentは v1.2 以降へ移動しました。
+
 ## 目的
 
 ゲーム開発コンサルツール。開発中のゲーム/プロダクト(企画書テキスト・ローカル実行URL・コードzip)を投げると、競合ゲームの実Steamレビューから派生したペルソナ群がシミュレーションでフィードバックを返し、実データ(UI・レビュー・現在CCU・価格展開タイムライン)に接地した adoption evaluation レポートを出力する。
@@ -153,7 +155,7 @@ steam-user-sim/
 ## v1でやらないこと
 
 - `run_sim`(サーバー側並列simエンジン)→ v2。プロンプトがクライアント側で熟成してから焼く。
-- 過去CCU履歴・急上昇検出 → v1.1。v1はSteamSpy取得時点のスナップショットのみ。
-- npmグローバル配布・package `bin` → canonical knowledgeと可変データの配置方式を確定するv1.1以降。
-- リモート配備(sim.steamsonar.gg)→ v1動作確認後。
+- 過去CCU履歴・急上昇検出 → v1.2以降。v1.1もSteamSpy取得時点のスナップショットのみ。
+- npmグローバル配布・package `bin` → v1.2以降。canonical knowledgeと可変データはrepo-localで運用する。
+- リモート配備(sim.steamsonar.gg)→ v1.2以降。v1.1もローカルstdioで検証する。
 - gameuidatabase の一括スクレイピング → 必要ページを都度 ui_capture。

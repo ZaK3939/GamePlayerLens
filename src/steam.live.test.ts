@@ -7,6 +7,8 @@ describe.runIf(process.env.RUN_LIVE === "1")(
     it("finds Hades", async () => {
       const result = await searchGames("Hades");
       expect(result.data?.some((hit) => hit.appid === 1145360)).toBe(true);
+      expect(result.meta?.request).toEqual({query: "Hades"});
+      expect(result.meta?.sources?.some((source) => source.name === "Steam Store")).toBe(true);
     });
 
     it("returns a normalized game profile", async () => {
@@ -15,6 +17,8 @@ describe.runIf(process.env.RUN_LIVE === "1")(
       expect(result.data?.languages).toContain("Japanese");
       expect(result.data?.prices.jp?.currency).toBe("JPY");
       expect(result.data?.tags.length).toBeGreaterThan(3);
+      expect(result.meta?.request).toEqual({countries: ["US", "JP", "DE"]});
+      expect(result.meta?.sources?.some((source) => source.name === "SteamSpy")).toBe(true);
     }, 30_000);
   },
 );

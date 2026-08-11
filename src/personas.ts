@@ -12,7 +12,7 @@ import {z} from "zod";
 import {resolvePersonaPath, type PathResolver} from "./paths.js";
 import {fetchReviews, type Review, type ReviewOptions} from "./reviews.js";
 import {fetchGame, type GameProfile} from "./steam.js";
-import type {FetchResult} from "./http.js";
+import type {FetchMeta, FetchResult, JsonValue} from "./http.js";
 
 const REVIEWS_PER_POLARITY = 25;
 export const MAX_DERIVATION_APPIDS = 12;
@@ -170,8 +170,22 @@ export interface DerivationPack {
 }
 
 export interface PersonaDeriverDependencies {
-  fetchGame: typeof fetchGame;
-  fetchReviews: typeof fetchReviews;
+  fetchGame?: typeof fetchGame;
+  fetchReviews?: typeof fetchReviews;
+  now?: () => Date;
+}
+
+interface PolaritySelectionStats {
+  japaneseSelected: number;
+  fallbackSelected: number;
+  totalSelected: number;
+}
+
+interface PolarityEvidence {
+  reviews: Review[];
+  selection: PolaritySelectionStats;
+  selectedFrom: Map<string, "japanese" | "fallback">;
+  warnings: string[];
 }
 
 function contextualWarnings(
@@ -186,7 +200,7 @@ async function fetchPolarityEvidence(
   appid: number,
   polarity: "positive" | "negative",
   reviewFetcher: typeof fetchReviews,
-): Promise<FetchResult<Review[]>> {
+): Promise<PolarityEvidence> {
   const japanese = await reviewFetcher(appid, {
     language: "japanese",
     type: polarity,
@@ -195,11 +209,16 @@ async function fetchPolarityEvidence(
   const warnings = contextualWarnings(appid, polarity, japanese.warnings);
   const selected: Review[] = [];
   const seen = new Set<string>();
+  const selectedFrom = new Map<string, "japanese" | "fallback">();
+  let japaneseSelected = 0;
+  let fallbackSelected = 0;
 
   for (const review of japanese.data ?? []) {
     if (!review.review || seen.has(review.recommendationId)) continue;
     seen.add(review.recommendationId);
     selected.push(review);
+    selectedFrom.set(review.recommendationId, "japanese");
+    japaneseSelected += 1;
     if (selected.length === REVIEWS_PER_POLARITY) break;
   }
 
@@ -214,6 +233,8 @@ async function fetchPolarityEvidence(
       if (!review.review || seen.has(review.recommendationId)) continue;
       seen.add(review.recommendationId);
       selected.push(review);
+      selectedFrom.set(review.recommendationId, "fallback");
+      fallbackSelected += 1;
       if (selected.length === REVIEWS_PER_POLARITY) break;
     }
   }
@@ -223,12 +244,57 @@ async function fetchPolarityEvidence(
       `appid ${appid} ${polarity} evidence shortage: ${selected.length} of ${REVIEWS_PER_POLARITY}`,
     );
   }
-  return {data: selected, warnings};
+  return {
+    reviews: selected,
+    selection: {
+      japaneseSelected,
+      fallbackSelected,
+      totalSelected: selected.length,
+    },
+    selectedFrom,
+    warnings,
+  };
+}
+
+function ratio(positive: number, negative: number): number | null {
+  const total = positive + negative;
+  return total > 0 ? Math.round((positive / total) * 100) : null;
+}
+
+function personaMeta(
+  observedAt: string,
+  appids: number[],
+  count: number,
+  sampling: JsonValue[],
+): FetchMeta {
+  return {
+    observedAt,
+    sources: [
+      {name: "Steam Store", homepage: "https://store.steampowered.com/"},
+      {
+        name: "SteamSpy",
+        homepage: "https://steamspy.com/about",
+        notes: "Review population counts are estimates; recent releases and small samples can be unreliable.",
+      },
+    ],
+    request: {appids, count},
+    methodology: {
+      strategy: "recent-polarity-balanced",
+      representative: false,
+      requestedPerPolarity: REVIEWS_PER_POLARITY,
+      appids: sampling,
+      caveat: "Balanced samples support issue discovery and do not represent population shares; use game-profile reviewStats for population ratios.",
+    },
+  };
 }
 
 export function createPersonaDeriver(
-  dependencies: PersonaDeriverDependencies = {fetchGame, fetchReviews},
+  dependencies: PersonaDeriverDependencies = {},
 ): (appids: number[], count?: number) => Promise<FetchResult<DerivationPack>> {
+  const gameFetcher = dependencies.fetchGame ?? fetchGame;
+  const reviewFetcher = dependencies.fetchReviews ?? fetchReviews;
+  const now = dependencies.now ?? (() => new Date());
+
   return async (appids: number[], count = 5) => {
     if (!Number.isInteger(count) || count < 1 || count > 12) {
       throw new TypeError("count must be an integer from 1 to 12");
@@ -248,25 +314,59 @@ export function createPersonaDeriver(
     const reviews: DerivationReview[] = [];
     const globalReviewIds = new Set<string>();
     const warnings: string[] = [];
+    const sampling: JsonValue[] = [];
+    const observed = now();
+    if (Number.isNaN(observed.getTime())) throw new TypeError("now must be valid");
 
     for (const appid of uniqueAppids) {
       const [game, positive, negative] = await Promise.all([
-        dependencies.fetchGame(appid),
-        fetchPolarityEvidence(appid, "positive", dependencies.fetchReviews),
-        fetchPolarityEvidence(appid, "negative", dependencies.fetchReviews),
+        gameFetcher(appid),
+        fetchPolarityEvidence(appid, "positive", reviewFetcher),
+        fetchPolarityEvidence(appid, "negative", reviewFetcher),
       ]);
       warnings.push(...contextualWarnings(appid, "game", game.warnings));
       warnings.push(...positive.warnings, ...negative.warnings);
       if (game.data) games.push(game.data);
       else warnings.push(`appid ${appid} game profile unavailable`);
 
-      for (const review of [...(positive.data ?? []), ...(negative.data ?? [])]) {
-        if (globalReviewIds.has(review.recommendationId)) continue;
-        globalReviewIds.add(review.recommendationId);
-        reviews.push({...review, sourceAppid: appid});
+      const actualSelection = {
+        positive: {japaneseSelected: 0, fallbackSelected: 0, totalSelected: 0},
+        negative: {japaneseSelected: 0, fallbackSelected: 0, totalSelected: 0},
+      } satisfies Record<"positive" | "negative", PolaritySelectionStats>;
+      for (const [polarity, evidence] of ([
+        ["positive", positive],
+        ["negative", negative],
+      ] as const)) {
+        for (const review of evidence.reviews) {
+          if (globalReviewIds.has(review.recommendationId)) continue;
+          globalReviewIds.add(review.recommendationId);
+          reviews.push({...review, sourceAppid: appid});
+          const source = evidence.selectedFrom.get(review.recommendationId);
+          if (source === "japanese") actualSelection[polarity].japaneseSelected += 1;
+          else if (source === "fallback") actualSelection[polarity].fallbackSelected += 1;
+          actualSelection[polarity].totalSelected += 1;
+        }
       }
+
+      const population = game.data?.reviewStats ?? null;
+      sampling.push({
+        appid,
+        population: {
+          positive: population?.positive ?? null,
+          negative: population?.negative ?? null,
+          positivePercent: population?.positivePercent ?? null,
+        },
+        sample: {
+          ...actualSelection,
+          positivePercent: ratio(
+            actualSelection.positive.totalSelected,
+            actualSelection.negative.totalSelected,
+          ),
+        },
+      });
     }
 
+    const meta = personaMeta(observed.toISOString(), uniqueAppids, count, sampling);
     return {
       data: {
         requestedCount: count,
@@ -276,10 +376,12 @@ export function createPersonaDeriver(
         instruction: [
           `この根拠素材から異なるペルソナを ${count} 件生成してください。`,
           "voice の各項目は reviews の本文・sourceAppid・recommendationId・language・votedUp に直接対応させてください。",
+          "The polarity-balanced review sample is not representative of population shares.",
           "生成した各 JSON は Persona schema で検証し、save_persona で1件ずつ保存してください。",
         ].join(" "),
       },
       warnings,
+      meta,
     };
   };
 }

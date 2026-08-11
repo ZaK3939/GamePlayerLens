@@ -1,6 +1,12 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { fetchJson } from "./http.js";
+import * as httpModule from "./http.js";
+import {
+  fetchJson,
+  type FetchMeta,
+  type FetchResult,
+  type JsonValue,
+} from "./http.js";
 
 const servers: Server[] = [];
 
@@ -21,6 +27,43 @@ afterEach(async () => {
       (server) => new Promise<void>((resolve) => server.close(() => resolve())),
     ),
   );
+});
+
+describe("FetchResult", () => {
+  it("keeps data-and-warnings-only results compatible", () => {
+    const result = {
+      data: {appid: 1145360},
+      warnings: [],
+    } satisfies FetchResult<{appid: number}>;
+
+    expect(result).toEqual({data: {appid: 1145360}, warnings: []});
+    expect("meta" in result).toBe(false);
+  });
+
+  it("holds JSON-safe provenance metadata", () => {
+    const meta = {
+      observedAt: "2026-08-11T12:34:56.000Z",
+      sources: [{
+        name: "Steam Store",
+        homepage: "https://store.steampowered.com/",
+        notes: "Public store metadata",
+      }],
+      request: {countries: ["JP", "US"], includeReviews: false},
+      methodology: {strategy: "regional-snapshot", representative: false},
+    } satisfies FetchMeta;
+    const result: FetchResult<{appid: number}> = {
+      data: {appid: 1145360},
+      warnings: [],
+      meta,
+    };
+
+    const roundTripped = JSON.parse(JSON.stringify(result)) as JsonValue;
+    expect(roundTripped).toEqual(result);
+  });
+
+  it("does not expose a metadata helper that could accept secrets or request URLs", () => {
+    expect(Object.keys(httpModule)).toEqual(["fetchJson"]);
+  });
 });
 
 describe("fetchJson", () => {
