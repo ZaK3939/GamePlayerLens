@@ -16,7 +16,7 @@
 - Evidence Index の各項目に `artifact repository-relative path`、`observedAt`、`source` がなければ差し戻す。
 - 推論は事実と分け、「この根拠からの推論」と明記する。
 - データが欠けた箇所を平均値や一般論で埋めない。「根拠不足」とし、必要な取得条件を指定する。
-- `reported-zero`（source が 0 を明示）、`missing`（未取得または欠損）、`estimated`（推定）を区別する。missing を 0 で補完せず、estimated には方法と caveat を付ける。
+- `observed`（source が観測時点の実値を返した通常値）、`reported-zero`（source が 0 を明示）、`missing`（未取得または欠損）、`estimated`（推定）を区別する。observed から履歴や将来値を推測せず、missing を 0 で補完せず、estimated には方法と caveat を付ける。
 - SteamSpy `owners` は所有数の推定範囲であり、売上本数ではない。売上、販売速度、成長を断定する根拠に使わない。
 - SteamSpy `average_forever=0` は、原値を reported-zero として残した上で、欠損相当とした解釈と warning を記録する。CCU=0 は有効な観測時点の値として保持する。
 
@@ -24,7 +24,7 @@
 
 - タグ（tags）やcategoriesだけからゲームロジック、内部状態遷移、バランス実装を断定した場合は差し戻す。description、tags、categories、reviewsはプレイヤー知覚のproxyであり、内部ロジックの評価には仕様、build、動画、telemetry、playtestの直接根拠を要求する。
 - ストア訴求を選択した場合は、`localizedStorefronts`のcopy、screenshotsまたはcapture、競合の同種根拠、レビュー上の期待差を分けて示す。deep linkを貼っただけでリンク先の内容を取得済み根拠にしない。
-- 対応言語一覧だけから翻訳品質、文化適合、フォント可読性を断定した場合は差し戻す。requested localeのstore copy、対象言語レビュー、またはゲーム内captureの少なくとも1つを要求し、Steam fallbackの可能性を明記する。
+- 対応言語一覧だけから翻訳品質、文化適合、フォント可読性を断定した場合は差し戻す。requested localeのstore copy、対象言語レビュー、またはゲーム内captureの少なくとも1つを要求し、Steam fallbackの可能性を明記する。`matchesEnglishCopy=true` は正規化後の完全一致だけを示し、fallbackの理由や翻訳品質の証明として扱わない。
 
 ## 4. UI 品質ゲート
 

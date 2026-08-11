@@ -178,7 +178,7 @@ auto scopeはtopicと入力から必要領域を選び、その理由を最初�
 
 gameplayはプレイヤーから観測できるコアループ、目標、feedback、進行、失敗/再挑戦を扱う。description、categories、tags、reviewsはplayer-perceived proxyであり、内部コード、状態遷移、数式、バランス実装の直接根拠ではない。内部ロジックの評価には仕様、build、動画、telemetry、playtestのいずれかを要求する。
 
-storefrontは短文・詳細説明、価値提案、localized copy、capsule/screenshots、競合との期待差を扱う。localizedStorefrontsはenglish=US、japanese=JP、german=DEのrequested localeで、Steam fallbackの可能性をmethodologyに残す。referenceLinksはnavigation用であり、リンク先をcaptureまたはartifact保存するまでは取得済みEvidenceにしない。
+storefrontは短文・詳細説明、価値提案、localized copy、capsule/screenshots、競合との期待差を扱う。localizedStorefrontsはenglish=US、japanese=JP、german=DEのrequested localeで、Steam fallbackの可能性をmethodologyに残す。`matchesEnglishCopy` は正規化後の英語copyとの完全一致だけを表し、fallbackの理由や翻訳品質は断定しない。referenceLinksはnavigation用であり、リンク先をcaptureまたはartifact保存するまでは取得済みEvidenceにしない。
 
 ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityTierを受け取る。AAAを全案件の固定基準にせず、指定qualityTierと同等の出荷済み製品に対する品質差を評価する。
 
@@ -189,7 +189,7 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 3. get_knowledgeでtemplate、rubric、personaを取得。
 4. steam_searchまたはsteam_discoverで競合候補を作る。
 5. Steam tool出力をsave_artifact kind=intelで保存。
-6. derive_personasとsave_personaを実行。
+6. derive_personasの返り値をsourceTool=`derive_personas`のintel artifactとして保存し、Evidence Indexに追加してからsave_personaを実行。
 7. 選択domainだけ評価し、必要な場合だけUI画像を取得・比較。
 8. save_artifact kind=evaluationでレポート保存。
 9. return dataのrepo-relative pathと未解決事項をユーザーへ報告。

@@ -66,6 +66,7 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("reported-zero");
     expect(content).toContain("missing");
     expect(content).toContain("estimated");
+    expect(content).toMatch(/observed[\s\S]*source[\s\S]*実値/);
     expect(content).toMatch(/balanced[\s\S]*市場母集団の比率ではない/);
   });
 
@@ -111,6 +112,7 @@ describe("harsh critic rubric", () => {
     expect(content).toContain("reported-zero");
     expect(content).toContain("missing");
     expect(content).toContain("estimated");
+    expect(content).toContain("observed");
   });
 
   it("rejects unsupported gameplay and localization quality claims", async () => {

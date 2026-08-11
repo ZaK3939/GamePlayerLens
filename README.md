@@ -200,7 +200,7 @@ SteamSpy の owners、CCU、playtime、review 系の値は推定または取得�
 
 `steam_timeline.currentCcu` は `observedAt` 時点の現在値であり、24時間ピーク、史上最高、過去CCUではありません。ITAD の `priceHistory` とは時間軸も出典も分けて解釈してください。
 
-`steam_fetch.localizedStorefronts` はenglish=US、japanese=JP、german=DEとしてrequested localeを記録します。Steamが未翻訳時にfallback copyを返す可能性があるため、文字列が存在するだけで翻訳済みとは判定しません。`referenceLinks` は追加調査の入口であり、リンク先をcaptureまたはartifactとして保存するまではEvidenceに数えません。
+`steam_fetch.localizedStorefronts` はenglish=US、japanese=JP、german=DEとしてrequested localeを記録します。Steamが未翻訳時にfallback copyを返す可能性があるため、文字列が存在するだけで翻訳済みとは判定しません。`matchesEnglishCopy` は正規化後の英語copyとの完全一致だけを示す `boolean | null` で、fallbackの理由や翻訳品質を証明しません。`referenceLinks` は追加調査の入口であり、リンク先をcaptureまたはartifactとして保存するまではEvidenceに数えません。
 
 ## 検証
 

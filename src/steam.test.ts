@@ -114,6 +114,7 @@ describe("normalizeGameProfile", () => {
           shortDescription: "Defy the god of the dead.",
           aboutTheGame: "Escape the Underworld\nFight. Die. Repeat.",
           aboutTheGameTruncated: false,
+          matchesEnglishCopy: null,
         },
         japanese: {
           countryCode: "jp",
@@ -121,6 +122,7 @@ describe("normalizeGameProfile", () => {
           shortDescription: "冥界の神に抗え。",
           aboutTheGame: "戦い、死に、また挑め。",
           aboutTheGameTruncated: false,
+          matchesEnglishCopy: false,
         },
         german: {
           countryCode: "de",
@@ -128,6 +130,7 @@ describe("normalizeGameProfile", () => {
           shortDescription: "Trotze dem Gott der Toten.",
           aboutTheGame: "Kämpfe. Stirb. Wiederhole.",
           aboutTheGameTruncated: false,
+          matchesEnglishCopy: false,
         },
       },
       referenceLinks: {
@@ -147,6 +150,8 @@ describe("normalizeGameProfile", () => {
     );
 
     expect(result.data?.prices).toEqual({us: null, jp: null, eu: null});
+    expect(result.data?.localizedStorefronts.japanese?.matchesEnglishCopy).toBe(true);
+    expect(result.data?.localizedStorefronts.german?.matchesEnglishCopy).toBe(true);
     expect(result.warnings.join()).not.toContain("price unavailable");
   });
 
@@ -169,6 +174,25 @@ describe("normalizeGameProfile", () => {
     expect(english?.aboutTheGame).toHaveLength(12_000);
     expect(english?.aboutTheGame.endsWith("…")).toBe(true);
     expect(english?.aboutTheGameTruncated).toBe(true);
+  });
+
+  it("normalizes CR newlines and never splits a Unicode surrogate pair", () => {
+    const boundaryEmoji = `${"x".repeat(11_998)}😀tail`;
+    const result = normalizeGameProfile(
+      appid,
+      {
+        us: storeResult(storeData({about_the_game: boundaryEmoji})),
+        jp: storeResult(storeData({about_the_game: "一行目\r\n二行目\r三行目"})),
+        eu: storeResult(storeData()),
+      },
+      {data: spy, warnings: []},
+    );
+
+    const english = result.data?.localizedStorefronts.english?.aboutTheGame ?? "";
+    expect(english.endsWith("…")).toBe(true);
+    expect(english.charCodeAt(english.length - 2)).not.toBeGreaterThanOrEqual(0xD800);
+    expect(result.data?.localizedStorefronts.japanese?.aboutTheGame)
+      .toBe("一行目\n二行目\n三行目");
   });
 
   it("preserves partial data when a region and SteamSpy fail", () => {

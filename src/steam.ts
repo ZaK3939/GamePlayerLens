@@ -48,6 +48,7 @@ export interface LocalizedStorefront {
   shortDescription: string;
   aboutTheGame: string;
   aboutTheGameTruncated: boolean;
+  matchesEnglishCopy: boolean | null;
 }
 
 export interface GameProfile {
@@ -172,6 +173,7 @@ function normalizeStorefrontText(value: unknown): {text: string; truncated: bool
     .replace(/<li(?:\s[^>]*)?>/gi, "\n• ")
     .replace(/<\/(?:div|h[1-6]|li|p)>/gi, "\n")
     .replace(/<[^>]+>/g, " "))
+    .replace(/\r\n?/g, "\n")
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     .replace(/[\t ]+/g, " ")
     .replace(/ *\n */g, "\n")
@@ -180,8 +182,17 @@ function normalizeStorefrontText(value: unknown): {text: string; truncated: bool
   if (normalized.length <= STOREFRONT_TEXT_MAX_LENGTH) {
     return {text: normalized, truncated: false};
   }
+  const candidateEnd = STOREFRONT_TEXT_MAX_LENGTH - 1;
+  const lastCodeUnit = normalized.charCodeAt(candidateEnd - 1);
+  const nextCodeUnit = normalized.charCodeAt(candidateEnd);
+  const safeEnd = lastCodeUnit >= 0xD800
+    && lastCodeUnit <= 0xDBFF
+    && nextCodeUnit >= 0xDC00
+    && nextCodeUnit <= 0xDFFF
+      ? candidateEnd - 1
+      : candidateEnd;
   return {
-    text: `${normalized.slice(0, STOREFRONT_TEXT_MAX_LENGTH - 1).trimEnd()}…`,
+    text: `${normalized.slice(0, safeEnd).trimEnd()}…`,
     truncated: true,
   };
 }
@@ -199,6 +210,20 @@ function normalizeLocalizedStorefront(
     shortDescription: shortDescription.text,
     aboutTheGame: aboutTheGame.text,
     aboutTheGameTruncated: aboutTheGame.truncated,
+    matchesEnglishCopy: null,
+  };
+}
+
+function compareWithEnglishCopy(
+  storefront: LocalizedStorefront | null,
+  english: LocalizedStorefront | null,
+): LocalizedStorefront | null {
+  if (!storefront || !english) return storefront;
+  if (!english.shortDescription && !english.aboutTheGame) return storefront;
+  return {
+    ...storefront,
+    matchesEnglishCopy: storefront.shortDescription === english.shortDescription
+      && storefront.aboutTheGame === english.aboutTheGame,
   };
 }
 
@@ -329,10 +354,17 @@ export function normalizeGameProfile(
         .map((shot) => stringValue(shot.path_full))
         .filter(Boolean))
     : [];
+  const englishStorefront = normalizeLocalizedStorefront("us", us);
   const localizedStorefronts = {
-    english: normalizeLocalizedStorefront("us", us),
-    japanese: normalizeLocalizedStorefront("jp", jp),
-    german: normalizeLocalizedStorefront("eu", eu),
+    english: englishStorefront,
+    japanese: compareWithEnglishCopy(
+      normalizeLocalizedStorefront("jp", jp),
+      englishStorefront,
+    ),
+    german: compareWithEnglishCopy(
+      normalizeLocalizedStorefront("eu", eu),
+      englishStorefront,
+    ),
   } satisfies Record<StorefrontLanguage, LocalizedStorefront | null>;
   const primaryShortDescription = localizedStorefronts.english?.shortDescription ?? "";
 
@@ -405,6 +437,7 @@ function gameMeta(observed: string): FetchMeta {
         DE: "german",
       },
       storefrontFallback: "Steam may return fallback copy when the requested localization is unavailable.",
+      storefrontCopyComparison: "matchesEnglishCopy reports normalized exact equality and does not prove why the copy matches.",
       storefrontTextLimit: STOREFRONT_TEXT_MAX_LENGTH,
       steamSpyValues: "estimates",
     },

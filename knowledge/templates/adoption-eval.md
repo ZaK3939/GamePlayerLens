@@ -86,7 +86,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 - Status: ［Selected / N/A と理由］
 - Mode result: ［短文・詳細説明の価値提案、想定プレイヤー、独自性、CTA、スクリーンショットとの整合、期待と実プレイ評価の差 / change の場合は現状 vs 変更案］
-- Copy比較: ［`localizedStorefronts`のenglish / japanese / german。requested localeとSteam fallbackの可能性を明記］
+- Copy比較: ［`localizedStorefronts`のenglish / japanese / german。requested localeとSteam fallbackの可能性を明記。`matchesEnglishCopy` は正規化後の完全一致であり、fallbackの理由や翻訳品質の証明ではない］
 - Visual比較: ［対象と競合のstore page、Steam Sonar game dashboard、capsule / screenshots。未取得なら「根拠不足」］
 - ペルソナ反応: ［購入前期待、価値、誤解に関するvoice出典］
 - 根拠: ［`steam_fetch` / `ui_capture` / `steam_reviews` の Evidence ID。なければ「根拠不足」］
@@ -110,7 +110,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 - Status: ［Selected / N/A と理由］
 - Mode result: ［現状の対応言語、翻訳調、フォント、文化的含意、入力表示 / change の場合は現状 vs 変更案］
-- Store copy: ［`localizedStorefronts`のrequested locale / fallback注意。対応言語一覧だけで翻訳品質を判定しない］
+- Store copy: ［`localizedStorefronts`のrequested locale / `matchesEnglishCopy` / fallback注意。完全一致値または対応言語一覧だけで翻訳品質を判定しない］
 - ペルソナ反応: ［対象言語レビュー由来の persona ID と voice 出典］
 - 根拠: ［`steam_reviews` の language、recommendationId を含む Evidence ID。なければ「根拠不足」］
 
@@ -133,6 +133,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 各数値に次の status を付け、互いに置き換えません。
 
+- `observed`: source が観測時点の実値を返した通常ケース。`observedAt` と観測範囲を併記し、履歴や将来値へ一般化しない。
 - `reported-zero`: source が明示的に 0 を返した値。ただし SteamSpy `average_forever=0` のように仕様上、欠損相当と扱う場合は、原値と解釈を両方記録する。
 - `missing`: source が値を返さなかった、または取得できなかった状態。0 で補完しない。
 - `estimated`: 推定値。推定主体、方法、範囲、caveat を併記する。SteamSpy `owners` は所有数の推定であり、売上本数ではない。
