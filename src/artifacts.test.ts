@@ -13,6 +13,9 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {
+  AnyArtifactKindSchema,
+  ArtifactKindSchema,
+  ImageArtifactKindSchema,
   MAX_EVALUATION_BYTES,
   MAX_INTEL_PAYLOAD_BYTES,
   createArtifactStore,
@@ -46,6 +49,15 @@ function intel(overrides: Partial<SaveIntelInput> = {}): SaveIntelInput {
     ...overrides,
   };
 }
+
+describe("artifact kinds", () => {
+  it("shares image kinds without widening the persistence store kinds", () => {
+    expect(ImageArtifactKindSchema.options).toEqual(["capture", "ui-reference"]);
+    expect(AnyArtifactKindSchema.parse("capture")).toBe("capture");
+    expect(AnyArtifactKindSchema.parse("evaluation")).toBe("evaluation");
+    expect(() => ArtifactKindSchema.parse("capture")).toThrow();
+  });
+});
 
 describe("intel artifact store", () => {
   it("saves, lists, and reads validated JSON with canonical paths", async () => {

@@ -23,6 +23,11 @@ export const MAX_INTEL_PAYLOAD_BYTES = 1024 * 1024;
 export const MAX_EVALUATION_BYTES = 512 * 1024;
 
 export const ArtifactKindSchema = z.enum(["intel", "evaluation"]);
+export const ImageArtifactKindSchema = z.enum(["capture", "ui-reference"]);
+export const AnyArtifactKindSchema = z.union([
+  ArtifactKindSchema,
+  ImageArtifactKindSchema,
+]);
 export const SourceToolSchema = z.enum([
   "steam_search",
   "steam_discover",
@@ -35,6 +40,8 @@ export const SourceToolSchema = z.enum([
 ]);
 
 export type ArtifactKind = z.infer<typeof ArtifactKindSchema>;
+export type ImageArtifactKind = z.infer<typeof ImageArtifactKindSchema>;
+export type AnyArtifactKind = z.infer<typeof AnyArtifactKindSchema>;
 export type SourceTool = z.infer<typeof SourceToolSchema>;
 
 const CanonicalIdSchema = z.string()

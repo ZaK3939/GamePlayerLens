@@ -2,17 +2,21 @@ import {createServer} from "node:net";
 import {spawn as nodeSpawn, type ChildProcessByStdio} from "node:child_process";
 import {once} from "node:events";
 import {unlink} from "node:fs/promises";
+import {basename} from "node:path";
 import type {Readable} from "node:stream";
 import {
   connect as puppeteerConnect,
   type Browser,
   type ConnectOptions,
 } from "puppeteer-core";
+import type {ImageFetchResult} from "./images.js";
+import {createImageService} from "./images.js";
 import {
   resolveCapturePath,
+  resolveCaptureReadPath,
+  resolveUiReferencePath,
   type PathResolver,
 } from "./paths.js";
-import type {FetchResult} from "./http.js";
 
 const CONNECT_TIMEOUT_MS = 8_000;
 const NAVIGATION_TIMEOUT_MS = 15_000;
@@ -26,9 +30,13 @@ export interface CaptureOptions {
 }
 
 export interface CaptureResult {
+  id: string;
   path: string;
+  relativePath: string;
   url: string;
   capturedAt: string;
+  imageIncluded: boolean;
+  sizeBytes: number;
 }
 
 export interface NormalizedCaptureRequest {
@@ -46,7 +54,10 @@ type ProcessSpawner = (
 ) => CaptureChild;
 
 export interface CaptureDependencies {
-  resolver?: Pick<PathResolver, "resolveCapturePath">;
+  resolver?: Pick<
+    PathResolver,
+    "resolveCapturePath" | "resolveCaptureReadPath" | "resolveUiReferencePath"
+  >;
   obscuraPath?: string;
   now?: () => Date;
   connect?: BrowserConnector;
@@ -54,8 +65,11 @@ export interface CaptureDependencies {
   findPort?: () => Promise<number>;
 }
 
-function defaultResolver(): Pick<PathResolver, "resolveCapturePath"> {
-  return {resolveCapturePath};
+function defaultResolver(): Pick<
+  PathResolver,
+  "resolveCapturePath" | "resolveCaptureReadPath" | "resolveUiReferencePath"
+> {
+  return {resolveCapturePath, resolveCaptureReadPath, resolveUiReferencePath};
 }
 
 function validViewport(viewport: {width: number; height: number}): boolean {
@@ -173,7 +187,7 @@ function obscuraServeArgs(url: string, port: number): string[] {
 
 export function createCaptureService(
   dependencies: CaptureDependencies = {},
-): (url: string, opts?: CaptureOptions) => Promise<FetchResult<CaptureResult>> {
+): (url: string, opts?: CaptureOptions) => Promise<ImageFetchResult<CaptureResult>> {
   const resolver = dependencies.resolver ?? defaultResolver();
   const now = dependencies.now ?? (() => new Date());
   const connect = dependencies.connect ?? puppeteerConnect;
@@ -231,9 +245,24 @@ export function createCaptureService(
 
       const capturedAt = now();
       if (Number.isNaN(capturedAt.getTime())) throw new Error("capture clock is invalid");
+      const id = basename(request.path, ".png");
+      const resolved = resolver.resolveCaptureReadPath(id);
+      if (resolved.absolutePath !== request.path) {
+        throw new Error("capture output does not match its resolver path");
+      }
+      const inline = await createImageService(resolver).imageContentFor(resolved);
       return {
-        data: {path: request.path, url: request.url, capturedAt: capturedAt.toISOString()},
-        warnings: [],
+        data: {
+          id: resolved.id,
+          path: request.path,
+          relativePath: resolved.relativePath,
+          url: request.url,
+          capturedAt: capturedAt.toISOString(),
+          imageIncluded: inline.imageIncluded,
+          sizeBytes: inline.sizeBytes,
+        },
+        warnings: inline.warnings,
+        ...(inline.imageContent ? {imageContent: inline.imageContent} : {}),
       };
     } catch {
       await unlink(request.path).catch(() => undefined);

@@ -1,5 +1,5 @@
 import {EventEmitter} from "node:events";
-import {mkdtemp, mkdir, rm} from "node:fs/promises";
+import {access, mkdtemp, mkdir, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {basename, join, relative} from "node:path";
 import {PassThrough} from "node:stream";
@@ -9,6 +9,7 @@ import {createCaptureService, normalizeCaptureRequest} from "./capture.js";
 import {createPathResolver} from "./paths.js";
 
 const roots: string[] = [];
+const PNG_BYTES = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
 
 async function tempResolver() {
   const root = await mkdtemp(join(tmpdir(), "steam-user-sim-capture-"));
@@ -22,7 +23,9 @@ async function captureHarness() {
   const page = {
     setViewport: vi.fn(async () => undefined),
     goto: vi.fn(async () => undefined),
-    screenshot: vi.fn(async () => undefined),
+    screenshot: vi.fn(async (options: {path: string}) => {
+      await writeFile(options.path, PNG_BYTES);
+    }),
   };
   const browser = {
     newPage: vi.fn(async () => page),
@@ -126,9 +129,25 @@ describe("capture service", () => {
       if (allowsPrivateNetwork) expectedArgs.push("--allow-private-network");
 
       expect(result).toMatchObject({
-        data: {url: new URL(url).toString(), capturedAt: "2026-08-11T00:00:00.000Z"},
+        data: {
+          id: expect.stringMatching(/^target-[a-f0-9-]+$/),
+          path: expect.stringMatching(/knowledge[/\\]intel[/\\]captures/),
+          relativePath: expect.stringMatching(
+            /^knowledge\/intel\/captures\/target-[a-f0-9-]+\.png$/,
+          ),
+          url: new URL(url).toString(),
+          capturedAt: "2026-08-11T00:00:00.000Z",
+          imageIncluded: true,
+          sizeBytes: PNG_BYTES.length,
+        },
         warnings: [],
+        imageContent: {
+          type: "image",
+          data: PNG_BYTES.toString("base64"),
+          mimeType: "image/png",
+        },
       });
+      expect(result.data).not.toHaveProperty("imageContent");
       expect(spawn).toHaveBeenCalledWith("/opt/obscura", expectedArgs);
       expect(connect).toHaveBeenCalledWith({
         browserWSEndpoint: "ws://127.0.0.1:9222/devtools/browser",
@@ -145,4 +164,57 @@ describe("capture service", () => {
       expect(child.kill).toHaveBeenCalledWith("SIGTERM");
     },
   );
+
+  it("deletes only its incomplete output and preserves manual fallback guidance", async () => {
+    const resolver = await tempResolver();
+    const sibling = join(
+      resolver.root,
+      "knowledge",
+      "intel",
+      "captures",
+      "existing.png",
+    );
+    await writeFile(sibling, PNG_BYTES);
+    let incompletePath = "";
+    const page = {
+      setViewport: vi.fn(async () => undefined),
+      goto: vi.fn(async () => undefined),
+      screenshot: vi.fn(async (options: {path: string}) => {
+        incompletePath = options.path;
+        await writeFile(options.path, PNG_BYTES.subarray(0, 4));
+        throw new Error("capture interrupted");
+      }),
+    };
+    const browser = {
+      newPage: vi.fn(async () => page),
+      disconnect: vi.fn(),
+    } as unknown as Browser;
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      exitCode: null as number | null,
+      signalCode: null as NodeJS.Signals | null,
+      kill: vi.fn((signal: NodeJS.Signals) => {
+        child.signalCode = signal;
+        queueMicrotask(() => child.emit("exit", null, signal));
+        return true;
+      }),
+    });
+    const capture = createCaptureService({
+      resolver,
+      obscuraPath: "/opt/obscura",
+      findPort: async () => 9222,
+      spawn: vi.fn(() => child) as never,
+      connect: vi.fn(async () => browser),
+    });
+
+    const result = await capture("https://example.com", {name: "partial"});
+
+    expect(result).toEqual({
+      data: null,
+      warnings: [expect.stringMatching(/knowledge\/ui-references\//)],
+    });
+    await expect(access(incompletePath)).rejects.toThrow();
+    await expect(access(sibling)).resolves.toBeUndefined();
+  });
 });
