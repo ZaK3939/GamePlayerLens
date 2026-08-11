@@ -1,6 +1,6 @@
 # steam-user-sim v1.1 User-Complete Workflow Design
 
-**Status:** Implemented; replayable run-ledger follow-up implemented 2026-08-11
+**Status:** Implemented; dogfood validation in progress (1/3 consultations, replay audit PASS, UI quality-gap 0/1)
 **Date:** 2026-08-11
 
 ## Goal

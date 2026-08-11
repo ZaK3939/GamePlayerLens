@@ -1,6 +1,6 @@
 # steam-user-sim v1.1 User-Complete Workflow Implementation Plan
 
-**Status:** Implemented. Replayable run-ledger follow-up added 2026-08-11.
+**Status:** Implemented. Dogfood validation in progress (1/3 consultations, replay audit PASS, UI quality-gap 0/1).
 **Design:** [v1.1 user workflow design](../specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)
 
 ## Goal
@@ -545,3 +545,5 @@ get_artifact:
 - baselineとchangeの出力形式が混ざらない。
 - 既存8 tool clientがdata、warningsをそのまま利用できる。
 - 11 tools、2 prompts、artifact persistence、image deliveryをin-memoryとstdioで検証済み。
+
+上記はimplementation Definition of Doneである。product workflowのdogfood validationは[dogfood data policy](../../dogfood/README.md)で別に追跡し、最低3件の保存済み実相談、1件のUI quality-gap、1件の別session replay auditを完了条件とする。
