@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "steam-user-sim": {
+      "command": "pnpm",
+      "args": ["tsx", "src/index.ts"]
+    }
+  }
+}
