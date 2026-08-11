@@ -105,6 +105,7 @@ function normalizeReview(raw: RawReview): Review | null {
     || timestamp === null
     || !Number.isInteger(timestamp)
     || timestamp < 0
+    || Number.isNaN(new Date(timestamp * 1_000).getTime())
   ) {
     return null;
   }

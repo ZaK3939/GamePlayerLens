@@ -208,12 +208,24 @@ const TYPE_RULES: TypeRule[] = [
 ];
 
 const UPDATE_TITLE_KEYWORDS = [
-  "update",
-  "patch",
-  "hotfix",
-  "bugfix",
-  "changelog",
+  {keyword: "update", pattern: /\bupdates?\b/i},
+  {keyword: "patch", pattern: /\bpatch(?:es)?\b/i},
+  {keyword: "hotfix", pattern: /\bhotfix(?:es)?\b/i},
+  {keyword: "bugfix", pattern: /\bbugfix(?:es)?\b|\bbug fixes?\b/i},
+  {keyword: "changelog", pattern: /\bchangelogs?\b/i},
 ] as const;
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasBoundedPhrase(value: string, phrase: string): boolean {
+  const pattern = escapeRegex(phrase).replace(/ /g, "\\s+");
+  return new RegExp(
+    `(?:^|[^a-z0-9])${pattern}(?:s|es)?(?:$|[^a-z0-9])`,
+    "i",
+  ).test(value);
+}
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -295,10 +307,9 @@ function tags(value: unknown): string[] {
 }
 
 function titleKeywordBasis(title: string): string[] {
-  const normalized = title.toLowerCase();
   return UPDATE_TITLE_KEYWORDS
-    .filter((keyword) => normalized.includes(keyword))
-    .map((keyword) => `title-keyword:${keyword}`);
+    .filter(({pattern}) => pattern.test(title))
+    .map(({keyword}) => `title-keyword:${keyword}`);
 }
 
 function namedUpdateTitle(title: string): boolean {
@@ -341,8 +352,6 @@ function classify(
   | "platformHints"
   | "classificationBasis"
 > {
-  const titleLower = title.toLowerCase();
-  const contentLower = content.toLowerCase();
   const taggedPatch = itemTags.some((tag) => tag.toLowerCase() === "patchnotes");
   const titleBasis = titleKeywordBasis(title);
   const classificationBasis = [
@@ -359,17 +368,19 @@ function classify(
 
   let type: SteamUpdateType = official ? "community" : "general";
   let typeConfidence = official ? 0.25 : 0;
-  let titleTypeMatched = false;
-  for (const rule of TYPE_RULES) {
-    const titleMatch = rule.keywords.find((keyword) => titleLower.includes(keyword));
-    if (titleMatch) {
-      type = rule.type;
-      typeConfidence = 0.9;
-      titleTypeMatched = true;
-      if (!classificationBasis.includes(`title-keyword:${titleMatch}`)) {
-        classificationBasis.push(`title-keyword:${titleMatch}`);
-      }
-      break;
+  const titleMatches = TYPE_RULES.flatMap((rule) => {
+    const keyword = rule.keywords.find((candidate) => hasBoundedPhrase(title, candidate));
+    return keyword ? [{rule, keyword}] : [];
+  });
+  // A concrete repair marker is more informative than a generic release
+  // marker when both appear in the same title (for example, "v1.0 Hotfix").
+  const titleMatch = titleMatches.find(({rule}) => rule.type === "fixes") ?? titleMatches[0];
+  const titleTypeMatched = titleMatch !== undefined;
+  if (titleMatch) {
+    type = titleMatch.rule.type;
+    typeConfidence = 0.9;
+    if (!classificationBasis.includes(`title-keyword:${titleMatch.keyword}`)) {
+      classificationBasis.push(`title-keyword:${titleMatch.keyword}`);
     }
   }
 
@@ -386,8 +397,9 @@ function classify(
     ]);
     const contentRules = TYPE_RULES.filter((rule) => bodySubtypeTypes.has(rule.type));
     const contentRule = contentRules.find((rule) =>
-      rule.keywords.some((keyword) => contentLower.includes(keyword)));
-    const contentMatch = contentRule?.keywords.find((keyword) => contentLower.includes(keyword));
+      rule.keywords.some((keyword) => hasBoundedPhrase(content, keyword)));
+    const contentMatch = contentRule?.keywords.find((keyword) =>
+      hasBoundedPhrase(content, keyword));
     if (contentRule && contentMatch) {
       type = contentRule.type;
       typeConfidence = contentRule.type === "fixes" && titleBasis.some((basis) =>

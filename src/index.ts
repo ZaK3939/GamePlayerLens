@@ -284,7 +284,7 @@ export function buildServer(
   server.registerTool(
     "derive_personas",
     {
-      description: "Build a traceable review evidence pack and Persona JSON Schema",
+      description: "Build a traceable, explicitly source-role-labeled review evidence pack and Persona JSON Schema",
       inputSchema: z.object({
         appids: z.array(AppidSchema).min(1).max(MAX_DERIVATION_APPIDS),
         count: z.number().int().min(1).max(12).optional(),
@@ -301,6 +301,13 @@ export function buildServer(
           .min(1)
           .max(PERSONA_FOCUS_VALUES.length)
           .optional(),
+        sourceRoles: z.array(z.object({
+          appid: AppidSchema,
+          role: z.enum(["target", "competitor", "reference"]),
+        }).strict())
+          .min(1)
+          .max(MAX_DERIVATION_APPIDS)
+          .optional(),
       }),
       outputSchema: ResultEnvelopeSchema,
     },
@@ -312,6 +319,7 @@ export function buildServer(
       market,
       language,
       focus,
+      sourceRoles,
     }) => trackedJsonEnvelope(
       services.resultStore,
       "derive_personas",
@@ -320,6 +328,7 @@ export function buildServer(
         market,
         language,
         focus,
+        sourceRoles,
       }),
     ),
   );

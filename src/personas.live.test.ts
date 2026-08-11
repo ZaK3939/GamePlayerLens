@@ -8,6 +8,7 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
       market: "Japan",
       language: "japanese",
       focus: ["adoption", "retention", "churn", "update-response"],
+      sourceRoles: [{appid: 1145360, role: "target"}],
     });
     expect(result.data?.requestedCount).toBe(5);
     expect(result.data?.reviews.length).toBeGreaterThanOrEqual(10);

@@ -92,10 +92,11 @@ describe("normalizeReviewPages", () => {
     ]);
   });
 
-  it("drops reviews with negative or fractional timestamps", () => {
+  it("drops reviews with negative, fractional, or out-of-range timestamps", () => {
     const result = normalizeReviewPages([[
       rawReview("negative-timestamp", {timestamp_created: -1}),
       rawReview("fractional-timestamp", {timestamp_created: 1.5}),
+      rawReview("out-of-range-timestamp", {timestamp_created: Number.MAX_SAFE_INTEGER}),
     ]], {limit: 1});
 
     expect(result.data).toEqual([]);

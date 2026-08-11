@@ -156,6 +156,41 @@ describe("Steam update normalization", () => {
     expect(result.data?.items.find(({gid}) => gid === "empty")?.summary).toBe("Update 12");
   });
 
+  it("matches update title tokens on boundaries and keeps plural forms", () => {
+    const result = normalizeSteamUpdates(10, {appnews: {
+      appid: 10,
+      count: 4,
+      newsitems: [
+        item({gid: "dispatch", title: "Dispatch from the Community", tags: []}),
+        item({gid: "updated", title: "Updated Community Guidelines", tags: []}),
+        item({gid: "updates", title: "Updates for August", tags: []}),
+        item({gid: "patches", title: "Patches 3 and 4", tags: []}),
+      ],
+    }}, {scope: "updates", limit: 20, contentChars: 1_200});
+
+    expect(result.data?.items.map(({gid, classificationBasis}) => [gid, classificationBasis]))
+      .toEqual([
+        ["updates", ["title-keyword:update"]],
+        ["patches", ["title-keyword:patch"]],
+      ]);
+  });
+
+  it("prefers an explicit hotfix over a generic v1.0 release marker", () => {
+    const result = normalizeSteamUpdates(10, {appnews: {
+      appid: 10,
+      count: 2,
+      newsitems: [
+        item({gid: "hotfix", title: "Version 1.0 Hotfix", tags: []}),
+        item({gid: "wholesale", title: "Wholesale Update", tags: []}),
+      ],
+    }}, {scope: "updates", limit: 20, contentChars: 1_200});
+
+    expect(result.data?.items.map(({gid, type}) => [gid, type])).toEqual([
+      ["hotfix", "fixes"],
+      ["wholesale", "general"],
+    ]);
+  });
+
   it("exposes title-only platform hints without excluding cross-platform updates", () => {
     const result = normalizeSteamUpdates(10, {appnews: {
       appid: 10,

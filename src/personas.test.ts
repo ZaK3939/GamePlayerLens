@@ -327,6 +327,100 @@ describe("persona derivation pack", () => {
     });
   });
 
+  it("preserves explicit target, competitor, and reference roles", async () => {
+    const fetchGame = vi.fn(async (appid: number) => ({data: {appid}, warnings: []}));
+    const fetchReviews = vi.fn(async (
+      appid: number,
+      opts: ReviewOptions = {},
+    ) => ({
+      data: Array.from({length: 3}, (_, index) =>
+        review(`${appid}-${opts.type}-${index}`, opts.type === "positive")),
+      warnings: [],
+    }));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([10, 20, 30], 3, 3, {
+      sourceRoles: [
+        {appid: 30, role: "reference"},
+        {appid: 10, role: "target"},
+        {appid: 20, role: "competitor"},
+      ],
+    });
+
+    expect(result.data?.brief).toMatchObject({
+      targetAppid: 10,
+      sources: [
+        {appid: 10, role: "target"},
+        {appid: 20, role: "competitor"},
+        {appid: 30, role: "reference"},
+      ],
+    });
+    expect(result.data?.reviews.filter(({sourceAppid}) => sourceAppid === 30)
+      .every(({sourceRole}) => sourceRole === "reference")).toBe(true);
+    expect(result.meta?.request).toMatchObject({
+      targetAppid: 10,
+      sourceRoles: [
+        {appid: 10, role: "target"},
+        {appid: 20, role: "competitor"},
+        {appid: 30, role: "reference"},
+      ],
+    });
+  });
+
+  it("rejects incomplete or conflicting explicit source roles before fetching", async () => {
+    const fetchGame = vi.fn();
+    const fetchReviews = vi.fn();
+    const derive = createPersonaDeriver({fetchGame, fetchReviews});
+
+    await expect(derive([10, 20], 3, 3, {
+      sourceRoles: [{appid: 10, role: "target"}],
+    })).rejects.toThrow(/cover exactly/i);
+    await expect(derive([10, 20], 3, 3, {
+      targetAppid: 10,
+      sourceRoles: [
+        {appid: 10, role: "competitor"},
+        {appid: 20, role: "target"},
+      ],
+    })).rejects.toThrow(/targetAppid/i);
+    expect(fetchGame).not.toHaveBeenCalled();
+    expect(fetchReviews).not.toHaveBeenCalled();
+  });
+
+  it("keeps partial persona evidence when a dependency returns an invalid timestamp", async () => {
+    const fetchGame = vi.fn(async (appid: number) => ({data: {appid}, warnings: []}));
+    const fetchReviews = vi.fn(async (
+      _appid: number,
+      opts: ReviewOptions = {},
+    ) => ({
+      data: Array.from({length: 3}, (_, index) => ({
+        ...review(`${opts.type}-${index}`, opts.type === "positive"),
+        timestamp: index === 0 ? Number.MAX_SAFE_INTEGER : 1_700_000_000 + index,
+      })),
+      warnings: [],
+    }));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([10], 1, 3, {targetAppid: 10});
+    const coverage = (result.meta?.methodology as {
+      appids: Array<{sample: {coverage: Record<string, unknown>}}>;
+    }).appids[0]?.sample.coverage;
+
+    expect(result.data?.reviews).toHaveLength(6);
+    expect(coverage).toMatchObject({
+      invalidTimestampCount: 2,
+      publishedRange: {
+        earliest: "2023-11-14T22:13:21.000Z",
+        latest: "2023-11-14T22:13:22.000Z",
+      },
+    });
+  });
+
   it("does not request fallback when Japanese evidence alone fills each polarity", async () => {
     const fetchGame = vi.fn(async (appid: number) => ({data: {
       appid,

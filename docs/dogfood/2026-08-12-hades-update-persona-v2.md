@@ -5,11 +5,11 @@
 ## 結果
 
 - `steam_updates`を3作品へ実行し、公式Steam News出力をresultHandleで原本保存した。
-- Hadesの最新取得windowでは、44件取得、update-like 20件返却、選択された`patchnotes` tag 15件、title inference 5件だった。返却20件のtype mixはbalance 9、fixes 4、content 4、localization 2、major 1。
+- Hadesの最新取得windowでは、44件取得、update-like 20件返却、選択された`patchnotes` tag 15件、title inference 5件だった。返却20件のtype mixはfixes 7、balance 6、content 4、localization 2、major 1。
 - Hades IIは20件（tag 8 / title inference 12）、Dead Cellsは20件（tag 9 / title inference 11）を返した。
 - `platformHints`でHadesのNintendo Switch明記1件、Dead Cellsのmobile / Mac / Steam Deck明記をSteam build更新と分離できた。
 - persona素材は3作品×16件、合計48件。各作品は日本語review 8 positive / 8 negativeで、requested-language fallbackは0件だった。
-- target Hadesをpersona入力へ含め、target / competitor source role、appid、recommendation ID、playtime band、投稿日rangeを保持した。
+- target Hadesをpersona入力へ含め、全3 appidの`sourceRoles`を明示し、target / competitor source role、appid、recommendation ID、playtime band、有効な投稿日range、不正日時件数を保持した。
 - v2 personaを3件生成し、`save_persona`のschema検証を全件通過した。
 - Decision Card、Update inventory、Persona Update Impact Matrix、Prioritized Update Backlog、Data Coverage Matrixを持つchange evaluationを保存した。
 - 2 scenarios × 3 domains、3 personas × 2 scenarios、全12 analysis evidenceを14 roundsで使用したrunを封印し、readbackは`integrity.status=verified`、dependency issue 0、構造coverage 100%だった。
@@ -28,6 +28,8 @@
 - fetched tag件数とselected tag件数を分ける。
 
 再実行ではHades II告知とGOTY告知がupdate scopeから消え、Post-Launch Patchがfixesへ戻った。SwitchのCross-Saves Updateはtitle上updateであるため残すが、`platformHints=[nintendo-switch]`で境界を保持する。
+
+その後のレビューで、`dispatch` / `updated`の部分一致、複数type語があるtitleの先勝ち、比較元roleの暗黙分類、Date範囲外timestampも追加検証した。title keywordとtype phraseを単語境界で照合し、複数候補では具体的なhotfixを優先する。Hades IIの`v1.0 Hotfix`群はfixesとして再取得できた。`sourceRoles`は全appidの完全対応を要求し、review日時はDate変換可能な値だけをrangeへ採用する。今回の48件で不正日時は0件だった。
 
 ## Persona v2
 
@@ -48,8 +50,8 @@ Decisionは`test-next-build`。対象は`jp-action-readability-mastery-v2`で、
 ## 保存記録
 
 - Evaluation: `workspaces/hades/2026-08-12-visual-clarity-update-hypothesis.md`
-- Run ID: `834e034d-15fa-405d-8539-1bafd79bacdd`
-- Run: `workspaces/hades/runs/834e034d-15fa-405d-8539-1bafd79bacdd.json`
+- Run ID: `0feb859e-4c10-459f-88ce-7fad5a6ac1cf`
+- Run: `workspaces/hades/runs/0feb859e-4c10-459f-88ce-7fad5a6ac1cf.json`
 - Integrity: verified、17 dependencies verified、issue 0
 - Structural coverage: scenario/domain 6/6、persona/scenario 6/6、analysis evidence 12/12
 - Warnings: 5

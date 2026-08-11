@@ -255,7 +255,7 @@ repo内の直接起動では上記layoutの起点はrepository rootです。npm 
 
 ## データの解釈
 
-`derive_personas.reviewsPerPolarity` は1 appid・1極性あたり3〜25件を指定でき、既定値は後方互換の25件です。通常の3〜5 persona生成には8件、深掘り監査には25件を目安にしてください。`language`で指定した言語を先に集め、不足分だけall-languageで補い、appidと極性をラウンドロビンに並べます。`targetAppid`、`market`、`language`、`focus`を明示すると、各reviewにtarget / competitor / referenceのsource roleが付き、playtime band・言語・投稿日rangeのsample coverageも返ります。未指定時は後方互換としてJapan / japaneseを使います。
+`derive_personas.reviewsPerPolarity` は1 appid・1極性あたり3〜25件を指定でき、既定値は後方互換の25件です。通常の3〜5 persona生成には8件、深掘り監査には25件を目安にしてください。`language`で指定した言語を先に集め、不足分だけall-languageで補い、appidと極性をラウンドロビンに並べます。`sourceRoles` には入力した全appidをちょうど1回ずつ列挙し、各ゲームを `target` / `competitor` / `reference` に明示分類できます。`targetAppid`も渡す場合は唯一の`target`と一致させます。`sourceRoles`を省略して`targetAppid`だけを渡した場合は対象以外を`competitor`、両方を省略した場合は全件を`reference`とする互換動作です。各reviewには確定したsource roleが付き、playtime band・言語・有効な投稿日range・不正日時件数のsample coverageも返ります。`market` / `language`未指定時は後方互換としてJapan / japaneseを使います。
 
 新しく生成するpersonaはv2 schemaを使い、`target_context`、購入・継続・離脱・更新反応を持つ`decision_profile`、voiceへ逆参照できるobserved patterns、分離されたinferred traits、limitations、overall confidenceを必須にします。既存のv1 personaは読込・run監査のため引き続き有効です。v2の`update_reaction`に直接根拠がなければ、推論またはunknownとして記録し、市場比率へ変換しません。
 

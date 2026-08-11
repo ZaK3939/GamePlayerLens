@@ -40,6 +40,8 @@ const SourceRoleSchema = z.object({
   role: z.enum(["target", "competitor", "reference"]),
 }).strict();
 
+export type PersonaSourceRole = z.infer<typeof SourceRoleSchema>;
+
 const TargetContextSchema = z.object({
   market: z.string().trim().min(1).max(80),
   language: z.string().trim().min(1).max(32),
@@ -324,6 +326,15 @@ export interface PersonaDerivationOptions {
   market?: string;
   language?: string;
   focus?: PersonaFocus[];
+  sourceRoles?: PersonaSourceRole[];
+}
+
+interface NormalizedPersonaDerivationOptions {
+  targetAppid?: number;
+  market: string;
+  language: string;
+  focus: PersonaFocus[];
+  sourceRoles: PersonaSourceRole[];
 }
 
 export interface DerivationPack {
@@ -434,8 +445,7 @@ function personaMeta(
   count: number,
   reviewsPerPolarity: number,
   sampling: JsonValue[],
-  options: Required<Pick<PersonaDerivationOptions, "market" | "language" | "focus">>
-    & Pick<PersonaDerivationOptions, "targetAppid">,
+  options: NormalizedPersonaDerivationOptions,
 ): FetchMeta {
   return {
     observedAt,
@@ -455,6 +465,7 @@ function personaMeta(
       market: options.market,
       language: options.language,
       focus: options.focus,
+      sourceRoles: options.sourceRoles,
     },
     methodology: {
       strategy: "requested-language-first-recent-polarity-balanced",
@@ -478,8 +489,7 @@ const DEFAULT_PERSONA_FOCUS: PersonaFocus[] = [
 function normalizeDerivationOptions(
   uniqueAppids: number[],
   input: PersonaDerivationOptions,
-): Required<Pick<PersonaDerivationOptions, "market" | "language" | "focus">>
-  & Pick<PersonaDerivationOptions, "targetAppid"> {
+): NormalizedPersonaDerivationOptions {
   const market = input.market?.trim() || "Japan";
   if (market.length > 80) throw new TypeError("market must contain at most 80 characters");
   const language = (input.language?.trim() || "japanese").toLowerCase();
@@ -497,36 +507,85 @@ function normalizeDerivationOptions(
   if (focus.some((value) => !allowed.has(value)) || new Set(focus).size !== focus.length) {
     throw new TypeError("focus values must be known and unique");
   }
-  return {targetAppid: input.targetAppid, market, language, focus: [...focus]};
+
+  let targetAppid = input.targetAppid;
+  let sourceRoles: PersonaSourceRole[];
+  if (input.sourceRoles !== undefined) {
+    const parsed = z.array(SourceRoleSchema)
+      .min(1)
+      .max(MAX_DERIVATION_APPIDS)
+      .safeParse(input.sourceRoles);
+    if (!parsed.success) {
+      throw new TypeError("sourceRoles must contain valid appid and role entries");
+    }
+    const roleAppids = parsed.data.map(({appid}) => appid);
+    const coversExactly = roleAppids.length === uniqueAppids.length
+      && new Set(roleAppids).size === roleAppids.length
+      && roleAppids.every((appid) => uniqueAppids.includes(appid));
+    if (!coversExactly) {
+      throw new TypeError("sourceRoles must cover exactly the requested appids");
+    }
+    const targets = parsed.data.filter(({role}) => role === "target");
+    if (targets.length > 1) {
+      throw new TypeError("sourceRoles may contain at most one target");
+    }
+    if (targetAppid !== undefined && targets[0]?.appid !== targetAppid) {
+      throw new TypeError("targetAppid must match the target entry in sourceRoles");
+    }
+    targetAppid ??= targets[0]?.appid;
+    const byAppid = new Map(parsed.data.map((source) => [source.appid, source]));
+    sourceRoles = uniqueAppids.map((appid) => byAppid.get(appid)!);
+  } else {
+    sourceRoles = uniqueAppids.map((appid) => ({
+      appid,
+      role: targetAppid === undefined
+        ? "reference"
+        : appid === targetAppid
+          ? "target"
+          : "competitor",
+    }));
+  }
+  return {targetAppid, market, language, focus: [...focus], sourceRoles};
 }
 
 function sourceRole(
   appid: number,
-  targetAppid: number | undefined,
+  sourceRoles: PersonaSourceRole[],
 ): "target" | "competitor" | "reference" {
-  if (targetAppid === undefined) return "reference";
-  return appid === targetAppid ? "target" : "competitor";
+  const source = sourceRoles.find((candidate) => candidate.appid === appid);
+  if (!source) throw new TypeError(`source role missing for appid ${appid}`);
+  return source.role;
 }
 
 function sampleCoverage(reviews: DerivationReview[]): JsonValue {
   const playtimeBands = {under2h: 0, from2to20h: 0, from20to100h: 0, over100h: 0};
   const languages: Record<string, number> = {};
   const timestamps: number[] = [];
+  let invalidTimestampCount = 0;
   for (const review of reviews) {
     if (review.playtimeHours < 2) playtimeBands.under2h += 1;
     else if (review.playtimeHours < 20) playtimeBands.from2to20h += 1;
     else if (review.playtimeHours < 100) playtimeBands.from20to100h += 1;
     else playtimeBands.over100h += 1;
     languages[review.language] = (languages[review.language] ?? 0) + 1;
-    if (Number.isFinite(review.timestamp) && review.timestamp > 0) timestamps.push(review.timestamp);
+    if (!Number.isFinite(review.timestamp)
+      || !Number.isInteger(review.timestamp)
+      || review.timestamp < 0) {
+      invalidTimestampCount += 1;
+    } else if (review.timestamp > 0) {
+      const milliseconds = review.timestamp * 1_000;
+      if (Number.isNaN(new Date(milliseconds).getTime())) invalidTimestampCount += 1;
+      else timestamps.push(milliseconds);
+    }
   }
   timestamps.sort((left, right) => left - right);
   return {
     playtimeBands,
     languages,
+    invalidTimestampCount,
     publishedRange: {
-      earliest: timestamps.length > 0 ? new Date(timestamps[0]! * 1_000).toISOString() : null,
-      latest: timestamps.length > 0 ? new Date(timestamps.at(-1)! * 1_000).toISOString() : null,
+      earliest: timestamps.length > 0 ? new Date(timestamps[0]!).toISOString() : null,
+      latest: timestamps.length > 0 ? new Date(timestamps.at(-1)!).toISOString() : null,
     },
   };
 }
@@ -635,7 +694,7 @@ export function createPersonaDeriver(
           reviews.push({
             ...review,
             sourceAppid: evidence.appid,
-            sourceRole: sourceRole(evidence.appid, options.targetAppid),
+            sourceRole: sourceRole(evidence.appid, options.sourceRoles),
           });
           const actualSelection = actualSelectionByAppid.get(evidence.appid);
           if (!actualSelection) continue;
@@ -656,7 +715,7 @@ export function createPersonaDeriver(
       const selectedReviews = reviews.filter((review) => review.sourceAppid === appid);
       sampling.push({
         appid,
-        role: sourceRole(appid, options.targetAppid),
+        role: sourceRole(appid, options.sourceRoles),
         population: {
           positive: population?.positive ?? null,
           negative: population?.negative ?? null,
@@ -690,10 +749,7 @@ export function createPersonaDeriver(
           market: options.market,
           language: options.language,
           focus: options.focus,
-          sources: uniqueAppids.map((appid) => ({
-            appid,
-            role: sourceRole(appid, options.targetAppid),
-          })),
+          sources: options.sourceRoles,
         },
         games,
         reviews,
@@ -702,7 +758,7 @@ export function createPersonaDeriver(
           "voice の各項目は reviews の本文・sourceAppid・recommendationId・language・votedUp に直接対応させてください。",
           "schema_version=2 とし、target_context、decision_profile、evidence_basisを省略しないでください。",
           "observed_patternsはvoiceを参照し、inferred_traitsとlimitationsを分離してください。更新反応の根拠がなければupdate_reactionをunknownとして不足根拠を記録してください。",
-          "targetとcompetitorのsourceRoleを混同せず、各personaのadoption/retention/churn triggerが実質的に異なることを確認してください。",
+          "target、competitor、referenceのsourceRoleを混同せず、各personaのadoption/retention/churn triggerが実質的に異なることを確認してください。",
           "The polarity-balanced review sample is not representative of population shares.",
           "生成した各 JSON は Persona schema で検証し、save_persona で1件ずつ保存してください。",
         ].join(" "),

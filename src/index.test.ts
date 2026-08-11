@@ -209,19 +209,24 @@ describe("MCP server contract", () => {
       const result = await client.callTool({
         name: "derive_personas",
         arguments: {
-          appids: [1145350, 1145360],
+          appids: [1145350, 1145360, 588650],
           count: 3,
           reviewsPerPolarity: 8,
           targetAppid: 1145350,
           market: " Japan ",
           language: "JAPANESE",
           focus: ["adoption", "retention", "update-response"],
+          sourceRoles: [
+            {appid: 1145350, role: "target"},
+            {appid: 1145360, role: "competitor"},
+            {appid: 588650, role: "reference"},
+          ],
         },
       });
 
       expect(JSON.parse(resultText(result))).toMatchObject({
         data: {
-          appids: [1145350, 1145360],
+          appids: [1145350, 1145360, 588650],
           count: 3,
           reviewsPerPolarity: 8,
           options: {
@@ -229,14 +234,24 @@ describe("MCP server contract", () => {
             market: "Japan",
             language: "japanese",
             focus: ["adoption", "retention", "update-response"],
+            sourceRoles: [
+              {appid: 1145350, role: "target"},
+              {appid: 1145360, role: "competitor"},
+              {appid: 588650, role: "reference"},
+            ],
           },
         },
       });
-      expect(buildDerivationPack).toHaveBeenCalledWith([1145350, 1145360], 3, 8, {
+      expect(buildDerivationPack).toHaveBeenCalledWith([1145350, 1145360, 588650], 3, 8, {
         targetAppid: 1145350,
         market: "Japan",
         language: "japanese",
         focus: ["adoption", "retention", "update-response"],
+        sourceRoles: [
+          {appid: 1145350, role: "target"},
+          {appid: 1145360, role: "competitor"},
+          {appid: 588650, role: "reference"},
+        ],
       });
     } finally {
       await client.close();
@@ -316,6 +331,11 @@ describe("MCP server contract", () => {
           market: pickSchema(schemaProperty(derive, "market"), ["type", "minLength", "maxLength"]),
           language: pickSchema(schemaProperty(derive, "language"), ["type", "pattern"]),
           focus: pickSchema(schemaProperty(derive, "focus"), ["type", "minItems", "maxItems"]),
+          sourceRoles: pickSchema(schemaProperty(derive, "sourceRoles"), [
+            "type",
+            "minItems",
+            "maxItems",
+          ]),
         },
         get_knowledge: {
           fields: Object.keys(knowledge.properties as object),
@@ -416,6 +436,7 @@ describe("MCP server contract", () => {
               "market",
               "language",
               "focus",
+              "sourceRoles",
             ],
             "focus": {
               "maxItems": 6,
@@ -438,6 +459,11 @@ describe("MCP server contract", () => {
               "maximum": 25,
               "minimum": 3,
               "type": "integer",
+            },
+            "sourceRoles": {
+              "maxItems": 12,
+              "minItems": 1,
+              "type": "array",
             },
             "targetAppid": {
               "exclusiveMinimum": 0,
