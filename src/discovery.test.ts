@@ -278,7 +278,7 @@ describe("createDiscoveryFetcher", () => {
       ["request", "tag"],
       ["tag", "Action & Roguelike/Co-op?"],
     ]);
-    expect(options?.headers).toEqual({"User-Agent": "steam-user-sim/0.1"});
+    expect(options?.headers).toEqual({"User-Agent": "game-player-lens/0.1"});
     expect(options?.signal).toBeInstanceOf(AbortSignal);
   });
 

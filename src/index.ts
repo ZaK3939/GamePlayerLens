@@ -131,7 +131,7 @@ export function buildServer(
 ): McpServer {
   const services = createServerServices(overrides);
   const server = new McpServer(
-    {name: "steam-user-sim", version: "0.1.0"},
+    {name: "game-player-lens", version: "0.1.0"},
     {capabilities: {tools: {}, prompts: {}}},
   );
 
@@ -381,6 +381,6 @@ function isDirectExecution(): boolean {
 
 if (isDirectExecution()) {
   serveStdio(() => buildServer(), {
-    onerror: (error) => console.error(`steam-user-sim MCP error: ${error.message}`),
+    onerror: (error) => console.error(`game-player-lens MCP error: ${error.message}`),
   });
 }

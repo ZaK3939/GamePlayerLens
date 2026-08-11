@@ -78,7 +78,7 @@ const repositoryRoot = resolve(scriptDirectory, "..");
 const packageJson = JSON.parse(
   await readFile(resolve(repositoryRoot, "package.json"), "utf8"),
 ) as {name?: string};
-assert(packageJson.name === "steam-user-sim", "smoke must run against the steam-user-sim repository");
+assert(packageJson.name === "game-player-lens", "smoke must run against the game-player-lens repository");
 await access(resolve(repositoryRoot, "dist", "index.js"));
 const artifactsBefore = await repositoryArtifactEntries(repositoryRoot);
 
@@ -94,7 +94,7 @@ transport.stderr?.on("data", (chunk) => {
   stderr = `${stderr}${String(chunk)}`.slice(-4_096);
 });
 
-const client = new Client({name: "steam-user-sim-stdio-smoke", version: "1.0.0"});
+const client = new Client({name: "game-player-lens-stdio-smoke", version: "1.0.0"});
 const protocolErrors: string[] = [];
 client.onerror = (error) => protocolErrors.push(error.message);
 let summary: Record<string, unknown> | undefined;

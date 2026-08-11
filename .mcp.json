@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "steam-user-sim": {
+    "game-player-lens": {
       "command": "pnpm",
       "args": ["tsx", "src/index.ts"]
     }

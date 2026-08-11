@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -9,7 +10,11 @@ import {
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPathResolver, initializeRepositoryPaths } from "./paths.js";
+import {
+  createPathResolver,
+  initializePackagedPaths,
+  initializeRepositoryPaths,
+} from "./paths.js";
 
 let root = "";
 
@@ -244,7 +249,7 @@ describe("production repository startup", () => {
     "fails immediately when %s is missing",
     (missing) => {
       const repo = mkdtempSync(join(tmpdir(), "steam-user-sim-startup-"));
-      writeFileSync(join(repo, "package.json"), JSON.stringify({name: "steam-user-sim"}));
+      writeFileSync(join(repo, "package.json"), JSON.stringify({name: "game-player-lens"}));
       for (const directory of ["knowledge", "skills", "workspaces"]) {
         if (directory !== missing) mkdirSync(join(repo, directory));
       }
@@ -258,4 +263,77 @@ describe("production repository startup", () => {
       }
     },
   );
+});
+
+describe("packaged startup", () => {
+  it("separates immutable package assets from mutable user data", () => {
+    const base = mkdtempSync(join(tmpdir(), "game-player-lens-package-"));
+    const assetRoot = join(base, "package");
+    const dataRoot = join(base, "data");
+    for (const relative of ["knowledge/templates", "knowledge/rubrics", "skills"]) {
+      mkdirSync(join(assetRoot, relative), {recursive: true});
+    }
+    writeFileSync(join(assetRoot, "knowledge/templates/adoption-eval.md"), "template");
+    writeFileSync(join(assetRoot, "knowledge/rubrics/harsh-critic.md"), "rubric");
+    writeFileSync(join(assetRoot, "skills/run-sim.md"), "recipe");
+
+    try {
+      const resolver = initializePackagedPaths(assetRoot, dataRoot);
+      const realAssetRoot = realpathSync(assetRoot);
+      const realDataRoot = realpathSync(dataRoot);
+
+      expect(resolver.assetRoot).toBe(realAssetRoot);
+      expect(resolver.root).toBe(realDataRoot);
+      expect(resolver.resolveKnowledgePath("templates", "adoption-eval.md"))
+        .toBe(join(realAssetRoot, "knowledge/templates/adoption-eval.md"));
+      expect(resolver.resolveKnowledgePath("rubrics", "harsh-critic.md"))
+        .toBe(join(realAssetRoot, "knowledge/rubrics/harsh-critic.md"));
+      expect(resolver.resolveSkillPath("run-sim.md"))
+        .toBe(join(realAssetRoot, "skills/run-sim.md"));
+      expect(resolver.resolvePersonaPath("tester"))
+        .toBe(join(realDataRoot, "knowledge/personas/tester.json"));
+      expect(resolver.resolveIntelArtifactPath("Hades II", "Snapshot"))
+        .toMatchObject({
+          absolutePath: join(realDataRoot, "knowledge/intel/hades-ii/snapshot.json"),
+          relativePath: "knowledge/intel/hades-ii/snapshot.json",
+        });
+      expect(resolver.resolveEvaluationPath("Hades II", "2026-08-11", "Price"))
+        .toMatchObject({
+          absolutePath: join(realDataRoot, "workspaces/hades-ii/2026-08-11-price.md"),
+          relativePath: "workspaces/hades-ii/2026-08-11-price.md",
+        });
+      for (const relative of [
+        "knowledge/personas",
+        "knowledge/intel/captures",
+        "knowledge/ui-references",
+        "workspaces",
+      ]) {
+        expect(existsSync(join(dataRoot, relative))).toBe(true);
+      }
+    } finally {
+      rmSync(base, {recursive: true, force: true});
+    }
+  });
+
+  it("rejects data-home symlinks before creating directories through them", () => {
+    const base = mkdtempSync(join(tmpdir(), "game-player-lens-package-symlink-"));
+    const assetRoot = join(base, "package");
+    const dataRoot = join(base, "data");
+    const outside = join(base, "outside");
+    for (const relative of ["knowledge/templates", "knowledge/rubrics", "skills"]) {
+      mkdirSync(join(assetRoot, relative), {recursive: true});
+    }
+    mkdirSync(dataRoot);
+    mkdirSync(outside);
+    symlinkSync(outside, join(dataRoot, "knowledge"));
+
+    try {
+      expect(() => initializePackagedPaths(assetRoot, dataRoot)).toThrow();
+      expect(existsSync(join(outside, "personas"))).toBe(false);
+      expect(existsSync(join(outside, "intel"))).toBe(false);
+      expect(existsSync(join(outside, "ui-references"))).toBe(false);
+    } finally {
+      rmSync(base, {recursive: true, force: true});
+    }
+  });
 });

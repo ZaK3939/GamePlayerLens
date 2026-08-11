@@ -1,8 +1,34 @@
 {
-  "name": "steam-user-sim",
+  "name": "game-player-lens",
   "version": "0.1.0",
-  "private": true,
+  "description": "Evidence-grounded Steam player research and simulation MCP server",
+  "private": false,
   "type": "module",
+  "bin": {
+    "game-player-lens": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "knowledge/rubrics",
+    "knowledge/templates",
+    "skills",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZaK3939/GamePlayerLens.git"
+  },
+  "homepage": "https://github.com/ZaK3939/GamePlayerLens#readme",
+  "bugs": {
+    "url": "https://github.com/ZaK3939/GamePlayerLens/issues"
+  },
+  "keywords": [
+    "mcp",
+    "steam",
+    "game-development",
+    "user-research",
+    "personas"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -13,7 +39,9 @@
     "test": "vitest run --config vitest.config.ts",
     "test:live": "RUN_LIVE=1 vitest run --config vitest.live.config.ts",
     "test:all": "pnpm test && pnpm test:live",
-    "smoke:stdio": "tsx scripts/smoke-stdio.ts"
+    "smoke:stdio": "tsx scripts/smoke-stdio.ts",
+    "smoke:package": "pnpm build && tsx scripts/smoke-package.ts",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "^2.0.0",

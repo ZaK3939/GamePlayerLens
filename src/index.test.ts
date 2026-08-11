@@ -1054,7 +1054,7 @@ describe("MCP server contract", () => {
   ])("fails during construction when $missing is missing", async ({present, missing}) => {
     const root = await mkdtemp(join(tmpdir(), "steam-user-sim-layout-"));
     roots.push(root);
-    await writeFile(join(root, "package.json"), JSON.stringify({name: "steam-user-sim"}));
+    await writeFile(join(root, "package.json"), JSON.stringify({name: "game-player-lens"}));
     await Promise.all(present.map((directory) => mkdir(join(root, directory))));
     const previousCwd = process.cwd();
     process.chdir(root);

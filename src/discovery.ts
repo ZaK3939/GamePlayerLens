@@ -340,7 +340,7 @@ async function loadOrderedSteamSpyObject(
   try {
     const response = await request(url, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      headers: {"User-Agent": "steam-user-sim/0.1"},
+      headers: {"User-Agent": "game-player-lens/0.1"},
     });
     if (!response.ok) {
       return {

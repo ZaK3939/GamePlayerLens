@@ -1,6 +1,7 @@
 import {
   existsSync,
   lstatSync,
+  mkdirSync,
   readFileSync,
   realpathSync,
 } from "node:fs";
@@ -113,6 +114,7 @@ function safeCaptureSlug(name?: string): string {
 
 export interface PathResolver {
   readonly root: string;
+  readonly assetRoot: string;
   resolveKnowledgePath(kind: KnowledgeKind, id: string): string;
   resolvePersonaPath(id: string): string;
   resolveCapturePath(name?: string): string;
@@ -146,11 +148,15 @@ export interface ResolvedImagePath extends ResolvedPath {
   id: string;
 }
 
-export function createPathResolver(rootPath: string): PathResolver {
-  const root = realpathSync(resolve(rootPath));
+function createSplitPathResolver(
+  assetRootPath: string,
+  dataRootPath: string,
+): PathResolver {
+  const assetRoot = realpathSync(resolve(assetRootPath));
+  const root = realpathSync(resolve(dataRootPath));
 
-  function resolveIn(base: string, fileName: string): string {
-    const resolvedBase = resolve(root, base);
+  function resolveIn(storageRoot: string, base: string, fileName: string): string {
+    const resolvedBase = resolve(storageRoot, base);
     if (!existsSync(resolvedBase)) {
       throw new Error(`required repository directory is missing: ${base}`);
     }
@@ -159,7 +165,7 @@ export function createPathResolver(rootPath: string): PathResolver {
       throw new Error("allowed directory is missing or invalid");
     }
     const realBase = realpathSync(resolvedBase);
-    if (!isWithin(root, realBase)) {
+    if (!isWithin(storageRoot, realBase)) {
       throw new Error("allowed directory escapes repository root");
     }
     const candidate = resolve(resolvedBase, fileName);
@@ -182,6 +188,7 @@ export function createPathResolver(rootPath: string): PathResolver {
 
   return {
     root,
+    assetRoot,
 
     resolveKnowledgePath(kind, id) {
       if (
@@ -196,17 +203,20 @@ export function createPathResolver(rootPath: string): PathResolver {
       if (!EXTENSIONS[kind].has(extensionOf(id))) {
         throw new Error(`invalid extension for knowledge kind: ${kind}`);
       }
-      return resolveIn(join("knowledge", kind), id);
+      const storageRoot = kind === "templates" || kind === "rubrics"
+        ? assetRoot
+        : root;
+      return resolveIn(storageRoot, join("knowledge", kind), id);
     },
 
     resolvePersonaPath(id) {
       if (!PERSONA_ID.test(id)) throw new Error("invalid persona id");
-      return resolveIn(join("knowledge", "personas"), `${id}.json`);
+      return resolveIn(root, join("knowledge", "personas"), `${id}.json`);
     },
 
     resolveCapturePath(name) {
       const fileName = `${safeCaptureSlug(name)}-${randomUUID()}.png`;
-      return resolveIn(join("knowledge", "intel", "captures"), fileName);
+      return resolveIn(root, join("knowledge", "intel", "captures"), fileName);
     },
 
     resolveSkillPath(id) {
@@ -220,13 +230,14 @@ export function createPathResolver(rootPath: string): PathResolver {
       ) {
         throw new Error("invalid skill id");
       }
-      return resolveIn("skills", id);
+      return resolveIn(assetRoot, "skills", id);
     },
 
     resolveIntelArtifactPath(target, id) {
       const targetId = safeSlug(target);
       const artifactId = safeSlug(id);
       const absolutePath = resolveIn(
+        root,
         join("knowledge", "intel"),
         join(targetId, `${artifactId}.json`),
       );
@@ -238,6 +249,7 @@ export function createPathResolver(rootPath: string): PathResolver {
       const topicId = safeSlug(topic);
       validateEvaluationDate(date);
       const absolutePath = resolveIn(
+        root,
         "workspaces",
         join(targetId, `${date}-${topicId}.md`),
       );
@@ -247,6 +259,7 @@ export function createPathResolver(rootPath: string): PathResolver {
     resolveCaptureReadPath(id) {
       const canonicalId = safeSlug(id);
       const absolutePath = resolveIn(
+        root,
         join("knowledge", "intel", "captures"),
         `${canonicalId}.png`,
       );
@@ -256,6 +269,7 @@ export function createPathResolver(rootPath: string): PathResolver {
     resolveUiReferencePath(id) {
       const canonicalId = safeSlug(id);
       const absolutePath = resolveIn(
+        root,
         join("knowledge", "ui-references"),
         `${canonicalId}.png`,
       );
@@ -264,15 +278,66 @@ export function createPathResolver(rootPath: string): PathResolver {
   };
 }
 
+export function createPathResolver(rootPath: string): PathResolver {
+  return createSplitPathResolver(rootPath, rootPath);
+}
+
+export function initializePackagedPaths(
+  assetRootPath: string,
+  dataRootPath: string,
+): PathResolver {
+  const dataRoot = resolve(dataRootPath);
+  mkdirSync(dataRoot, {recursive: true});
+  const realDataRoot = realpathSync(dataRoot);
+
+  function ensureDataDirectory(relativePath: string): void {
+    let current = realDataRoot;
+    for (const part of relativePath.split("/")) {
+      current = join(current, part);
+      if (!existsSync(current)) {
+        mkdirSync(current);
+        continue;
+      }
+      const stats = lstatSync(current);
+      if (stats.isSymbolicLink()) {
+        throw new Error("data-home symlink directories are not allowed");
+      }
+      if (!stats.isDirectory()) {
+        throw new Error("data-home path is not a directory");
+      }
+    }
+  }
+
+  for (const directory of [
+    "knowledge/personas",
+    "knowledge/intel/captures",
+    "knowledge/ui-references",
+    "workspaces",
+  ]) {
+    ensureDataDirectory(directory);
+  }
+
+  const resolver = createSplitPathResolver(assetRootPath, realDataRoot);
+  resolver.resolveKnowledgePath("templates", "startup-probe.md");
+  resolver.resolveKnowledgePath("rubrics", "startup-probe.md");
+  resolver.resolveKnowledgePath("intel", "startup-probe.json");
+  resolver.resolvePersonaPath("startup-probe");
+  resolver.resolveSkillPath("startup-probe.md");
+  resolver.resolveCaptureReadPath("startup-probe");
+  resolver.resolveUiReferencePath("startup-probe");
+  resolver.resolveEvaluationPath("startup-probe", "2000-01-01", "startup-probe");
+  return resolver;
+}
+
 function findRepoRoot(cwd: string): string {
   const root = realpathSync(resolve(cwd));
   const packagePath = join(root, "package.json");
   if (!existsSync(packagePath)) {
-    throw new Error("steam-user-sim must be started from the repository root");
+    throw new Error("game-player-lens must be started from the repository root");
   }
   const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {name?: string};
-  if (packageJson.name !== "steam-user-sim") {
-    throw new Error("current directory is not the steam-user-sim repository root");
+  if (packageJson.name !== "game-player-lens") {
+    throw new Error("current directory is not the game-player-lens repository root");
   }
   for (const directory of ["knowledge", "skills", "workspaces"]) {
     const candidate = join(root, directory);

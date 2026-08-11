@@ -49,7 +49,7 @@ export async function fetchJson<T>(
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(timeoutMs),
-      headers: {"User-Agent": "steam-user-sim/0.1"},
+      headers: {"User-Agent": "game-player-lens/0.1"},
     });
 
     if (!response.ok) {

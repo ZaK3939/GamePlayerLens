@@ -1,4 +1,4 @@
-# steam-user-sim
+# GamePlayerLens
 
 Steam の実データに接地したゲーム開発コンサル用 MCP サーバーです。UI・ゲームシステム・価格・ローカライズを変えるたびに相談できる「変更の右腕」として、競合探索、根拠収集、ペルソナ素材生成、評価保存、過去相談の再読込を generic MCP client から完結できます。
 
@@ -23,7 +23,31 @@ pnpm install
 pnpm build
 ```
 
-リポジトリ同梱の `.mcp.json` は `pnpm tsx src/index.ts` で stdio server を起動します。対応クライアントでこのリポジトリを開き、`steam-user-sim` MCP server を有効にしてからクライアントを再起動してください。環境変数や `.mcp.json` を変えた場合も再起動が必要です。
+リポジトリ同梱の `.mcp.json` は `pnpm tsx src/index.ts` で stdio server を起動します。対応クライアントでこのリポジトリを開き、`game-player-lens` MCP server を有効にしてからクライアントを再起動してください。環境変数や `.mcp.json` を変えた場合も再起動が必要です。
+
+### npm `bin`として使う
+
+配布用packageは、リポジトリルートで次のように作成・インストールできます。
+
+```bash
+pnpm pack
+npm install --global ./game-player-lens-0.1.0.tgz
+game-player-lens
+```
+
+MCPクライアントからは次の設定で起動します。
+
+```json
+{
+  "mcpServers": {
+    "game-player-lens": {
+      "command": "game-player-lens"
+    }
+  }
+}
+```
+
+配布版CLIはcanonical template、rubric、recipeをnpm packageから読み、生成するpersona、intel、capture、evaluationをデフォルトで `~/.game-player-lens/` に保存します。保存先を変える場合は、MCP server環境へ絶対パスの `GAME_PLAYER_LENS_HOME` を設定してください。インストール先の `node_modules` にはユーザーデータを書きません。
 
 接続確認はリポジトリルートで実行します。
 
@@ -37,17 +61,19 @@ pnpm smoke:stdio --live
 
 ## 任意設定
 
-外部キーとバイナリはどちらも任意です。未設定でもサーバーは起動し、該当 tool が取得手順を `warnings` に返します。空文字は未設定として扱います。
+外部キーとバイナリはどちらも任意です。未設定でもサーバーは起動し、該当 tool が取得手順を `warnings` に返します。空文字は未設定として扱います。`GAME_PLAYER_LENS_HOME` は配布版CLIの保存先設定であり、外部連携には使用しません。
 
 ```bash
 export ITAD_API_KEY="your-isthereanydeal-api-key"
 export OBSCURA_PATH="/absolute/path/to/obscura"
+export GAME_PLAYER_LENS_HOME="/absolute/path/to/player-research-data"
 ```
 
 - `ITAD_API_KEY`: IsThereAnyDeal の Steam 価格履歴に使用します。キーは [ITAD Apps](https://isthereanydeal.com/apps/my/) で作成します。
 - `OBSCURA_PATH`: [Obscura](https://github.com/h4ckf0r0day/obscura) の実行ファイルです。localhost/loopback capture は `--allow-private-network` 対応の v0.1.6 以降を使用してください。未設定または capture 失敗時は `knowledge/ui-references/` への手動配置を案内します。
+- `GAME_PLAYER_LENS_HOME`: npm `bin`実行時の可変データ保存先です。絶対パスだけを受け付け、未設定時は `~/.game-player-lens/` を使います。repo内から直接起動する場合は従来どおりrepo-local layoutを使います。
 
-GUI クライアントは terminal の `export` を継承しない場合があります。その場合はクライアント自身の MCP server 設定へ環境変数を設定し、クライアントを完全に再起動してください。設定項目は `ITAD_API_KEY` と `OBSCURA_PATH` の2つだけです。`.mcp.json` に空の env 値は書かず、利用できる場合は親プロセスの環境を継承します。
+GUI クライアントは terminal の `export` を継承しない場合があります。その場合はクライアント自身の MCP server 設定へ環境変数を設定し、クライアントを完全に再起動してください。外部連携の設定項目は `ITAD_API_KEY` と `OBSCURA_PATH` の2つだけです。`.mcp.json` に空の env 値は書かず、利用できる場合は親プロセスの環境を継承します。
 
 ## Prompts と相談例
 
@@ -137,6 +163,8 @@ knowledge/ui-references/{referenceId}.png
 
 入力された表示名は安全な canonical ID へ正規化され、tool result に repo-relative path が返ります。任意 path、traversal、symlink 経由の root 外アクセスは受け付けません。intel payload は最大 1 MiB、evaluation は最大 512 KiB、inline PNG は最大 6 MiB です。
 
+repo内の直接起動では上記layoutの起点はrepository rootです。npm `bin`では `GAME_PLAYER_LENS_HOME`、未設定なら `~/.game-player-lens` が起点です。toolが返すpathは、どちらの実行方式でもそのdata rootからの相対パスです。
+
 ## データの解釈
 
 `derive_personas` は1 appid ごとに positive 25件と negative 25件を Japanese-first で集める、問題発見用の polarity-balanced sample です。`representative: false` であり、市場やレビュー母集団の比率を表しません。この50対50から Flow size や adoption likelihood を推定せず、母集団の好評率には `steam_fetch.reviewStats` など別の根拠を使ってください。
@@ -149,6 +177,7 @@ SteamSpy の owners、CCU、playtime、review 系の値は推定または取得�
 pnpm build
 pnpm test
 pnpm smoke:stdio
+pnpm smoke:package
 pnpm test:live
 pnpm smoke:stdio --live
 ```
@@ -159,4 +188,4 @@ live test の固定 appid は Hades `1145360`、SteamSpy discovery tag は `Acti
 
 v1 の既存8 tool 名と主要 input/output shape は互換です。`FetchResult.data` と `warnings` は維持され、`meta` が optional field として追加されました。`ui_capture` も既存 field を維持しつつ image metadata と標準 `ImageContent` を追加します。v1.1 の新規 tool は `steam_discover`、`save_artifact`、`get_artifact` です。canonical knowledge の既存 `get_knowledge` semantics は維持し、dynamic artifact の list/read は `get_artifact` を使用します。
 
-現在の判断は [v1.1 設計](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)、実装・検証条件は [v1.1 計画](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md) を参照してください。旧 [v1 設計](docs/superpowers/specs/2026-08-10-steam-user-sim-design.md) と [v1 計画](docs/superpowers/plans/2026-08-10-steam-user-sim.md) は履歴として残しています。過去 CCU、npm `bin` packaging、remote deployment は v1.2 以降の対象です。
+現在の判断は [v1.1 設計](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)、実装・検証条件は [v1.1 計画](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md) を参照してください。旧 [v1 設計](docs/superpowers/specs/2026-08-10-steam-user-sim-design.md) と [v1 計画](docs/superpowers/plans/2026-08-10-steam-user-sim.md) は履歴として残しています。npm `bin` packagingは実装済みです。過去CCUとremote deploymentは今後の対象です。
