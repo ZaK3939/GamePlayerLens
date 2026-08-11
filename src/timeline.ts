@@ -1,4 +1,5 @@
 import {fetchJson, type FetchResult} from "./http.js";
+import {strictFiniteNumber} from "./normalize.js";
 
 const STEAMSPY_API = "https://steamspy.com/api.php";
 const ITAD_API = "https://api.isthereanydeal.com";
@@ -57,6 +58,11 @@ interface PriceHistoryResult {
   warnings: string[];
 }
 
+interface NormalizedHistory {
+  points: PriceHistoryPoint[];
+  invalidCount: number;
+}
+
 type TimelineJsonFetcher = (
   url: string | URL,
   opts?: {timeoutMs?: number; source?: string},
@@ -66,11 +72,6 @@ export interface TimelineDependencies {
   apiKey?: string;
   now?: () => Date;
   fetcher?: TimelineJsonFetcher;
-}
-
-function finiteNumber(value: unknown): number | null {
-  const number = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(number) ? number : null;
 }
 
 function requireAppid(appid: number): void {
@@ -104,19 +105,42 @@ export function resolveTimelineOptions(
   return {country, since: sinceDate.toISOString()};
 }
 
-function normalizeHistory(data: unknown): PriceHistoryPoint[] {
-  if (!Array.isArray(data)) return [];
-  return (data as RawHistoryPoint[]).flatMap((raw) => {
-    const date = typeof raw.timestamp === "string" ? raw.timestamp : "";
-    const amount = finiteNumber(raw.deal?.price?.amount);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeHistory(data: unknown[]): NormalizedHistory {
+  const points: PriceHistoryPoint[] = [];
+  let invalidCount = 0;
+  for (const value of data) {
+    if (!isRecord(value)) {
+      invalidCount += 1;
+      continue;
+    }
+    const raw = value as RawHistoryPoint;
+    const date = typeof raw.timestamp === "string" ? raw.timestamp.trim() : "";
+    const amount = strictFiniteNumber(raw.deal?.price?.amount);
     const currency =
       typeof raw.deal?.price?.currency === "string"
         ? raw.deal.price.currency.trim()
         : "";
-    const discountPercent = finiteNumber(raw.deal?.cut);
-    if (!date || amount === null || !currency || discountPercent === null) return [];
-    return [{date, amount, currency, discountPercent}];
-  });
+    const discountPercent = strictFiniteNumber(raw.deal?.cut);
+    if (
+      !date
+      || Number.isNaN(Date.parse(date))
+      || amount === null
+      || amount < 0
+      || !currency
+      || discountPercent === null
+      || discountPercent < 0
+      || discountPercent > 100
+    ) {
+      invalidCount += 1;
+      continue;
+    }
+    points.push({date, amount, currency, discountPercent});
+  }
+  return {points, invalidCount};
 }
 
 export function normalizeTimelineSnapshot(
@@ -125,14 +149,23 @@ export function normalizeTimelineSnapshot(
   spyResult: FetchResult<RawSteamSpy>,
   historyResult: PriceHistoryResult,
 ): FetchResult<Timeline> {
-  const ccu = finiteNumber(spyResult.data?.ccu);
-  const averageMinutes = finiteNumber(spyResult.data?.average_forever);
+  const ccu = strictFiniteNumber(spyResult.data?.ccu);
+  const averageMinutes = strictFiniteNumber(spyResult.data?.average_forever);
+  const owners = typeof spyResult.data?.owners === "string"
+    && spyResult.data.owners.trim() !== ""
+    ? spyResult.data.owners
+    : null;
+  const spyRecognized = (ccu !== null && ccu >= 0)
+    || (averageMinutes !== null && averageMinutes >= 0)
+    || owners !== null;
+  const spyWarnings = spyResult.data !== null && !spyRecognized
+    ? ["steamspy timeline returned an invalid response"]
+    : [];
   return {
     data: {
       observedAt: observedAt.toISOString(),
       currentCcu: ccu !== null && ccu >= 0 ? ccu : null,
-      owners:
-        typeof spyResult.data?.owners === "string" ? spyResult.data.owners : null,
+      owners,
       avgPlaytimeHours:
         averageMinutes !== null && averageMinutes >= 0
           ? Math.round((averageMinutes / 60) * 10) / 10
@@ -141,7 +174,7 @@ export function normalizeTimelineSnapshot(
       priceHistorySince: historyResult.since,
       country,
     },
-    warnings: [...spyResult.warnings, ...historyResult.warnings],
+    warnings: [...spyResult.warnings, ...spyWarnings, ...historyResult.warnings],
   };
 }
 
@@ -155,12 +188,19 @@ async function fetchItadHistory(
   lookupUrl.searchParams.set("key", apiKey);
   lookupUrl.searchParams.set("appid", String(appid));
   const lookup = await fetcher(lookupUrl, {source: "ITAD lookup"});
-  if (!lookup.data) return {data: null, since: null, warnings: lookup.warnings};
+  if (lookup.data === null) return {data: null, since: null, warnings: lookup.warnings};
 
+  if (!isRecord(lookup.data)) {
+    return {
+      data: null,
+      since: null,
+      warnings: [...lookup.warnings, "ITAD lookup returned an invalid response"],
+    };
+  }
   const lookupData = lookup.data as ItadLookup;
   const gameId =
     typeof lookupData.game?.id === "string" ? lookupData.game.id.trim() : "";
-  if (lookupData.found !== true || !gameId) {
+  if (lookupData.found === false) {
     return {
       data: null,
       since: null,
@@ -168,6 +208,13 @@ async function fetchItadHistory(
         ...lookup.warnings,
         `ITAD has no game mapping for Steam appid ${appid}`,
       ],
+    };
+  }
+  if (lookupData.found !== true || !gameId) {
+    return {
+      data: null,
+      since: null,
+      warnings: [...lookup.warnings, "ITAD lookup returned an invalid response"],
     };
   }
 
@@ -178,7 +225,7 @@ async function fetchItadHistory(
   historyUrl.searchParams.set("country", options.country);
   historyUrl.searchParams.set("since", options.since);
   const history = await fetcher(historyUrl, {source: "ITAD price history"});
-  if (!history.data) {
+  if (history.data === null) {
     return {
       data: null,
       since: null,
@@ -186,13 +233,34 @@ async function fetchItadHistory(
     };
   }
 
+  if (!Array.isArray(history.data)) {
+    return {
+      data: null,
+      since: null,
+      warnings: [
+        ...lookup.warnings,
+        ...history.warnings,
+        "ITAD price history returned an invalid response",
+      ],
+    };
+  }
   const normalized = normalizeHistory(history.data);
-  const malformedWarning =
-    Array.isArray(history.data) && history.data.length > 0 && normalized.length === 0
-      ? ["ITAD price history contained no valid entries"]
-      : [];
+  if (history.data.length > 0 && normalized.points.length === 0) {
+    return {
+      data: null,
+      since: null,
+      warnings: [
+        ...lookup.warnings,
+        ...history.warnings,
+        "ITAD price history contained no valid entries",
+      ],
+    };
+  }
+  const malformedWarning = normalized.invalidCount > 0
+    ? [`ITAD price history skipped ${normalized.invalidCount} invalid entries`]
+    : [];
   return {
-    data: normalized,
+    data: normalized.points,
     since: options.since,
     warnings: [...lookup.warnings, ...history.warnings, ...malformedWarning],
   };

@@ -132,7 +132,8 @@ export function createPathResolver(rootPath: string): PathResolver {
 }
 
 function findRepoRoot(cwd: string): string {
-  const packagePath = join(cwd, "package.json");
+  const root = realpathSync(resolve(cwd));
+  const packagePath = join(root, "package.json");
   if (!existsSync(packagePath)) {
     throw new Error("steam-user-sim must be started from the repository root");
   }
@@ -140,13 +141,32 @@ function findRepoRoot(cwd: string): string {
   if (packageJson.name !== "steam-user-sim") {
     throw new Error("current directory is not the steam-user-sim repository root");
   }
-  return cwd;
+  for (const directory of ["knowledge", "skills"]) {
+    const candidate = join(root, directory);
+    const stats = existsSync(candidate) ? lstatSync(candidate) : null;
+    if (
+      !stats
+      || stats.isSymbolicLink()
+      || !stats.isDirectory()
+    ) {
+      throw new Error(`required repository directory is missing or invalid: ${directory}`);
+    }
+    if (!isWithin(root, realpathSync(candidate))) {
+      throw new Error(`required repository directory escapes root: ${directory}`);
+    }
+  }
+  return root;
 }
 
 let defaultResolver: PathResolver | undefined;
 
 function getDefaultResolver(): PathResolver {
   defaultResolver ??= createPathResolver(findRepoRoot(process.cwd()));
+  return defaultResolver;
+}
+
+export function initializeRepositoryPaths(cwd = process.cwd()): PathResolver {
+  defaultResolver = createPathResolver(findRepoRoot(cwd));
   return defaultResolver;
 }
 

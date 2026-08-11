@@ -157,4 +157,15 @@ describe("persona derivation pack", () => {
     await expect(derive([1145360], 0)).rejects.toThrow(/1 to 12/);
     await expect(derive([1145360], 13)).rejects.toThrow(/1 to 12/);
   });
+
+  it("rejects more than twelve source appids before fetching", async () => {
+    const fetchGame = vi.fn();
+    const fetchReviews = vi.fn();
+    const derive = createPersonaDeriver({fetchGame, fetchReviews});
+
+    await expect(derive(Array.from({length: 13}, () => 1145360)))
+      .rejects.toThrow(/at most 12/);
+    expect(fetchGame).not.toHaveBeenCalled();
+    expect(fetchReviews).not.toHaveBeenCalled();
+  });
 });

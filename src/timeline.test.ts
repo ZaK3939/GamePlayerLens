@@ -111,6 +111,80 @@ describe("createTimelineFetcher", () => {
     expect(result.warnings).toContain("ITAD has no game mapping for Steam appid 1145360");
   });
 
+  it("treats a non-array ITAD history payload as unavailable", async () => {
+    const fetcher = vi.fn(async (url: string | URL): Promise<FetchResult<unknown>> => {
+      const parsed = new URL(url);
+      if (parsed.hostname === "steamspy.com") return {data: spyData(), warnings: []};
+      if (parsed.pathname.endsWith("/lookup/v1")) {
+        return {data: {found: true, game: {id: "game-uuid"}}, warnings: []};
+      }
+      return {data: {error: "schema drift"}, warnings: []};
+    });
+    const result = await createTimelineFetcher({
+      apiKey: "secret-key",
+      now: () => NOW,
+      fetcher,
+    })(1145360);
+
+    expect(result.data?.priceHistory).toBeNull();
+    expect(result.data?.priceHistorySince).toBeNull();
+    expect(result.warnings).toContain("ITAD price history returned an invalid response");
+  });
+
+  it("keeps valid ITAD entries and warns about malformed siblings", async () => {
+    const fetcher = vi.fn(async (url: string | URL): Promise<FetchResult<unknown>> => {
+      const parsed = new URL(url);
+      if (parsed.hostname === "steamspy.com") return {data: spyData(), warnings: []};
+      if (parsed.pathname.endsWith("/lookup/v1")) {
+        return {data: {found: true, game: {id: "game-uuid"}}, warnings: []};
+      }
+      return {
+        data: [
+          null,
+          {
+            timestamp: "2026-03-01T00:00:00Z",
+            deal: {price: {amount: 10, currency: "USD"}, cut: 50},
+          },
+        ],
+        warnings: [],
+      };
+    });
+    const result = await createTimelineFetcher({
+      apiKey: "secret-key",
+      now: () => NOW,
+      fetcher,
+    })(1145360);
+
+    expect(result.data?.priceHistory).toHaveLength(1);
+    expect(result.warnings).toContain("ITAD price history skipped 1 invalid entries");
+  });
+
+  it("does not coerce null or blank SteamSpy metrics to zero", async () => {
+    const fetcher = vi.fn(async () => ({
+      data: spyData({ccu: null, average_forever: ""}),
+      warnings: [],
+    }));
+    const result = await createTimelineFetcher({
+      apiKey: " ",
+      now: () => NOW,
+      fetcher,
+    })(1145360);
+
+    expect(result.data?.currentCcu).toBeNull();
+    expect(result.data?.avgPlaytimeHours).toBeNull();
+  });
+
+  it("warns when SteamSpy returns an unrecognized object", async () => {
+    const fetcher = vi.fn(async () => ({data: {}, warnings: []}));
+    const result = await createTimelineFetcher({
+      apiKey: " ",
+      now: () => NOW,
+      fetcher,
+    })(1145360);
+
+    expect(result.warnings).toContain("steamspy timeline returned an invalid response");
+  });
+
   it("keeps ITAD history when SteamSpy fails", async () => {
     const fetcher = vi.fn(async (url: string | URL): Promise<FetchResult<unknown>> => {
       const parsed = new URL(url);

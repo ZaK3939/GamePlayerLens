@@ -15,6 +15,7 @@ import {fetchGame, type GameProfile} from "./steam.js";
 import type {FetchResult} from "./http.js";
 
 const REVIEWS_PER_POLARITY = 25;
+export const MAX_DERIVATION_APPIDS = 12;
 
 export const VoiceEvidenceSchema = z.object({
   text: z.string().min(1),
@@ -234,6 +235,9 @@ export function createPersonaDeriver(
     }
     if (!Array.isArray(appids) || appids.length === 0) {
       throw new TypeError("appids must contain at least one Steam appid");
+    }
+    if (appids.length > MAX_DERIVATION_APPIDS) {
+      throw new TypeError(`appids must contain at most ${MAX_DERIVATION_APPIDS} Steam appids`);
     }
     const uniqueAppids = [...new Set(appids)];
     if (uniqueAppids.some((appid) => !Number.isInteger(appid) || appid <= 0)) {

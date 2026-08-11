@@ -1,4 +1,5 @@
 import {fetchJson, type FetchResult} from "./http.js";
+import {strictFiniteNumber} from "./normalize.js";
 
 const REVIEWS_API = "https://store.steampowered.com/appreviews";
 const PAGE_SIZE = 100;
@@ -43,11 +44,6 @@ interface NormalizedOptions {
   limit: number;
 }
 
-function finiteNumber(value: unknown): number | null {
-  const number = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
 function normalizeOptions(opts: ReviewOptions = {}): NormalizedOptions {
   const language = (opts.language ?? "all").trim().toLowerCase();
   if (!language || !/^[a-z0-9_-]+$/i.test(language)) {
@@ -88,8 +84,8 @@ function normalizeReview(raw: RawReview): Review | null {
   const recommendationId =
     typeof raw.recommendationid === "string" ? raw.recommendationid.trim() : "";
   const language = typeof raw.language === "string" ? raw.language.trim() : "";
-  const playtimeMinutes = finiteNumber(raw.author?.playtime_forever);
-  const timestamp = finiteNumber(raw.timestamp_created);
+  const playtimeMinutes = strictFiniteNumber(raw.author?.playtime_forever);
+  const timestamp = strictFiniteNumber(raw.timestamp_created);
   if (
     !recommendationId
     || !language
@@ -97,6 +93,8 @@ function normalizeReview(raw: RawReview): Review | null {
     || playtimeMinutes === null
     || playtimeMinutes < 0
     || timestamp === null
+    || !Number.isInteger(timestamp)
+    || timestamp < 0
   ) {
     return null;
   }

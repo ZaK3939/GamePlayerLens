@@ -154,6 +154,23 @@ function captureFailureWarning(): string {
   return `UI capture failed; place a PNG manually in ${MANUAL_FALLBACK}`;
 }
 
+function isLoopbackUrl(value: string): boolean {
+  const hostname = new URL(value).hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
+  return hostname === "localhost"
+    || hostname.endsWith(".localhost")
+    || hostname === "::1"
+    || /^127(?:\.\d{1,3}){3}$/.test(hostname);
+}
+
+function obscuraServeArgs(url: string, port: number): string[] {
+  const args = ["serve", "--port", String(port)];
+  if (isLoopbackUrl(url)) args.push("--allow-private-network");
+  return args;
+}
+
 export function createCaptureService(
   dependencies: CaptureDependencies = {},
 ): (url: string, opts?: CaptureOptions) => Promise<FetchResult<CaptureResult>> {
@@ -182,7 +199,7 @@ export function createCaptureService(
     let spawnError: Error | null = null;
     try {
       const port = await findPort();
-      const runningChild = spawn(obscuraPath, ["serve", "--port", String(port)]);
+      const runningChild = spawn(obscuraPath, obscuraServeArgs(request.url, port));
       child = runningChild;
       runningChild.once("error", (error) => {
         spawnError = error;

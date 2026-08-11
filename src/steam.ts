@@ -1,4 +1,5 @@
 import {fetchJson, type FetchResult} from "./http.js";
+import {strictFiniteNumber} from "./normalize.js";
 
 const STORE_API = "https://store.steampowered.com/api";
 const STEAMSPY_API = "https://steamspy.com/api.php";
@@ -82,11 +83,6 @@ export type StoreRegionResults = Record<
   FetchResult<StoreEnvelope>
 >;
 
-function finiteNumber(value: unknown): number | null {
-  const number = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -129,7 +125,7 @@ function normalizePrice(
   const raw = data.price_overview;
   const currency = stringValue(raw?.currency);
   const finalFormatted = stringValue(raw?.final_formatted);
-  const discountPercent = finiteNumber(raw?.discount_percent);
+  const discountPercent = strictFiniteNumber(raw?.discount_percent);
   if (!currency || !finalFormatted || discountPercent === null) {
     uniqueWarning(warnings, `steam store ${region} price unavailable`);
     return null;
@@ -164,18 +160,42 @@ export function normalizeGameProfile(
   const eu = storeData(stores.eu, appid);
   const isFree = us.is_free === true;
   const spy = spyResult.data;
+  const spyTags = spy?.tags && typeof spy.tags === "object" && !Array.isArray(spy.tags)
+    ? spy.tags
+    : null;
+  const spyAppid = strictFiniteNumber(spy?.appid);
+  const ccu = strictFiniteNumber(spy?.ccu);
+  const positive = strictFiniteNumber(spy?.positive);
+  const negative = strictFiniteNumber(spy?.negative);
+  const owners = typeof spy?.owners === "string" && spy.owners.trim() !== ""
+    ? spy.owners
+    : null;
+  const spyRecognized = Boolean(
+    spy
+    && (
+      (spyAppid !== null && Number.isInteger(spyAppid) && spyAppid > 0)
+      || (ccu !== null && ccu >= 0)
+      || (positive !== null && positive >= 0)
+      || (negative !== null && negative >= 0)
+      || owners !== null
+      || spyTags !== null
+    )
+  );
   const prices = {
     us: normalizePrice("us", us, isFree, warnings),
     jp: normalizePrice("jp", jp, isFree, warnings),
     eu: normalizePrice("eu", eu, isFree, warnings),
   };
   if (!spy) uniqueWarning(warnings, "steamspy unavailable");
+  else if (!spyRecognized) uniqueWarning(warnings, "steamspy returned an invalid response");
 
-  const positive = finiteNumber(spy?.positive);
-  const negative = finiteNumber(spy?.negative);
   const reviewTotal = (positive ?? 0) + (negative ?? 0);
   const reviewStats =
-    positive !== null && negative !== null && reviewTotal > 0
+    positive !== null
+      && positive >= 0
+      && negative !== null
+      && negative >= 0
+      && reviewTotal > 0
       ? {
           positive,
           negative,
@@ -197,13 +217,13 @@ export function normalizeGameProfile(
       shortDescription: stringValue(us.short_description),
       releaseDate: stringValue(us.release_date?.date),
       isFree,
-      tags: spy?.tags ? Object.keys(spy.tags) : [],
+      tags: spyTags ? Object.keys(spyTags) : [],
       genres,
       languages: parseSupportedLanguages(us.supported_languages),
       prices,
       reviewStats,
-      ccu: finiteNumber(spy?.ccu),
-      owners: typeof spy?.owners === "string" ? spy.owners : null,
+      ccu: ccu !== null && ccu >= 0 ? ccu : null,
+      owners,
       screenshots,
     },
     warnings,
@@ -235,7 +255,7 @@ export async function searchGames(query: string): Promise<FetchResult<SearchHit[
 
   if (!result.data) return {data: null, warnings: result.warnings};
   const hits = (result.data.items ?? []).flatMap((item) => {
-    const id = finiteNumber(item.id);
+    const id = strictFiniteNumber(item.id);
     const name = stringValue(item.name);
     return id !== null && Number.isInteger(id) && id > 0 && name
       ? [{appid: id, name}]

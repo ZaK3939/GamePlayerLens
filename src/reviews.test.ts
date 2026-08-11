@@ -76,6 +76,28 @@ describe("normalizeReviewPages", () => {
       .toEqual(["same", "other"]);
   });
 
+  it("drops reviews whose numeric fields are null, blank, or boolean", () => {
+    const result = normalizeReviewPages([[
+      rawReview("null-playtime", {author: {playtime_forever: null}}),
+      rawReview("blank-playtime", {author: {playtime_forever: " "}}),
+      rawReview("boolean-timestamp", {timestamp_created: false}),
+    ]], {limit: 1});
+
+    expect(result.data).toEqual([]);
+    expect(result.warnings).toEqual([
+      "steam reviews returned 0 of requested 1 after filters (scanned 3)",
+    ]);
+  });
+
+  it("drops reviews with negative or fractional timestamps", () => {
+    const result = normalizeReviewPages([[
+      rawReview("negative-timestamp", {timestamp_created: -1}),
+      rawReview("fractional-timestamp", {timestamp_created: 1.5}),
+    ]], {limit: 1});
+
+    expect(result.data).toEqual([]);
+  });
+
   it("caps scanning at three pages and 300 raw reviews", () => {
     const pages = Array.from({length: 4}, (_, page) =>
       Array.from({length: 100}, (_, index) =>

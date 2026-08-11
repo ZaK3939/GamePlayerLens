@@ -1,6 +1,8 @@
 # steam-user-sim v1 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Status:** 2026-08-11 実装・検証完了。各Stepのコミットとend-to-end gateを確認済み。
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Completed steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** ゲーム開発コンサル用MCPサーバー v1 — Steamデータ取得・ペルソナ派生/保存・UIキャプチャの8 tool + canonical ナレッジ + 実行レシピ(MCP prompts)。
 
@@ -35,7 +37,7 @@
   - `createPathResolver(root: string)` — 明示されたtrusted root配下だけを解決する。テストは一時root、productionは検出済みrepo rootを渡す。
   - default resolverの `resolveKnowledgePath(kind, id)` / `resolvePersonaPath(id)` / `resolveCapturePath(name?)`
 
-- [ ] **Step 1: scaffold**
+- [x] **Step 1: scaffold**
 
 ```bash
 pnpm init
@@ -63,7 +65,7 @@ pnpm add -D typescript vitest @types/node tsx
 
 `tsconfig.json`は`target: ES2022`、`module/moduleResolution: NodeNext`、`strict: true`、`outDir: dist`、`rootDir: src`とする。
 
-- [ ] **Step 2: failing tests**
+- [x] **Step 2: failing tests**
 
 `src/http.test.ts`はNodeのloopback HTTP serverを起動し、200 JSON、HTTP 500、不正JSON、timeoutを検証する。global `fetch`は差し替えない。
 
@@ -83,9 +85,9 @@ expect(resolver.resolvePersonaPath("jp-localization-hawk")).toMatch(/\.json$/);
 
 作成した一時rootだけを`afterAll`で削除する。
 
-- [ ] **Step 3: run, verify FAIL** — `pnpm test` → modules not found
+- [x] **Step 3: run, verify FAIL** — `pnpm test` → modules not found
 
-- [ ] **Step 4: implement**
+- [x] **Step 4: implement**
 
 `fetchJson`は非2xx、JSON parse、AbortSignal timeout、network errorを`data:null`へ変換する。warningにAPI keyやURL query全体を含めず、`source`またはhostと失敗種別だけを入れる。
 
@@ -98,8 +100,8 @@ expect(resolver.resolvePersonaPath("jp-localization-hawk")).toMatch(/\.json$/);
 - captureはサーバー生成名をデフォルトにし、`knowledge/intel/captures/`以外へ出さない。
 - 既存ファイルを読む場合はsymlink経由でroot外へ出ないことも確認する。
 
-- [ ] **Step 5: run, verify PASS** — `pnpm test`
-- [ ] **Step 6: Commit** — `feat: scaffold + safe http and path foundations`
+- [x] **Step 5: run, verify PASS** — `pnpm test`
+- [x] **Step 6: Commit** — `feat: scaffold + safe http and path foundations`
 
 ---
 
@@ -148,7 +150,7 @@ interface GameProfile {
 
 Steam Store appdetailsを`cc=us|jp|de`で3回、SteamSpy appdetailsを1回、`Promise.all`で取得する。`eu`はGermany代表値であり、`countryCode:"de"`を保持する。v1の検索は名前だけとし、タグは`steam_fetch`後にクライアント側で絞る。
 
-- [ ] **Step 1: failing deterministic tests**
+- [x] **Step 1: failing deterministic tests**
   - supported_languagesのHTML/`*`除去
   - 3地域価格の正規化とGermany代表コード
   - `is_free=true`のprice欠落は正常なnullで、障害warningにしない
@@ -156,14 +158,14 @@ Steam Store appdetailsを`cc=us|jp|de`で3回、SteamSpy appdetailsを1回、`Pr
   - SteamSpy tags/owners/ccu/positive/negative
   - positive+negative=0ならpositivePercentを0除算せずnull扱い
 
-- [ ] **Step 2: failing live smoke**
+- [x] **Step 2: failing live smoke**
 
 `src/steam.live.test.ts`は`RUN_LIVE=1`時だけ実行し、`searchGames("Hades")`が1145360を含むこと、`fetchGame(1145360)`がname、Japanese、JPY、複数tagを返すことを確認する。可変値のCCUやレビュー件数そのものは固定値assertしない。
 
-- [ ] **Step 3: run, verify FAIL** — `pnpm test`
-- [ ] **Step 4: implement** — US Store失敗だけ全体null。JP/DE/SteamSpy失敗は取得済みデータとwarningを返す。
-- [ ] **Step 5: run, verify PASS** — `pnpm test`後に`pnpm test:live`
-- [ ] **Step 6: Commit** — `feat: steam data layer (search + fetch)`
+- [x] **Step 3: run, verify FAIL** — `pnpm test`
+- [x] **Step 4: implement** — US Store失敗だけ全体null。JP/DE/SteamSpy失敗は取得済みデータとwarningを返す。
+- [x] **Step 5: run, verify PASS** — `pnpm test`後に`pnpm test:live`
+- [x] **Step 6: Commit** — `feat: steam data layer (search + fetch)`
 
 ---
 
@@ -202,7 +204,7 @@ Steam reviews APIは`filter=recent`、初回cursor=`*`、次ページは応答cu
 
 文字化け対策は簡易版のみ: 制御文字 `/[\x00-\x08\x0B\x0C\x0E-\x1F]/g` と `?{3,}` を除去する。
 
-- [ ] **Step 1: failing deterministic tests**
+- [x] **Step 1: failing deterministic tests**
   - 制御文字と`???`除去
   - `author.playtime_forever`の分→小数1桁の時間
   - positive/negative mapping
@@ -210,11 +212,11 @@ Steam reviews APIは`filter=recent`、初回cursor=`*`、次ページは応答cu
   - recommendationId重複除去
   - 300件capとlimit未達warning
 
-- [ ] **Step 2: failing live smoke** — HadesのJapanese negative reviewを最大20件取得し、votedUp=false、playtimeHours number、recommendationId非空を確認する。
-- [ ] **Step 3: run, verify FAIL**
-- [ ] **Step 4: implement**
-- [ ] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
-- [ ] **Step 6: Commit** — `feat: review fetcher with traceable filtered reviews`
+- [x] **Step 2: failing live smoke** — HadesのJapanese negative reviewを最大20件取得し、votedUp=false、playtimeHours number、recommendationId非空を確認する。
+- [x] **Step 3: run, verify FAIL**
+- [x] **Step 4: implement**
+- [x] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
+- [x] **Step 6: Commit** — `feat: review fetcher with traceable filtered reviews`
 
 ---
 
@@ -259,7 +261,7 @@ ITAD API:
 
 `since`はISO 8601、未指定時は現在から365日前。`country`はISO 3166-1 alpha-2大文字、デフォルトUS。API応答のamount/currencyを保持し、USD変換しない。URLは`URL`/`URLSearchParams`で組み立て、keyをwarningへ出さない。
 
-- [ ] **Step 1: failing deterministic tests**
+- [x] **Step 1: failing deterministic tests**
   - currentCcuとobservedAt
   - average_foreverの分→時間
   - ITAD通貨保持、discount cut mapping、デフォルトsince
@@ -267,11 +269,11 @@ ITAD API:
   - `ITAD_API_KEY`なしはpriceHistory:null + 取得手順warning
   - SteamSpy失敗でもITAD成功データを返す部分成功
 
-- [ ] **Step 2: failing live smoke** — HadesのcurrentCcuをnumberとして確認。ITAD keyありなら履歴・currency、なしならnullとwarningを確認。
-- [ ] **Step 3: run, verify FAIL**
-- [ ] **Step 4: implement**
-- [ ] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
-- [ ] **Step 6: Commit** — `feat: current ccu snapshot + bounded price timeline`
+- [x] **Step 2: failing live smoke** — HadesのcurrentCcuをnumberとして確認。ITAD keyありなら履歴・currency、なしならnullとwarningを確認。
+- [x] **Step 3: run, verify FAIL**
+- [x] **Step 4: implement**
+- [x] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
+- [x] **Step 6: Commit** — `feat: current ccu snapshot + bounded price timeline`
 
 ---
 
@@ -306,13 +308,13 @@ const PersonaSchema = z.object({
 });
 ```
 
-- `buildDerivationPack(appids: number[], count = 5)` — countは1〜12。`{requestedCount, schema, games, reviews, instruction}`を返す。schemaはzod v4からJSON Schemaへ変換する。
+- `buildDerivationPack(appids: number[], count = 5)` — appidsとcountは各1〜12。`{requestedCount, schema, games, reviews, instruction}`を返す。schemaはzod v4からJSON Schemaへ変換する。
 - `savePersona(persona, {overwrite=false}?)` — validate後、同一ディレクトリの一時ファイルへwriteする。`overwrite:false`はtemp→destinationのhard linkで「既存なら失敗」を原子的に保証してtempをunlinkし、`overwrite:true`はrenameで原子的に置換する。
 - `listPersonas()` / `loadPersona(id)` — 読込時にもPersonaSchemaで検証する。
 
 派生素材は各ゲームについてJapanese positive 25件 + negative 25件を優先する。不足分だけall-languageから補い、`recommendationId`で日本語分との重複を除く。ゲーム/極性ごとに不足warningを残す。countはサーバー生成数ではなく、クライアントへの生成指示と検証期待値に使う。
 
-- [ ] **Step 1: failing deterministic tests**
+- [x] **Step 1: failing deterministic tests**
   - voice 2件/6件/出典欠落をreject
   - save/load round-tripはTask 1の`createPathResolver(tempRoot)`を注入したstoreで行う
   - traversal IDと既存ID上書きをreject
@@ -321,11 +323,11 @@ const PersonaSchema = z.object({
   - Japanese→all fallbackが重複せずpositive/negativeを必要数まで補う
   - count 0/13をrejectし、default 5をpackへ含める
 
-- [ ] **Step 2: failing live smoke** — Hadesのpackがレビュー10件以上、requestedCount=5、recommendationId重複なし、instructionに`save_persona`を含むことを確認。
-- [ ] **Step 3: run, verify FAIL**
-- [ ] **Step 4: implement**
-- [ ] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
-- [ ] **Step 6: Commit** — `feat: traceable persona derivation and safe storage`
+- [x] **Step 2: failing live smoke** — Hadesのpackがレビュー10件以上、requestedCount=5、recommendationId重複なし、instructionに`save_persona`を含むことを確認。
+- [x] **Step 3: run, verify FAIL**
+- [x] **Step 4: implement**
+- [x] **Step 5: run, verify PASS** — `pnpm test` + `pnpm test:live`
+- [x] **Step 6: Commit** — `feat: traceable persona derivation and safe storage`
 
 ---
 
@@ -358,28 +360,28 @@ function captureUrl(
 - URLは`http:`/`https:`のみ。localhost/loopbackは対象UI確認のため許可。`file:`/`data:`/`javascript:`等は入力エラー。
 - `name`はファイル名のヒントでありpathではない。安全なslugへ変換し、出力は必ず`knowledge/intel/captures/`配下のPNG。
 - `OBSCURA_PATH`なしはdata:nullとinstall/manual fallback warning。
-- 起動は `OBSCURA_PATH serve --port N`。接続先は`ws://127.0.0.1:N/devtools/browser`。
+- 起動は `OBSCURA_PATH serve --port N`。localhost/loopback対象時だけ`--allow-private-network`を追加する。接続先は`ws://127.0.0.1:N/devtools/browser`。
 
-- [ ] **Step 1: failing deterministic tests**
+- [x] **Step 1: failing deterministic tests**
   - 未設定warning
   - unsafe scheme拒否
   - `name=../../x`でもroot外へ出ず、安全名になるか入力拒否
   - viewport bounds (320〜3840 × 240〜2160)
   - default fullPage=true
 
-- [ ] **Step 2: failing live smoke** — `RUN_LIVE=1 && OBSCURA_PATH`時だけexample.comをcaptureし、許可root配下のPNGと非zero sizeを確認後、対象ファイルだけ削除。
+- [x] **Step 2: failing live smoke** — `RUN_LIVE=1 && OBSCURA_PATH`時だけexample.comをcaptureし、許可root配下のPNGと非zero sizeを確認後、対象ファイルだけ削除。
 
-- [ ] **Step 3: run, verify FAIL**
-- [ ] **Step 4: implement**
-  - loopbackの空きportを選び、`spawn(OBSCURA_PATH, ["serve", "--port", String(port)])`
+- [x] **Step 3: run, verify FAIL**
+- [x] **Step 4: implement**
+  - loopbackの空きportを選び、対象URLがlocalhost/loopbackの場合だけ`--allow-private-network`を付けてspawn
   - stdout/stderrはbufferへ捕捉し、MCPのprocess.stdoutへpipeしない
   - 8秒以内でPuppeteer connectを短間隔retry
   - viewport設定、`page.goto(..., {waitUntil:"networkidle2", timeout:15000})`、full-page screenshot
   - `browser.disconnect()`と子プロセス終了を`finally`で保証。終了猶予後も残る場合だけ対象PIDへSIGKILL
   - 失敗warningに手動配置先を含め、捕捉ログから秘密情報や長大HTMLを返さない
 
-- [ ] **Step 5: run, verify PASS** — `pnpm test`; Obscura環境では`pnpm test:live`
-- [ ] **Step 6: Commit** — `feat: safe obscura cdp capture with manual fallback`
+- [x] **Step 5: run, verify PASS** — `pnpm test`; Obscura環境では`pnpm test:live`
+- [x] **Step 6: Commit** — `feat: safe obscura cdp capture with manual fallback`
 
 ---
 
@@ -392,30 +394,30 @@ function captureUrl(
 **Interfaces:**
 - Produces: Task 8の`get_knowledge`とMCP promptsが読むcanonicalファイル群。
 
-- [ ] **Step 1: failing content contract test**
+- [x] **Step 1: failing content contract test**
   - adoption templateの必須5セクション
   - 各領域の根拠欄と「根拠不足」規則
   - rubricの根拠/ブラインド/voice出典要件
   - run-simの8 tool名と`derive_personas → save_persona`
   - 2 promptファイルが非空
 
-- [ ] **Step 2: `knowledge/templates/adoption-eval.md`**
+- [x] **Step 2: `knowledge/templates/adoption-eval.md`**
   1. `Overall Assessment` (Adoption Likelihood / Initial Friction / Retention Potential / Key Blocking Factors)
   2. `Who Plays and Why — Flow Analysis`。各FlowにVolume driver / Friction / Retention / Current size / What we control
   3. `Flow Summary`表
   4. UI / 価格 / ローカライズ / 競合の領域別所見。各主張に`knowledge/intel/`相対リンクまたはtool取得値。なければ「根拠不足」
   5. 変更相談は全セクションを「現状 vs 変更案」の差分形式
 
-- [ ] **Step 3: `knowledge/rubrics/harsh-critic.md`**
+- [x] **Step 3: `knowledge/rubrics/harsh-critic.md`**
   - 根拠なし主張が1つでもあれば差し戻し
   - UIは本物スクショとのブラインド比較でAAAに見えなければ続行
   - persona発言が`voice[].text`と矛盾、または`source_appid`/`recommendation_id`欠落なら差し戻し
   - 全領域subagentが合格するまでloop。ただし同一指摘の反復時は根拠不足として停止条件を明記
 
-- [ ] **Step 4: `skills/run-sim.md`** — 対象理解→競合特定→derive_personas→JSON生成→save_persona→領域別subagent→辛口批評→workspaces出力。
-- [ ] **Step 5: `skills/ui-blind-compare.md`** — 本物UIと対象UIを匿名化して提示し、正解を明かす前に比較結果を固定する手順。
-- [ ] **Step 6: run, verify PASS** — `pnpm test`
-- [ ] **Step 7: Commit** — `docs: canonical knowledge (templates, rubrics, run recipes)`
+- [x] **Step 4: `skills/run-sim.md`** — 対象理解→競合特定→derive_personas→JSON生成→save_persona→領域別subagent→辛口批評→workspaces出力。
+- [x] **Step 5: `skills/ui-blind-compare.md`** — 本物UIと対象UIを匿名化して提示し、正解を明かす前に比較結果を固定する手順。
+- [x] **Step 6: run, verify PASS** — `pnpm test`
+- [x] **Step 7: Commit** — `docs: canonical knowledge (templates, rubrics, run recipes)`
 
 ---
 
@@ -431,7 +433,7 @@ function captureUrl(
   - tools: `steam_search`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `derive_personas`, `save_persona`, `ui_capture`, `get_knowledge`
   - prompts: `run-sim`, `ui-blind-compare`
 
-- [ ] **Step 1: `src/knowledge.ts` failing tests**
+- [x] **Step 1: `src/knowledge.ts` failing tests**
   - idなし一覧
   - rubric本文取得
   - persona一覧にarchetype
@@ -440,7 +442,7 @@ function captureUrl(
 
 パスはTask 1のresolverだけを使い、独自の`join(root, input)`を禁止する。
 
-- [ ] **Step 2: MCP contract failing tests**
+- [x] **Step 2: MCP contract failing tests**
 
 MCP SDK v2の`Client`と、`@modelcontextprotocol/server`から読み込んだ`InMemoryTransport.createLinkedPair()`を使う。各testは`try/finally`でclient/serverをcloseする。
 
@@ -463,9 +465,9 @@ expect(promptNames.sort()).toEqual(["run-sim", "ui-blind-compare"]);
 
 さらに各input/output schemaの必須項目、`derive_personas.count`範囲、`ui_capture`に`outPath`がないこと、`save_persona → get_knowledge` round-trip、path違反がtool errorになることを検証する。
 
-- [ ] **Step 3: run, verify FAIL**
+- [x] **Step 3: run, verify FAIL**
 
-- [ ] **Step 4: implement**
+- [x] **Step 4: implement**
   - `buildServer()`はMCP SDK v2の`McpServer`を組み立ててreturn
   - 各toolにzod v4 input/output schemaを登録
   - 成功は`structuredContent: {data, warnings}`と、同内容のtext contentを返す
@@ -474,8 +476,8 @@ expect(promptNames.sort()).toEqual(["run-sim", "ui-blind-compare"]);
   - 直接実行時だけ`serveStdio(buildServer)`を呼ぶ
   - stdoutはJSON-RPC専用。診断ログはstderr
 
-- [ ] **Step 5: run, verify PASS** — `pnpm test`
-- [ ] **Step 6: Commit** — `feat: mcp v2 server wiring (8 tools, 2 prompts)`
+- [x] **Step 5: run, verify PASS** — `pnpm test`
+- [x] **Step 6: Commit** — `feat: mcp v2 server wiring (8 tools, 2 prompts)`
 
 ---
 
@@ -488,7 +490,7 @@ expect(promptNames.sort()).toEqual(["run-sim", "ui-blind-compare"]);
 **Interfaces:**
 - Consumes: 全タスク
 
-- [ ] **Step 1: `.mcp.json`**
+- [x] **Step 1: `.mcp.json`**
 
 ```json
 {
@@ -503,7 +505,7 @@ expect(promptNames.sort()).toEqual(["run-sim", "ui-blind-compare"]);
 
 空文字envは置かない。`ITAD_API_KEY`/`OBSCURA_PATH`は親プロセス環境から継承し、未設定時の動作をtool warningで案内する。
 
-- [ ] **Step 2: README**
+- [x] **Step 2: README**
   - 「変更の右腕」という目的
   - repo rootからの`pnpm install`
   - 任意設定2つのexport方法
@@ -513,14 +515,14 @@ expect(promptNames.sort()).toEqual(["run-sim", "ui-blind-compare"]);
   - design specへのリンク
   - v1はグローバル`bin`非対応
 
-- [ ] **Step 3: `scripts/smoke-stdio.ts`**
+- [x] **Step 3: `scripts/smoke-stdio.ts`**
   - `Client` + `StdioClientTransport`で`node dist/index.js`を実際にspawn
   - cwdは検証済みrepo root
   - initialize、8 tools、2 prompts、`get_knowledge`を確認
   - stdoutにJSON-RPC以外が混ざれば接続失敗として検出
   - `finally`でclientをclose
 
-- [ ] **Step 4: end-to-end gate**
+- [x] **Step 4: end-to-end gate**
 
 ```bash
 pnpm build
@@ -531,7 +533,7 @@ pnpm test:live
 
 live実行可能環境では4本すべてを通す。キー/Obscuraなしでもそれぞれのfallback smokeは通る。最後にClaude Codeから`steam_search`と`get_knowledge`を1回ずつ呼ぶ。
 
-- [ ] **Step 5: Commit** — `docs: readme + repo-local mcp connection smoke`
+- [x] **Step 5: Commit** — `docs: readme + repo-local mcp connection smoke`
 
 ---
 

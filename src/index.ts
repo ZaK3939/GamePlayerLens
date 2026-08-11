@@ -9,10 +9,11 @@ import type {FetchResult} from "./http.js";
 import {readKnowledge, type KnowledgeReader} from "./knowledge.js";
 import {
   buildDerivationPack,
+  MAX_DERIVATION_APPIDS,
   PersonaSchema,
   savePersona,
 } from "./personas.js";
-import {resolveSkillPath} from "./paths.js";
+import {initializeRepositoryPaths, resolveSkillPath} from "./paths.js";
 import {fetchReviews} from "./reviews.js";
 import {fetchGame, searchGames} from "./steam.js";
 import {fetchTimeline} from "./timeline.js";
@@ -63,6 +64,7 @@ function jsonEnvelope(result: FetchResult<unknown>) {
 export function buildServer(
   overrides: Partial<ServerServices> = {},
 ): McpServer {
+  initializeRepositoryPaths();
   const services = {...defaultServices, ...overrides};
   const server = new McpServer(
     {name: "steam-user-sim", version: "0.1.0"},
@@ -128,7 +130,7 @@ export function buildServer(
     {
       description: "Build a traceable review evidence pack and Persona JSON Schema",
       inputSchema: z.object({
-        appids: z.array(AppidSchema).min(1),
+        appids: z.array(AppidSchema).min(1).max(MAX_DERIVATION_APPIDS),
         count: z.number().int().min(1).max(12).optional(),
       }),
       outputSchema: ResultEnvelopeSchema,

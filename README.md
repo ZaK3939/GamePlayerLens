@@ -37,7 +37,7 @@ export OBSCURA_PATH="/absolute/path/to/obscura"
 ```
 
 - `ITAD_API_KEY`: IsThereAnyDeal の Steam 価格履歴に使用します。キーは [ITAD Apps](https://isthereanydeal.com/apps/my/) で作成します。
-- `OBSCURA_PATH`: [Obscura](https://github.com/h4ckf0r0day/obscura) の実行ファイルです。未設定または capture 失敗時は `knowledge/ui-references/` への手動配置を案内します。
+- `OBSCURA_PATH`: [Obscura](https://github.com/h4ckf0r0day/obscura) の実行ファイルです。localhost/loopback capture は `--allow-private-network` 対応の v0.1.6 以降を使用してください。未設定または capture 失敗時は `knowledge/ui-references/` への手動配置を案内します。
 
 設定項目はこの2つだけです。`.mcp.json` に空の env 値は書かず、親プロセスの環境を継承します。
 

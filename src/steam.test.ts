@@ -138,6 +138,38 @@ describe("normalizeGameProfile", () => {
     expect(result.data?.reviewStats).toBeNull();
   });
 
+  it("does not coerce missing or boolean numeric fields to zero", () => {
+    const result = normalizeGameProfile(
+      appid,
+      {
+        us: storeResult(storeData()),
+        jp: storeResult(storeData({
+          price_overview: {
+            currency: "JPY",
+            final_formatted: "¥2,800",
+            discount_percent: null,
+          },
+        })),
+        eu: storeResult(storeData()),
+      },
+      {data: {...spy, ccu: null, positive: null, negative: false}, warnings: []},
+    );
+
+    expect(result.data?.ccu).toBeNull();
+    expect(result.data?.reviewStats).toBeNull();
+    expect(result.data?.prices.jp).toBeNull();
+  });
+
+  it("warns when SteamSpy returns an unrecognized object", () => {
+    const result = normalizeGameProfile(
+      appid,
+      {us: storeResult(storeData()), jp: storeResult(storeData()), eu: storeResult(storeData())},
+      {data: {}, warnings: []},
+    );
+
+    expect(result.warnings).toContain("steamspy returned an invalid response");
+  });
+
   it("returns null when the US store response is unavailable", () => {
     const result = normalizeGameProfile(
       appid,

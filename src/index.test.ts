@@ -1,4 +1,4 @@
-import {mkdtemp, mkdir, rm} from "node:fs/promises";
+import {mkdtemp, mkdir, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {Client, InMemoryTransport} from "@modelcontextprotocol/client";
@@ -73,6 +73,10 @@ describe("MCP server contract", () => {
 
       const derive = tools.find((tool) => tool.name === "derive_personas")!;
       expect(derive.inputSchema.required).toContain("appids");
+      expect(derive.inputSchema.properties?.appids).toMatchObject({
+        minItems: 1,
+        maxItems: 12,
+      });
       expect(derive.inputSchema.properties?.count).toMatchObject({minimum: 1, maximum: 12});
       const capture = tools.find((tool) => tool.name === "ui_capture")!;
       expect(capture.inputSchema.required).toContain("url");
@@ -126,6 +130,23 @@ describe("MCP server contract", () => {
     } finally {
       await client.close();
       await server.close();
+    }
+  });
+
+  it.each([
+    {present: [] as string[], missing: "knowledge"},
+    {present: ["knowledge"], missing: "skills"},
+  ])("fails during construction when $missing is missing", async ({present, missing}) => {
+    const root = await mkdtemp(join(tmpdir(), "steam-user-sim-layout-"));
+    roots.push(root);
+    await writeFile(join(root, "package.json"), JSON.stringify({name: "steam-user-sim"}));
+    await Promise.all(present.map((directory) => mkdir(join(root, directory))));
+    const previousCwd = process.cwd();
+    process.chdir(root);
+    try {
+      expect(() => buildServer()).toThrow(new RegExp(missing));
+    } finally {
+      process.chdir(previousCwd);
     }
   });
 });

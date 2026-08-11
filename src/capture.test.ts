@@ -1,7 +1,10 @@
+import {EventEmitter} from "node:events";
 import {mkdtemp, mkdir, rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {basename, join, relative} from "node:path";
-import {afterEach, describe, expect, it} from "vitest";
+import {PassThrough} from "node:stream";
+import type {Browser} from "puppeteer-core";
+import {afterEach, describe, expect, it, vi} from "vitest";
 import {createCaptureService, normalizeCaptureRequest} from "./capture.js";
 import {createPathResolver} from "./paths.js";
 
@@ -12,6 +15,41 @@ async function tempResolver() {
   roots.push(root);
   await mkdir(join(root, "knowledge", "intel", "captures"), {recursive: true});
   return createPathResolver(root);
+}
+
+async function captureHarness() {
+  const resolver = await tempResolver();
+  const page = {
+    setViewport: vi.fn(async () => undefined),
+    goto: vi.fn(async () => undefined),
+    screenshot: vi.fn(async () => undefined),
+  };
+  const browser = {
+    newPage: vi.fn(async () => page),
+    disconnect: vi.fn(),
+  } as unknown as Browser;
+  const child = Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    exitCode: null as number | null,
+    signalCode: null as NodeJS.Signals | null,
+    kill: vi.fn((signal: NodeJS.Signals) => {
+      child.signalCode = signal;
+      queueMicrotask(() => child.emit("exit", null, signal));
+      return true;
+    }),
+  });
+  const spawn = vi.fn(() => child) as never;
+  const connect = vi.fn(async () => browser);
+  const capture = createCaptureService({
+    resolver,
+    obscuraPath: "/opt/obscura",
+    now: () => new Date("2026-08-11T00:00:00.000Z"),
+    findPort: async () => 9222,
+    spawn,
+    connect,
+  });
+  return {capture, spawn, connect, page, browser, child};
 }
 
 afterEach(async () => {
@@ -73,4 +111,38 @@ describe("capture service", () => {
     expect(result.warnings.join(" ")).toContain("OBSCURA_PATH");
     expect(result.warnings.join(" ")).toContain("knowledge/ui-references/");
   });
+
+  it.each([
+    ["http://localhost:3000", true],
+    ["http://127.0.0.42:3000", true],
+    ["http://[::1]:3000", true],
+    ["https://example.com", false],
+  ] as const)(
+    "uses private-network access only for loopback capture: %s",
+    async (url, allowsPrivateNetwork) => {
+      const {capture, spawn, connect, page, browser, child} = await captureHarness();
+      const result = await capture(url, {name: "target"});
+      const expectedArgs = ["serve", "--port", "9222"];
+      if (allowsPrivateNetwork) expectedArgs.push("--allow-private-network");
+
+      expect(result).toMatchObject({
+        data: {url: new URL(url).toString(), capturedAt: "2026-08-11T00:00:00.000Z"},
+        warnings: [],
+      });
+      expect(spawn).toHaveBeenCalledWith("/opt/obscura", expectedArgs);
+      expect(connect).toHaveBeenCalledWith({
+        browserWSEndpoint: "ws://127.0.0.1:9222/devtools/browser",
+      });
+      expect(page.goto).toHaveBeenCalledWith(new URL(url).toString(), {
+        waitUntil: "networkidle2",
+        timeout: 15_000,
+      });
+      expect(page.screenshot).toHaveBeenCalledWith(expect.objectContaining({
+        type: "png",
+        fullPage: true,
+      }));
+      expect(browser.disconnect).toHaveBeenCalledOnce();
+      expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+    },
+  );
 });
