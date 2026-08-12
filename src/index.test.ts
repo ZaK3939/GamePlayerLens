@@ -179,13 +179,14 @@ function persona(): Persona {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly twelve tools and two prompts", async () => {
+  it("exposes exactly thirteen tools and two prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
         "derive_personas",
         "get_artifact",
         "get_knowledge",
+        "get_status",
         "save_artifact",
         "save_persona",
         "steam_discover",
@@ -200,6 +201,63 @@ describe("MCP server contract", () => {
         "run-sim",
         "ui-blind-compare",
       ]);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("reports readiness without exposing integration secrets or an absolute data path", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const listed = (await client.listTools()).tools.find((tool) => tool.name === "get_status");
+      expect(listed).toMatchObject({
+        title: "GamePlayerLens status",
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      });
+      const result = await client.callTool({name: "get_status", arguments: {}});
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        data: {
+          server: {name: "game-player-lens", version: "0.1.0"},
+          storage: {location: "repository-root", writable: true},
+          integrations: {
+            itadPriceHistory: {configured: expect.any(Boolean)},
+            obscuraPageCapture: {configured: expect.any(Boolean)},
+          },
+          capabilities: {toolCount: 13, promptCount: 2},
+          legacyAudienceDefaults: {market: "Japan", language: "japanese"},
+        },
+        warnings: [],
+      });
+      const serialized = JSON.stringify(result.structuredContent);
+      expect(serialized).not.toContain(process.cwd());
+      if (process.env.ITAD_API_KEY) expect(serialized).not.toContain(process.env.ITAD_API_KEY);
+      if (process.env.OBSCURA_PATH) expect(serialized).not.toContain(process.env.OBSCURA_PATH);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("warns when direct persona derivation applies legacy audience defaults", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const result = await client.callTool({
+        name: "derive_personas",
+        arguments: {appids: [1145360]},
+      });
+      expect(result.structuredContent).toMatchObject({
+        warnings: [
+          expect.stringContaining("legacy default Japan"),
+          expect.stringContaining("legacy default japanese"),
+        ],
+      });
     } finally {
       await client.close();
       await server.close();
@@ -839,7 +897,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(12);
+      expect(tools).toHaveLength(13);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),

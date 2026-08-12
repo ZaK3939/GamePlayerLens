@@ -87,8 +87,23 @@ try {
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 12, "packaged CLI did not expose twelve tools");
+  assert(tools.length === 13, "packaged CLI did not expose thirteen tools");
   assert(prompts.length === 2, "packaged CLI did not expose two prompts");
+
+  const status = await client.callTool({name: "get_status", arguments: {}});
+  const statusJson = JSON.stringify(status.structuredContent);
+  assert(status.isError !== true, "packaged CLI could not report status");
+  assert(
+    statusJson.includes('"location":"external-data-home"')
+      && statusJson.includes('"writable":true')
+      && statusJson.includes('"toolCount":13')
+      && !statusJson.includes(dataRoot)
+      && !(process.env.ITAD_API_KEY?.trim()
+        && statusJson.includes(process.env.ITAD_API_KEY))
+      && !(process.env.OBSCURA_PATH?.trim()
+        && statusJson.includes(process.env.OBSCURA_PATH)),
+    "packaged get_status exposed sensitive configuration or returned incomplete readiness metadata",
+  );
 
   const knowledge = await client.callTool({
     name: "get_knowledge",
@@ -199,6 +214,8 @@ try {
       playtestBuild: "package-smoke-fixture-1",
       playtestControls: "keyboard and mouse",
       playtestDurationMinutes: "15",
+      market: "United States",
+      language: "english",
     },
   });
   const playtestContent = playtestPrompt.messages[0]?.content;
@@ -222,6 +239,7 @@ try {
       && playtestContent.text.includes('"playtestBuild": "package-smoke-fixture-1"')
       && playtestContent.text.includes('"playtestControls": "keyboard and mouse"')
       && playtestContent.text.includes('"playtestDurationMinutes": "15"')
+      && playtestContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && playtestContent.text.includes('"selectedDomains": [\n    "gameplay"\n  ]'),
     "packaged run-sim did not round-trip the playtest protocol",
   );

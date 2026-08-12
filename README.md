@@ -2,6 +2,16 @@
 
 Steam の実データに接地したゲーム開発コンサル用 MCP サーバーです。UI・ゲームシステム・価格・ローカライズを変えるたびに相談できる「変更の右腕」として、競合探索、根拠収集、ペルソナ素材生成、評価保存、過去相談の再読込を generic MCP client から完結できます。
 
+## まず何をしたいですか
+
+| 目的 | 入口 | 最初に渡すもの |
+|---|---|---|
+| 自作ゲームの企画・prototype・変更案を相談する | `run-sim` | `target`、`topic`、`market`、Steam language codeの`language`。必要に応じて`projectBrief`、`conceptTest`、playtest情報 |
+| 公開済みゲームの競合・価格・レビュー・更新を分析する | `run-sim` | `target`、`topic`、`market`、`language`。appidが不明でも名前から開始可能 |
+| 過去の相談や保存根拠を読み返す | `get_artifact` | `kind`。まずtarget一覧、次にitem一覧、最後に本文を読む |
+
+接続後は引数なしの`get_status`で、保存先が書込可能か、ITAD価格履歴とObscura page captureが設定済みかを確認できます。返すのは状態だけで、秘密値や絶対pathは返しません。`run-sim`の`intakeDiagnostics.status`が`needs-input`なら、クライアントは`missingFields`を一度に確認してから根拠収集を始めます。`ready`は入力準備の完了であり、分析品質の合格判定ではありません。
+
 ## クライアント要件
 
 必要なクライアント能力は次の3つです。
@@ -57,7 +67,7 @@ pnpm smoke:stdio
 pnpm smoke:stdio --live
 ```
 
-`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 12 tools、2 prompts、prompt arguments、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search`、`steam_discover`、`steam_updates` とresultHandle原本保存を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
+`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 13 tools、2 prompts、safe status、prompt arguments、intake診断、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search`、`steam_discover`、`steam_updates` とresultHandle原本保存を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
 
 ## 任意設定
 
@@ -93,7 +103,7 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
   "projectBrief": "{\"revisionId\":\"brief-v3\",\"developmentStage\":\"prototype\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"immediateReward\":\"予測した航路が成立する手応え\",\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"knownFrame\":\"route-planning management\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
   "competitors": "既知なら作品名、未知なら省略",
   "market": "Japan",
-  "language": "Japanese"
+  "language": "japanese"
 }
 ```
 
@@ -148,7 +158,7 @@ concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動�
   "specification": "Premium roguelike。想定プレイ時間20時間。日本価格は未決定。",
   "competitors": "Hades, Dead Cells",
   "market": "Japan",
-  "language": "Japanese",
+  "language": "japanese",
   "qualityTier": "premium indie"
 }
 ```
@@ -244,7 +254,7 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 
 ## Tools
 
-現在の tool surface は次の exactly 12 tools です。
+現在の tool surface は次の exactly 13 tools です。
 
 | Tool | 用途 |
 |---|---|
@@ -257,11 +267,12 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 | `save_persona` | 生成済み persona を検証し、原子的に保存 |
 | `ui_capture` | 通常ページをObscuraでPNG capture、またはSteam CDN画像をJPEG保存し、上限内なら `ImageContent` も返す |
 | `get_knowledge` | canonical templates、rubrics、personas、互換用 intel を一覧・取得 |
+| `get_status` | 保存先の書込可否と任意連携の設定有無を、秘密値や絶対pathを含めず確認 |
 | `steam_discover` | SteamSpy のtag/genreを単独検索、または最大4条件で交差して競合候補を取得 |
 | `save_artifact` | intel JSON、evaluation Markdown、またはハッシュ付き immutable simulation run を安全に保存 |
 | `get_artifact` | intel、evaluation、run、capture、ui-reference を一覧または読出し |
 
-外部取得 tool は `{data, warnings, meta?}` を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`steam_updates`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。入力違反と path 境界違反は tool error です。
+全toolは`{data, warnings, meta?}`を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`steam_updates`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。`derive_personas`へ`market`または`language`を直接渡さない場合は互換用のJapan / japanese既定値を適用しますが、audience mismatchを見逃さないようwarningを返します。新しいworkflowでは両方を明示してください。入力違反と path 境界違反は tool error です。
 
 `steam_discover` は `value` を主条件とし、任意の `additionalValues` 最大3件をすべて満たす候補だけを返せます。交差検索は各条件のSteamSpy上位50件を使い、各API順位の合計が小さい順に並べます。対象自身や既知の不適合候補は `excludeAppids` 最大50件で除外します。たとえばHades IIに近い候補は次の入力で探索できます。
 
@@ -362,6 +373,6 @@ fixture / smokeとは別に、保存した実相談でproduct workflowを検証�
 
 ## v1 から v1.1
 
-v1 の既存8 tool名とv1.1の11 tool surfaceは互換です。`FetchResult.data` と `warnings` は維持され、`meta` が optional field として追加されました。`ui_capture` も既存 field を維持しつつ image metadata と標準 `ImageContent` を追加します。v1.1 の新規 tool は `steam_discover`、`save_artifact`、`get_artifact` です。今回のfollow-upで`steam_updates`を追加し、現在は12 toolsです。canonical knowledge の既存 `get_knowledge` semantics は維持し、dynamic artifact の list/read は `get_artifact` を使用します。
+v1 の既存8 tool名とv1.1の11 tool surfaceは互換です。`FetchResult.data` と `warnings` は維持され、`meta` が optional field として追加されました。`ui_capture` も既存 field を維持しつつ image metadata と標準 `ImageContent` を追加します。v1.1 の新規 tool は `steam_discover`、`save_artifact`、`get_artifact` です。その後`steam_updates`とread-onlyの`get_status`を追加し、現在は13 toolsです。canonical knowledge の既存 `get_knowledge` semantics は維持し、dynamic artifact の list/read は `get_artifact` を使用します。
 
 現在の判断は [v1.1 設計](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)、実装・検証条件は [v1.1 計画](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md) を参照してください。継続実験のPilotは[Game Discovery Loop設計](docs/superpowers/specs/2026-08-12-game-discovery-loop-design.md)と[実装計画](docs/superpowers/plans/2026-08-12-game-discovery-loop-pilot.md)に分離しています。旧 [v1 設計](docs/superpowers/specs/2026-08-10-steam-user-sim-design.md) と [v1 計画](docs/superpowers/plans/2026-08-10-steam-user-sim.md) は履歴として残しています。npm `bin` packagingは実装済みです。過去CCUとremote deploymentは今後の対象です。

@@ -522,6 +522,21 @@ export function buildRunSimPrompt(
   const missingChangeInputs = parsed.mode === "change"
     ? (["currentState", "proposal"] as const).filter((field) => !parsed[field]?.trim())
     : undefined;
+  const missingFields = [
+    ...(!parsed.market?.trim() ? ["market"] : []),
+    ...(!parsed.language?.trim() ? ["language"] : []),
+    ...(missingChangeInputs ?? []),
+    ...(selectedDomains?.includes("ui") && !parsed.uiBenchmarkTask?.trim()
+      ? ["uiBenchmarkTask"]
+      : []),
+  ];
+  const intakeDiagnostics = {
+    status: missingFields.length === 0 ? "ready" : "needs-input",
+    missingFields,
+    nextAction: missingFields.length === 0
+      ? "Proceed with the selected evidence workflow."
+      : "Ask the user for all missing fields in one concise question before calling external evidence tools.",
+  };
   const {conceptTest, projectBrief, uiReferenceUrls, ...promptInput} = parsed;
 
   const structuredProjectBrief = projectBrief
@@ -562,6 +577,7 @@ export function buildRunSimPrompt(
     domainSelection: parsed.domains === "auto" ? "auto" : "explicit",
     selectedDomains,
     missingChangeInputs,
+    intakeDiagnostics,
   });
 }
 

@@ -1,4 +1,5 @@
-import {readFile} from "node:fs/promises";
+import {constants} from "node:fs";
+import {access, readFile} from "node:fs/promises";
 import {resolve} from "node:path";
 import {pathToFileURL} from "node:url";
 import {McpServer} from "@modelcontextprotocol/server";
@@ -51,6 +52,11 @@ import {
 import {fetchGame, searchGames} from "./steam.js";
 import {fetchTimeline} from "./timeline.js";
 import {fetchUpdates} from "./updates.js";
+
+const SERVER_NAME = "game-player-lens";
+const SERVER_VERSION = "0.1.0";
+const TOOL_COUNT = 13;
+const PROMPT_COUNT = 2;
 
 const ResultEnvelopeSchema = z.object({
   data: z.json().nullable(),
@@ -149,6 +155,31 @@ function imageEnvelope(result: ImageFetchResult<unknown>) {
   };
 }
 
+async function getServerStatus(resolver: PathResolver) {
+  let writable = true;
+  try {
+    await access(resolver.root, constants.W_OK);
+  } catch {
+    writable = false;
+  }
+
+  return {
+    server: {name: SERVER_NAME, version: SERVER_VERSION},
+    storage: {
+      location: resolver.root === resolver.assetRoot
+        ? "repository-root"
+        : "external-data-home",
+      writable,
+    },
+    integrations: {
+      itadPriceHistory: {configured: Boolean(process.env.ITAD_API_KEY?.trim())},
+      obscuraPageCapture: {configured: Boolean(process.env.OBSCURA_PATH?.trim())},
+    },
+    capabilities: {toolCount: TOOL_COUNT, promptCount: PROMPT_COUNT},
+    legacyAudienceDefaults: {market: "Japan", language: "japanese"},
+  };
+}
+
 function createServerServices(overrides: Partial<ServerServices>): ServerServices {
   const resolver = overrides.resolver ?? initializeRepositoryPaths();
   const personaStore = createPersonaStore(resolver);
@@ -178,7 +209,7 @@ export function buildServer(
 ): McpServer {
   const services = createServerServices(overrides);
   const server = new McpServer(
-    {name: "game-player-lens", version: "0.1.0"},
+    {name: SERVER_NAME, version: SERVER_VERSION},
     {capabilities: {tools: {}, prompts: {}}},
   );
 
@@ -321,17 +352,28 @@ export function buildServer(
       language,
       focus,
       sourceRoles,
-    }) => trackedJsonEnvelope(
-      services.resultStore,
-      "derive_personas",
-      await services.buildDerivationPack(appids, count, reviewsPerPolarity, {
+    }) => {
+      const result = await services.buildDerivationPack(appids, count, reviewsPerPolarity, {
         targetAppid,
         market,
         language,
         focus,
         sourceRoles,
-      }),
-    ),
+      });
+      const defaultWarnings = [
+        ...(market === undefined
+          ? ["market omitted: legacy default Japan applied; pass market explicitly to avoid audience mismatch"]
+          : []),
+        ...(language === undefined
+          ? ["language omitted: legacy default japanese applied; pass a Steam language code explicitly"]
+          : []),
+      ];
+      return trackedJsonEnvelope(
+        services.resultStore,
+        "derive_personas",
+        {...result, warnings: [...defaultWarnings, ...result.warnings]},
+      );
+    },
   );
 
   server.registerTool(
@@ -383,6 +425,26 @@ export function buildServer(
     },
     async ({kind, id}) => jsonEnvelope({
       data: await services.readKnowledge(kind, id),
+      warnings: [],
+    }),
+  );
+
+  server.registerTool(
+    "get_status",
+    {
+      title: "GamePlayerLens status",
+      description: "Check local storage and optional integration readiness without exposing paths or secrets",
+      inputSchema: z.object({}).strict(),
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => jsonEnvelope({
+      data: await getServerStatus(services.resolver),
       warnings: [],
     }),
   );

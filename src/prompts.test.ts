@@ -305,7 +305,35 @@ describe("run-sim prompt arguments", () => {
     });
 
     expect(result).toContain('"missingChangeInputs": [\n    "currentState",\n    "proposal"\n  ]');
+    expect(result).toContain('"intakeDiagnostics": {');
+    expect(result).toContain('"status": "needs-input"');
+    expect(result).toContain('"missingFields": [\n      "market",\n      "language",\n      "currentState",\n      "proposal"\n    ]');
     expect(result.slice(0, result.indexOf("--- END REPOSITORY RECIPE ---")).trimEnd()).toBe(recipe);
+  });
+
+  it("reports a ready intake only when audience and conditional inputs are present", () => {
+    const ready = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "inventory redesign",
+      mode: "change",
+      domains: "ui",
+      market: "United States",
+      language: "english",
+      currentState: "Text tabs",
+      proposal: "Icon rail",
+      uiBenchmarkTask: "Equip one weapon with a controller",
+    });
+    expect(ready).toContain('"intakeDiagnostics": {\n    "status": "ready"');
+    expect(ready).toContain('"missingFields": []');
+
+    const missingUiTask = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "inventory review",
+      domains: "ui",
+      market: "Japan",
+      language: "japanese",
+    });
+    expect(missingUiTask).toContain('"missingFields": [\n      "uiBenchmarkTask"\n    ]');
   });
 
   it("serializes normalized UI reference URLs as data rather than recipe text", () => {

@@ -8,6 +8,7 @@ const EXPECTED_TOOLS = [
   "derive_personas",
   "get_artifact",
   "get_knowledge",
+  "get_status",
   "save_artifact",
   "save_persona",
   "steam_discover",
@@ -117,6 +118,16 @@ try {
   assert(JSON.stringify(tools) === JSON.stringify(EXPECTED_TOOLS), "unexpected MCP tool list");
   assert(JSON.stringify(prompts) === JSON.stringify(EXPECTED_PROMPTS), "unexpected MCP prompt list");
 
+  const status = await client.callTool({name: "get_status", arguments: {}});
+  const statusJson = JSON.stringify(status.structuredContent);
+  assert(status.isError !== true, "get_status returned a tool error");
+  assert(
+    statusJson.includes('"location":"repository-root"')
+      && statusJson.includes('"toolCount":13')
+      && !statusJson.includes(repositoryRoot),
+    "get_status did not return safe repository readiness metadata",
+  );
+
   const runSim = listedPrompts.find((prompt) => prompt.name === "run-sim");
   assert(runSim !== undefined, "run-sim prompt is missing");
   assert(
@@ -169,7 +180,7 @@ try {
       }),
       competitors: "Hades, Dead Cells",
       market: "Japan",
-      language: "Japanese",
+      language: "japanese",
       qualityTier: "premium indie",
     },
   });
@@ -197,6 +208,7 @@ try {
       && promptContent.text.includes('"participantCount": 1')
       && promptContent.text.includes('"developmentStage": "prelaunch"')
       && promptContent.text.includes('"runwayMonths": 12')
+      && promptContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && promptContent.text.includes('"selectedDomains": [\n    "price",\n    "competition"\n  ]'),
     "run-sim did not normalize the supplied arguments",
   );
@@ -213,6 +225,9 @@ try {
       playtestBuild: "protocol-fixture-1",
       playtestControls: "keyboard and mouse",
       playtestDurationMinutes: "20",
+      uiBenchmarkTask: "Start a new run from the main menu and reach the tutorial checkpoint",
+      market: "United States",
+      language: "english",
     },
   });
   const playtestContent = playtestPrompt.messages[0]?.content;
@@ -223,6 +238,7 @@ try {
       && playtestContent.text.includes('"playtestBuild": "protocol-fixture-1"')
       && playtestContent.text.includes('"playtestControls": "keyboard and mouse"')
       && playtestContent.text.includes('"playtestDurationMinutes": "20"')
+      && playtestContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && playtestContent.text.includes('"selectedDomains": [\n    "gameplay",\n    "ui"\n  ]'),
     "run-sim did not round-trip the supplied playtest protocol",
   );
