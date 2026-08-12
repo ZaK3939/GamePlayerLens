@@ -167,6 +167,7 @@ try {
       mode: "baseline",
       domains: "gameplay",
       projectBrief: JSON.stringify({
+        revisionId: "brief-v1",
         developmentStage: "prototype",
         targetPlayer: "players learning a new action loop",
         repeatedAction: "read, act, recover",
@@ -177,6 +178,8 @@ try {
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "package-pitch-v1",
+        projectBriefRevision: "brief-v1",
+        promiseShown: "Learn the loop and reach the checkpoint",
         stimulusDescription: "A short pitch card",
         exposureProtocol: "Show once, then ask unaided questions",
         recruitment: "External action-game players",
@@ -207,6 +210,10 @@ try {
       && playtestContent.text.includes('"status": "inventory-only"')
       && playtestContent.text.includes('"conceptTest": {')
       && playtestContent.text.includes('"conceptTestDiagnostics": {')
+      && playtestContent.text.includes('"revisionStatus": "matched"')
+      && playtestContent.text.includes('"promiseStatus": "matched"')
+      && playtestContent.text.includes('"conceptTestEvidence": {')
+      && playtestContent.text.includes('"exactSaveRequired": true')
       && playtestContent.text.includes('"status": "descriptive-only"')
       && playtestContent.text.includes('"participantCount": 1')
       && playtestContent.text.includes('"developmentStage": "prototype"')

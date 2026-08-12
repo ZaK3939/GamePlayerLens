@@ -41,7 +41,7 @@ Indie survival strategy rubricはcanonical knowledge、run-sim、evaluation temp
 
 structured `projectBrief`と、score化しない`projectBriefDiagnostics`はschema、prompt serialization、stdio、package smokeまで検証済みです。開発者のdeclared design intentをplayer evidenceへ昇格しないgateもcanonical knowledgeへ接続しました。ただし実在する開発中ゲームのbrief入力はまだ保存しておらず、Implemented, not dogfood-validatedです。
 
-structured `conceptTest`とdescriptive-onlyな診断はschema、匿名ID / email拒否、prompt serialization、canonical knowledge、stdio、package smokeまで検証済みです。行動理解、報酬理解、興味を分離し、sample countをconversionやpurchase予測へ変換しないgateも接続しました。ただし実在する開発中ゲームでの第三者concept testはまだ保存しておらず、Implemented, not dogfood-validatedです。
+structured `conceptTest`とdescriptive-onlyな診断はschema、匿名ID / email拒否、field-level safe error、prompt serialization、canonical knowledge、stdio、package smokeまで検証済みです。MCP promptが正規化済み入力へ`conceptTestEvidence.resultHandle`を発行し、payloadのモデル転記なしにmanual intelへexact-saveできることもin-memory MCPで確認しました。`projectBriefRevision` / `promiseShown`はbriefとの完全一致だけをprovenanceとして報告し、意味や品質をscore化しません。schemaが自動検出する個人情報はemail形式だけです。行動理解、報酬理解、興味を分離し、sample countをconversionやpurchase予測へ変換しないgateも接続しました。ただし実在する開発中ゲームでの第三者concept testはまだ保存しておらず、Implemented, not dogfood-validatedです。
 
 既存のHades UI runを新しいreadbackで監査すると、12 dependencyはverified、recordは旧形式のためunsealed、更新後の`run-sim.md`は保存hashとmismatchになり、全体statusはfailed・issueCount 2となった。過去runを新gateへ遡及合格させず、evidence driftと通常のrecipe更新をdependency別に区別できることを実dataで確認した。
 

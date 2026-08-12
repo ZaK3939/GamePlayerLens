@@ -142,6 +142,7 @@ try {
       domains: "competition,price",
       specification: "Evaluate the current launch price without a proposed change.",
       projectBrief: JSON.stringify({
+        revisionId: "brief-v1",
         developmentStage: "prelaunch",
         targetPlayer: "Japanese premium roguelike players",
         oneSentencePromise: "A more reactive journey through the underworld",
@@ -150,6 +151,8 @@ try {
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "stdio-pitch-v1",
+        projectBriefRevision: "brief-v1",
+        promiseShown: "A more reactive journey through the underworld",
         stimulusDescription: "A short pitch card",
         exposureProtocol: "Show once, then ask unaided questions",
         recruitment: "External genre players",
@@ -186,6 +189,10 @@ try {
       && promptContent.text.includes('"status": "inventory-only"')
       && promptContent.text.includes('"conceptTest": {')
       && promptContent.text.includes('"conceptTestDiagnostics": {')
+      && promptContent.text.includes('"revisionStatus": "matched"')
+      && promptContent.text.includes('"promiseStatus": "matched"')
+      && promptContent.text.includes('"conceptTestEvidence": {')
+      && promptContent.text.includes('"exactSaveRequired": true')
       && promptContent.text.includes('"status": "descriptive-only"')
       && promptContent.text.includes('"participantCount": 1')
       && promptContent.text.includes('"developmentStage": "prelaunch"')

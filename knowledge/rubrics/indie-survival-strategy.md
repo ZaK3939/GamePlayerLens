@@ -20,7 +20,7 @@ topicがconcept、prototype、vertical slice、pitch、storefront、trailer、de
 
 `run-sim`の`projectBrief`にある値は、開発者が宣言した`declared design intent`としてCore Experience Mapへ配置します。保存済み仕様として追跡できますが、player evidence、市場需要、実装済み体験の観測には数えません。briefの各claimを、store asset、third-party理解test、build moment、human playtest、telemetryのどれで確認したかを別に記録します。未入力fieldを推測で埋めず、current gateをblockingするmissingを優先します。
 
-`projectBriefDiagnostics`はCore Experience、Differentiation、Decision Contextごとの入力inventoryです。field presenceは内容の質、fun、market fit、milestone readinessを証明しません。missing一覧は確認質問と次の検証を絞るためだけに使います。
+`projectBriefDiagnostics`はCore Experience、Differentiation、Decision Contextごとの入力inventoryです。field presenceは内容の質、fun、market fit、milestone readinessを証明しません。missing一覧は確認質問と次の検証を絞るためだけに使います。`revisionId`は後続testが見たbrief版を特定するprovenanceであり、新しい版や大きい番号を高品質とみなしません。
 
 ## 2. Two ledgers: promise and delivery
 
@@ -98,10 +98,11 @@ reward familyは`sensory / mastery / discovery / agency / attachment / aesthetic
 ## 4. Human validation and playtest
 
 - concept説明テストとgameplay playtestを分ける。説明理解はfunの実測ではありません。
-- `conceptTest`を使う場合は、`stimulusId`と提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰が何を見て何を聞かれたかを再現可能にする。
+- `conceptTest`を使う場合は、`stimulusId`、`projectBriefRevision`、`promiseShown`、提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰がどのbrief版の何を見て何を聞かれたかを再現可能にする。promptの`conceptTestEvidence.resultHandle`で正規化済み入力をexact-saveし、モデルによる転記を挟まない。
+- `projectBriefRevision`と`revisionId`、`promiseShown`と`oneSentencePromise`は完全一致だけをprovenanceとして判定する。mismatched / unlinkedを隠さず、文字列一致から理解、訴求力、品質を採点しない。
 - participantごとの`understoodAction`、`understoodReward`、`interest`を別の観測として扱う。行動を理解したこと、報酬を理解したこと、試したいと答えたことを相互に補完しない。
 - 「面白そうと言った率」などの固定thresholdは採用しない。sample内の件数は記述値であり、母集団のconversionやpass条件に変換しない。`interest`は`purchase`、需要、継続を証明しない。
-- `participantId`は匿名の仮名IDに限定し、氏名、email、連絡先などの個人情報を入力・保存しない。自由記述も共有前に匿名化する。
+- `participantId`は匿名の仮名IDに限定し、氏名、email、連絡先などの個人情報を入力・保存しない。schemaの自動検出はemail形式だけなので、電話番号、住所、氏名、account IDなども自由記述とともに共有前に匿名化する。
 - AI playtestは操作可能性、feedback、再現可能なfrictionを観測できます。human playtestのfun、需要、completion、retentionの代表にはしません。
 - moderatorの誘導、友人関係、順序bias、build差をdeviationsへ残す。
 - 指摘件数ではなく、同じtaskで行動がどう変わるかをsuccess criterionへ使う。

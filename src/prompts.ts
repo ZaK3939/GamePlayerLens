@@ -115,7 +115,11 @@ const PlaytestDurationSchema = z.string().trim().regex(/^\d{1,3}$/).refine(
 );
 
 const ProjectBriefTextSchema = z.string().trim().min(1).max(2_000);
+const RevisionIdSchema = z.string().trim().min(1).max(200).regex(
+  /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/,
+);
 const ProjectBriefObjectSchema = z.object({
+  revisionId: RevisionIdSchema.optional(),
   developmentStage: z.enum([
     "concept",
     "prototype",
@@ -164,6 +168,7 @@ const PROJECT_BRIEF_FIELD_GROUPS = {
   ],
   differentiation: ["knownFrame", "meaningfulDifference"],
   decisionContext: [
+    "revisionId",
     "developmentStage",
     "decisionHorizon",
     "teamCapacity",
@@ -193,6 +198,59 @@ function buildProjectBriefDiagnostics(projectBrief: ProjectBrief) {
   };
 }
 
+const PROJECT_BRIEF_SAFE_FIELDS = new Set<string>([
+  ...Object.values(PROJECT_BRIEF_FIELD_GROUPS).flat(),
+]);
+
+function safeIssuePath(
+  path: readonly PropertyKey[],
+  allowedFields: ReadonlySet<string>,
+): string | undefined {
+  let rendered = "";
+  for (const segment of path) {
+    if (typeof segment === "number" && Number.isSafeInteger(segment) && segment >= 0) {
+      rendered += `[${segment}]`;
+      continue;
+    }
+    if (typeof segment !== "string" || !allowedFields.has(segment)) return undefined;
+    rendered += rendered === "" ? segment : `.${segment}`;
+  }
+  return rendered || undefined;
+}
+
+function safeSchemaIssueMessage(
+  root: string,
+  issue: {code: string; path: readonly PropertyKey[]},
+  allowedFields: ReadonlySet<string>,
+): string {
+  const path = safeIssuePath(issue.path, allowedFields);
+  const subject = path ? `${root}.${path}` : root;
+  switch (issue.code) {
+    case "unrecognized_keys": return `${subject} contains an unsupported field`;
+    case "invalid_type": return `${subject} has the wrong type`;
+    case "invalid_value": return `${subject} must use a supported value`;
+    case "too_small": return `${subject} is below the allowed minimum`;
+    case "too_big": return `${subject} exceeds the allowed maximum`;
+    case "invalid_format": return `${subject} has an invalid format`;
+    case "not_multiple_of": return `${subject} has an invalid numeric increment`;
+    default: return `${subject} is invalid`;
+  }
+}
+
+function addSafeSchemaIssues(
+  context: z.RefinementCtx,
+  root: string,
+  issues: readonly {code: string; path: readonly PropertyKey[]}[],
+  allowedFields: ReadonlySet<string>,
+): void {
+  const messages = new Set(
+    issues.map((issue) => safeSchemaIssueMessage(root, issue, allowedFields)),
+  );
+  for (const message of [...messages].slice(0, 8)) {
+    context.addIssue({code: "custom", message});
+  }
+}
+
 const ProjectBriefSchema = z.string().trim().min(2).max(20_000).transform(
   (input, context) => {
     let parsed: unknown;
@@ -207,10 +265,12 @@ const ProjectBriefSchema = z.string().trim().min(2).max(20_000).transform(
     }
     const result = ProjectBriefObjectSchema.safeParse(parsed);
     if (!result.success) {
-      context.addIssue({
-        code: "custom",
-        message: "projectBrief does not match the supported project brief schema",
-      });
+      addSafeSchemaIssues(
+        context,
+        "projectBrief",
+        result.error.issues,
+        PROJECT_BRIEF_SAFE_FIELDS,
+      );
       return z.NEVER;
     }
     return JSON.stringify(result.data);
@@ -246,7 +306,9 @@ const ConceptTestParticipantSchema = z.object({
 
 const ConceptTestObjectSchema = z.object({
   testedAt: z.iso.datetime({offset: true}),
-  stimulusId: z.string().trim().min(1).max(200).regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/),
+  stimulusId: RevisionIdSchema,
+  projectBriefRevision: RevisionIdSchema.optional(),
+  promiseShown: ConceptTestTextSchema,
   stimulusDescription: ConceptTestTextSchema,
   exposureProtocol: ConceptTestTextSchema,
   recruitment: ConceptTestTextSchema,
@@ -270,6 +332,27 @@ const ConceptTestObjectSchema = z.object({
 
 type ConceptTest = z.infer<typeof ConceptTestObjectSchema>;
 
+const CONCEPT_TEST_SAFE_FIELDS = new Set<string>([
+  "testedAt",
+  "stimulusId",
+  "projectBriefRevision",
+  "promiseShown",
+  "stimulusDescription",
+  "exposureProtocol",
+  "recruitment",
+  "targetPlayerDefinition",
+  "questionsAsked",
+  "participants",
+  "deviations",
+  "participantId",
+  "targetFit",
+  "understoodAction",
+  "understoodReward",
+  "interest",
+  "unaidedSummary",
+  "confusions",
+]);
+
 const ConceptTestSchema = z.string().trim().min(2).max(50_000).transform(
   (input, context) => {
     let parsed: unknown;
@@ -284,10 +367,12 @@ const ConceptTestSchema = z.string().trim().min(2).max(50_000).transform(
     }
     const result = ConceptTestObjectSchema.safeParse(parsed);
     if (!result.success) {
-      context.addIssue({
-        code: "custom",
-        message: "conceptTest does not match the supported concept test schema",
-      });
+      addSafeSchemaIssues(
+        context,
+        "conceptTest",
+        result.error.issues,
+        CONCEPT_TEST_SAFE_FIELDS,
+      );
       return z.NEVER;
     }
     return JSON.stringify(result.data);
@@ -301,8 +386,25 @@ function countValues<T extends string>(values: readonly T[], order: readonly T[]
   ]));
 }
 
-function buildConceptTestDiagnostics(conceptTest: ConceptTest) {
+function buildConceptTestDiagnostics(
+  conceptTest: ConceptTest,
+  projectBrief?: ProjectBrief,
+) {
   const participants = conceptTest.participants;
+  const revisionStatus = !projectBrief
+    ? "not-supplied"
+    : !projectBrief.revisionId || !conceptTest.projectBriefRevision
+      ? "unlinked"
+      : projectBrief.revisionId === conceptTest.projectBriefRevision
+        ? "matched"
+        : "mismatched";
+  const promiseStatus = !projectBrief
+    ? "not-supplied"
+    : !projectBrief.oneSentencePromise
+      ? "unlinked"
+      : projectBrief.oneSentencePromise === conceptTest.promiseShown
+        ? "matched"
+        : "mismatched";
   return {
     status: "descriptive-only",
     participantCount: participants.length,
@@ -322,6 +424,11 @@ function buildConceptTestDiagnostics(conceptTest: ConceptTest) {
       participants.map((participant) => participant.interest),
       InterestSchema.options,
     ),
+    briefAlignment: {
+      revisionStatus,
+      promiseStatus,
+      interpretationLimit: "Exact matches establish provenance only; they do not score comprehension, appeal, or brief quality.",
+    },
     interpretationLimit: "Counts describe this bounded sample only; they are not population rates, purchase forecasts, or fixed pass thresholds.",
   };
 }
@@ -372,6 +479,25 @@ export const UiBlindComparePromptArgumentsSchema = z.object({
 export type RunSimPromptArguments = z.input<typeof RunSimPromptArgumentsSchema>;
 export type UiBlindComparePromptArguments = z.input<typeof UiBlindComparePromptArgumentsSchema>;
 
+export interface RunSimPromptContext {
+  conceptTestEvidence?: {
+    sourceTool: "manual";
+    observedAt: string;
+    resultHandle: string;
+  };
+}
+
+export function buildConceptTestEvidenceEnvelope(input: RunSimPromptArguments) {
+  const parsed = RunSimPromptArgumentsSchema.parse(input);
+  if (!parsed.conceptTest) return undefined;
+  const conceptTest = ConceptTestObjectSchema.parse(JSON.parse(parsed.conceptTest));
+  return {
+    data: conceptTest,
+    warnings: [] as string[],
+    meta: {observedAt: conceptTest.testedAt},
+  };
+}
+
 function appendSerializedInput(recipe: string, data: Record<string, unknown>): string {
   return [
     recipe,
@@ -387,6 +513,7 @@ function appendSerializedInput(recipe: string, data: Record<string, unknown>): s
 export function buildRunSimPrompt(
   recipe: string,
   input: RunSimPromptArguments,
+  context: RunSimPromptContext = {},
 ): string {
   const parsed = RunSimPromptArgumentsSchema.parse(input);
   const selectedDomains = parsed.domains === "auto"
@@ -415,7 +542,18 @@ export function buildRunSimPrompt(
     ...(structuredConceptTest
       ? {
           conceptTest: structuredConceptTest,
-          conceptTestDiagnostics: buildConceptTestDiagnostics(structuredConceptTest),
+          conceptTestDiagnostics: buildConceptTestDiagnostics(
+            structuredConceptTest,
+            structuredProjectBrief,
+          ),
+          ...(context.conceptTestEvidence
+            ? {
+                conceptTestEvidence: {
+                  ...context.conceptTestEvidence,
+                  exactSaveRequired: true,
+                },
+              }
+            : {}),
         }
       : {}),
     ...(uiReferenceUrls

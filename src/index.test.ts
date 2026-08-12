@@ -116,6 +116,15 @@ function promptText(result: Awaited<ReturnType<Client["getPrompt"]>>): string {
   return content.text;
 }
 
+function promptInputData(result: Awaited<ReturnType<Client["getPrompt"]>>): Record<string, unknown> {
+  const text = promptText(result);
+  const start = text.indexOf("--- BEGIN INPUT DATA (JSON) ---\n");
+  const end = text.indexOf("\n--- END INPUT DATA (JSON) ---", start);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return JSON.parse(text.slice(start + "--- BEGIN INPUT DATA (JSON) ---\n".length, end));
+}
+
 function resultText(result: Awaited<ReturnType<Client["callTool"]>>): string {
   const text = result.content.find((item) => item.type === "text");
   expect(text).toBeDefined();
@@ -1644,6 +1653,91 @@ describe("MCP server contract", () => {
     } finally {
       await harness.client.close();
       await harness.server.close();
+    }
+  });
+
+  it("issues an exact-save handle for a normalized concept test", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const prompt = await client.getPrompt({
+        name: "run-sim",
+        arguments: {
+          target: "Project Nyx",
+          topic: "concept comprehension",
+          projectBrief: JSON.stringify({
+            revisionId: "brief-v3",
+            oneSentencePromise: "Outread the storm",
+          }),
+          conceptTest: JSON.stringify({
+            testedAt: "2026-08-12T10:00:00+04:00",
+            stimulusId: "pitch-card-v3",
+            projectBriefRevision: "brief-v3",
+            promiseShown: "Outread the storm",
+            stimulusDescription: "One promise and one mockup",
+            exposureProtocol: "Show once, then ask unaided questions",
+            recruitment: "External tactics players",
+            targetPlayerDefinition: "Players who enjoy route planning",
+            questionsAsked: ["What would you do?"],
+            participants: [{
+              participantId: "p-01",
+              targetFit: "high",
+              understoodAction: "yes",
+              understoodReward: "unclear",
+              interest: "maybe",
+              confusions: [],
+            }],
+          }),
+        },
+      });
+      const promptData = promptInputData(prompt);
+      const evidence = promptData.conceptTestEvidence as Record<string, unknown>;
+      expect(evidence).toMatchObject({
+        sourceTool: "manual",
+        observedAt: "2026-08-12T10:00:00+04:00",
+        resultHandle: expect.any(String),
+        exactSaveRequired: true,
+      });
+
+      const saved = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "Concept Test Pitch Card V3",
+          resultHandle: evidence.resultHandle,
+        },
+      });
+      expect(saved.isError).not.toBe(true);
+      const read = await client.callTool({
+        name: "get_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "Concept Test Pitch Card V3",
+        },
+      });
+      expect(read.structuredContent).toMatchObject({
+        data: {
+          sourceTool: "manual",
+          observedAt: "2026-08-12T10:00:00+04:00",
+          payload: {
+            data: {
+              stimulusId: "pitch-card-v3",
+              promiseShown: "Outread the storm",
+              participants: [{participantId: "p-01"}],
+            },
+            warnings: [],
+            meta: {
+              observedAt: "2026-08-12T10:00:00+04:00",
+              resultHandle: evidence.resultHandle,
+            },
+          },
+        },
+        warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
     }
   });
 

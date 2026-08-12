@@ -30,6 +30,7 @@ import {
 } from "./personas.js";
 import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
 import {
+  buildConceptTestEvidenceEnvelope,
   buildRunSimPrompt,
   buildUiBlindComparePrompt,
   RunSimPromptArgumentsSchema,
@@ -494,15 +495,33 @@ export function buildServer(
       description: "Run an evidence-grounded adoption simulation",
       argsSchema: RunSimPromptArgumentsSchema,
     },
-    async (arguments_) => ({
-      messages: [{
-        role: "user" as const,
-        content: {
-          type: "text" as const,
-          text: buildRunSimPrompt(await services.readSkill("run-sim.md"), arguments_),
-        },
-      }],
-    }),
+    async (arguments_) => {
+      const evidenceEnvelope = buildConceptTestEvidenceEnvelope(arguments_);
+      const trackedEvidence = evidenceEnvelope
+        ? services.resultStore.remember("manual", evidenceEnvelope)
+        : undefined;
+      const resultHandle = trackedEvidence?.meta?.resultHandle;
+      const conceptTestEvidence = evidenceEnvelope
+        ? {
+            sourceTool: "manual" as const,
+            observedAt: evidenceEnvelope.meta.observedAt,
+            resultHandle: ResultHandleSchema.parse(resultHandle),
+          }
+        : undefined;
+      return {
+        messages: [{
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: buildRunSimPrompt(
+              await services.readSkill("run-sim.md"),
+              arguments_,
+              {conceptTestEvidence},
+            ),
+          },
+        }],
+      };
+    },
   );
 
   server.registerPrompt(

@@ -43,6 +43,7 @@
 - `projectBrief`のdeclared design intentを、そのままplayer evidence、市場需要、体験実装済みの証明にした場合は差し戻す。promise、build moment、third-party responseのprovenanceを分ける。
 - `projectBriefDiagnostics`のfield数やmissing数をquality score、面白さ、readiness passへ変換した場合は差し戻す。これは入力inventoryであり、fieldの中身や外部検証の質を採点しない。
 - `conceptTest`のparticipant countや`interest`から固定thresholdを作り、milestone pass、conversion、purchase、需要を断定した場合は差し戻す。`understoodAction`、`understoodReward`、`interest`を別々に示し、stimulus、募集、質問、deviation、bounded sampleの限界を要求する。
+- concept test入力を`conceptTestEvidence.resultHandle`でexact-saveせずモデルがpayloadを転記・要約した場合、brief revision / promiseのmismatched・unlinkedを隠した場合、または完全一致を意味理解や品質scoreへ変換した場合は差し戻す。
 - concept testの`participantId`が仮名でない場合、または氏名、email、連絡先などの個人情報をevaluationやartifactへ含めた場合は差し戻す。
 
 ## 5. UI 品質ゲート

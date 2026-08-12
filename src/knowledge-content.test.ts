@@ -57,6 +57,9 @@ describe("canonical adoption evaluation template", () => {
     expect(reportStart).toContain("理由");
     expect(content).toMatch(/baseline[\s\S]*現状だけ/);
     expect(content).toMatch(/change[\s\S]*現状 vs 変更案/);
+    expect(content.indexOf("## Decision Card")).toBeLessThan(
+      content.indexOf("## Detailed Scope"),
+    );
   });
 
   it("qualifies flow size and separates zero, missing, and estimates", async () => {
@@ -287,6 +290,10 @@ describe("indie survival strategy rubric", () => {
     expect(content).toMatch(/固定threshold[\s\S]*採用しない/);
     expect(content).toMatch(/interest[\s\S]*purchase[\s\S]*証明しない/);
     expect(content).toMatch(/participantId[\s\S]*匿名[\s\S]*個人情報/);
+    expect(content).toMatch(/projectBriefRevision[\s\S]*promiseShown/);
+    expect(content).toMatch(/conceptTestEvidence\.resultHandle[\s\S]*exact-save/);
+    expect(content).toMatch(/完全一致[\s\S]*品質[\s\S]*採点しない/);
+    expect(content).toMatch(/自動検出[\s\S]*email形式だけ/);
   });
 });
 

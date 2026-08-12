@@ -23,6 +23,8 @@ function conceptTestFixture(
   return {
     testedAt: "2026-08-12T10:00:00+04:00",
     stimulusId: "pitch-card-v3",
+    projectBriefRevision: "brief-v3",
+    promiseShown: "Outread the storm to keep a courier network alive",
     stimulusDescription: "One-sentence promise plus one gameplay mockup",
     exposureProtocol: "Show for 30 seconds, then remove before questions",
     recruitment: "External players recruited from a tactics community",
@@ -58,6 +60,7 @@ describe("run-sim prompt arguments", () => {
       target: "Example Game",
       topic: "prototype core review",
       projectBrief: JSON.stringify({
+        revisionId: "brief-v3",
         developmentStage: "prototype",
         targetPlayer: "  players who enjoy readable tactical tradeoffs  ",
         themeWorld: "A storm-bound courier guild",
@@ -88,6 +91,8 @@ describe("run-sim prompt arguments", () => {
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "pitch-card-v3",
+        projectBriefRevision: "brief-v3",
+        promiseShown: "Outread the storm to keep a fragile courier network alive",
         stimulusDescription: "One-sentence promise plus one gameplay mockup",
         exposureProtocol: "Show for 30 seconds, then remove before questions",
         recruitment: "Three external players recruited from a tactics community",
@@ -383,9 +388,15 @@ describe("run-sim prompt arguments", () => {
     const result = buildRunSimPrompt(recipe, {
       target: "Project Nyx",
       topic: "concept comprehension",
+      projectBrief: JSON.stringify({
+        revisionId: "brief-v3",
+        oneSentencePromise: "Outread the storm to keep a courier network alive",
+      }),
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "pitch-card-v3",
+        projectBriefRevision: "brief-v3",
+        promiseShown: "Outread the storm to keep a courier network alive",
         stimulusDescription: "One-sentence promise plus one gameplay mockup",
         exposureProtocol: "Show for 30 seconds, then remove before questions",
         recruitment: "Three external route-planning players",
@@ -418,12 +429,22 @@ describe("run-sim prompt arguments", () => {
           },
         ],
       }),
+    }, {
+      conceptTestEvidence: {
+        sourceTool: "manual",
+        observedAt: "2026-08-12T10:00:00+04:00",
+        resultHandle: "123e4567-e89b-42d3-a456-426614174000",
+      },
     });
 
     expect(result).toContain('"conceptTest": {');
     expect(result).toContain('"conceptTestDiagnostics": {');
     expect(result).toContain('"status": "descriptive-only"');
     expect(result).toContain('"participantCount": 3');
+    expect(result).toContain('"revisionStatus": "matched"');
+    expect(result).toContain('"promiseStatus": "matched"');
+    expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174000"');
+    expect(result).toContain('"exactSaveRequired": true');
     expect(result).toMatch(/"actionUnderstandingCounts": \{[\s\S]*"yes": 1,[\s\S]*"unclear": 1,[\s\S]*"not-measured": 1/);
     expect(result).toMatch(/"interestCounts": \{[\s\S]*"maybe": 1,[\s\S]*"would-not-play": 1,[\s\S]*"not-asked": 1/);
     expect(result).not.toContain("successRate");
@@ -438,6 +459,59 @@ describe("run-sim prompt arguments", () => {
     });
 
     expect(result).not.toContain("conceptTestDiagnostics");
+    expect(result).not.toContain("conceptTestEvidence");
+  });
+
+  it("reports exact brief revision and promise mismatches without scoring them", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      projectBrief: JSON.stringify({
+        revisionId: "brief-v4",
+        oneSentencePromise: "Keep a courier network alive",
+      }),
+      conceptTest: JSON.stringify({
+        ...conceptTestFixture(),
+        projectBriefRevision: "brief-v3",
+        promiseShown: "Outread the storm to keep a courier network alive",
+      }),
+    });
+
+    expect(result).toContain('"revisionStatus": "mismatched"');
+    expect(result).toContain('"promiseStatus": "mismatched"');
+    expect(result).not.toContain("alignmentScore");
+  });
+
+  it("returns safe field-level validation guidance without echoing rejected values", () => {
+    const invalidConcept = RunSimPromptArgumentsSchema.safeParse({
+      target: "Game",
+      topic: "concept",
+      conceptTest: JSON.stringify({
+        ...conceptTestFixture(),
+        participants: [{
+          participantId: "p-01",
+          targetFit: "high",
+          understoodAction: "yes",
+          understoodReward: "yes",
+          interest: "secret-custom-answer",
+          confusions: [],
+        }],
+      }),
+    });
+    if (invalidConcept.success) throw new Error("invalid interest should be rejected");
+    const conceptError = JSON.stringify(invalidConcept.error);
+    expect(conceptError).toContain("participants[0].interest");
+    expect(conceptError).toContain("supported value");
+    expect(conceptError).not.toContain("secret-custom-answer");
+
+    const invalidBrief = RunSimPromptArgumentsSchema.safeParse({
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({runwayMonths: -99}),
+    });
+    if (invalidBrief.success) throw new Error("invalid runway should be rejected");
+    expect(JSON.stringify(invalidBrief.error)).toContain("runwayMonths");
+    expect(JSON.stringify(invalidBrief.error)).not.toContain("-99");
   });
 
   it("does not echo rejected URL credentials in validation errors", () => {

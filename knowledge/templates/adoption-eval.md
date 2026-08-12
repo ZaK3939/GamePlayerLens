@@ -4,19 +4,10 @@
 
 Mode の規則を混同しないでください。`baseline` は現状だけを報告し、未提案の変更案を仮定しません。`change` だけが各評価を「現状 vs 変更案」で報告します。
 
-Mode、Selected Domains、選択外領域の明示的な N/A 理由は、必ずレポートの最初に記録します。
+Mode、Selected Domains、Decision Cardは必ずレポートの最初に記録し、詳細ledgerを読まなくても次の判断が分かるようにします。
 
 - Mode: ［`baseline` | `change`］
 - Selected Domains: ［`gameplay` / `storefront` / `ui` / `price` / `localization` / `competition` から選択］
-
-| Domain | Status | 選択理由 / N/A 理由 |
-|---|---|---|
-| ゲームプレイ | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
-| ストア訴求 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
-| UI | ［Selected / N/A］ | ［評価する理由、またはトピックと入力から見て対象外とする具体的理由］ |
-| 価格 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
-| ローカライズ | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
-| 競合 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
 
 ## Decision Card
 
@@ -31,6 +22,17 @@ Mode、Selected Domains、選択外領域の明示的な N/A 理由は、必ず�
 - Success signal: ［build、cohort、期間、行動指標］
 - Guardrail / rollback: ［悪化を止める指標と戻せる単位］
 - Revisit condition: ［何が取得・発生したら判断を更新するか］
+
+## Detailed Scope
+
+| Domain | Status | 選択理由 / N/A 理由 |
+|---|---|---|
+| ゲームプレイ | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
+| ストア訴求 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
+| UI | ［Selected / N/A］ | ［評価する理由、またはトピックと入力から見て対象外とする具体的理由］ |
+| 価格 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
+| ローカライズ | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
+| 競合 | ［Selected / N/A］ | ［評価する理由 / 明示的な N/A 理由］ |
 
 ## Indie Survival Strategy
 
@@ -60,10 +62,12 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 
 ### Concept Test Trace
 
-`conceptTest`がない場合はmissing理由と次に必要なstimulus / participant条件を記録します。ある場合もsample内の件数だけを示し、固定合格率、母集団比率、conversion、purchase予測へ変換しません。個人情報は記載せず、仮名の`participantId`または集計だけを使います。
+`conceptTest`がない場合はmissing理由と次に必要なstimulus / participant条件を記録します。ある場合もsample内の件数だけを示し、固定合格率、母集団比率、conversion、purchase予測へ変換しません。個人情報は記載せず、仮名の`participantId`または集計だけを使います。schemaの自動検出はemail形式に限られるため、その他の個人情報は保存前に除去します。
 
-- Evidence ID / artifact path: ［manual intel］
+- Evidence ID / artifact path: ［conceptTestEvidence.resultHandleでexact-saveしたmanual intel］
 - Tested at / stimulusId: ［ISO日時 / ID］
+- Brief revision / revision match: ［projectBriefRevision / matched・mismatched・unlinked・not-supplied］
+- Promise shown / exact match: ［実際の提示文 / matched・mismatched・unlinked・not-supplied。完全一致はprovenanceでありquality scoreではない］
 - Stimulus / exposure protocol: ［何を、何秒、どの順序で見せたか］
 - Recruitment / target player definition: ［募集元、target fitの判定基準］
 - Questions asked: ［誘導を避けた質問］

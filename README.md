@@ -90,14 +90,14 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
   "topic": "Prototype core and next milestone",
   "mode": "baseline",
   "domains": "gameplay,storefront,competition",
-  "projectBrief": "{\"developmentStage\":\"prototype\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"immediateReward\":\"予測した航路が成立する手応え\",\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"knownFrame\":\"route-planning management\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
+  "projectBrief": "{\"revisionId\":\"brief-v3\",\"developmentStage\":\"prototype\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"immediateReward\":\"予測した航路が成立する手応え\",\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"knownFrame\":\"route-planning management\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
   "competitors": "既知なら作品名、未知なら省略",
   "market": "Japan",
   "language": "Japanese"
 }
 ```
 
-`projectBrief`は開発者が宣言した設計意図です。player evidenceとは扱わず、未入力fieldを捏造せず、store asset、third-party理解test、build、human playtest、telemetryで順に検証します。promptにはCore Experience、Differentiation、Decision Context別の`projectBriefDiagnostics`も追加されますが、field数はquality scoreやmilestone passではありません。
+`projectBrief`は開発者が宣言した設計意図です。player evidenceとは扱わず、未入力fieldを捏造せず、store asset、third-party理解test、build、human playtest、telemetryで順に検証します。`revisionId`を付けると、concept testがどの版を見たかを追跡できます。promptにはCore Experience、Differentiation、Decision Context別の`projectBriefDiagnostics`も追加されますが、field数はquality scoreやmilestone passではありません。
 
 第三者へ短いpitchやmockupを見せた結果は、`conceptTest`へJSON文字列として渡せます。次はJSON文字列へencodeする前の形です。
 
@@ -105,6 +105,8 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 {
   "testedAt": "2026-08-12T10:00:00+04:00",
   "stimulusId": "pitch-card-v3",
+  "projectBriefRevision": "brief-v3",
+  "promiseShown": "嵐を読み切り、小さな空の郵便網を守る",
   "stimulusDescription": "One-sentence promise plus one gameplay mockup",
   "exposureProtocol": "Show for 30 seconds, then remove before questions",
   "recruitment": "External players recruited from a tactics community",
@@ -129,7 +131,11 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 }
 ```
 
-`participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。promptは行動理解、報酬理解、興味を別々に件数集計します。この少人数sampleから固定合格率、conversion、purchase、需要は推定しません。正規化済み入力は`sourceTool=manual`のintel artifactとして保存し、Concept Test Traceから追跡します。
+`participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptは行動理解、報酬理解、興味を別々に件数集計し、`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示します。意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
+
+concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動追加されます。レシピはこのhandleだけを`save_artifact(kind=intel)`へ渡すため、モデルによる転記・要約を挟まず、正規化済み入力と`testedAt`をそのまま保存できます。field-level validation errorは許可済みfield名と違反種別だけを返し、拒否した入力値や未知field名は表示しません。
+
+個人開発の企画理解だけを相談する場合は、`projectBrief`と`conceptTest`を中心に最小scopeを選べます。Steam公開済み対象、価格、競合、UI、実操作buildの判断が不要なら、その理由をN/Aとして残し、不要な外部取得を増やしません。ただしpersonasやimmutable runを作る完全評価には保存可能な対象・競合作品のplayer evidenceが必要です。不足時は概念診断を途中成果として返し、取得していない市場・プレイ結果を埋めません。
 
 価格の baseline 相談:
 
