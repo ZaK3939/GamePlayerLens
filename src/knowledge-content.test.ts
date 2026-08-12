@@ -242,6 +242,78 @@ describe("update strategy rubric", () => {
   });
 });
 
+describe("experiment loop rubric", () => {
+  it("pre-registers a structured spec and records a hash-linked outcome", async () => {
+    const content = await read("knowledge/rubrics/experiment.md");
+
+    expect(content).toContain('artifactType: "experiment-spec"');
+    expect(content).toContain('artifactType: "experiment-outcome"');
+    for (const field of [
+      "primaryMetricId",
+      "plannedScenarios",
+      "successCriteria",
+      "guardrails",
+      "predictions",
+      "stoppingRule",
+      "orderBiasPlan",
+      "specRef",
+      "predictionRunRef",
+      "measurementEvidence",
+      "criterionVerdicts",
+      "overallVerdict",
+    ]) {
+      expect(content).toContain(field);
+    }
+    expect(content).toContain("run artifact SHA-256");
+    expect(content).toContain("canonical record SHA-256");
+  });
+
+  it("derives immutable stages without calling prediction execution", async () => {
+    const content = await read("knowledge/rubrics/experiment.md");
+
+    for (const stage of ["registered", "predicted", "observed", "learned"]) {
+      expect(content).toContain(stage);
+    }
+    expect(content).toMatch(/mutable status[\s\S]*持たない/);
+    expect(content).toMatch(/run[\s\S]*予測simulation[\s\S]*executed[\s\S]*呼ばない/);
+    expect(content).toMatch(/ExperimentSpec[\s\S]*overwrite=true[\s\S]*禁止/);
+    expect(content).toMatch(/ExperimentOutcome[\s\S]*overwrite=true[\s\S]*禁止/);
+  });
+
+  it("keeps measurement sources separate and missing outcomes unresolved", async () => {
+    const content = await read("knowledge/rubrics/experiment.md");
+
+    for (const source of [
+      "ai-playtest",
+      "human-playtest",
+      "telemetry",
+      "steam-reviews",
+      "store-metric",
+      "manual-observation",
+    ]) {
+      expect(content).toContain(source);
+    }
+    expect(content).toMatch(/primary metric[\s\S]*ちょうど1件/);
+    expect(content).toMatch(/metricId[\s\S]*metrics内[\s\S]*scenarioId[\s\S]*plannedScenarios内/);
+    expect(content).toMatch(/candidate value - reference value/);
+    expect(content).toMatch(/source[\s\S]*一致しない[\s\S]*criterion[\s\S]*unresolved/);
+    expect(content).toMatch(/各result[\s\S]*cohort[\s\S]*window[\s\S]*sampleSize/);
+    expect(content).toMatch(/missing[\s\S]*0[\s\S]*failure[\s\S]*変換しない/);
+    expect(content).toMatch(/AI[\s\S]*human completion rate[\s\S]*observed[\s\S]*扱わない/);
+  });
+
+  it("scopes calibration to prior matching observed outcomes", async () => {
+    const content = await read("knowledge/rubrics/experiment.md");
+
+    expect(content).toContain("not-calibrated");
+    expect(content).toContain("partially-calibrated");
+    expect(content).toContain("calibrated");
+    expect(content).toContain("reportedByClient=true");
+    expect(content).toMatch(/calibrated[\s\S]*同一target[\s\S]*metric[\s\S]*source[\s\S]*instrument/);
+    expect(content).toMatch(/モデル全般[\s\S]*統計的校正[\s\S]*意味しない/);
+  });
+});
+
 describe("UI quality gap rubric", () => {
   it("uses matched cohorts, provenance, ordinal anchors, and evidence boundaries", async () => {
     const content = await read("knowledge/rubrics/ui-quality-gap.md");
@@ -309,6 +381,19 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("persona × scenario");
     expect(content).toMatch(/finalEvaluationRef[\s\S]*evidenceRefs[\s\S]*含め/);
     expect(content).toContain("integrity.status");
+  });
+
+  it("runs prospective experiments as spec, prediction, outcome, and learning artifacts", async () => {
+    const content = await read("skills/run-sim.md");
+
+    expect(content).toContain("experiment.md");
+    expect(content).toContain("ExperimentSpec");
+    expect(content).toContain("Prediction Run");
+    expect(content).toContain("ExperimentOutcome");
+    expect(content).toMatch(/結果を見る前[\s\S]*ExperimentSpec[\s\S]*保存/);
+    expect(content).toMatch(/ExperimentSpec[\s\S]*evidence[\s\S]*SHA-256/);
+    expect(content).toMatch(/missing[\s\S]*unresolved[\s\S]*保存/);
+    expect(content).toMatch(/次[\s\S]*ExperimentSpec[\s\S]*parentOutcomeRef/);
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

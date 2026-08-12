@@ -50,8 +50,8 @@ Decisionは`test-next-build`。対象は`jp-action-readability-mastery-v2`で、
 ## 保存記録
 
 - Evaluation: `workspaces/hades/2026-08-12-visual-clarity-update-hypothesis.md`
-- Run ID: `0feb859e-4c10-459f-88ce-7fad5a6ac1cf`
-- Run: `workspaces/hades/runs/0feb859e-4c10-459f-88ce-7fad5a6ac1cf.json`
+- Run ID: `249b219f-32c0-440a-94a1-422e24740261`
+- Run: `workspaces/hades/runs/249b219f-32c0-440a-94a1-422e24740261.json`
 - Integrity: verified、17 dependencies verified、issue 0
 - Structural coverage: scenario/domain 6/6、persona/scenario 6/6、analysis evidence 12/12
 - Warnings: 5

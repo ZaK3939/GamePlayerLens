@@ -161,6 +161,16 @@ browser/desktop controlを持つAI clientでは実buildを操作します。操�
 }
 ```
 
+### 継続的な実験loop
+
+変更案をprospectiveに検証するときは、[Discovery Loop](https://www.discoveryloop.com/)のpropose → run → examine → iterateを、GamePlayerLensでは`ExperimentSpec → Prediction Run → ExperimentOutcome → next ExperimentSpec`として扱います。詳細なshapeと判定境界は`get_knowledge(kind=rubrics, id=experiment.md)`で取得できます。
+
+PilotではExperimentSpecとExperimentOutcomeを`save_artifact(kind=intel, sourceTool=manual)`で保存し、どちらにも`overwrite=true`を渡しません。specは結果を見る前に保存し、Prediction Runのevidenceへ含めます。run readbackのspec evidence SHA-256、run artifact SHA-256、canonical record SHA-256をOutcomeへ記録します。Prediction Runは予測の封印であり、実験実行済みを意味しません。
+
+Outcomeのmetricは`ai-playtest / human-playtest / telemetry / steam-reviews / store-metric / manual-observation`を区別し、source、instrument、unit、cohort、windowがspecと一致しない値で登録済みcriterionを満たしません。測定できなかった場合もmissingを0やfailureへ変換せず、`overallVerdict=unresolved`として保存します。次のspecが`parentOutcomeRef`を持ち、次runが新specとparent outcomeの両方をevidenceとして封印したときにloopがつながります。
+
+Pilotは既存intel schema上の運用規約です。generic intelは明示overwrite可能なので、2〜3件のprospective dogfoodでshapeが安定した後、専用immutable `experiment` / `outcome` artifact kindとserver-side validationへ移行します。実験scheduler、統計engine、telemetry自動取込、server-side LLMはPilotの対象外です。
+
 ### UI実力差の比較
 
 UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interface In Game](https://interfaceingame.com/screenshots/) などを、出荷済みreference候補の探索に使います。Game UI Databaseのscreen type、controls、HUD elements、layout、texture、patterns、color、font size、icon usage、colorblind visualizer、video flowを比較条件へ使います。ただしcatalog掲載、like数、人気順、ゲーム売上はUI品質の根拠ではありません。
@@ -221,6 +231,8 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 ### `save_artifact` / `get_artifact`
 
 `save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`payload`、任意の `observedAt` を直接渡す方式も維持します。直接保存で `observedAt` を省略すると、サーバーが `savedAt` と同じ時刻を設定します。取得時刻を確実に把握している場合だけ明示してください。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
+
+ExperimentSpec / ExperimentOutcomeのPilot保存は直接intel方式を使いますが、事前登録と結果のimmutabilityを保つため`overwrite`を常に省略します。spec driftはそれをevidenceに含めたPrediction Runのintegrity readbackで検出できます。Outcomeは次Prediction Runがevidenceとして封印するまでserverによるhash lineage検証を持たないため、Pilotの保証境界として明示します。
 
 `kind=run` は、evaluation 保存後に simulation を再生・監査するための ledger を封印します。Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済み evidence refs、連続した各 pass の rounds、warnings、confidence / `calibrationStatus`、最終 evaluation ref を受けます。サーバーは参照先を実際に読み、persona・evidence・現在の `skills/run-sim.md` の SHA-256、構造coverage、run recordのcanonical SHA-256 seal、`reportedByClient=true`を記録してUUIDごとのJSONを作ります。runは常にimmutableで、overwrite入力はありません。これは同じ入力からモデル出力が決定的に再生成されるという保証ではなく、「どのrecipe・根拠・申告モデルから、どのround出力を得たか」を後から検証する記録です。
 
@@ -283,10 +295,10 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 live test の固定 appid はHades `1145360`、Steam画像captureはHades II `1145350`、SteamSpy discovery tagは `Action Roguelike` です。live package smokeは分離した一時data homeでSteam取得→resultHandle保存→原本envelope一致を検証し、終了時に一時dataを削除します。Steam画像captureはObscuraなしでも実行され、生成したJPEGを終了時に削除します。`OBSCURA_PATH` がなければ通常page captureのmanual ui-reference warningを検証し、設定済みならlocalhost captureと `ImageContent` を検証します。`ITAD_API_KEY` がなければtimelineは `priceHistory: null` と設定warning、設定済みなら履歴配列とcurrencyを検証します。
 
-fixture / smokeとは別に、保存した実相談でproduct workflowを検証します。raw artifactはgit管理外へ隔離し、公開可能な集計と監査結果だけを [dogfood data policy](docs/dogfood/README.md) に記録します。3件の実相談、別session replay audit、UI quality-gapが完了し、core v1.1 workflowはdogfood-validatedです。2026-08-12追加のintegrity / coverage / playtest protocolはpackage smokeまで完了し、実ゲームbuildでのdogfoodと予測結果のoutcome calibrationは未完了です。
+fixture / smokeとは別に、保存した実相談でproduct workflowを検証します。raw artifactはgit管理外へ隔離し、公開可能な集計と監査結果だけを [dogfood data policy](docs/dogfood/README.md) に記録します。3件の実相談、別session replay audit、UI quality-gapが完了し、core v1.1 workflowはdogfood-validatedです。2026-08-12追加のintegrity / coverage / playtest protocolとExperimentSpec → Prediction Run → missing OutcomeのPilot wiringはpackage smokeまで完了しています。実ゲームbuildでのprospective experiment dogfoodと予測結果のoutcome calibrationは未完了です。
 
 ## v1 から v1.1
 
 v1 の既存8 tool名とv1.1の11 tool surfaceは互換です。`FetchResult.data` と `warnings` は維持され、`meta` が optional field として追加されました。`ui_capture` も既存 field を維持しつつ image metadata と標準 `ImageContent` を追加します。v1.1 の新規 tool は `steam_discover`、`save_artifact`、`get_artifact` です。今回のfollow-upで`steam_updates`を追加し、現在は12 toolsです。canonical knowledge の既存 `get_knowledge` semantics は維持し、dynamic artifact の list/read は `get_artifact` を使用します。
 
-現在の判断は [v1.1 設計](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)、実装・検証条件は [v1.1 計画](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md) を参照してください。旧 [v1 設計](docs/superpowers/specs/2026-08-10-steam-user-sim-design.md) と [v1 計画](docs/superpowers/plans/2026-08-10-steam-user-sim.md) は履歴として残しています。npm `bin` packagingは実装済みです。過去CCUとremote deploymentは今後の対象です。
+現在の判断は [v1.1 設計](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)、実装・検証条件は [v1.1 計画](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md) を参照してください。継続実験のPilotは[Game Discovery Loop設計](docs/superpowers/specs/2026-08-12-game-discovery-loop-design.md)と[実装計画](docs/superpowers/plans/2026-08-12-game-discovery-loop-pilot.md)に分離しています。旧 [v1 設計](docs/superpowers/specs/2026-08-10-steam-user-sim-design.md) と [v1 計画](docs/superpowers/plans/2026-08-10-steam-user-sim.md) は履歴として残しています。npm `bin` packagingは実装済みです。過去CCUとremote deploymentは今後の対象です。

@@ -45,6 +45,7 @@ for (const runtimePath of [
   join(repositoryRoot, "knowledge", "rubrics", "evidence-coverage.md"),
   join(repositoryRoot, "knowledge", "rubrics", "playtest.md"),
   join(repositoryRoot, "knowledge", "rubrics", "update-strategy.md"),
+  join(repositoryRoot, "knowledge", "rubrics", "experiment.md"),
   join(repositoryRoot, "skills", "run-sim.md"),
 ]) {
   await access(runtimePath);
@@ -79,6 +80,7 @@ let liveExactSave = false;
 let liveUpdates = false;
 let packageRunRoundTrip = false;
 let playtestPromptRoundTrip = false;
+let experimentLoopRoundTrip = false;
 try {
   await client.connect(transport);
   connected = true;
@@ -132,6 +134,15 @@ try {
     JSON.stringify(updateRubric.structuredContent).includes("Persona Update Impact Matrix"),
     "packaged CLI returned the wrong update strategy rubric",
   );
+  const experimentRubric = await client.callTool({
+    name: "get_knowledge",
+    arguments: {kind: "rubrics", id: "experiment.md"},
+  });
+  assert(experimentRubric.isError !== true, "packaged CLI could not read experiment rubric");
+  assert(
+    JSON.stringify(experimentRubric.structuredContent).includes("ExperimentOutcome"),
+    "packaged CLI returned the wrong experiment rubric",
+  );
 
   const playtestPrompt = await client.getPrompt({
     name: "run-sim",
@@ -182,6 +193,75 @@ try {
     },
   });
   assert(persona.isError !== true, "packaged CLI could not save a run persona");
+  const experimentSpecArguments = {
+    kind: "intel",
+    target: "Package Smoke Game",
+    id: "Experiment Package Smoke 001 Spec",
+    sourceTool: "manual",
+    observedAt: "2026-08-11T00:00:00.000Z",
+    payload: {
+      schemaVersion: 1,
+      artifactType: "experiment-spec",
+      experimentId: "package-smoke-001",
+      targetId: "package-smoke-game",
+      hypothesis: "A playable fixture would allow the checkpoint task to complete",
+      mode: "baseline",
+      plannedScenarios: [{
+        id: "current",
+        label: "Current",
+        specification: "Package smoke fixture",
+      }],
+      primaryMetricId: "task-completion",
+      metrics: [{
+        metricId: "task-completion",
+        role: "primary",
+        source: "ai-playtest",
+        instrument: "package smoke playtest protocol v1",
+        unit: "boolean/session",
+        aggregation: "proportion",
+        direction: "increase",
+        cohort: "single package smoke client",
+        window: "15 minute checkpoint task",
+        samplePlan: {unit: "session", targetCount: 1, minimumCount: 1},
+      }],
+      successCriteria: [{
+        criterionId: "checkpoint-completed",
+        metricId: "task-completion",
+        scenarioId: "current",
+        comparator: ">=",
+        value: 1,
+      }],
+      guardrails: [],
+      predictions: [{
+        metricId: "task-completion",
+        scenarioId: "current",
+        predictedValue: 1,
+        confidence: "low",
+        basis: "Synthetic persistence fixture only",
+      }],
+      stoppingRule: {
+        outcomeDeadline: "2026-08-12",
+        maximumSessions: 1,
+        onGuardrailBreach: "stop-and-review",
+        onRepeatedSourceBias: "stop-and-change-source",
+      },
+      orderBiasPlan: "N/A for one baseline scenario",
+      parentOutcomeRef: null,
+    },
+  } as const;
+  const experimentSpec = await client.callTool({
+    name: "save_artifact",
+    arguments: experimentSpecArguments,
+  });
+  assert(experimentSpec.isError !== true, "packaged CLI could not pre-register experiment spec");
+  const duplicateExperimentSpec = await client.callTool({
+    name: "save_artifact",
+    arguments: experimentSpecArguments,
+  });
+  assert(
+    duplicateExperimentSpec.isError === true,
+    "packaged CLI allowed experiment spec replacement without overwrite",
+  );
   const intel = await client.callTool({
     name: "save_artifact",
     arguments: {
@@ -229,6 +309,12 @@ try {
       personaIds: ["package-smoke-player"],
       evidence: [
         {
+          ref: "experiment-spec",
+          kind: "intel",
+          target: "Package Smoke Game",
+          id: "Experiment Package Smoke 001 Spec",
+        },
+        {
           ref: "playtest-protocol",
           kind: "intel",
           target: "Package Smoke Game",
@@ -249,7 +335,7 @@ try {
           personaId: "package-smoke-player",
           scenarioId: "current",
           output: "The fixture proves protocol transport only and contains no observed play.",
-          evidenceRefs: ["playtest-protocol"],
+          evidenceRefs: ["experiment-spec", "playtest-protocol"],
         },
         {
           sequence: 2,
@@ -258,21 +344,21 @@ try {
           domain: "gameplay",
           scenarioId: "current",
           output: "Gameplay remains unobserved because this synthetic session is blocked.",
-          evidenceRefs: ["playtest-protocol"],
+          evidenceRefs: ["experiment-spec", "playtest-protocol"],
         },
         {
           sequence: 3,
           phase: "critic",
           actor: "harsh-critic",
           output: "Synthetic protocol evidence cannot support a player-behavior claim.",
-          evidenceRefs: ["playtest-protocol"],
+          evidenceRefs: ["experiment-spec", "playtest-protocol"],
         },
         {
           sequence: 4,
           phase: "synthesis",
           actor: "lead-synthesizer",
           output: "The package persistence path is verified, not the game hypothesis.",
-          evidenceRefs: ["playtest-protocol"],
+          evidenceRefs: ["experiment-spec", "playtest-protocol"],
         },
       ],
       warnings: ["Package smoke uses a synthetic fixture and did not operate a game"],
@@ -285,7 +371,12 @@ try {
     },
   });
   assert(run.isError !== true, "packaged CLI could not seal a simulation run");
-  const runId = (run.structuredContent?.data as {id?: unknown} | undefined)?.id;
+  const runMetadata = run.structuredContent?.data as {
+    id?: unknown;
+    savedAt?: unknown;
+    sha256?: unknown;
+  } | undefined;
+  const runId = runMetadata?.id;
   assert(typeof runId === "string", "packaged CLI run save did not return an id");
   const runRead = await client.callTool({
     name: "get_artifact",
@@ -299,6 +390,7 @@ try {
       seal?: {canonicalSha256?: unknown};
       model?: {reportedByClient?: unknown};
       confidence?: {reportedByClient?: unknown};
+      evidence?: Array<{ref?: unknown; sha256?: unknown}>;
       rounds?: unknown[];
     };
     integrity?: {status?: unknown; issueCount?: unknown};
@@ -317,11 +409,132 @@ try {
       && runRecord.rounds?.length === 4,
     "packaged CLI run record is incomplete",
   );
+  const experimentSpecEvidence = runRecord.evidence?.find(
+    (evidence) => evidence.ref === "experiment-spec",
+  );
+  const canonicalRecordSha256 = runRecord.seal?.canonicalSha256;
+  assert(
+    typeof experimentSpecEvidence?.sha256 === "string"
+      && typeof runMetadata?.sha256 === "string"
+      && typeof canonicalRecordSha256 === "string",
+    "packaged CLI did not expose experiment lineage hashes",
+  );
   assert(
     runIntegrity?.status === "verified" && runIntegrity.issueCount === 0,
     "packaged CLI run integrity check failed",
   );
   packageRunRoundTrip = true;
+
+  const experimentOutcomeArguments = {
+    kind: "intel",
+    target: "Package Smoke Game",
+    id: "Experiment Package Smoke 001 Outcome",
+    sourceTool: "manual",
+    payload: {
+      schemaVersion: 1,
+      artifactType: "experiment-outcome",
+      experimentId: "package-smoke-001",
+      targetId: "package-smoke-game",
+      specRef: {
+        target: "package-smoke-game",
+        id: "experiment-package-smoke-001-spec",
+        sha256: experimentSpecEvidence.sha256,
+      },
+      predictionRunRef: {
+        target: "package-smoke-game",
+        runId,
+        runArtifactSha256: runMetadata.sha256,
+        canonicalRecordSha256,
+      },
+      measurementEvidence: [],
+      results: [{
+        metricId: "task-completion",
+        scenarioId: "current",
+        status: "missing",
+        source: "ai-playtest",
+        instrument: "package smoke playtest protocol v1",
+        unit: "boolean/session",
+        cohort: "single package smoke client",
+        window: "15 minute checkpoint task",
+        sampleSize: 0,
+        evidenceRefs: [],
+      }],
+      criterionVerdicts: [{
+        criterionId: "checkpoint-completed",
+        verdict: "unresolved",
+      }],
+      guardrailVerdicts: [],
+      overallVerdict: "unresolved",
+      deviations: [{
+        field: "playable-build",
+        planned: "available",
+        actual: "missing",
+        reason: "Package smoke does not start or operate a game",
+      }],
+      learnings: [{
+        claim: "Artifact wiring succeeded while the game hypothesis remains unresolved",
+        basis: "Verified run integrity and missing task-completion result",
+        nextAction: "Repeat prospectively with a playable build",
+      }],
+    },
+  } as const;
+  const experimentOutcome = await client.callTool({
+    name: "save_artifact",
+    arguments: experimentOutcomeArguments,
+  });
+  assert(experimentOutcome.isError !== true, "packaged CLI could not save experiment outcome");
+  const duplicateExperimentOutcome = await client.callTool({
+    name: "save_artifact",
+    arguments: experimentOutcomeArguments,
+  });
+  assert(
+    duplicateExperimentOutcome.isError === true,
+    "packaged CLI allowed experiment outcome replacement without overwrite",
+  );
+  const experimentOutcomeRead = await client.callTool({
+    name: "get_artifact",
+    arguments: {
+      kind: "intel",
+      target: "Package Smoke Game",
+      id: "Experiment Package Smoke 001 Outcome",
+    },
+  });
+  const outcomeRecord = experimentOutcomeRead.structuredContent?.data as {
+    observedAt?: unknown;
+    payload?: {
+      artifactType?: unknown;
+      overallVerdict?: unknown;
+      specRef?: {sha256?: unknown};
+      predictionRunRef?: {
+        runArtifactSha256?: unknown;
+        canonicalRecordSha256?: unknown;
+      };
+      results?: Array<{
+        status?: unknown;
+        cohort?: unknown;
+        window?: unknown;
+        value?: unknown;
+      }>;
+    };
+  } | undefined;
+  const outcomePayload = outcomeRecord?.payload;
+  assert(
+    experimentOutcomeRead.isError !== true
+      && typeof runMetadata?.savedAt === "string"
+      && typeof outcomeRecord?.observedAt === "string"
+      && Date.parse(outcomeRecord.observedAt) >= Date.parse(runMetadata.savedAt)
+      && outcomePayload?.artifactType === "experiment-outcome"
+      && outcomePayload.overallVerdict === "unresolved"
+      && outcomePayload.specRef?.sha256 === experimentSpecEvidence.sha256
+      && outcomePayload.predictionRunRef?.runArtifactSha256 === runMetadata.sha256
+      && outcomePayload.predictionRunRef?.canonicalRecordSha256 === canonicalRecordSha256
+      && outcomePayload.results?.[0]?.status === "missing"
+      && outcomePayload.results[0]?.cohort === "single package smoke client"
+      && outcomePayload.results[0]?.window === "15 minute checkpoint task"
+      && outcomePayload.results[0]?.value === undefined,
+    "packaged experiment outcome did not preserve unresolved hash-linked evidence",
+  );
+  experimentLoopRoundTrip = true;
 
   if (live) {
     const search = await client.callTool({
@@ -440,6 +653,7 @@ try {
     isolatedDataHome: true,
     playtestPromptRoundTrip,
     packageRunRoundTrip,
+    experimentLoopRoundTrip,
     liveUpdates,
     liveExactSave,
   }));
