@@ -37,6 +37,8 @@ v1.1 workflowは `Dogfood-validated` です。これはworkflow acceptanceであ
 
 2026-08-12のanalysis integrity / evidence coverage / playtest protocol follow-upは、unit・MCP・package smokeまで実装済みです。さらに[Hades update / persona v2](2026-08-12-hades-update-persona-v2.md)で、更新履歴、targetを含むpersona入力、Decision Card、Data Coverage Matrix、新規runの`integrity.status=verified`を実dataで確認しました。ただし操作可能buildはなく、実ゲームtest playは未完了です。Game Discovery Loop PilotはsyntheticなExperimentSpec → Prediction Run → missing ExperimentOutcomeのpackage wiringだけを検証し、game outcomeやcalibrationの実証とは数えません。次の相談では、開発中ゲームのHTTP(S) buildまたはrecordingを使い、結果を見る前にspecを保存してprospective playtestを実行します。更新戦略のdogfood、synthetic smoke、実操作validationを混同しません。
 
+Indie survival strategy rubricはcanonical knowledge、run-sim、evaluation template、harsh critic、package smokeまで接続済みですが、開発中ゲームの企画→human playtest→store funnel→outcomeを通したdogfoodは未完了です。固定販売本数や反応率を正当化したこと、または生存確率を校正したことを意味しません。
+
 既存のHades UI runを新しいreadbackで監査すると、12 dependencyはverified、recordは旧形式のためunsealed、更新後の`run-sim.md`は保存hashとmismatchになり、全体statusはfailed・issueCount 2となった。過去runを新gateへ遡及合格させず、evidence driftと通常のrecipe更新をdependency別に区別できることを実dataで確認した。
 
 | 条件 | 進捗 | 記録 |

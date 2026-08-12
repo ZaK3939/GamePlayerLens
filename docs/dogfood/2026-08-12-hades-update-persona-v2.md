@@ -50,11 +50,13 @@ Decisionは`test-next-build`。対象は`jp-action-readability-mastery-v2`で、
 ## 保存記録
 
 - Evaluation: `workspaces/hades/2026-08-12-visual-clarity-update-hypothesis.md`
-- Run ID: `249b219f-32c0-440a-94a1-422e24740261`
-- Run: `workspaces/hades/runs/249b219f-32c0-440a-94a1-422e24740261.json`
+- Run ID: `135913e1-cc87-4a8c-aab4-aba82376f79c`
+- Run: `workspaces/hades/runs/135913e1-cc87-4a8c-aab4-aba82376f79c.json`
 - Integrity: verified、17 dependencies verified、issue 0
 - Structural coverage: scenario/domain 6/6、persona/scenario 6/6、analysis evidence 12/12
 - Warnings: 5
 - resultHandle保存失敗: 0
+
+このrunはindie survival strategy接続後の`run-sim.md`をrecipeとして再封印し、recipe dependencyを含めてreadback verifiedになった。Hades評価自体は既存ゲームのupdate相談であり、新rubricを開発中ゲームへdogfoodした証拠には数えない。
 
 次の最小検証は、開発中ゲームの操作可能buildで同じDecision Cardを使い、固定taskのAction → response logを追加すること。今回の検証は更新・persona・結果形式をdogfoodしたものであり、実ゲームtest play完了やoutcome calibrationを意味しない。

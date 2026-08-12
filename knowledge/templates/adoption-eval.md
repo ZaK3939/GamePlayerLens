@@ -32,6 +32,64 @@ Mode、Selected Domains、選択外領域の明示的な N/A 理由は、必ず�
 - Guardrail / rollback: ［悪化を止める指標と戻せる単位］
 - Revisit condition: ［何が取得・発生したら判断を更新するか］
 
+## Indie Survival Strategy
+
+concept、prototype、vertical slice、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`に従います。通常のreview取得や価格照会だけなら、`適用外: ［N/A理由］`と記録します。
+
+### Indie Strategy Card
+
+- Development stage: ［`concept / prototype / vertical-slice / store-live / demo / prelaunch / launched`］
+- Decision horizon: ［今回決める範囲と日付］
+- Target player: ［対象playerと使用場面］
+- Team capacity / runway: ［既知値、assumption、missingを分離］
+- Next irreversible commitment: ［公開、外注、event登録、release date等］
+- Blocking evidence: ［commitment前に必要な根拠］
+
+### Core Experience Map
+
+| Field | Current hypothesis | Evidence | Status |
+|---|---|---|---|
+| targetPlayer / themeWorld | ［誰に、どんな世界か］ | ［Evidence ID］ | ［observed / inferred / missing］ |
+| distinctiveSystem / repeatedAction | ［固有systemと反復行動］ | ［Evidence ID］ | ［status］ |
+| playerDecision / systemResponse | ［判断と応答］ | ［Evidence ID］ | ［status］ |
+| immediateReward / transitionReward / rewardAmplifier | ［即時報酬、変化の報酬、増幅要素］ | ［Evidence ID］ | ［status］ |
+| oneSentencePromise | ［1文で理解できる約束］ | ［理解test Evidence ID］ | ［status］ |
+| Known Frame + Meaningful Difference | ［理解しやすい型と体験を変える差分］ | ［Evidence ID］ | ［status］ |
+
+### Promise-Delivery Trace
+
+| Promise claim | Promise asset / Evidence ID | Intended build moment | Delivered evidence | Match status | Decision impact |
+|---|---|---|---|---|---|
+| ［購入前に約束する体験］ | ［capsule / trailer / copy］ | ［build / task / state］ | ［playtest / telemetry / missing］ | ［matched / overpromised / under-signaled / missing］ | ［施策］ |
+
+### Funnel Health
+
+`impression → store visit → wishlist → demo start → demo completion → purchase → retained play`の各段階を、同じcohortとwindowで可能な範囲まで記録します。wishlistを面白さや販売本数の単独原因にしません。
+
+| Stage | Metric | Source / instrument | Cohort / Window | Status | Interpretation limit |
+|---|---|---|---|---|---|
+| ［stage］ | ［metric］ | ［source］ | ［cohort / window］ | ［observed / estimated / missing］ | ［因果境界］ |
+
+### Milestone Readiness
+
+- Current gate: ［`concept / prototype / store-reveal / demo-next-fest / release-date / launch / post-launch`］
+- Result: ［pass / blocked］
+- Required evidence present: ［Evidence IDs］
+- Smallest evidence to unblock: ［build、asset、participant、report］
+- Current Steamworks rules checked at: ［URL / accessedAt、またはN/A］
+
+### Experiment Queue
+
+| Priority | Hypothesis | Stage | Primary metric | Guardrail | Smallest build / asset | Experiment ID |
+|---|---|---|---|---|---|---|
+| 1 | ［検証可能な仮説］ | ［gate］ | ［1件］ | ［悪化停止条件］ | ［最小変更］ | ［prospective ID / not registered］ |
+
+### Survival Scenarios
+
+| Scenario | Revenue assumptions | Cost / fee / refund / tax assumptions | Runway impact | Decision |
+|---|---|---|---|---|
+| conservative / base / upside | ［project固有値 / missing］ | ［固定値にしない］ | ［months / missing］ | ［continue / reduce-scope / seek-funding / stop］ |
+
 ## Overall Assessment
 
 使用する Mode に対応する表だけをレポートに残します。

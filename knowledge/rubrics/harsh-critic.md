@@ -32,7 +32,16 @@
 - ストア訴求を選択した場合は、`localizedStorefronts`のcopy、screenshotsまたはcapture、競合の同種根拠、レビュー上の期待差を分けて示す。deep linkを貼っただけでリンク先の内容を取得済み根拠にしない。
 - 対応言語一覧だけから翻訳品質、文化適合、フォント可読性を断定した場合は差し戻す。requested localeのstore copy、対象言語レビュー、またはゲーム内captureの少なくとも1つを要求し、Steam fallbackの可能性を明記する。`matchesEnglishCopy=true` は正規化後の完全一致だけを示し、fallbackの理由や翻訳品質の証明として扱わない。`matchesEnglishCopy=false` も非一致だけを示し、fallbackでない、意図した言語が返った、翻訳済みと断定しない。
 
-## 4. UI 品質ゲート
+## 4. Indie survival strategyゲート
+
+- concept、prototype、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`を読む。Indie Strategy Card、Core Experience Map、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Experiment Queue、Survival Scenariosがなければ差し戻す。適用外ならtopicに対応したN/A理由を要求する。
+- `Appeal Promise`と`Delivered Experience`を分離し、購入前のasset evidenceと購入後のbuild / playtest evidenceを別にする。購入前と購入後を単一score、掛け算、平均で相殺した場合は差し戻す。
+- wishlistを面白さ、販売本数、algorithmic visibilityの単独原因または証明とした場合は差し戻す。impression、store visit、cohort、window、asset、price expectationを確認する。
+- 販売本数、platform fee、refund、税率、conversion、開発期間を普遍的な固定値としてprojectへ当てはめた場合は差し戻す。契約、法域、地域、scope、team capacity、runwayをassumptionとobservedへ分ける。
+- Next Festのeligibility、日程、参加回数を記憶や古い資料で断定せず、公式Steamworksの現在のdocumentationを確認する。確認日とURLがなければmilestoneをpassにしない。
+- AI playtestをhuman playtestのfun、需要、completion、retentionの代表にしない。操作可能性や再現できるfrictionの観測と、人間participantのresponseを分ける。
+
+## 5. UI 品質ゲート
 
 - UI 品質ゲートは、Selected Domains で `ui` が選択された場合だけ適用する。UI が選択外なら明示的な理由とともに N/A とし、画像やブラインド比較がないことを不合格理由にしない。
 - `ui` が選択された場合は、対象 UI と、指定された `qualityTier` と同等の出荷済み製品の UI を匿名化したブラインド比較にかける。qualityTier が未指定なら、比較基準を仮定せず確認する。
@@ -44,26 +53,26 @@
 - 単なる装飾追加を修正とせず、負けた評価軸とスクリーンショット上の位置を修正指示にする。
 - UI が選択されているのに比較画像を取得できない場合は合格にせず、手動配置先を示して「根拠不足」とする。
 
-## 5. Persona voice ゲート
+## 6. Persona voice ゲート
 
 - persona の発言が `voice[].text` と矛盾する場合は差し戻し。
 - 発言の根拠に `source_appid` または `recommendation_id` が欠落していれば差し戻し。language と voted_up も照合する。
 - polarity-balanced persona sample は `representative: false` である。positive/negative の構成を `population ratio` や市場母集団の好評率として使った場合は差し戻す。
 - 1件の強いレビューを市場全体の意見として一般化しない。反対極性と別 Flow の根拠も確認する。
 
-## 6. Flow Size ゲート
+## 7. Flow Size ゲート
 
 - Flow Size を大 / 中 / 小または数値で示す場合は、母集団の `reviewStats`、SteamSpy `owners` の推定 caveat、市場規模や需要に関する外部根拠を確認する。いずれかが欠けるなら数量断定を差し戻す。
 - balanced sample の件数比、個別 persona の強さ、現在 CCU のいずれか単独から Flow Size を推定しない。
 
-## 7. 領域整合ゲート
+## 8. 領域整合ゲート
 
 - Selected Domains の各担当が、同じ対象仕様と、change の場合は同じ変更案を評価していること。
 - ある領域の改善が別領域の Friction を増やす場合、Overall Assessment に反映すること。
 - 現在 CCU は取得時点のスナップショットとして扱い、過去トレンドや因果を捏造しないこと。
 - Final Recommendation に、勧告、根拠と結びついた `confidence`、および実行可能な `next validation` がなければ差し戻す。
 
-## 8. 再現性と calibration ゲート
+## 9. 再現性と calibration ゲート
 
 - 最終 evaluation の保存後に、同じ `save_artifact` の kind=`run` で immutable な run artifact を保存できない場合は完了として扱わない。
 - run artifact に Mode と全 scenario、Selected Domains、使用した persona ID、全 independent pass の連続した rounds、warning、最終 evaluation 参照がなければ差し戻す。change で現状または変更案の round が欠ける場合、選択領域に対応する round がない場合も差し戻す。
@@ -74,7 +83,7 @@
 - model と confidence の `reportedByClient=true` はクライアント申告であってserverによるモデル同定や品質保証ではない。この境界をレポートで逆転させた場合は差し戻す。
 - `calibrationStatus` は実測結果との比較範囲を表す。予測対象、判定基準、観測結果を対応付けた実測がないのに `calibrated` とした場合は差し戻す。実測比較がなければ `not-calibrated`、一部だけなら `partially-calibrated` とし、confidenceの理由に未検証範囲を残す。
 
-## 9. 反復と停止条件
+## 10. 反復と停止条件
 
 選択された全領域の subagent が上記ゲートに合格するまで、修正、再評価、辛口批評を繰り返します。ただし同一指摘が、同じ欠損データのため2回続けて解消できない場合は、無限に書き換えません。「根拠不足として停止」と記録し、必要な外部データ、担当者判断、または実験を具体化して終了します。
 

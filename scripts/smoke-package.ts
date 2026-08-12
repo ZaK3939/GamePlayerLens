@@ -46,6 +46,7 @@ for (const runtimePath of [
   join(repositoryRoot, "knowledge", "rubrics", "playtest.md"),
   join(repositoryRoot, "knowledge", "rubrics", "update-strategy.md"),
   join(repositoryRoot, "knowledge", "rubrics", "experiment.md"),
+  join(repositoryRoot, "knowledge", "rubrics", "indie-survival-strategy.md"),
   join(repositoryRoot, "skills", "run-sim.md"),
 ]) {
   await access(runtimePath);
@@ -142,6 +143,20 @@ try {
   assert(
     JSON.stringify(experimentRubric.structuredContent).includes("ExperimentOutcome"),
     "packaged CLI returned the wrong experiment rubric",
+  );
+  const indieSurvivalRubric = await client.callTool({
+    name: "get_knowledge",
+    arguments: {kind: "rubrics", id: "indie-survival-strategy.md"},
+  });
+  assert(
+    indieSurvivalRubric.isError !== true,
+    "packaged CLI could not read indie survival strategy rubric",
+  );
+  const indieSurvivalContent = JSON.stringify(indieSurvivalRubric.structuredContent);
+  assert(
+    indieSurvivalContent.includes("Promise-Delivery Trace")
+      && indieSurvivalContent.includes("partner.steamgames.com/doc/marketing/upcoming_events/nextfest"),
+    "packaged CLI returned the wrong indie survival strategy rubric",
   );
 
   const playtestPrompt = await client.getPrompt({

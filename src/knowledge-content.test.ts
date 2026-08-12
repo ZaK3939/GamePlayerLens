@@ -115,6 +115,18 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("Persona Update Impact Matrix");
     expect(content).toContain("Prioritized Update Backlog");
   });
+
+  it("adds a conditional indie survival strategy with traceable core and funnel outputs", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+
+    expect(content).toContain("## Indie Survival Strategy");
+    expect(content).toContain("Core Experience Map");
+    expect(content).toContain("Promise-Delivery Trace");
+    expect(content).toContain("Funnel Health");
+    expect(content).toContain("Milestone Readiness");
+    expect(content).toContain("Experiment Queue");
+    expect(content).toMatch(/適用外[\s\S]*N\/A理由/);
+  });
 });
 
 describe("harsh critic rubric", () => {
@@ -180,6 +192,88 @@ describe("harsh critic rubric", () => {
     expect(content).toContain("provenance artifact");
     expect(content).toContain("gap = target - median");
     expect(content).toMatch(/static screenshot[\s\S]*motion[\s\S]*unscored/);
+  });
+
+  it("rejects survival claims that collapse promise, fun, wishlists, and sales into one cause", async () => {
+    const content = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(content).toContain("indie-survival-strategy.md");
+    expect(content).toMatch(/wishlist[\s\S]*面白さ[\s\S]*単独原因[\s\S]*差し戻す/);
+    expect(content).toMatch(/販売本数[\s\S]*税率[\s\S]*普遍[\s\S]*差し戻す/);
+    expect(content).toMatch(/購入前[\s\S]*購入後[\s\S]*単一score/);
+    expect(content).toMatch(/Next Fest[\s\S]*公式Steamworks[\s\S]*現在/);
+  });
+});
+
+describe("indie survival strategy rubric", () => {
+  it("separates pre-purchase promise from delivered player experience", async () => {
+    const content = await read("knowledge/rubrics/indie-survival-strategy.md");
+
+    expect(content).toContain("Appeal Promise");
+    expect(content).toContain("Delivered Experience");
+    expect(content).toContain("Promise-Delivery Trace");
+    expect(content).toMatch(/掛け算[\s\S]*単一score[\s\S]*禁止/);
+    expect(content).toMatch(/storefront[\s\S]*playtest[\s\S]*別のevidence/);
+  });
+
+  it("maps a distinctive core from theme through experience and reward", async () => {
+    const content = await read("knowledge/rubrics/indie-survival-strategy.md");
+
+    for (const field of [
+      "targetPlayer",
+      "themeWorld",
+      "distinctiveSystem",
+      "repeatedAction",
+      "playerDecision",
+      "systemResponse",
+      "immediateReward",
+      "transitionReward",
+      "rewardAmplifier",
+      "oneSentencePromise",
+    ]) {
+      expect(content).toContain(field);
+    }
+    expect(content).toMatch(/表層[\s\S]*模倣[\s\S]*体験[\s\S]*報酬/);
+    expect(content).toContain("Known Frame + Meaningful Difference");
+  });
+
+  it("diagnoses the acquisition and play funnel without blaming one metric", async () => {
+    const content = await read("knowledge/rubrics/indie-survival-strategy.md");
+
+    expect(content).toContain("impression → store visit → wishlist → demo start → demo completion → purchase → retained play");
+    expect(content).toMatch(/wishlist[\s\S]*興味signal[\s\S]*面白さ[\s\S]*証明しない/);
+    expect(content).toMatch(/exposure[\s\S]*cohort[\s\S]*window[\s\S]*単独原因/);
+    expect(content).toContain("Traffic Breakdown");
+  });
+
+  it("uses readiness gates and current official Steamworks rules", async () => {
+    const content = await read("knowledge/rubrics/indie-survival-strategy.md");
+
+    for (const gate of [
+      "concept",
+      "prototype",
+      "store-reveal",
+      "demo-next-fest",
+      "release-date",
+      "launch",
+      "post-launch",
+    ]) {
+      expect(content).toContain(`\`${gate}\``);
+    }
+    expect(content).toContain("partner.steamgames.com/doc/marketing/upcoming_events/nextfest");
+    expect(content).toMatch(/Next Fest[\s\S]*1作品[\s\S]*1回/);
+    expect(content).toMatch(/宣伝機会[\s\S]*4回だけ[\s\S]*採用しない/);
+    expect(content).toContain("Update Visibility Round");
+  });
+
+  it("makes survival targets project-specific and experiment-driven", async () => {
+    const content = await read("knowledge/rubrics/indie-survival-strategy.md");
+
+    expect(content).toContain("ExperimentSpec");
+    expect(content).toContain("ExperimentOutcome");
+    expect(content).toMatch(/販売本数[\s\S]*runway[\s\S]*project固有/);
+    expect(content).toMatch(/platform fee[\s\S]*refund[\s\S]*tax[\s\S]*固定値/);
+    expect(content).toMatch(/AI playtest[\s\S]*human playtest[\s\S]*代表/);
   });
 });
 
@@ -394,6 +488,18 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/ExperimentSpec[\s\S]*evidence[\s\S]*SHA-256/);
     expect(content).toMatch(/missing[\s\S]*unresolved[\s\S]*保存/);
     expect(content).toMatch(/次[\s\S]*ExperimentSpec[\s\S]*parentOutcomeRef/);
+  });
+
+  it("applies the indie survival strategy to concept, launch, and marketing consultations", async () => {
+    const content = await read("skills/run-sim.md");
+
+    expect(content).toContain("indie-survival-strategy.md");
+    expect(content).toContain("Core Experience Map");
+    expect(content).toContain("Promise-Delivery Trace");
+    expect(content).toContain("Funnel Health");
+    expect(content).toContain("Milestone Readiness");
+    expect(content).toMatch(/wishlist[\s\S]*単独[\s\S]*面白さ/);
+    expect(content).toMatch(/Steamworks[\s\S]*Next Fest[\s\S]*現在/);
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

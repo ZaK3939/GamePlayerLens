@@ -135,6 +135,14 @@ Selected Domainごとに固定dimensionを持つData Coverage Matrixを作り、
 
 change runは全`scenario × Selected Domain`と全`persona × scenario`のroundを要求します。final evaluation以外の全evidenceは少なくとも1 roundで使用し、synthesis後に作る`finalEvaluationRef`をroundから参照する循環は拒否します。これにより「変更案だけ評価した」「保存したが判断に使わなかった」データをmachine gateで検出します。
 
+### インディーゲーム生存戦略
+
+企画、prototype、store公開、demo、Next Fest、launch、post-launchの相談では、購入前の`Appeal Promise`と購入後の`Delivered Experience`を別ledgerで評価します。`Core Experience Map`でtheme、distinctive system、反復行動、player decision、system response、即時報酬・変化の報酬を結び、`Promise-Delivery Trace`でcapsule / trailer / copyが約束した体験をbuild momentとplaytestへ追跡します。表層的な競合模倣ではなく、既知の型から理解costを下げる`Known Frame`と、実際のaction / decision / rewardを変える`Meaningful Difference`を分けます。
+
+市場側は`impression → store visit → wishlist → demo start → demo completion → purchase → retained play`として観測し、wishlistを面白さ、販売本数、Steam visibilityの単独証明にしません。milestoneは日付だけでなくplayer / asset evidenceでgateし、Next Fest等の条件は[公式Steamworks](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest)の現在仕様を実行時に確認します。販売本数、platform fee、refund、税、conversion、開発期間は固定値を埋めず、project固有のteam capacity、cost、契約、法域、runwayをconservative / base / upside scenarioへ分離します。
+
+詳細な判断境界は`get_knowledge(kind=rubrics, id=indie-survival-strategy.md)`で取得できます。
+
 ### 更新戦略と意思決定結果
 
 既存ゲームの更新判断では`steam_updates`がSteam公式`ISteamNews/GetNewsForApp/v2`を使い、公式Community Announcementから更新履歴を返します。既定の`updates` scopeはSteamの`patchnotes` tagまたはboundedなtitle keywordだけでupdate-like項目を選び、本文中の単語だけでは選びません。分類語彙はSteamSonarの`major / content / balance / fixes / event / demo / localization / sale / community / general`を踏襲し、`updateEvidence`、`updateConfidence`、`typeConfidence`、`classificationBasis`、`platformHints`、highlights、取得範囲、更新間隔中央値、SteamSonar dashboard linkを保持します。

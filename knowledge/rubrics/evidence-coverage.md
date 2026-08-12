@@ -24,7 +24,7 @@ Selected Domainの各必須dimensionへ、`observed`、`reported-zero`、`estima
 ### gameplay
 
 1. player-facing core loop: 目標、主要行動、feedbackを仕様、build、video、playtestのいずれかで確認。操作可能なbuildではAction → responseの時系列logを優先する。
-2. progression and reward: 短期・長期の進行と報酬を直接資料で確認。
+2. progression and reward: 短期・長期の進行と報酬を直接資料で確認。indie survival topicではCore Experience Mapの`repeatedAction → systemResponse → immediateReward / transitionReward`へ対応付ける。
 3. failure and retry: 失敗条件、再挑戦、摩擦を直接資料またはplaytestで確認。
 4. player response: reviews、playtest、surveyのいずれかで期待と実感を確認。
 
@@ -34,7 +34,7 @@ Steam description、tags、categoriesだけの場合はplayer perceptionのproxy
 
 1. copy and metadata: short description、about、features、languagesをlocale別に保存。
 2. visual promise: capsule、screenshots、trailerまたは許可済みcaptureを保存。
-3. expectation match: copy/visualが作る期待とreviewsまたはplaytestの実感を対応付ける。
+3. expectation match: copy/visualが作る期待とreviewsまたはplaytestの実感をPromise-Delivery Traceで対応付ける。
 4. competitor context: 同じgenreだけでなく、同じ購入理由を持つ比較候補の同種証拠を確認。
 
 ### ui
