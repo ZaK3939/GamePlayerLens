@@ -82,6 +82,23 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 
 基本の入口は `run-sim` です。prompt arguments はすべて string です。クライアントの prompt UI で、たとえば次の値を渡します。
 
+自作ゲームのprototype相談では、`projectBrief`へJSON文字列を渡すと、企画意図を自由文から分離できます。
+
+```json
+{
+  "target": "Project Nyx",
+  "topic": "Prototype core and next milestone",
+  "mode": "baseline",
+  "domains": "gameplay,storefront,competition",
+  "projectBrief": "{\"developmentStage\":\"prototype\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"immediateReward\":\"予測した航路が成立する手応え\",\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"knownFrame\":\"route-planning management\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
+  "competitors": "既知なら作品名、未知なら省略",
+  "market": "Japan",
+  "language": "Japanese"
+}
+```
+
+`projectBrief`は開発者が宣言した設計意図です。player evidenceとは扱わず、未入力fieldを捏造せず、store asset、third-party理解test、build、human playtest、telemetryで順に検証します。
+
 価格の baseline 相談:
 
 ```json

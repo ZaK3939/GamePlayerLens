@@ -32,6 +32,34 @@ describe("run-sim prompt arguments", () => {
       topic: "launch",
     })).toMatchObject({mode: "baseline", domains: "auto"});
 
+    const parsedProjectBrief = RunSimPromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "prototype core review",
+      projectBrief: JSON.stringify({
+        developmentStage: "prototype",
+        targetPlayer: "  players who enjoy readable tactical tradeoffs  ",
+        themeWorld: "A storm-bound courier guild",
+        distinctiveSystem: "Draw and revise routes against a changing forecast",
+        repeatedAction: "Read, route, commit, recover",
+        playerDecision: "Trade safety for delivery value",
+        systemResponse: "Wind, fuel, and cargo condition change immediately",
+        immediateReward: "A predicted route holds",
+        transitionReward: "Tension resolves into a successful delivery",
+        rewardAmplifier: "Storm audio and recipient reactions",
+        oneSentencePromise: "Outread the storm to keep a fragile courier network alive",
+        knownFrame: "Route-planning management",
+        meaningfulDifference: "Forecast uncertainty can be redrawn as a route",
+        teamCapacity: "Two developers and one part-time composer",
+        runwayMonths: 14,
+        nextIrreversibleCommitment: "Publish the Steam coming-soon page",
+      }),
+    });
+    expect(JSON.parse(parsedProjectBrief.projectBrief!)).toMatchObject({
+      developmentStage: "prototype",
+      targetPlayer: "players who enjoy readable tactical tradeoffs",
+      runwayMonths: 14,
+    });
+
     expect(RunSimPromptArgumentsSchema.parse({
       target: "Example Game",
       topic: "full product review",
@@ -64,6 +92,31 @@ describe("run-sim prompt arguments", () => {
       target: "Game",
       topic: "topic",
       specification: "x".repeat(50_001),
+    }],
+    ["invalid project brief JSON", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: "{not-json}",
+    }],
+    ["empty project brief", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: "{}",
+    }],
+    ["unknown project brief field", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({secretSuccessScore: 97}),
+    }],
+    ["invalid project development stage", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({developmentStage: "idea-ish"}),
+    }],
+    ["invalid project runway", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({runwayMonths: -1}),
     }],
     ["insecure UI reference URL", {
       target: "Game",
@@ -166,6 +219,31 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"playtestDurationMinutes": "20"');
   });
 
+  it("serializes the validated project brief as structured data", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "prototype core review",
+      domains: "gameplay,storefront",
+      projectBrief: JSON.stringify({
+        developmentStage: "prototype",
+        targetPlayer: "deliberate route-planning players",
+        themeWorld: "storm courier guild",
+        distinctiveSystem: "redraw routes as the forecast changes",
+        repeatedAction: "read, route, commit, recover",
+        playerDecision: "trade safety for delivery value",
+        systemResponse: "wind and cargo condition react",
+        immediateReward: "a predicted route holds",
+        oneSentencePromise: "Outread the storm to keep a courier network alive",
+        runwayMonths: 14,
+      }),
+    });
+
+    expect(result).toContain('"projectBrief": {');
+    expect(result).toContain('"developmentStage": "prototype"');
+    expect(result).toContain('"runwayMonths": 14');
+    expect(result).not.toContain('"projectBrief": "{');
+  });
+
   it("does not echo rejected URL credentials in validation errors", () => {
     const parsed = RunSimPromptArgumentsSchema.safeParse({
       target: "Game",
@@ -176,6 +254,18 @@ describe("run-sim prompt arguments", () => {
     if (parsed.success) throw new Error("credentialed URL should be rejected");
     expect(JSON.stringify(parsed.error)).not.toContain("secret-user");
     expect(JSON.stringify(parsed.error)).not.toContain("secret-pass");
+  });
+
+  it("does not echo rejected project brief content in validation errors", () => {
+    const parsed = RunSimPromptArgumentsSchema.safeParse({
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({privateLaunchToken: "do-not-echo-this"}),
+    });
+
+    if (parsed.success) throw new Error("unknown project brief field should be rejected");
+    expect(JSON.stringify(parsed.error)).not.toContain("privateLaunchToken");
+    expect(JSON.stringify(parsed.error)).not.toContain("do-not-echo-this");
   });
 });
 

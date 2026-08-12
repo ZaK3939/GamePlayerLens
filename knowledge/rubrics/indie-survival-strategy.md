@@ -18,6 +18,8 @@ topicがconcept、prototype、vertical slice、pitch、storefront、trailer、de
 - `nextIrreversibleCommitment`: 公開、外注、event登録、release date、launchなど戻しにくい判断
 - `blockingEvidence`: その判断の前に必要なmissing evidence
 
+`run-sim`の`projectBrief`にある値は、開発者が宣言した`declared design intent`としてCore Experience Mapへ配置します。保存済み仕様として追跡できますが、player evidence、市場需要、実装済み体験の観測には数えません。briefの各claimを、store asset、third-party理解test、build moment、human playtest、telemetryのどれで確認したかを別に記録します。未入力fieldを推測で埋めず、current gateをblockingするmissingを優先します。
+
 ## 2. Two ledgers: promise and delivery
 
 ### Appeal Promise

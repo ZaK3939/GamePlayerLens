@@ -47,9 +47,11 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 
 ### Core Experience Map
 
+`projectBrief`由来の値は`declared`であり、player evidenceではありません。対応するasset、build、third-party responseがあれば別Evidence IDを付けます。
+
 | Field | Current hypothesis | Evidence | Status |
 |---|---|---|---|
-| targetPlayer / themeWorld | ［誰に、どんな世界か］ | ［Evidence ID］ | ［observed / inferred / missing］ |
+| targetPlayer / themeWorld | ［誰に、どんな世界か］ | ［projectBrief / Evidence ID］ | ［declared / observed / inferred / missing］ |
 | distinctiveSystem / repeatedAction | ［固有systemと反復行動］ | ［Evidence ID］ | ［status］ |
 | playerDecision / systemResponse | ［判断と応答］ | ［Evidence ID］ | ［status］ |
 | immediateReward / transitionReward / rewardAmplifier | ［即時報酬、変化の報酬、増幅要素］ | ［Evidence ID］ | ［status］ |

@@ -114,12 +114,71 @@ const PlaytestDurationSchema = z.string().trim().regex(/^\d{1,3}$/).refine(
   "playtestDurationMinutes must be between 1 and 120",
 );
 
+const ProjectBriefTextSchema = z.string().trim().min(1).max(2_000);
+const ProjectBriefObjectSchema = z.object({
+  developmentStage: z.enum([
+    "concept",
+    "prototype",
+    "vertical-slice",
+    "store-live",
+    "demo",
+    "prelaunch",
+    "launched",
+  ]).optional(),
+  decisionHorizon: ProjectBriefTextSchema.optional(),
+  targetPlayer: ProjectBriefTextSchema.optional(),
+  themeWorld: ProjectBriefTextSchema.optional(),
+  distinctiveSystem: ProjectBriefTextSchema.optional(),
+  repeatedAction: ProjectBriefTextSchema.optional(),
+  playerDecision: ProjectBriefTextSchema.optional(),
+  systemResponse: ProjectBriefTextSchema.optional(),
+  immediateReward: ProjectBriefTextSchema.optional(),
+  transitionReward: ProjectBriefTextSchema.optional(),
+  rewardAmplifier: ProjectBriefTextSchema.optional(),
+  oneSentencePromise: ProjectBriefTextSchema.optional(),
+  knownFrame: ProjectBriefTextSchema.optional(),
+  meaningfulDifference: ProjectBriefTextSchema.optional(),
+  teamCapacity: ProjectBriefTextSchema.optional(),
+  runwayMonths: z.number().finite().min(0).max(600).optional(),
+  nextIrreversibleCommitment: ProjectBriefTextSchema.optional(),
+}).strict().refine(
+  (value) => Object.keys(value).length > 0,
+  "projectBrief must contain at least one supported field",
+);
+
+const ProjectBriefSchema = z.string().trim().min(2).max(20_000).transform(
+  (input, context) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(input);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "projectBrief must be valid JSON",
+      });
+      return z.NEVER;
+    }
+    const result = ProjectBriefObjectSchema.safeParse(parsed);
+    if (!result.success) {
+      context.addIssue({
+        code: "custom",
+        message: "projectBrief does not match the supported project brief schema",
+      });
+      return z.NEVER;
+    }
+    return JSON.stringify(result.data);
+  },
+);
+
 export const RunSimPromptArgumentsSchema = z.object({
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
   topic: NonEmptyTrimmedStringSchema.describe("Consultation topic"),
   mode: z.enum(["baseline", "change"]).default("baseline"),
   domains: DomainsSchema.default("auto"),
   specification: z.string().max(50_000).optional(),
+  projectBrief: ProjectBriefSchema.optional().describe(
+    "JSON object containing declared project stage, core experience, and production constraints",
+  ),
   playtestUrl: PlaytestUrlSchema.optional(),
   playtestTask: z.string().trim().min(1).max(1_000).optional(),
   playtestBuild: z.string().trim().min(1).max(200).optional(),
@@ -177,10 +236,13 @@ export function buildRunSimPrompt(
   const missingChangeInputs = parsed.mode === "change"
     ? (["currentState", "proposal"] as const).filter((field) => !parsed[field]?.trim())
     : undefined;
-  const {uiReferenceUrls, ...promptInput} = parsed;
+  const {projectBrief, uiReferenceUrls, ...promptInput} = parsed;
 
   return appendSerializedInput(recipe, {
     ...promptInput,
+    ...(projectBrief
+      ? {projectBrief: ProjectBriefObjectSchema.parse(JSON.parse(projectBrief))}
+      : {}),
     ...(uiReferenceUrls
       ? {uiReferenceUrls: uiReferenceUrls.split("\n")}
       : {}),

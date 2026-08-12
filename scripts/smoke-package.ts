@@ -166,6 +166,14 @@ try {
       topic: "Playtest protocol wiring",
       mode: "baseline",
       domains: "gameplay",
+      projectBrief: JSON.stringify({
+        developmentStage: "prototype",
+        targetPlayer: "players learning a new action loop",
+        repeatedAction: "read, act, recover",
+        immediateReward: "clear response to a successful action",
+        oneSentencePromise: "Learn the loop and reach the checkpoint",
+        runwayMonths: 6,
+      }),
       playtestUrl: "http://127.0.0.1:4173/play#package-smoke",
       playtestTask: "Reach the first checkpoint",
       playtestBuild: "package-smoke-fixture-1",
@@ -177,6 +185,9 @@ try {
   assert(playtestContent?.type === "text", "packaged run-sim did not return text");
   assert(
     playtestContent.text.includes('"playtestUrl": "http://127.0.0.1:4173/play#package-smoke"')
+      && playtestContent.text.includes('"projectBrief": {')
+      && playtestContent.text.includes('"developmentStage": "prototype"')
+      && playtestContent.text.includes('"runwayMonths": 6')
       && playtestContent.text.includes('"playtestTask": "Reach the first checkpoint"')
       && playtestContent.text.includes('"playtestBuild": "package-smoke-fixture-1"')
       && playtestContent.text.includes('"playtestControls": "keyboard and mouse"')

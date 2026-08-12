@@ -235,6 +235,7 @@ describe("indie survival strategy rubric", () => {
     }
     expect(content).toMatch(/表層[\s\S]*模倣[\s\S]*体験[\s\S]*報酬/);
     expect(content).toContain("Known Frame + Meaningful Difference");
+    expect(content).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
   });
 
   it("diagnoses the acquisition and play funnel without blaming one metric", async () => {
@@ -500,6 +501,15 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("Milestone Readiness");
     expect(content).toMatch(/wishlist[\s\S]*単独[\s\S]*面白さ/);
     expect(content).toMatch(/Steamworks[\s\S]*Next Fest[\s\S]*現在/);
+  });
+
+  it("keeps the developer project brief separate from player evidence", async () => {
+    const recipeContent = await read("skills/run-sim.md");
+    const criticContent = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(recipeContent).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
+    expect(recipeContent).toMatch(/blocking[\s\S]*missing[\s\S]*捏造/);
+    expect(criticContent).toMatch(/projectBrief[\s\S]*player evidence[\s\S]*差し戻す/);
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

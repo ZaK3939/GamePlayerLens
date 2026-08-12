@@ -25,6 +25,7 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
   "mode",
   "domains",
   "specification",
+  "projectBrief",
   "playtestUrl",
   "playtestTask",
   "playtestBuild",
@@ -139,6 +140,12 @@ try {
       mode: "baseline",
       domains: "competition,price",
       specification: "Evaluate the current launch price without a proposed change.",
+      projectBrief: JSON.stringify({
+        developmentStage: "prelaunch",
+        targetPlayer: "Japanese premium roguelike players",
+        oneSentencePromise: "A more reactive journey through the underworld",
+        runwayMonths: 12,
+      }),
       competitors: "Hades, Dead Cells",
       market: "Japan",
       language: "Japanese",
@@ -156,6 +163,9 @@ try {
   assert(
     promptContent.text.includes('"target": "Hades II"')
       && promptContent.text.includes('"mode": "baseline"')
+      && promptContent.text.includes('"projectBrief": {')
+      && promptContent.text.includes('"developmentStage": "prelaunch"')
+      && promptContent.text.includes('"runwayMonths": 12')
       && promptContent.text.includes('"selectedDomains": [\n    "price",\n    "competition"\n  ]'),
     "run-sim did not normalize the supplied arguments",
   );

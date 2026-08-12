@@ -40,6 +40,7 @@
 - 販売本数、platform fee、refund、税率、conversion、開発期間を普遍的な固定値としてprojectへ当てはめた場合は差し戻す。契約、法域、地域、scope、team capacity、runwayをassumptionとobservedへ分ける。
 - Next Festのeligibility、日程、参加回数を記憶や古い資料で断定せず、公式Steamworksの現在のdocumentationを確認する。確認日とURLがなければmilestoneをpassにしない。
 - AI playtestをhuman playtestのfun、需要、completion、retentionの代表にしない。操作可能性や再現できるfrictionの観測と、人間participantのresponseを分ける。
+- `projectBrief`のdeclared design intentを、そのままplayer evidence、市場需要、体験実装済みの証明にした場合は差し戻す。promise、build moment、third-party responseのprovenanceを分ける。
 
 ## 5. UI 品質ゲート
 
