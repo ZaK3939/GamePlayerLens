@@ -42,6 +42,8 @@
 - AI playtestをhuman playtestのfun、需要、completion、retentionの代表にしない。操作可能性や再現できるfrictionの観測と、人間participantのresponseを分ける。
 - `projectBrief`のdeclared design intentを、そのままplayer evidence、市場需要、体験実装済みの証明にした場合は差し戻す。promise、build moment、third-party responseのprovenanceを分ける。
 - `projectBriefDiagnostics`のfield数やmissing数をquality score、面白さ、readiness passへ変換した場合は差し戻す。これは入力inventoryであり、fieldの中身や外部検証の質を採点しない。
+- `conceptTest`のparticipant countや`interest`から固定thresholdを作り、milestone pass、conversion、purchase、需要を断定した場合は差し戻す。`understoodAction`、`understoodReward`、`interest`を別々に示し、stimulus、募集、質問、deviation、bounded sampleの限界を要求する。
+- concept testの`participantId`が仮名でない場合、または氏名、email、連絡先などの個人情報をevaluationやartifactへ含めた場合は差し戻す。
 
 ## 5. UI 品質ゲート
 

@@ -1608,6 +1608,8 @@ describe("MCP server contract", () => {
     {target: "Game", topic: "topic", specification: "x".repeat(50_001)},
     {target: "Game", topic: "topic", projectBrief: "{not-json}"},
     {target: "Game", topic: "topic", projectBrief: JSON.stringify({runwayMonths: -1})},
+    {target: "Game", topic: "topic", conceptTest: "{not-json}"},
+    {target: "Game", topic: "topic", conceptTest: JSON.stringify({participants: []})},
   ])("rejects invalid run-sim prompt arguments through MCP: %j", async (arguments_) => {
     const {client, server} = await createHarness();
     try {
@@ -1659,6 +1661,7 @@ describe("MCP server contract", () => {
         "domains",
         "specification",
         "projectBrief",
+        "conceptTest",
         "playtestUrl",
         "playtestTask",
         "playtestBuild",

@@ -99,6 +99,38 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 
 `projectBrief`は開発者が宣言した設計意図です。player evidenceとは扱わず、未入力fieldを捏造せず、store asset、third-party理解test、build、human playtest、telemetryで順に検証します。promptにはCore Experience、Differentiation、Decision Context別の`projectBriefDiagnostics`も追加されますが、field数はquality scoreやmilestone passではありません。
 
+第三者へ短いpitchやmockupを見せた結果は、`conceptTest`へJSON文字列として渡せます。次はJSON文字列へencodeする前の形です。
+
+```json
+{
+  "testedAt": "2026-08-12T10:00:00+04:00",
+  "stimulusId": "pitch-card-v3",
+  "stimulusDescription": "One-sentence promise plus one gameplay mockup",
+  "exposureProtocol": "Show for 30 seconds, then remove before questions",
+  "recruitment": "External players recruited from a tactics community",
+  "targetPlayerDefinition": "Players who enjoy deliberate route planning",
+  "questionsAsked": [
+    "What would you do repeatedly?",
+    "What would feel rewarding?",
+    "Would you choose to try it? Why?"
+  ],
+  "participants": [
+    {
+      "participantId": "p-01",
+      "targetFit": "high",
+      "understoodAction": "yes",
+      "understoodReward": "unclear",
+      "interest": "maybe",
+      "unaidedSummary": "I would redraw routes around storms",
+      "confusions": ["The long-term goal was unclear"]
+    }
+  ],
+  "deviations": []
+}
+```
+
+`participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。promptは行動理解、報酬理解、興味を別々に件数集計します。この少人数sampleから固定合格率、conversion、purchase、需要は推定しません。正規化済み入力は`sourceTool=manual`のintel artifactとして保存し、Concept Test Traceから追跡します。
+
 価格の baseline 相談:
 
 ```json

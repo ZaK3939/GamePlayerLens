@@ -174,6 +174,23 @@ try {
         oneSentencePromise: "Learn the loop and reach the checkpoint",
         runwayMonths: 6,
       }),
+      conceptTest: JSON.stringify({
+        testedAt: "2026-08-12T10:00:00+04:00",
+        stimulusId: "package-pitch-v1",
+        stimulusDescription: "A short pitch card",
+        exposureProtocol: "Show once, then ask unaided questions",
+        recruitment: "External action-game players",
+        targetPlayerDefinition: "Players learning a new action loop",
+        questionsAsked: ["What would you do?", "What would feel rewarding?"],
+        participants: [{
+          participantId: "p-01",
+          targetFit: "medium",
+          understoodAction: "yes",
+          understoodReward: "unclear",
+          interest: "maybe",
+          confusions: ["The checkpoint reward was unclear"],
+        }],
+      }),
       playtestUrl: "http://127.0.0.1:4173/play#package-smoke",
       playtestTask: "Reach the first checkpoint",
       playtestBuild: "package-smoke-fixture-1",
@@ -188,6 +205,10 @@ try {
       && playtestContent.text.includes('"projectBrief": {')
       && playtestContent.text.includes('"projectBriefDiagnostics": {')
       && playtestContent.text.includes('"status": "inventory-only"')
+      && playtestContent.text.includes('"conceptTest": {')
+      && playtestContent.text.includes('"conceptTestDiagnostics": {')
+      && playtestContent.text.includes('"status": "descriptive-only"')
+      && playtestContent.text.includes('"participantCount": 1')
       && playtestContent.text.includes('"developmentStage": "prototype"')
       && playtestContent.text.includes('"runwayMonths": 6')
       && playtestContent.text.includes('"playtestTask": "Reach the first checkpoint"')

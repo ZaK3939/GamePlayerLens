@@ -26,6 +26,7 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
   "domains",
   "specification",
   "projectBrief",
+  "conceptTest",
   "playtestUrl",
   "playtestTask",
   "playtestBuild",
@@ -146,6 +147,23 @@ try {
         oneSentencePromise: "A more reactive journey through the underworld",
         runwayMonths: 12,
       }),
+      conceptTest: JSON.stringify({
+        testedAt: "2026-08-12T10:00:00+04:00",
+        stimulusId: "stdio-pitch-v1",
+        stimulusDescription: "A short pitch card",
+        exposureProtocol: "Show once, then ask unaided questions",
+        recruitment: "External genre players",
+        targetPlayerDefinition: "Premium roguelike players",
+        questionsAsked: ["What would you do?", "What would feel rewarding?"],
+        participants: [{
+          participantId: "p-01",
+          targetFit: "high",
+          understoodAction: "yes",
+          understoodReward: "unclear",
+          interest: "maybe",
+          confusions: ["The lasting reward was unclear"],
+        }],
+      }),
       competitors: "Hades, Dead Cells",
       market: "Japan",
       language: "Japanese",
@@ -166,6 +184,10 @@ try {
       && promptContent.text.includes('"projectBrief": {')
       && promptContent.text.includes('"projectBriefDiagnostics": {')
       && promptContent.text.includes('"status": "inventory-only"')
+      && promptContent.text.includes('"conceptTest": {')
+      && promptContent.text.includes('"conceptTestDiagnostics": {')
+      && promptContent.text.includes('"status": "descriptive-only"')
+      && promptContent.text.includes('"participantCount": 1')
       && promptContent.text.includes('"developmentStage": "prelaunch"')
       && promptContent.text.includes('"runwayMonths": 12')
       && promptContent.text.includes('"selectedDomains": [\n    "price",\n    "competition"\n  ]'),

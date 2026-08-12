@@ -58,6 +58,23 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 | oneSentencePromise | ［1文で理解できる約束］ | ［理解test Evidence ID］ | ［status］ |
 | Known Frame + Meaningful Difference | ［理解しやすい型と体験を変える差分］ | ［Evidence ID］ | ［status］ |
 
+### Concept Test Trace
+
+`conceptTest`がない場合はmissing理由と次に必要なstimulus / participant条件を記録します。ある場合もsample内の件数だけを示し、固定合格率、母集団比率、conversion、purchase予測へ変換しません。個人情報は記載せず、仮名の`participantId`または集計だけを使います。
+
+- Evidence ID / artifact path: ［manual intel］
+- Tested at / stimulusId: ［ISO日時 / ID］
+- Stimulus / exposure protocol: ［何を、何秒、どの順序で見せたか］
+- Recruitment / target player definition: ［募集元、target fitの判定基準］
+- Questions asked: ［誘導を避けた質問］
+- Deviations / limitations: ［順序、moderation、言語、sample boundary］
+
+| Observation | Counts | Confusions / unaided summary | Interpretation limit |
+|---|---|---|---|
+| understoodAction | ［yes / no / unclear / not-measured］ | ［反復行動の理解 / 混乱］ | action理解だけをfunや需要にしない |
+| understoodReward | ［yes / no / unclear / not-measured］ | ［報酬の理解 / 混乱］ | reward理解をaction理解で補完しない |
+| interest | ［would-play / maybe / would-not-play / not-asked］ | ［理由 / 未質問］ | purchaseや継続の証明ではない |
+
 ### Promise-Delivery Trace
 
 | Promise claim | Promise asset / Evidence ID | Intended build moment | Delivered evidence | Match status | Decision impact |

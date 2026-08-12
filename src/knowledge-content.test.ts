@@ -121,6 +121,7 @@ describe("canonical adoption evaluation template", () => {
 
     expect(content).toContain("## Indie Survival Strategy");
     expect(content).toContain("Core Experience Map");
+    expect(content).toContain("Concept Test Trace");
     expect(content).toContain("Promise-Delivery Trace");
     expect(content).toContain("Funnel Health");
     expect(content).toContain("Milestone Readiness");
@@ -275,6 +276,17 @@ describe("indie survival strategy rubric", () => {
     expect(content).toMatch(/販売本数[\s\S]*runway[\s\S]*project固有/);
     expect(content).toMatch(/platform fee[\s\S]*refund[\s\S]*tax[\s\S]*固定値/);
     expect(content).toMatch(/AI playtest[\s\S]*human playtest[\s\S]*代表/);
+  });
+
+  it("treats third-party concept tests as bounded observations rather than a success threshold", async () => {
+    const content = await read("knowledge/rubrics/indie-survival-strategy.md");
+
+    expect(content).toContain("conceptTest");
+    expect(content).toMatch(/stimulusId[\s\S]*recruitment[\s\S]*questionsAsked/);
+    expect(content).toMatch(/understoodAction[\s\S]*understoodReward[\s\S]*interest/);
+    expect(content).toMatch(/固定threshold[\s\S]*採用しない/);
+    expect(content).toMatch(/interest[\s\S]*purchase[\s\S]*証明しない/);
+    expect(content).toMatch(/participantId[\s\S]*匿名[\s\S]*個人情報/);
   });
 });
 
@@ -512,6 +524,16 @@ describe("MCP prompt source recipes", () => {
     expect(recipeContent).toMatch(/blocking[\s\S]*missing[\s\S]*捏造/);
     expect(criticContent).toMatch(/projectBrief[\s\S]*player evidence[\s\S]*差し戻す/);
     expect(criticContent).toMatch(/projectBriefDiagnostics[\s\S]*quality score[\s\S]*差し戻す/);
+  });
+
+  it("saves and interprets concept tests without turning sample counts into demand", async () => {
+    const recipeContent = await read("skills/run-sim.md");
+    const criticContent = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(recipeContent).toMatch(/conceptTest[\s\S]*save_artifact[\s\S]*manual/);
+    expect(recipeContent).toMatch(/understoodAction[\s\S]*understoodReward[\s\S]*interest[\s\S]*別/);
+    expect(recipeContent).toMatch(/participant count[\s\S]*conversion[\s\S]*変換しない/);
+    expect(criticContent).toMatch(/conceptTest[\s\S]*固定threshold[\s\S]*差し戻す/);
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

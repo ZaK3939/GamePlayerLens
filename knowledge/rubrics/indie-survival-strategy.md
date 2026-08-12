@@ -98,7 +98,10 @@ reward familyは`sensory / mastery / discovery / agency / attachment / aesthetic
 ## 4. Human validation and playtest
 
 - concept説明テストとgameplay playtestを分ける。説明理解はfunの実測ではありません。
-- 「面白そうと言った率」の固定thresholdは採用しない。質問文、募集元、prior knowledge、target fit、sample sizeを保存する。
+- `conceptTest`を使う場合は、`stimulusId`と提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰が何を見て何を聞かれたかを再現可能にする。
+- participantごとの`understoodAction`、`understoodReward`、`interest`を別の観測として扱う。行動を理解したこと、報酬を理解したこと、試したいと答えたことを相互に補完しない。
+- 「面白そうと言った率」などの固定thresholdは採用しない。sample内の件数は記述値であり、母集団のconversionやpass条件に変換しない。`interest`は`purchase`、需要、継続を証明しない。
+- `participantId`は匿名の仮名IDに限定し、氏名、email、連絡先などの個人情報を入力・保存しない。自由記述も共有前に匿名化する。
 - AI playtestは操作可能性、feedback、再現可能なfrictionを観測できます。human playtestのfun、需要、completion、retentionの代表にはしません。
 - moderatorの誘導、友人関係、順序bias、build差をdeviationsへ残す。
 - 指摘件数ではなく、同じtaskで行動がどう変わるかをsuccess criterionへ使う。
@@ -179,11 +182,12 @@ platform fee、refund、taxを固定値で一律計算しません。法域、�
 
 1. Indie Strategy Card: stage、decision horizon、runway、irreversible commitment、blocking evidence。
 2. Core Experience Map: required fields、reward family、theme-system fit、oneSentencePromise。
-3. Promise-Delivery Trace: promiseとbuild momentの対応。
-4. Funnel Health: exposureからretained playまでのstatusと欠損。
-5. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
-6. Experiment Queue: 最大3件、primary metricとguardrail付き。
-7. Survival Scenarios: conservative / base / upsideとassumption boundary。
+3. Concept Test Trace: stimulus、protocol、sample、action理解、reward理解、interest、confusion、deviation、解釈限界。
+4. Promise-Delivery Trace: promiseとbuild momentの対応。
+5. Funnel Health: exposureからretained playまでのstatusと欠損。
+6. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
+7. Experiment Queue: 最大3件、primary metricとguardrail付き。
+8. Survival Scenarios: conservative / base / upsideとassumption boundary。
 
 数字がない場合は架空の販売本数やconversionを作らずmissingとし、次に取得するreport、build、participant、期間を指定します。
 

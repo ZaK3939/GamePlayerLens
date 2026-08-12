@@ -10,6 +10,28 @@ import {
 
 const recipe = "# Repository recipe\n\nFollow only this repository recipe.";
 
+function conceptTestFixture(
+  participants: Array<Record<string, unknown>> = [{
+    participantId: "p-01",
+    targetFit: "high",
+    understoodAction: "yes",
+    understoodReward: "unclear",
+    interest: "maybe",
+    confusions: [],
+  }],
+): Record<string, unknown> {
+  return {
+    testedAt: "2026-08-12T10:00:00+04:00",
+    stimulusId: "pitch-card-v3",
+    stimulusDescription: "One-sentence promise plus one gameplay mockup",
+    exposureProtocol: "Show for 30 seconds, then remove before questions",
+    recruitment: "External players recruited from a tactics community",
+    targetPlayerDefinition: "Players who enjoy deliberate route planning",
+    questionsAsked: ["What would you do repeatedly?", "What would feel rewarding?"],
+    participants,
+  };
+}
+
 async function skill(name: string): Promise<string> {
   return readFile(join(process.cwd(), "skills", name), "utf8");
 }
@@ -58,6 +80,38 @@ describe("run-sim prompt arguments", () => {
       developmentStage: "prototype",
       targetPlayer: "players who enjoy readable tactical tradeoffs",
       runwayMonths: 14,
+    });
+
+    const parsedConceptTest = RunSimPromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify({
+        testedAt: "2026-08-12T10:00:00+04:00",
+        stimulusId: "pitch-card-v3",
+        stimulusDescription: "One-sentence promise plus one gameplay mockup",
+        exposureProtocol: "Show for 30 seconds, then remove before questions",
+        recruitment: "Three external players recruited from a tactics community",
+        targetPlayerDefinition: "Players who enjoy deliberate route planning",
+        questionsAsked: [
+          "What would you do repeatedly?",
+          "What would feel rewarding?",
+          "Would you choose to try it? Why?",
+        ],
+        participants: [{
+          participantId: "p-01",
+          targetFit: "high",
+          understoodAction: "yes",
+          understoodReward: "unclear",
+          interest: "maybe",
+          unaidedSummary: "I would redraw routes around storms",
+          confusions: ["The long-term goal was unclear"],
+        }],
+        deviations: ["Mockup text was shown only in English"],
+      }),
+    });
+    expect(JSON.parse(parsedConceptTest.conceptTest!)).toMatchObject({
+      stimulusId: "pitch-card-v3",
+      participants: [{participantId: "p-01", understoodAction: "yes"}],
     });
 
     expect(RunSimPromptArgumentsSchema.parse({
@@ -117,6 +171,68 @@ describe("run-sim prompt arguments", () => {
       target: "Game",
       topic: "concept",
       projectBrief: JSON.stringify({runwayMonths: -1}),
+    }],
+    ["invalid concept test JSON", {
+      target: "Game",
+      topic: "concept",
+      conceptTest: "{not-json}",
+    }],
+    ["invalid concept test date", {
+      target: "Game",
+      topic: "concept",
+      conceptTest: JSON.stringify({...conceptTestFixture(), testedAt: "yesterday"}),
+    }],
+    ["concept test without participants", {
+      target: "Game",
+      topic: "concept",
+      conceptTest: JSON.stringify(conceptTestFixture([])),
+    }],
+    ["concept test with duplicate participant IDs", {
+      target: "Game",
+      topic: "concept",
+      conceptTest: JSON.stringify(conceptTestFixture([
+        {
+          participantId: "p-01",
+          targetFit: "high",
+          understoodAction: "yes",
+          understoodReward: "yes",
+          interest: "would-play",
+          confusions: [],
+        },
+        {
+          participantId: "p-01",
+          targetFit: "medium",
+          understoodAction: "unclear",
+          understoodReward: "unclear",
+          interest: "maybe",
+          confusions: [],
+        },
+      ])),
+    }],
+    ["concept test with personal email as participant ID", {
+      target: "Game",
+      topic: "concept",
+      conceptTest: JSON.stringify(conceptTestFixture([{
+        participantId: "person@example.com",
+        targetFit: "high",
+        understoodAction: "yes",
+        understoodReward: "yes",
+        interest: "would-play",
+        confusions: [],
+      }])),
+    }],
+    ["concept test with personal email in free text", {
+      target: "Game",
+      topic: "concept",
+      conceptTest: JSON.stringify(conceptTestFixture([{
+        participantId: "p-01",
+        targetFit: "high",
+        understoodAction: "yes",
+        understoodReward: "yes",
+        interest: "would-play",
+        unaidedSummary: "Follow up with person@example.com",
+        confusions: [],
+      }])),
     }],
     ["insecure UI reference URL", {
       target: "Game",
@@ -263,6 +379,67 @@ describe("run-sim prompt arguments", () => {
     expect(result).not.toContain("projectBriefDiagnostics");
   });
 
+  it("serializes concept test observations with descriptive counts only", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify({
+        testedAt: "2026-08-12T10:00:00+04:00",
+        stimulusId: "pitch-card-v3",
+        stimulusDescription: "One-sentence promise plus one gameplay mockup",
+        exposureProtocol: "Show for 30 seconds, then remove before questions",
+        recruitment: "Three external route-planning players",
+        targetPlayerDefinition: "Players who enjoy deliberate route planning",
+        questionsAsked: ["What would you do?", "What would feel rewarding?"],
+        participants: [
+          {
+            participantId: "p-01",
+            targetFit: "high",
+            understoodAction: "yes",
+            understoodReward: "unclear",
+            interest: "maybe",
+            confusions: ["Long-term goal"],
+          },
+          {
+            participantId: "p-02",
+            targetFit: "medium",
+            understoodAction: "unclear",
+            understoodReward: "no",
+            interest: "would-not-play",
+            confusions: [],
+          },
+          {
+            participantId: "p-03",
+            targetFit: "unknown",
+            understoodAction: "not-measured",
+            understoodReward: "not-measured",
+            interest: "not-asked",
+            confusions: [],
+          },
+        ],
+      }),
+    });
+
+    expect(result).toContain('"conceptTest": {');
+    expect(result).toContain('"conceptTestDiagnostics": {');
+    expect(result).toContain('"status": "descriptive-only"');
+    expect(result).toContain('"participantCount": 3');
+    expect(result).toMatch(/"actionUnderstandingCounts": \{[\s\S]*"yes": 1,[\s\S]*"unclear": 1,[\s\S]*"not-measured": 1/);
+    expect(result).toMatch(/"interestCounts": \{[\s\S]*"maybe": 1,[\s\S]*"would-not-play": 1,[\s\S]*"not-asked": 1/);
+    expect(result).not.toContain("successRate");
+    expect(result).not.toContain("purchaseProbability");
+  });
+
+  it("omits concept test diagnostics when no test was supplied", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Existing Game",
+      topic: "price snapshot",
+      domains: "price",
+    });
+
+    expect(result).not.toContain("conceptTestDiagnostics");
+  });
+
   it("does not echo rejected URL credentials in validation errors", () => {
     const parsed = RunSimPromptArgumentsSchema.safeParse({
       target: "Game",
@@ -285,6 +462,24 @@ describe("run-sim prompt arguments", () => {
     if (parsed.success) throw new Error("unknown project brief field should be rejected");
     expect(JSON.stringify(parsed.error)).not.toContain("privateLaunchToken");
     expect(JSON.stringify(parsed.error)).not.toContain("do-not-echo-this");
+  });
+
+  it("does not echo rejected concept test identifiers in validation errors", () => {
+    const parsed = RunSimPromptArgumentsSchema.safeParse({
+      target: "Game",
+      topic: "concept",
+      conceptTest: JSON.stringify(conceptTestFixture([{
+        participantId: "private@example.com",
+        targetFit: "high",
+        understoodAction: "yes",
+        understoodReward: "yes",
+        interest: "would-play",
+        confusions: [],
+      }])),
+    });
+
+    if (parsed.success) throw new Error("personal participant identifier should be rejected");
+    expect(JSON.stringify(parsed.error)).not.toContain("private@example.com");
   });
 });
 

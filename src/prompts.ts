@@ -217,6 +217,115 @@ const ProjectBriefSchema = z.string().trim().min(2).max(20_000).transform(
   },
 );
 
+const EMAIL_LIKE_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+const ConceptTestTextSchema = z.string().trim().min(1).max(2_000).refine(
+  (value) => !EMAIL_LIKE_PATTERN.test(value),
+  "concept test text must not contain email addresses",
+);
+const ConceptTestQuestionSchema = z.string().trim().min(1).max(1_000).refine(
+  (value) => !EMAIL_LIKE_PATTERN.test(value),
+  "concept test questions must not contain email addresses",
+);
+const PseudonymousParticipantIdSchema = z.string().trim().regex(
+  /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/,
+  "participantId must be a pseudonymous identifier",
+);
+const TargetFitSchema = z.enum(["high", "medium", "low", "unknown"]);
+const UnderstandingSchema = z.enum(["yes", "no", "unclear", "not-measured"]);
+const InterestSchema = z.enum(["would-play", "maybe", "would-not-play", "not-asked"]);
+
+const ConceptTestParticipantSchema = z.object({
+  participantId: PseudonymousParticipantIdSchema,
+  targetFit: TargetFitSchema,
+  understoodAction: UnderstandingSchema,
+  understoodReward: UnderstandingSchema,
+  interest: InterestSchema,
+  unaidedSummary: ConceptTestTextSchema.optional(),
+  confusions: z.array(ConceptTestTextSchema).max(20),
+}).strict();
+
+const ConceptTestObjectSchema = z.object({
+  testedAt: z.iso.datetime({offset: true}),
+  stimulusId: z.string().trim().min(1).max(200).regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/),
+  stimulusDescription: ConceptTestTextSchema,
+  exposureProtocol: ConceptTestTextSchema,
+  recruitment: ConceptTestTextSchema,
+  targetPlayerDefinition: ConceptTestTextSchema,
+  questionsAsked: z.array(ConceptTestQuestionSchema).min(1).max(10),
+  participants: z.array(ConceptTestParticipantSchema).min(1).max(50),
+  deviations: z.array(ConceptTestTextSchema).max(20).optional(),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  for (const [index, participant] of value.participants.entries()) {
+    if (seen.has(participant.participantId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["participants", index, "participantId"],
+        message: "participantId values must be unique",
+      });
+    }
+    seen.add(participant.participantId);
+  }
+});
+
+type ConceptTest = z.infer<typeof ConceptTestObjectSchema>;
+
+const ConceptTestSchema = z.string().trim().min(2).max(50_000).transform(
+  (input, context) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(input);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "conceptTest must be valid JSON",
+      });
+      return z.NEVER;
+    }
+    const result = ConceptTestObjectSchema.safeParse(parsed);
+    if (!result.success) {
+      context.addIssue({
+        code: "custom",
+        message: "conceptTest does not match the supported concept test schema",
+      });
+      return z.NEVER;
+    }
+    return JSON.stringify(result.data);
+  },
+);
+
+function countValues<T extends string>(values: readonly T[], order: readonly T[]) {
+  return Object.fromEntries(order.map((value) => [
+    value,
+    values.filter((candidate) => candidate === value).length,
+  ]));
+}
+
+function buildConceptTestDiagnostics(conceptTest: ConceptTest) {
+  const participants = conceptTest.participants;
+  return {
+    status: "descriptive-only",
+    participantCount: participants.length,
+    targetFitCounts: countValues(
+      participants.map((participant) => participant.targetFit),
+      TargetFitSchema.options,
+    ),
+    actionUnderstandingCounts: countValues(
+      participants.map((participant) => participant.understoodAction),
+      UnderstandingSchema.options,
+    ),
+    rewardUnderstandingCounts: countValues(
+      participants.map((participant) => participant.understoodReward),
+      UnderstandingSchema.options,
+    ),
+    interestCounts: countValues(
+      participants.map((participant) => participant.interest),
+      InterestSchema.options,
+    ),
+    interpretationLimit: "Counts describe this bounded sample only; they are not population rates, purchase forecasts, or fixed pass thresholds.",
+  };
+}
+
 export const RunSimPromptArgumentsSchema = z.object({
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
   topic: NonEmptyTrimmedStringSchema.describe("Consultation topic"),
@@ -225,6 +334,9 @@ export const RunSimPromptArgumentsSchema = z.object({
   specification: z.string().max(50_000).optional(),
   projectBrief: ProjectBriefSchema.optional().describe(
     "JSON object containing declared project stage, core experience, and production constraints",
+  ),
+  conceptTest: ConceptTestSchema.optional().describe(
+    "JSON object containing a bounded, pseudonymous third-party concept comprehension test",
   ),
   playtestUrl: PlaytestUrlSchema.optional(),
   playtestTask: z.string().trim().min(1).max(1_000).optional(),
@@ -283,10 +395,13 @@ export function buildRunSimPrompt(
   const missingChangeInputs = parsed.mode === "change"
     ? (["currentState", "proposal"] as const).filter((field) => !parsed[field]?.trim())
     : undefined;
-  const {projectBrief, uiReferenceUrls, ...promptInput} = parsed;
+  const {conceptTest, projectBrief, uiReferenceUrls, ...promptInput} = parsed;
 
   const structuredProjectBrief = projectBrief
     ? ProjectBriefObjectSchema.parse(JSON.parse(projectBrief))
+    : undefined;
+  const structuredConceptTest = conceptTest
+    ? ConceptTestObjectSchema.parse(JSON.parse(conceptTest))
     : undefined;
 
   return appendSerializedInput(recipe, {
@@ -295,6 +410,12 @@ export function buildRunSimPrompt(
       ? {
           projectBrief: structuredProjectBrief,
           projectBriefDiagnostics: buildProjectBriefDiagnostics(structuredProjectBrief),
+        }
+      : {}),
+    ...(structuredConceptTest
+      ? {
+          conceptTest: structuredConceptTest,
+          conceptTestDiagnostics: buildConceptTestDiagnostics(structuredConceptTest),
         }
       : {}),
     ...(uiReferenceUrls
