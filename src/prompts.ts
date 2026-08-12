@@ -146,6 +146,53 @@ const ProjectBriefObjectSchema = z.object({
   "projectBrief must contain at least one supported field",
 );
 
+type ProjectBrief = z.infer<typeof ProjectBriefObjectSchema>;
+type ProjectBriefField = keyof ProjectBrief;
+
+const PROJECT_BRIEF_FIELD_GROUPS = {
+  coreExperience: [
+    "targetPlayer",
+    "themeWorld",
+    "distinctiveSystem",
+    "repeatedAction",
+    "playerDecision",
+    "systemResponse",
+    "immediateReward",
+    "transitionReward",
+    "rewardAmplifier",
+    "oneSentencePromise",
+  ],
+  differentiation: ["knownFrame", "meaningfulDifference"],
+  decisionContext: [
+    "developmentStage",
+    "decisionHorizon",
+    "teamCapacity",
+    "runwayMonths",
+    "nextIrreversibleCommitment",
+  ],
+} as const satisfies Record<string, readonly ProjectBriefField[]>;
+
+function buildProjectBriefDiagnostics(projectBrief: ProjectBrief) {
+  const groupDiagnostics = Object.fromEntries(
+    Object.entries(PROJECT_BRIEF_FIELD_GROUPS).map(([group, fields]) => {
+      const missingFields = fields.filter((field) => projectBrief[field] === undefined);
+      return [group, {
+        declaredCount: fields.length - missingFields.length,
+        totalFields: fields.length,
+        missingFields,
+      }];
+    }),
+  );
+  const allFields = Object.values(PROJECT_BRIEF_FIELD_GROUPS).flat();
+
+  return {
+    status: "inventory-only",
+    declaredFields: allFields.filter((field) => projectBrief[field] !== undefined),
+    groups: groupDiagnostics,
+    interpretationLimit: "Field presence is not a quality score, evidence result, or milestone pass.",
+  };
+}
+
 const ProjectBriefSchema = z.string().trim().min(2).max(20_000).transform(
   (input, context) => {
     let parsed: unknown;
@@ -238,10 +285,17 @@ export function buildRunSimPrompt(
     : undefined;
   const {projectBrief, uiReferenceUrls, ...promptInput} = parsed;
 
+  const structuredProjectBrief = projectBrief
+    ? ProjectBriefObjectSchema.parse(JSON.parse(projectBrief))
+    : undefined;
+
   return appendSerializedInput(recipe, {
     ...promptInput,
-    ...(projectBrief
-      ? {projectBrief: ProjectBriefObjectSchema.parse(JSON.parse(projectBrief))}
+    ...(structuredProjectBrief
+      ? {
+          projectBrief: structuredProjectBrief,
+          projectBriefDiagnostics: buildProjectBriefDiagnostics(structuredProjectBrief),
+        }
       : {}),
     ...(uiReferenceUrls
       ? {uiReferenceUrls: uiReferenceUrls.split("\n")}

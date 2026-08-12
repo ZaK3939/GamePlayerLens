@@ -242,6 +242,25 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"developmentStage": "prototype"');
     expect(result).toContain('"runwayMonths": 14');
     expect(result).not.toContain('"projectBrief": "{');
+    expect(result).toContain('"projectBriefDiagnostics": {');
+    expect(result).toContain('"status": "inventory-only"');
+    expect(result).toContain('"declaredCount": 8');
+    expect(result).toContain('"totalFields": 10');
+    expect(result).toMatch(
+      /"coreExperience": \{[\s\S]*"missingFields": \[[\s\S]*"transitionReward",[\s\S]*"rewardAmplifier"/,
+    );
+    expect(result).not.toContain("qualityScore");
+    expect(result).not.toContain("readinessPass");
+  });
+
+  it("omits project brief diagnostics when no brief was supplied", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Existing Game",
+      topic: "price snapshot",
+      domains: "price",
+    });
+
+    expect(result).not.toContain("projectBriefDiagnostics");
   });
 
   it("does not echo rejected URL credentials in validation errors", () => {

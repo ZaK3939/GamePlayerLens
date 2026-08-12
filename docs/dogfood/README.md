@@ -39,7 +39,7 @@ v1.1 workflowは `Dogfood-validated` です。これはworkflow acceptanceであ
 
 Indie survival strategy rubricはcanonical knowledge、run-sim、evaluation template、harsh critic、package smokeまで接続済みですが、開発中ゲームの企画→human playtest→store funnel→outcomeを通したdogfoodは未完了です。固定販売本数や反応率を正当化したこと、または生存確率を校正したことを意味しません。
 
-structured `projectBrief`はschema、prompt serialization、stdio、package smokeまで検証済みです。開発者のdeclared design intentをplayer evidenceへ昇格しないgateもcanonical knowledgeへ接続しました。ただし実在する開発中ゲームのbrief入力はまだ保存しておらず、Implemented, not dogfood-validatedです。
+structured `projectBrief`と、score化しない`projectBriefDiagnostics`はschema、prompt serialization、stdio、package smokeまで検証済みです。開発者のdeclared design intentをplayer evidenceへ昇格しないgateもcanonical knowledgeへ接続しました。ただし実在する開発中ゲームのbrief入力はまだ保存しておらず、Implemented, not dogfood-validatedです。
 
 既存のHades UI runを新しいreadbackで監査すると、12 dependencyはverified、recordは旧形式のためunsealed、更新後の`run-sim.md`は保存hashとmismatchになり、全体statusはfailed・issueCount 2となった。過去runを新gateへ遡及合格させず、evidence driftと通常のrecipe更新をdependency別に区別できることを実dataで確認した。
 

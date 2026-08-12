@@ -186,6 +186,8 @@ try {
   assert(
     playtestContent.text.includes('"playtestUrl": "http://127.0.0.1:4173/play#package-smoke"')
       && playtestContent.text.includes('"projectBrief": {')
+      && playtestContent.text.includes('"projectBriefDiagnostics": {')
+      && playtestContent.text.includes('"status": "inventory-only"')
       && playtestContent.text.includes('"developmentStage": "prototype"')
       && playtestContent.text.includes('"runwayMonths": 6')
       && playtestContent.text.includes('"playtestTask": "Reach the first checkpoint"')

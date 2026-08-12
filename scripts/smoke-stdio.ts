@@ -164,6 +164,8 @@ try {
     promptContent.text.includes('"target": "Hades II"')
       && promptContent.text.includes('"mode": "baseline"')
       && promptContent.text.includes('"projectBrief": {')
+      && promptContent.text.includes('"projectBriefDiagnostics": {')
+      && promptContent.text.includes('"status": "inventory-only"')
       && promptContent.text.includes('"developmentStage": "prelaunch"')
       && promptContent.text.includes('"runwayMonths": 12')
       && promptContent.text.includes('"selectedDomains": [\n    "price",\n    "competition"\n  ]'),

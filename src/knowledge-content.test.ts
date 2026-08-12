@@ -508,8 +508,10 @@ describe("MCP prompt source recipes", () => {
     const criticContent = await read("knowledge/rubrics/harsh-critic.md");
 
     expect(recipeContent).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
+    expect(recipeContent).toMatch(/projectBriefDiagnostics[\s\S]*inventory[\s\S]*quality[\s\S]*pass/);
     expect(recipeContent).toMatch(/blocking[\s\S]*missing[\s\S]*捏造/);
     expect(criticContent).toMatch(/projectBrief[\s\S]*player evidence[\s\S]*差し戻す/);
+    expect(criticContent).toMatch(/projectBriefDiagnostics[\s\S]*quality score[\s\S]*差し戻す/);
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

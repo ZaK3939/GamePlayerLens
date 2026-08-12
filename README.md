@@ -97,7 +97,7 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 }
 ```
 
-`projectBrief`は開発者が宣言した設計意図です。player evidenceとは扱わず、未入力fieldを捏造せず、store asset、third-party理解test、build、human playtest、telemetryで順に検証します。
+`projectBrief`は開発者が宣言した設計意図です。player evidenceとは扱わず、未入力fieldを捏造せず、store asset、third-party理解test、build、human playtest、telemetryで順に検証します。promptにはCore Experience、Differentiation、Decision Context別の`projectBriefDiagnostics`も追加されますが、field数はquality scoreやmilestone passではありません。
 
 価格の baseline 相談:
 
