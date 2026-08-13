@@ -1714,7 +1714,7 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("issues an exact-save handle for a normalized concept test", async () => {
+  it("issues distinct exact-save handles for normalized manual tests", async () => {
     const {client, server} = await createHarness();
     try {
       const prompt = await client.getPrompt({
@@ -1731,6 +1731,8 @@ describe("MCP server contract", () => {
             stimulusId: "pitch-card-v3",
             parentStimulusId: "pitch-card-v2",
             changeSummary: "Reduced the pitch to one repeated action",
+            changedVariables: ["presentation"],
+            invariantsKept: ["Same audience, questions, and exposure protocol"],
             projectBriefRevision: "brief-v3",
             promiseShown: "Outread the storm",
             stimulusDescription: "One promise and one mockup",
@@ -1746,6 +1748,40 @@ describe("MCP server contract", () => {
               interest: "maybe",
               unaidedSummary: "Outread storms by redrawing routes",
               confusions: [],
+            }],
+          }),
+          firstContactTest: JSON.stringify({
+            testedAt: "2026-08-12T11:00:00+04:00",
+            assetId: "store-viewport-v2",
+            parentAssetId: "store-viewport-v1",
+            changeSummary: "Showed the route-planning proof moment first",
+            changedVariables: ["presentation"],
+            invariantsKept: ["Same audience, questions, and display context"],
+            assetType: "store-viewport",
+            assetDescription: "The first Steam viewport without scrolling",
+            exposureContext: {
+              device: "desktop",
+              viewport: "1440x900",
+              durationSeconds: 20,
+              sound: "not-applicable",
+              orderDescription: "Natural Steam store order",
+            },
+            recruitment: "External tactics players",
+            targetPlayerDefinition: "Players who enjoy route planning",
+            questionsAsked: [
+              "What would you do repeatedly?",
+              "Would anything make you leave immediately?",
+            ],
+            participants: [{
+              participantId: "p-02",
+              targetFit: "high",
+              understoodTheme: "yes",
+              understoodAction: "unclear",
+              understoodReward: "no",
+              immediateReject: "yes",
+              unaidedSummary: "A storm courier game with unclear controls",
+              rejectionReason: "The playable action is not visible",
+              confusions: ["What can be controlled"],
             }],
           }),
         },
@@ -1766,6 +1802,26 @@ describe("MCP server contract", () => {
         resultHandle: expect.any(String),
         exactSaveRequired: true,
       });
+      const firstContactEvidence = promptData.firstContactTestEvidence as Record<string, unknown>;
+      expect(promptData.firstContactTestDiagnostics).toMatchObject({
+        participantCount: 1,
+        immediateRejectCounts: {yes: 1},
+        revisionLoop: {
+          causalAttributionStatus: "comparison-candidate-only",
+          candidateReviewAreas: expect.arrayContaining([
+            "action-legibility",
+            "reward-legibility",
+            "immediate-reject",
+          ]),
+        },
+      });
+      expect(firstContactEvidence).toMatchObject({
+        sourceTool: "manual",
+        observedAt: "2026-08-12T11:00:00+04:00",
+        resultHandle: expect.any(String),
+        exactSaveRequired: true,
+      });
+      expect(firstContactEvidence.resultHandle).not.toBe(evidence.resultHandle);
 
       const saved = await client.callTool({
         name: "save_artifact",
@@ -1806,6 +1862,45 @@ describe("MCP server contract", () => {
         },
         warnings: [],
       });
+
+      const savedFirstContact = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "First Contact Store Viewport V2",
+          resultHandle: firstContactEvidence.resultHandle,
+        },
+      });
+      expect(savedFirstContact.isError).not.toBe(true);
+      const readFirstContact = await client.callTool({
+        name: "get_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "First Contact Store Viewport V2",
+        },
+      });
+      expect(readFirstContact.structuredContent).toMatchObject({
+        data: {
+          sourceTool: "manual",
+          observedAt: "2026-08-12T11:00:00+04:00",
+          payload: {
+            data: {
+              assetId: "store-viewport-v2",
+              parentAssetId: "store-viewport-v1",
+              assetType: "store-viewport",
+              participants: [{participantId: "p-02"}],
+            },
+            warnings: [],
+            meta: {
+              observedAt: "2026-08-12T11:00:00+04:00",
+              resultHandle: firstContactEvidence.resultHandle,
+            },
+          },
+        },
+        warnings: [],
+      });
     } finally {
       await client.close();
       await server.close();
@@ -1827,6 +1922,7 @@ describe("MCP server contract", () => {
         "specification",
         "projectBrief",
         "conceptTest",
+        "firstContactTest",
         "playtestUrl",
         "playtestTask",
         "playtestBuild",

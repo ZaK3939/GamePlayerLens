@@ -46,8 +46,9 @@
 - concept test入力を`conceptTestEvidence.resultHandle`でexact-saveせずモデルがpayloadを転記・要約した場合、brief revision / promiseのmismatched・unlinkedを隠した場合、または完全一致を意味理解や品質scoreへ変換した場合は差し戻す。
 - concept testの`participantId`が仮名でない場合、または氏名、email、連絡先などの個人情報をevaluationやartifactへ含めた場合は差し戻す。
 - oneSentencePromiseが短いという理由だけでCore Legibility Gateをpassにしない。theme-specific play、theme-system fit、experience → reward、unaided teach-backを別々に示さない場合、「分かりましたか」への同意をunaided理解とした場合、奇抜な題材だけを触りたくなるcoreとした場合は差し戻す。
-- revised concept testで`parentStimulusId`と`changeSummary`を保存しない場合、Core Revision Ledgerに変えた変数と維持条件がない場合、または一度に複数変更した結果を一つの原因へ因果帰属した場合は差し戻す。
+- revised concept testで`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`を保存しない場合、Core Revision Ledgerに変えた変数と維持条件がない場合、または一度に複数変更した結果を一つの原因へ因果帰属した場合は差し戻す。単一変更の自己申告だけでprotocol equivalenceや因果を証明した場合も差し戻す。
 - 第一viewport、最初に見えるscreenshots、trailer / microtrailer、demo entryを実表示contextで確認せず、copyや制作者説明だけでFirst-contact Asset Readinessをpassにしない。AIがassetを生成・分析できたことを、人間のfun、taste fit、visual trustの証明とした場合は差し戻す。
+- `firstContactTest`入力を`firstContactTestEvidence.resultHandle`でexact-saveしない場合、theme / action / reward / immediateRejectを一つのscoreへ統合した場合、`immediateReject=yes`の未記録理由を他回答から推測した場合、またはbounded sampleからconversion、需要、readiness passを断定した場合は差し戻す。
 - 「最初の4枚」「30秒PV」をcurrent surfaceやtarget playerに関係なく固定条件にした場合は差し戻す。asset countやdurationではなく、theme、action、rewardのunaided legibilityとproof momentを要求する。
 
 ## 5. UI 品質ゲート

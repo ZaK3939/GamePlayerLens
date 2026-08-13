@@ -73,13 +73,22 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 
 ### Core Revision Ledger
 
-`parentStimulusId`と`changeSummary`がない初回はinitialと明記します。複数変数を同時変更した場合は、改善原因を一つへ帰属しません。
+`parentStimulusId`と`changeSummary`がない初回はinitialと明記します。`changedVariables`と`invariantsKept`を転記し、複数変数を同時変更した場合は改善原因を一つへ帰属しません。単一変更でもprotocol equivalenceが未確認なら因果は証明済みにしません。
 
 | Brief / Stimulus / Build revision | Observed issue | Variable changed | Invariants kept | Evidence / Retest | Outcome |
 |---|---|---|---|---|---|
 | ［revision IDs］ | ［問題］ | ［theme / system / experience / reward / presentation］ | ［固定条件］ | ［artifact / protocol］ | ［resolved / changed / unresolved］ |
 
 ### First-contact Asset Readiness
+
+`firstContactTest`がない場合は`untested`と必要なasset / context / participant条件を記録します。ある場合は`firstContactTestEvidence.resultHandle`でexact-saveしたmanual intel pathをEvidence Indexへ入れ、bounded sampleの件数をreadiness scoreやconversionへ変換しません。
+
+- Evidence ID / artifact path: ［firstContactTestEvidence.resultHandleでexact-saveしたmanual intel］
+- Asset / revision: ［assetId / parentAssetId / changeSummary / changedVariables / invariantsKept］
+- Exposure context: ［device / viewport / duration / sound / order］
+- Recruitment / questions / deviations: ［条件］
+- Diagnostic candidates: ［原因ではないinspection priority］
+- Missing reject reasons: ［`unexplainedImmediateRejectCount`。他回答から推測しない］
 
 | Asset / Context | Exposure condition | Visible theme | Imagined action | Imagined reward | Immediate reject risk | Evidence | Status |
 |---|---|---|---|---|---|---|---|
@@ -93,7 +102,7 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 
 - Evidence ID / artifact path: ［conceptTestEvidence.resultHandleでexact-saveしたmanual intel］
 - Tested at / stimulusId: ［ISO日時 / ID］
-- Parent stimulus / change summary: ［parentStimulusId / changeSummary、またはinitial］
+- Parent stimulus / change design: ［parentStimulusId / changeSummary / changedVariables / invariantsKept、またはinitial］
 - Brief revision / revision match: ［projectBriefRevision / matched・mismatched・unlinked・not-supplied］
 - Promise shown / exact match: ［実際の提示文 / matched・mismatched・unlinked・not-supplied。完全一致はprovenanceでありquality scoreではない］
 - Stimulus / exposure protocol: ［何を、何秒、どの順序で見せたか］

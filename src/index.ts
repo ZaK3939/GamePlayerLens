@@ -32,6 +32,7 @@ import {
 import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
 import {
   buildConceptTestEvidenceEnvelope,
+  buildFirstContactTestEvidenceEnvelope,
   buildRunSimPrompt,
   buildUiBlindComparePrompt,
   RunSimPromptArgumentsSchema,
@@ -570,6 +571,18 @@ export function buildServer(
             resultHandle: ResultHandleSchema.parse(resultHandle),
           }
         : undefined;
+      const firstContactEvidenceEnvelope = buildFirstContactTestEvidenceEnvelope(arguments_);
+      const trackedFirstContactEvidence = firstContactEvidenceEnvelope
+        ? services.resultStore.remember("manual", firstContactEvidenceEnvelope)
+        : undefined;
+      const firstContactResultHandle = trackedFirstContactEvidence?.meta?.resultHandle;
+      const firstContactTestEvidence = firstContactEvidenceEnvelope
+        ? {
+            sourceTool: "manual" as const,
+            observedAt: firstContactEvidenceEnvelope.meta.observedAt,
+            resultHandle: ResultHandleSchema.parse(firstContactResultHandle),
+          }
+        : undefined;
       return {
         messages: [{
           role: "user" as const,
@@ -578,7 +591,7 @@ export function buildServer(
             text: buildRunSimPrompt(
               await services.readSkill("run-sim.md"),
               arguments_,
-              {conceptTestEvidence},
+              {conceptTestEvidence, firstContactTestEvidence},
             ),
           },
         }],

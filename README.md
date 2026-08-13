@@ -6,7 +6,7 @@ Steam の実データに接地したゲーム開発コンサル用 MCP サーバ
 
 | 目的 | 入口 | 最初に渡すもの |
 |---|---|---|
-| 自作ゲームの企画・prototype・変更案を相談する | `run-sim` | `target`、`topic`、`market`、Steam language codeの`language`。必要に応じて`projectBrief`、`conceptTest`、playtest情報 |
+| 自作ゲームの企画・prototype・変更案を相談する | `run-sim` | `target`、`topic`、`market`、Steam language codeの`language`。必要に応じて`projectBrief`、`conceptTest`、`firstContactTest`、playtest情報 |
 | 公開済みゲームの競合・価格・レビュー・更新を分析する | `run-sim` | `target`、`topic`、`market`、`language`。appidが不明でも名前から開始可能 |
 | 過去の相談や保存根拠を読み返す | `get_artifact` | `kind`。まずtarget一覧、次にitem一覧、最後に本文を読む |
 
@@ -117,6 +117,8 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
   "stimulusId": "pitch-card-v3",
   "parentStimulusId": "pitch-card-v2",
   "changeSummary": "Repeated actionを1つに絞り、直後のrewardを明記した",
+  "changedVariables": ["presentation"],
+  "invariantsKept": ["同じ対象player、質問、提示時間"],
   "projectBriefRevision": "brief-v3",
   "promiseShown": "嵐を読み切り、小さな空の郵便網を守る",
   "stimulusDescription": "One-sentence promise plus one gameplay mockup",
@@ -145,11 +147,55 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 
 `participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptは行動理解、報酬理解、興味を別々に件数集計し、`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示します。意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
 
-再検証では新しい`stimulusId`と一緒に`parentStimulusId`、`changeSummary`を渡します。診断はprotocol deviation、測定不足、action / rewardの読みにくさ、参加者の混乱を次に調べる候補として返しますが、原因とは断定しません。効果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、複数を変えた結果の因果は`unresolved`として残します。
+再検証では新しい`stimulusId`と一緒に`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`を渡します。診断はprotocol deviation、測定不足、action / rewardの読みにくさ、参加者の混乱を次に調べる候補として返しますが、原因とは断定しません。効果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、複数を変えた結果の因果は`unresolved`として残します。単一変更でも、維持条件は自己申告なので因果証明ではなく比較候補です。
 
 インディー戦略の出力では、テーマ固有のplay、theme-system fit、experience → reward、第三者のunaided teach-backを別々に扱う`Core Legibility Gate`、変更と維持条件を追う`Core Revision Ledger`、実際の第一viewport・screenshots・trailerで即離脱リスクを見る`First-contact Asset Readiness`を作ります。「最初の4枚」「30秒」などの固定数は合格条件にせず、現在の表示contextとtarget playerの証拠で判断します。AI生成や自動化は制作速度の補助であり、人間のfunやtaste fitの証明にはしません。
 
 concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動追加されます。レシピはこのhandleだけを`save_artifact(kind=intel)`へ渡すため、モデルによる転記・要約を挟まず、正規化済み入力と`testedAt`をそのまま保存できます。field-level validation errorは許可済みfield名と違反種別だけを返し、拒否した入力値や未知field名は表示しません。
+
+第一viewport、screenshots、trailerなどを第三者へ見せた結果は`firstContactTest`へ渡せます。asset ID / type、device・viewport・duration・sound・表示順、募集条件、匿名participantごとのtheme / action / reward理解と`immediateReject`を別々に保存・診断します。promptに追加される`firstContactTestEvidence.resultHandle`で原本をexact-saveし、少人数の反応をconversion、需要、fun、readiness scoreへ変換しません。
+
+次はJSON文字列へencodeする前の例です。
+
+```json
+{
+  "testedAt": "2026-08-12T11:00:00+04:00",
+  "assetId": "store-viewport-v2",
+  "parentAssetId": "store-viewport-v1",
+  "changeSummary": "最初にcore actionのproof momentを表示した",
+  "changedVariables": ["presentation"],
+  "invariantsKept": ["同じ対象player、質問、device、表示時間"],
+  "assetType": "store-viewport",
+  "assetDescription": "scroll前のSteam第一viewport",
+  "exposureContext": {
+    "device": "desktop",
+    "viewport": "1440x900",
+    "durationSeconds": 20,
+    "sound": "not-applicable",
+    "orderDescription": "通常のSteam表示順"
+  },
+  "recruitment": "route-planning好きの外部player",
+  "targetPlayerDefinition": "慎重なroute判断を好むplayer",
+  "questionsAsked": [
+    "どんな世界だと思いましたか？",
+    "何を繰り返すゲームだと思いましたか？",
+    "何が報酬になりそうですか？",
+    "すぐ離脱したくなる点はありましたか？"
+  ],
+  "participants": [{
+    "participantId": "p-02",
+    "targetFit": "high",
+    "understoodTheme": "yes",
+    "understoodAction": "unclear",
+    "understoodReward": "no",
+    "immediateReject": "yes",
+    "unaidedSummary": "嵐の配達ゲームだが操作は分からない",
+    "rejectionReason": "遊べるactionが画面に見えない",
+    "confusions": ["何を操作するか"]
+  }],
+  "deviations": []
+}
+```
 
 個人開発の企画理解だけを相談する場合は、`projectBrief`と`conceptTest`を中心に最小scopeを選べます。Steam公開済み対象、価格、競合、UI、実操作buildの判断が不要なら、その理由をN/Aとして残し、不要な外部取得を増やしません。ただしpersonasやimmutable runを作る完全評価には保存可能な対象・競合作品のplayer evidenceが必要です。不足時は概念診断を途中成果として返し、取得していない市場・プレイ結果を埋めません。
 

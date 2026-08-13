@@ -28,6 +28,7 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
   "specification",
   "projectBrief",
   "conceptTest",
+  "firstContactTest",
   "playtestUrl",
   "playtestTask",
   "playtestBuild",
@@ -164,6 +165,8 @@ try {
         stimulusId: "stdio-pitch-v1",
         parentStimulusId: "stdio-pitch-v0",
         changeSummary: "Clarified the repeated action",
+        changedVariables: ["presentation"],
+        invariantsKept: ["Same audience, questions, and exposure protocol"],
         projectBriefRevision: "brief-v1",
         promiseShown: "A more reactive journey through the underworld",
         stimulusDescription: "A short pitch card",
@@ -179,6 +182,33 @@ try {
           interest: "maybe",
           unaidedSummary: "Take a reactive journey through the underworld",
           confusions: ["The lasting reward was unclear"],
+        }],
+      }),
+      firstContactTest: JSON.stringify({
+        testedAt: "2026-08-12T11:00:00+04:00",
+        assetId: "stdio-viewport-v1",
+        assetType: "store-viewport",
+        assetDescription: "First visible Steam viewport",
+        exposureContext: {
+          device: "desktop",
+          viewport: "1440x900",
+          durationSeconds: 20,
+          sound: "not-applicable",
+          orderDescription: "Natural store order without scrolling",
+        },
+        recruitment: "External genre players",
+        targetPlayerDefinition: "Premium roguelike players",
+        questionsAsked: ["What would you do?", "Would you leave immediately?"],
+        participants: [{
+          participantId: "p-02",
+          targetFit: "high",
+          understoodTheme: "yes",
+          understoodAction: "unclear",
+          understoodReward: "no",
+          immediateReject: "yes",
+          unaidedSummary: "A reactive underworld journey with unclear action",
+          rejectionReason: "The action is not visible",
+          confusions: ["What I control"],
         }],
       }),
       competitors: "Hades, Dead Cells",
@@ -212,6 +242,10 @@ try {
       && promptContent.text.includes('"unaidedSummaryCount": 1')
       && promptContent.text.includes('"status": "linked-revision"')
       && promptContent.text.includes('"parentStimulusId": "stdio-pitch-v0"')
+      && promptContent.text.includes('"firstContactTest": {')
+      && promptContent.text.includes('"firstContactTestDiagnostics": {')
+      && promptContent.text.includes('"firstContactTestEvidence": {')
+      && promptContent.text.includes('"immediateRejectCounts": {')
       && promptContent.text.includes('"developmentStage": "prelaunch"')
       && promptContent.text.includes('"runwayMonths": 12')
       && promptContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')

@@ -198,6 +198,8 @@ try {
         stimulusId: "package-pitch-v1",
         parentStimulusId: "package-pitch-v0",
         changeSummary: "Reduced the pitch to one repeated action",
+        changedVariables: ["presentation"],
+        invariantsKept: ["Same audience, questions, and exposure protocol"],
         projectBriefRevision: "brief-v1",
         promiseShown: "Learn the loop and reach the checkpoint",
         stimulusDescription: "A short pitch card",
@@ -213,6 +215,33 @@ try {
           interest: "maybe",
           unaidedSummary: "Read, act, and recover until the checkpoint",
           confusions: ["The checkpoint reward was unclear"],
+        }],
+      }),
+      firstContactTest: JSON.stringify({
+        testedAt: "2026-08-12T11:00:00+04:00",
+        assetId: "package-viewport-v1",
+        assetType: "store-viewport",
+        assetDescription: "First visible store viewport",
+        exposureContext: {
+          device: "desktop",
+          viewport: "1440x900",
+          durationSeconds: 20,
+          sound: "not-applicable",
+          orderDescription: "Natural store order without scrolling",
+        },
+        recruitment: "External action-game players",
+        targetPlayerDefinition: "Players learning a new action loop",
+        questionsAsked: ["What would you do?", "Would you leave immediately?"],
+        participants: [{
+          participantId: "p-02",
+          targetFit: "medium",
+          understoodTheme: "yes",
+          understoodAction: "unclear",
+          understoodReward: "no",
+          immediateReject: "yes",
+          unaidedSummary: "A checkpoint game with an unclear action",
+          rejectionReason: "The repeated action is not visible",
+          confusions: ["What I control"],
         }],
       }),
       playtestUrl: "http://127.0.0.1:4173/play#package-smoke",
@@ -242,6 +271,10 @@ try {
       && playtestContent.text.includes('"unaidedSummaryCount": 1')
       && playtestContent.text.includes('"status": "linked-revision"')
       && playtestContent.text.includes('"parentStimulusId": "package-pitch-v0"')
+      && playtestContent.text.includes('"firstContactTest": {')
+      && playtestContent.text.includes('"firstContactTestDiagnostics": {')
+      && playtestContent.text.includes('"firstContactTestEvidence": {')
+      && playtestContent.text.includes('"immediateRejectCounts": {')
       && playtestContent.text.includes('"developmentStage": "prototype"')
       && playtestContent.text.includes('"runwayMonths": 6')
       && playtestContent.text.includes('"playtestTask": "Reach the first checkpoint"')

@@ -318,6 +318,8 @@ describe("indie survival strategy rubric", () => {
     expect(content).toContain("core-visible / theme-only / system-only / unreadable / untested");
     expect(content).toMatch(/第一viewport[\s\S]*最初に見えるscreenshots/);
     expect(content).toMatch(/AI[\s\S]*人間のfun[\s\S]*certifyしない/);
+    expect(content).toMatch(/firstContactTestEvidence\.resultHandle[\s\S]*exact-save/);
+    expect(content).toMatch(/changedVariables[\s\S]*invariantsKept[\s\S]*因果/);
   });
 });
 
@@ -565,6 +567,14 @@ describe("MCP prompt source recipes", () => {
     expect(recipeContent).toMatch(/understoodAction[\s\S]*understoodReward[\s\S]*interest[\s\S]*別/);
     expect(recipeContent).toMatch(/participant count[\s\S]*conversion[\s\S]*変換しない/);
     expect(criticContent).toMatch(/conceptTest[\s\S]*固定threshold[\s\S]*差し戻す/);
+  });
+
+  it("saves and interprets first-contact tests as bounded observations", async () => {
+    const content = await read("skills/run-sim.md");
+
+    expect(content).toMatch(/firstContactTestEvidence\.resultHandle[\s\S]*save_artifact/);
+    expect(content).toMatch(/theme[\s\S]*action[\s\S]*reward[\s\S]*immediateReject/);
+    expect(content).toMatch(/bounded sample[\s\S]*(conversion|需要)[\s\S]*(証明しない|変換しない)/);
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

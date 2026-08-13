@@ -34,6 +34,48 @@ function conceptTestFixture(
   };
 }
 
+function firstContactTestFixture(
+  participants: Array<Record<string, unknown>> = [{
+    participantId: "p-01",
+    targetFit: "high",
+    understoodTheme: "yes",
+    understoodAction: "unclear",
+    understoodReward: "no",
+    immediateReject: "yes",
+    unaidedSummary: "A storm courier game, but I cannot tell what I would do",
+    rejectionReason: "The screenshot looks decorative rather than playable",
+    confusions: ["The controllable object is unclear"],
+  }],
+): Record<string, unknown> {
+  return {
+    testedAt: "2026-08-12T11:00:00+04:00",
+    assetId: "store-viewport-v2",
+    parentAssetId: "store-viewport-v1",
+    changeSummary: "Replaced a lore screenshot with the route-planning proof moment",
+    changedVariables: ["presentation"],
+    invariantsKept: ["Same capsule, copy, screenshot order, and target cohort"],
+    assetType: "store-viewport",
+    assetDescription: "Capsule, short description, and first three visible screenshots",
+    exposureContext: {
+      device: "desktop",
+      viewport: "1440x900",
+      durationSeconds: 20,
+      sound: "not-applicable",
+      orderDescription: "Natural Steam store order without scrolling",
+    },
+    recruitment: "External route-planning players",
+    targetPlayerDefinition: "Players who enjoy deliberate route planning",
+    questionsAsked: [
+      "What kind of world is this?",
+      "What would you do repeatedly?",
+      "What would feel rewarding?",
+      "Would anything make you leave immediately?",
+    ],
+    participants,
+    deviations: ["One participant had previously seen the capsule"],
+  };
+}
+
 async function skill(name: string): Promise<string> {
   return readFile(join(process.cwd(), "skills", name), "utf8");
 }
@@ -425,6 +467,8 @@ describe("run-sim prompt arguments", () => {
         stimulusId: "pitch-card-v3",
         parentStimulusId: "pitch-card-v2",
         changeSummary: "Reduced the pitch to one repeated action and one immediate reward",
+        changedVariables: ["presentation"],
+        invariantsKept: ["Same audience, questions, and exposure protocol"],
         projectBriefRevision: "brief-v3",
         promiseShown: "Outread the storm to keep a courier network alive",
         stimulusDescription: "One-sentence promise plus one gameplay mockup",
@@ -482,6 +526,7 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"status": "linked-revision"');
     expect(result).toContain('"parentStimulusId": "pitch-card-v2"');
     expect(result).toContain('"changeSummaryDeclared": true');
+    expect(result).toContain('"causalAttributionStatus": "comparison-candidate-only"');
     expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "measurement-coverage",\n        "action-legibility",\n        "reward-legibility",\n        "reported-confusions",\n        "interest-follow-up"\n      ]');
     expect(result).toContain("change one core or asset variable");
     expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174000"');
@@ -543,6 +588,125 @@ describe("run-sim prompt arguments", () => {
 
     expect(result).not.toContain("conceptTestDiagnostics");
     expect(result).not.toContain("conceptTestEvidence");
+  });
+
+  it("serializes first-contact observations without turning them into a pass score", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify(firstContactTestFixture()),
+    }, {
+      firstContactTestEvidence: {
+        sourceTool: "manual",
+        observedAt: "2026-08-12T11:00:00+04:00",
+        resultHandle: "123e4567-e89b-42d3-a456-426614174001",
+      },
+    });
+
+    expect(result).toContain('"firstContactTest": {');
+    expect(result).toContain('"firstContactTestDiagnostics": {');
+    expect(result).toContain('"assetType": "store-viewport"');
+    expect(result).toContain('"participantCount": 1');
+    expect(result).toContain('"themeLegibilityCounts": {');
+    expect(result).toContain('"actionLegibilityCounts": {');
+    expect(result).toContain('"rewardLegibilityCounts": {');
+    expect(result).toContain('"immediateRejectCounts": {');
+    expect(result).toContain('"rejectionReasonCount": 1');
+    expect(result).toContain('"causalAttributionStatus": "comparison-candidate-only"');
+    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "action-legibility",\n        "reward-legibility",\n        "immediate-reject",\n        "reported-confusions"\n      ]');
+    expect(result).toContain('"firstContactTestEvidence": {');
+    expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174001"');
+    expect(result).toContain('"exactSaveRequired": true');
+    expect(result).toContain("bounded sample");
+    expect(result).not.toContain("readinessScore");
+    expect(result).not.toContain("conversionProbability");
+  });
+
+  it("rejects unsafe first-contact lineage and duplicate participant IDs", () => {
+    const selfLinked = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify({
+        ...firstContactTestFixture(),
+        parentAssetId: "store-viewport-v2",
+      }),
+    });
+    expect(selfLinked.success).toBe(false);
+    if (!selfLinked.success) {
+      expect(JSON.stringify(selfLinked.error)).toContain("parentAssetId");
+    }
+
+    const duplicateParticipants = firstContactTestFixture([
+      ...firstContactTestFixture().participants as Array<Record<string, unknown>>,
+      ...firstContactTestFixture().participants as Array<Record<string, unknown>>,
+    ]);
+    const duplicate = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify(duplicateParticipants),
+    });
+    expect(duplicate.success).toBe(false);
+    if (!duplicate.success) {
+      expect(JSON.stringify(duplicate.error)).toContain("participantId");
+    }
+
+    const privateValue = "private-person@example.com";
+    const personalData = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify({
+        ...firstContactTestFixture(),
+        recruitment: `Contact ${privateValue} for participant details`,
+      }),
+    });
+    expect(personalData.success).toBe(false);
+    if (!personalData.success) {
+      expect(JSON.stringify(personalData.error)).not.toContain(privateValue);
+    }
+  });
+
+  it("flags immediate-reject observations whose reasons were not recorded", () => {
+    const participant = {
+      ...(firstContactTestFixture().participants as Array<Record<string, unknown>>)[0],
+    };
+    delete participant.rejectionReason;
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify(firstContactTestFixture([participant])),
+    });
+
+    expect(result).toContain('"unexplainedImmediateRejectCount": 1');
+    expect(result).toContain('"rejection-reason-coverage"');
+    expect(result).toContain("must not be inferred");
+  });
+
+  it("keeps causal attribution unresolved for missing or multi-variable revision designs", () => {
+    const missingDesign = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept revision",
+      conceptTest: JSON.stringify({
+        ...conceptTestFixture(),
+        parentStimulusId: "pitch-card-v2",
+        changeSummary: "Changed the pitch",
+      }),
+    });
+    expect(missingDesign).toContain('"causalAttributionStatus": "not-assessable"');
+    expect(missingDesign).toContain('"revision-design"');
+
+    const multipleChanges = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept revision",
+      conceptTest: JSON.stringify({
+        ...conceptTestFixture(),
+        parentStimulusId: "pitch-card-v2",
+        changeSummary: "Changed the system explanation and reward",
+        changedVariables: ["system", "reward"],
+        invariantsKept: ["Same audience and exposure protocol"],
+      }),
+    });
+    expect(multipleChanges).toContain('"causalAttributionStatus": "unresolved-multiple-changes"');
+    expect(multipleChanges).toContain('"multi-variable-change"');
   });
 
   it("reports exact brief revision and promise mismatches without scoring them", () => {

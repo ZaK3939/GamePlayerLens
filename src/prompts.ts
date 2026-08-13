@@ -293,6 +293,14 @@ const PseudonymousParticipantIdSchema = z.string().trim().regex(
 const TargetFitSchema = z.enum(["high", "medium", "low", "unknown"]);
 const UnderstandingSchema = z.enum(["yes", "no", "unclear", "not-measured"]);
 const InterestSchema = z.enum(["would-play", "maybe", "would-not-play", "not-asked"]);
+const ImmediateRejectSchema = z.enum(["yes", "no", "unclear", "not-asked"]);
+const RevisionVariableSchema = z.enum([
+  "theme",
+  "system",
+  "experience",
+  "reward",
+  "presentation",
+]);
 
 const ConceptTestParticipantSchema = z.object({
   participantId: PseudonymousParticipantIdSchema,
@@ -309,6 +317,8 @@ const ConceptTestObjectSchema = z.object({
   stimulusId: RevisionIdSchema,
   parentStimulusId: RevisionIdSchema.optional(),
   changeSummary: ConceptTestTextSchema.optional(),
+  changedVariables: z.array(RevisionVariableSchema).min(1).max(5).optional(),
+  invariantsKept: z.array(ConceptTestTextSchema).min(1).max(20).optional(),
   projectBriefRevision: RevisionIdSchema.optional(),
   promiseShown: ConceptTestTextSchema,
   stimulusDescription: ConceptTestTextSchema,
@@ -331,6 +341,21 @@ const ConceptTestObjectSchema = z.object({
       code: "custom",
       path: ["parentStimulusId"],
       message: "parentStimulusId is required when changeSummary is provided",
+    });
+  }
+  if ((value.changedVariables || value.invariantsKept) && !value.parentStimulusId) {
+    context.addIssue({
+      code: "custom",
+      path: ["parentStimulusId"],
+      message: "parentStimulusId is required when revision design fields are provided",
+    });
+  }
+  if (value.changedVariables
+    && new Set(value.changedVariables).size !== value.changedVariables.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["changedVariables"],
+      message: "changedVariables must not contain duplicates",
     });
   }
   if (value.parentStimulusId === value.stimulusId) {
@@ -360,6 +385,8 @@ const CONCEPT_TEST_SAFE_FIELDS = new Set<string>([
   "stimulusId",
   "parentStimulusId",
   "changeSummary",
+  "changedVariables",
+  "invariantsKept",
   "projectBriefRevision",
   "promiseShown",
   "stimulusDescription",
@@ -404,11 +431,192 @@ const ConceptTestSchema = z.string().trim().min(2).max(50_000).transform(
   },
 );
 
+const FirstContactAssetTypeSchema = z.enum([
+  "capsule",
+  "key-visual",
+  "store-viewport",
+  "screenshots",
+  "trailer",
+  "microtrailer",
+  "demo-entry",
+  "other",
+]);
+
+const FirstContactExposureContextSchema = z.object({
+  device: ConceptTestTextSchema,
+  viewport: ConceptTestTextSchema.optional(),
+  durationSeconds: z.number().finite().positive().max(3_600).optional(),
+  sound: z.enum(["on", "off", "not-applicable", "unknown"]),
+  orderDescription: ConceptTestTextSchema,
+}).strict();
+
+const FirstContactParticipantSchema = z.object({
+  participantId: PseudonymousParticipantIdSchema,
+  targetFit: TargetFitSchema,
+  understoodTheme: UnderstandingSchema,
+  understoodAction: UnderstandingSchema,
+  understoodReward: UnderstandingSchema,
+  immediateReject: ImmediateRejectSchema,
+  unaidedSummary: ConceptTestTextSchema.optional(),
+  rejectionReason: ConceptTestTextSchema.optional(),
+  confusions: z.array(ConceptTestTextSchema).max(20),
+}).strict();
+
+const FirstContactTestObjectSchema = z.object({
+  testedAt: z.iso.datetime({offset: true}),
+  assetId: RevisionIdSchema,
+  parentAssetId: RevisionIdSchema.optional(),
+  changeSummary: ConceptTestTextSchema.optional(),
+  changedVariables: z.array(RevisionVariableSchema).min(1).max(5).optional(),
+  invariantsKept: z.array(ConceptTestTextSchema).min(1).max(20).optional(),
+  assetType: FirstContactAssetTypeSchema,
+  assetDescription: ConceptTestTextSchema,
+  exposureContext: FirstContactExposureContextSchema,
+  recruitment: ConceptTestTextSchema,
+  targetPlayerDefinition: ConceptTestTextSchema,
+  questionsAsked: z.array(ConceptTestQuestionSchema).min(1).max(10),
+  participants: z.array(FirstContactParticipantSchema).min(1).max(50),
+  deviations: z.array(ConceptTestTextSchema).max(20).optional(),
+}).strict().superRefine((value, context) => {
+  if (value.parentAssetId && !value.changeSummary) {
+    context.addIssue({
+      code: "custom",
+      path: ["changeSummary"],
+      message: "changeSummary is required when parentAssetId is provided",
+    });
+  }
+  if (value.changeSummary && !value.parentAssetId) {
+    context.addIssue({
+      code: "custom",
+      path: ["parentAssetId"],
+      message: "parentAssetId is required when changeSummary is provided",
+    });
+  }
+  if ((value.changedVariables || value.invariantsKept) && !value.parentAssetId) {
+    context.addIssue({
+      code: "custom",
+      path: ["parentAssetId"],
+      message: "parentAssetId is required when revision design fields are provided",
+    });
+  }
+  if (value.parentAssetId === value.assetId) {
+    context.addIssue({
+      code: "custom",
+      path: ["parentAssetId"],
+      message: "parentAssetId must differ from assetId",
+    });
+  }
+  if (value.changedVariables
+    && new Set(value.changedVariables).size !== value.changedVariables.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["changedVariables"],
+      message: "changedVariables must not contain duplicates",
+    });
+  }
+  const seen = new Set<string>();
+  for (const [index, participant] of value.participants.entries()) {
+    if (seen.has(participant.participantId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["participants", index, "participantId"],
+        message: "participantId values must be unique",
+      });
+    }
+    seen.add(participant.participantId);
+  }
+});
+
+type FirstContactTest = z.infer<typeof FirstContactTestObjectSchema>;
+
+const FIRST_CONTACT_TEST_SAFE_FIELDS = new Set<string>([
+  "testedAt",
+  "assetId",
+  "parentAssetId",
+  "changeSummary",
+  "changedVariables",
+  "invariantsKept",
+  "assetType",
+  "assetDescription",
+  "exposureContext",
+  "device",
+  "viewport",
+  "durationSeconds",
+  "sound",
+  "orderDescription",
+  "recruitment",
+  "targetPlayerDefinition",
+  "questionsAsked",
+  "participants",
+  "deviations",
+  "participantId",
+  "targetFit",
+  "understoodTheme",
+  "understoodAction",
+  "understoodReward",
+  "immediateReject",
+  "unaidedSummary",
+  "rejectionReason",
+  "confusions",
+]);
+
+const FirstContactTestSchema = z.string().trim().min(2).max(50_000).transform(
+  (input, context) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(input);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "firstContactTest must be valid JSON",
+      });
+      return z.NEVER;
+    }
+    const result = FirstContactTestObjectSchema.safeParse(parsed);
+    if (!result.success) {
+      addSafeSchemaIssues(
+        context,
+        "firstContactTest",
+        result.error.issues,
+        FIRST_CONTACT_TEST_SAFE_FIELDS,
+      );
+      return z.NEVER;
+    }
+    return JSON.stringify(result.data);
+  },
+);
+
 function countValues<T extends string>(values: readonly T[], order: readonly T[]) {
   return Object.fromEntries(order.map((value) => [
     value,
     values.filter((candidate) => candidate === value).length,
   ]));
+}
+
+function buildRevisionDesignDiagnostics(
+  parentId: string | undefined,
+  changedVariables: string[] | undefined,
+  invariantsKept: string[] | undefined,
+) {
+  const revisionDesignMissing = parentId !== undefined
+    && (!changedVariables || !invariantsKept);
+  const multipleChanges = (changedVariables?.length ?? 0) > 1;
+  return {
+    changedVariables: changedVariables ?? [],
+    invariantsDeclaredCount: invariantsKept?.length ?? 0,
+    causalAttributionStatus: !parentId
+      ? "not-applicable-initial"
+      : revisionDesignMissing
+        ? "not-assessable"
+        : multipleChanges
+          ? "unresolved-multiple-changes"
+          : "comparison-candidate-only",
+    candidateReviewAreas: [
+      ...(revisionDesignMissing ? ["revision-design"] : []),
+      ...(multipleChanges ? ["multi-variable-change"] : []),
+    ],
+    interpretationLimit: "Declared variables and invariants support comparison planning only; they do not verify protocol equivalence or prove causality.",
+  };
 }
 
 function buildConceptTestDiagnostics(
@@ -450,10 +658,16 @@ function buildConceptTestDiagnostics(
     0,
   );
   const deviationCount = conceptTest.deviations?.length ?? 0;
+  const revisionDesign = buildRevisionDesignDiagnostics(
+    conceptTest.parentStimulusId,
+    conceptTest.changedVariables,
+    conceptTest.invariantsKept,
+  );
   const candidateReviewAreas = [
-    ...(revisionStatus === "mismatched" || promiseStatus === "mismatched"
+    ...([revisionStatus, promiseStatus].some((status) => status === "mismatched" || status === "unlinked")
       ? ["stimulus-provenance"]
       : []),
+    ...revisionDesign.candidateReviewAreas,
     ...(deviationCount > 0 ? ["protocol-deviation"] : []),
     ...(actionUnderstandingCounts["not-measured"] > 0
       || rewardUnderstandingCounts["not-measured"] > 0
@@ -494,13 +708,115 @@ function buildConceptTestDiagnostics(
         ? {parentStimulusId: conceptTest.parentStimulusId}
         : {}),
       changeSummaryDeclared: conceptTest.changeSummary !== undefined,
+      changedVariables: revisionDesign.changedVariables,
+      invariantsDeclaredCount: revisionDesign.invariantsDeclaredCount,
+      causalAttributionStatus: revisionDesign.causalAttributionStatus,
       candidateReviewAreas,
       nextAction: candidateReviewAreas.length > 0
         ? "Treat these as inspection priorities, not causes. If revising, change one core or asset variable, assign a new stimulusId, link parentStimulusId, and retest under a comparable protocol."
         : "No bounded issue signal was recorded; seek gameplay and first-contact asset evidence before making a broader claim.",
       interpretationLimit: "Signals prioritize inspection only; they neither require a revision nor establish which change caused a later result.",
+      comparisonInterpretationLimit: revisionDesign.interpretationLimit,
     },
     interpretationLimit: "Counts describe this bounded sample only; they are not population rates, purchase forecasts, or fixed pass thresholds.",
+  };
+}
+
+function buildFirstContactTestDiagnostics(firstContactTest: FirstContactTest) {
+  const participants = firstContactTest.participants;
+  const themeLegibilityCounts = countValues(
+    participants.map((participant) => participant.understoodTheme),
+    UnderstandingSchema.options,
+  );
+  const actionLegibilityCounts = countValues(
+    participants.map((participant) => participant.understoodAction),
+    UnderstandingSchema.options,
+  );
+  const rewardLegibilityCounts = countValues(
+    participants.map((participant) => participant.understoodReward),
+    UnderstandingSchema.options,
+  );
+  const immediateRejectCounts = countValues(
+    participants.map((participant) => participant.immediateReject),
+    ImmediateRejectSchema.options,
+  );
+  const unaidedSummaryCount = participants.filter(
+    (participant) => participant.unaidedSummary !== undefined,
+  ).length;
+  const rejectionReasonCount = participants.filter(
+    (participant) => participant.rejectionReason !== undefined,
+  ).length;
+  const unexplainedImmediateRejectCount = participants.filter(
+    (participant) => participant.immediateReject === "yes"
+      && participant.rejectionReason === undefined,
+  ).length;
+  const confusionNoteCount = participants.reduce(
+    (total, participant) => total + participant.confusions.length,
+    0,
+  );
+  const deviationCount = firstContactTest.deviations?.length ?? 0;
+  const revisionDesign = buildRevisionDesignDiagnostics(
+    firstContactTest.parentAssetId,
+    firstContactTest.changedVariables,
+    firstContactTest.invariantsKept,
+  );
+  const candidateReviewAreas = [
+    ...revisionDesign.candidateReviewAreas,
+    ...(deviationCount > 0 ? ["protocol-deviation"] : []),
+    ...(themeLegibilityCounts["not-measured"] > 0
+      || actionLegibilityCounts["not-measured"] > 0
+      || rewardLegibilityCounts["not-measured"] > 0
+      || immediateRejectCounts["not-asked"] > 0
+      || unaidedSummaryCount < participants.length
+      ? ["measurement-coverage"]
+      : []),
+    ...(themeLegibilityCounts.no > 0 || themeLegibilityCounts.unclear > 0
+      ? ["theme-legibility"]
+      : []),
+    ...(actionLegibilityCounts.no > 0 || actionLegibilityCounts.unclear > 0
+      ? ["action-legibility"]
+      : []),
+    ...(rewardLegibilityCounts.no > 0 || rewardLegibilityCounts.unclear > 0
+      ? ["reward-legibility"]
+      : []),
+    ...(immediateRejectCounts.yes > 0 ? ["immediate-reject"] : []),
+    ...(unexplainedImmediateRejectCount > 0 ? ["rejection-reason-coverage"] : []),
+    ...(confusionNoteCount > 0 ? ["reported-confusions"] : []),
+  ];
+  return {
+    status: "descriptive-only",
+    assetType: firstContactTest.assetType,
+    participantCount: participants.length,
+    targetFitCounts: countValues(
+      participants.map((participant) => participant.targetFit),
+      TargetFitSchema.options,
+    ),
+    themeLegibilityCounts,
+    actionLegibilityCounts,
+    rewardLegibilityCounts,
+    immediateRejectCounts,
+    unaidedSummaryCount,
+    rejectionReasonCount,
+    unexplainedImmediateRejectCount,
+    confusionNoteCount,
+    deviationCount,
+    revisionLoop: {
+      status: firstContactTest.parentAssetId ? "linked-revision" : "initial-asset",
+      ...(firstContactTest.parentAssetId
+        ? {parentAssetId: firstContactTest.parentAssetId}
+        : {}),
+      changeSummaryDeclared: firstContactTest.changeSummary !== undefined,
+      changedVariables: revisionDesign.changedVariables,
+      invariantsDeclaredCount: revisionDesign.invariantsDeclaredCount,
+      causalAttributionStatus: revisionDesign.causalAttributionStatus,
+      candidateReviewAreas,
+      nextAction: candidateReviewAreas.length > 0
+        ? "Treat these as inspection priorities, not causes. Revise one asset variable and retest in the same real display context when comparison is needed."
+        : "No bounded issue signal was recorded; connect the promise to gameplay evidence before making a broader readiness claim.",
+      interpretationLimit: revisionDesign.interpretationLimit,
+    },
+    rejectionReasonInterpretationLimit: "Missing immediate-reject reasons must not be inferred from other fields or participant responses.",
+    interpretationLimit: "Counts describe this bounded sample and exposure context only; they do not establish fun, demand, conversion, or storefront readiness.",
   };
 }
 
@@ -515,6 +831,9 @@ export const RunSimPromptArgumentsSchema = z.object({
   ),
   conceptTest: ConceptTestSchema.optional().describe(
     "JSON object containing a bounded, pseudonymous third-party concept comprehension test",
+  ),
+  firstContactTest: FirstContactTestSchema.optional().describe(
+    "JSON object containing a bounded, pseudonymous first-contact asset test",
   ),
   playtestUrl: PlaytestUrlSchema.optional(),
   playtestTask: z.string().trim().min(1).max(1_000).optional(),
@@ -556,6 +875,11 @@ export interface RunSimPromptContext {
     observedAt: string;
     resultHandle: string;
   };
+  firstContactTestEvidence?: {
+    sourceTool: "manual";
+    observedAt: string;
+    resultHandle: string;
+  };
 }
 
 export function buildConceptTestEvidenceEnvelope(input: RunSimPromptArguments) {
@@ -566,6 +890,19 @@ export function buildConceptTestEvidenceEnvelope(input: RunSimPromptArguments) {
     data: conceptTest,
     warnings: [] as string[],
     meta: {observedAt: conceptTest.testedAt},
+  };
+}
+
+export function buildFirstContactTestEvidenceEnvelope(input: RunSimPromptArguments) {
+  const parsed = RunSimPromptArgumentsSchema.parse(input);
+  if (!parsed.firstContactTest) return undefined;
+  const firstContactTest = FirstContactTestObjectSchema.parse(
+    JSON.parse(parsed.firstContactTest),
+  );
+  return {
+    data: firstContactTest,
+    warnings: [] as string[],
+    meta: {observedAt: firstContactTest.testedAt},
   };
 }
 
@@ -608,13 +945,22 @@ export function buildRunSimPrompt(
       ? "Proceed with the selected evidence workflow."
       : "Ask the user for all missing fields in one concise question before calling external evidence tools.",
   };
-  const {conceptTest, projectBrief, uiReferenceUrls, ...promptInput} = parsed;
+  const {
+    conceptTest,
+    firstContactTest,
+    projectBrief,
+    uiReferenceUrls,
+    ...promptInput
+  } = parsed;
 
   const structuredProjectBrief = projectBrief
     ? ProjectBriefObjectSchema.parse(JSON.parse(projectBrief))
     : undefined;
   const structuredConceptTest = conceptTest
     ? ConceptTestObjectSchema.parse(JSON.parse(conceptTest))
+    : undefined;
+  const structuredFirstContactTest = firstContactTest
+    ? FirstContactTestObjectSchema.parse(JSON.parse(firstContactTest))
     : undefined;
 
   return appendSerializedInput(recipe, {
@@ -623,6 +969,22 @@ export function buildRunSimPrompt(
       ? {
           projectBrief: structuredProjectBrief,
           projectBriefDiagnostics: buildProjectBriefDiagnostics(structuredProjectBrief),
+        }
+      : {}),
+    ...(structuredFirstContactTest
+      ? {
+          firstContactTest: structuredFirstContactTest,
+          firstContactTestDiagnostics: buildFirstContactTestDiagnostics(
+            structuredFirstContactTest,
+          ),
+          ...(context.firstContactTestEvidence
+            ? {
+                firstContactTestEvidence: {
+                  ...context.firstContactTestEvidence,
+                  exactSaveRequired: true,
+                },
+              }
+            : {}),
         }
       : {}),
     ...(structuredConceptTest
