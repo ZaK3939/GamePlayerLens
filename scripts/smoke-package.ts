@@ -137,6 +137,7 @@ transport.stderr?.on("data", (chunk) => {
 const client = new Client({name: "game-player-lens-package-smoke", version: "1.0.0"});
 let connected = false;
 let liveExactSave = false;
+let liveBrief = false;
 let liveUpdates = false;
 let packageRunRoundTrip = false;
 let playtestPromptRoundTrip = false;
@@ -147,7 +148,7 @@ try {
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 13, "packaged CLI did not expose thirteen tools");
+  assert(tools.length === 14, "packaged CLI did not expose fourteen tools");
   assert(prompts.length === 2, "packaged CLI did not expose two prompts");
 
   const status = await client.callTool({name: "get_status", arguments: {}});
@@ -156,7 +157,7 @@ try {
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
-      && statusJson.includes('"toolCount":13')
+      && statusJson.includes('"toolCount":14')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
         && statusJson.includes(process.env.ITAD_API_KEY))
@@ -962,45 +963,64 @@ try {
   experimentLoopRoundTrip = true;
 
   if (live) {
-    const search = await client.callTool({
-      name: "steam_search",
-      arguments: {query: "Hades"},
+    const brief = await client.callTool({
+      name: "steam_brief",
+      arguments: {appid: 1145360, language: "japanese", country: "JP"},
     });
-    assert(search.isError !== true, "packaged CLI steam_search returned a tool error");
-    const searchEnvelope = search.structuredContent as {
+    assert(brief.isError !== true, "packaged CLI steam_brief returned a tool error");
+    const briefEnvelope = brief.structuredContent as {
+      data?: {
+        target?: {appid?: unknown};
+        readiness?: {status?: unknown; unsupportedClaims?: unknown[]};
+        provenance?: unknown[];
+      };
       meta?: {resultHandle?: unknown};
     } | undefined;
-    const resultHandle = searchEnvelope?.meta?.resultHandle;
-    assert(typeof resultHandle === "string", "steam_search result handle is missing");
+    const resultHandle = briefEnvelope?.meta?.resultHandle;
+    assert(
+      briefEnvelope?.data?.target?.appid === 1145360
+      && briefEnvelope.data.readiness?.status !== "blocked"
+      && briefEnvelope.data.readiness?.unsupportedClaims?.includes(
+        "gameplay quality without direct playtest evidence",
+      )
+      && briefEnvelope.data.provenance?.length === 6,
+      "packaged CLI steam_brief returned incomplete decision coverage",
+    );
+    assert(
+      Buffer.byteLength(JSON.stringify(brief.structuredContent), "utf8") < 50_000,
+      "packaged CLI steam_brief exceeded the 50 KiB first-pass budget",
+    );
+    assert(typeof resultHandle === "string", "steam_brief result handle is missing");
 
     const saved = await client.callTool({
       name: "save_artifact",
       arguments: {
         kind: "intel",
         target: "Hades",
-        id: "Live Search Exact",
+        id: "Live Brief Exact",
         resultHandle,
       },
     });
     assert(saved.isError !== true, "result-handle artifact save returned a tool error");
     const read = await client.callTool({
       name: "get_artifact",
-      arguments: {kind: "intel", target: "Hades", id: "Live Search Exact"},
+      arguments: {kind: "intel", target: "Hades", id: "Live Brief Exact"},
     });
     const record = read.structuredContent?.data as {
       sourceTool?: unknown;
       observedAt?: unknown;
       payload?: unknown;
     } | undefined;
-    assert(record?.sourceTool === "steam_search", "sourceTool was not inferred from handle");
+    assert(record?.sourceTool === "steam_brief", "sourceTool was not inferred from handle");
     assert(
-      record.observedAt === (search.structuredContent?.meta as {observedAt?: unknown})?.observedAt,
+      record.observedAt === (brief.structuredContent?.meta as {observedAt?: unknown})?.observedAt,
       "observedAt was not inferred from handle",
     );
     assert(
-      JSON.stringify(record.payload) === JSON.stringify(search.structuredContent),
+      JSON.stringify(record.payload) === JSON.stringify(brief.structuredContent),
       "saved payload is not the exact normalized tool envelope",
     );
+    liveBrief = true;
 
     const updates = await client.callTool({
       name: "steam_updates",
@@ -1080,6 +1100,7 @@ try {
     playtestCohortRoundTrip,
     packageRunRoundTrip,
     experimentLoopRoundTrip,
+    liveBrief,
     liveUpdates,
     liveExactSave,
   }));

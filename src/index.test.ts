@@ -179,7 +179,7 @@ function persona(): Persona {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly thirteen tools and two prompts", async () => {
+  it("exposes exactly fourteen tools and two prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -189,6 +189,7 @@ describe("MCP server contract", () => {
         "get_status",
         "save_artifact",
         "save_persona",
+        "steam_brief",
         "steam_discover",
         "steam_fetch",
         "steam_reviews",
@@ -230,7 +231,7 @@ describe("MCP server contract", () => {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
-          capabilities: {toolCount: 13, promptCount: 2},
+          capabilities: {toolCount: 14, promptCount: 2},
           legacyAudienceDefaults: {market: "Japan", language: "japanese"},
         },
         warnings: [],
@@ -831,6 +832,54 @@ describe("MCP server contract", () => {
     }
   });
 
+  it("exposes a bounded steam_brief contract and preserves its exact result", async () => {
+    const buildDeveloperBrief = vi.fn(async (input: unknown) => ({
+      data: {
+        schemaVersion: 1,
+        purpose: "first-pass-developer-triage",
+        audience: {language: "japanese", country: "JP"},
+        input,
+      },
+      warnings: ["steam_timeline: ITAD price history disabled"],
+      meta: {observedAt: NOW.toISOString()},
+    }));
+    const {client, server} = await createHarness({buildDeveloperBrief});
+    try {
+      const briefTool = (await client.listTools()).tools.find(({name}) => name === "steam_brief");
+      expect(briefTool?.inputSchema).toMatchObject({
+        additionalProperties: false,
+        required: ["appid", "language", "country"],
+        properties: {
+          appid: {type: "integer", exclusiveMinimum: 0},
+          language: {type: "string", pattern: "^[a-z][a-z0-9_-]{0,31}$"},
+          country: {type: "string", pattern: "^[A-Za-z]{2}$"},
+          reviewLimit: {type: "integer", minimum: 2, maximum: 20},
+          updateLimit: {type: "integer", minimum: 1, maximum: 20},
+          competitorLimit: {type: "integer", minimum: 1, maximum: 10},
+        },
+      });
+
+      const result = await client.callTool({
+        name: "steam_brief",
+        arguments: {appid: 1145360, language: "japanese", country: "jp"},
+      });
+      expect(result.isError).not.toBe(true);
+      expect(buildDeveloperBrief).toHaveBeenCalledWith({
+        appid: 1145360,
+        language: "japanese",
+        country: "jp",
+      });
+      expect(result.structuredContent).toMatchObject({
+        data: {purpose: "first-pass-developer-triage"},
+        warnings: ["steam_timeline: ITAD price history disabled"],
+        meta: {observedAt: NOW.toISOString(), resultHandle: expect.any(String)},
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("publishes bounded steam_discover and exact-save artifact schemas", async () => {
     const {client, server} = await createHarness();
     try {
@@ -930,7 +979,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(13);
+      expect(tools).toHaveLength(14);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),

@@ -14,6 +14,10 @@ import {
   type ArtifactStore,
   type SourceTool,
 } from "./artifacts.js";
+import {
+  SteamDeveloperBriefInputSchema,
+  createDeveloperBriefFetcher,
+} from "./brief.js";
 import {createCaptureService} from "./capture.js";
 import {discoverGames} from "./discovery.js";
 import type {FetchResult} from "./http.js";
@@ -58,7 +62,7 @@ import {fetchUpdates} from "./updates.js";
 
 const SERVER_NAME = "game-player-lens";
 const SERVER_VERSION = "0.1.0";
-const TOOL_COUNT = 13;
+const TOOL_COUNT = 14;
 const PROMPT_COUNT = 2;
 
 const ResultEnvelopeSchema = z.object({
@@ -110,6 +114,7 @@ const GetArtifactInputSchema = z.object({
 export interface ServerServices {
   resolver: PathResolver;
   searchGames: typeof searchGames;
+  buildDeveloperBrief: ReturnType<typeof createDeveloperBriefFetcher>;
   discoverGames: typeof discoverGames;
   fetchGame: typeof fetchGame;
   fetchReviews: typeof fetchReviews;
@@ -199,7 +204,8 @@ async function getServerStatus(resolver: PathResolver) {
 function createServerServices(overrides: Partial<ServerServices>): ServerServices {
   const resolver = overrides.resolver ?? initializeRepositoryPaths();
   const personaStore = createPersonaStore(resolver);
-  const defaults: ServerServices = {
+  const {buildDeveloperBrief, ...serviceOverrides} = overrides;
+  const defaults: Omit<ServerServices, "buildDeveloperBrief"> = {
     resolver,
     searchGames,
     discoverGames,
@@ -217,7 +223,17 @@ function createServerServices(overrides: Partial<ServerServices>): ServerService
     imageService: createImageService(resolver),
     resultStore: createResultStore(),
   };
-  return {...defaults, ...overrides, resolver};
+  const services = {...defaults, ...serviceOverrides, resolver};
+  return {
+    ...services,
+    buildDeveloperBrief: buildDeveloperBrief ?? createDeveloperBriefFetcher({
+      fetchGame: services.fetchGame,
+      fetchReviews: services.fetchReviews,
+      fetchTimeline: services.fetchTimeline,
+      fetchUpdates: services.fetchUpdates,
+      discoverGames: services.discoverGames,
+    }),
+  };
 }
 
 export function buildServer(
@@ -240,6 +256,20 @@ export function buildServer(
       services.resultStore,
       "steam_search",
       await services.searchGames(query),
+    ),
+  );
+
+  server.registerTool(
+    "steam_brief",
+    {
+      description: "One-call, bounded developer triage for an existing Steam game: target and regional-price snapshot, optional price-history summary, two review polarities, updates, current indicators, a tag/genre competitor shortlist, provenance, decision coverage, and explicit unsupported claims",
+      inputSchema: SteamDeveloperBriefInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async (input) => trackedJsonEnvelope(
+      services.resultStore,
+      "steam_brief",
+      await services.buildDeveloperBrief(input),
     ),
   );
 

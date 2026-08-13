@@ -32,6 +32,7 @@ export const AnyArtifactKindSchema = z.union([
 ]);
 export const SourceToolSchema = z.enum([
   "steam_search",
+  "steam_brief",
   "steam_discover",
   "steam_fetch",
   "steam_reviews",

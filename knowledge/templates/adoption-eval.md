@@ -341,7 +341,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 - Status: ［Selected / N/A と理由］
 - Mode result: ［現状のタグ、主要ループ、レビュー評価、価格、現在の勢い / change の場合は現状 vs 変更案］
 - 模倣禁止点: ［競合の表層を移植すると対象の強みを損なう点］
-- 根拠: ［`steam_search` / `steam_fetch` / `steam_timeline` / `steam_reviews` の Evidence ID。なければ「根拠不足」］
+- 根拠: ［`steam_brief` / `steam_search` / `steam_fetch` / `steam_timeline` / `steam_reviews` の Evidence ID。なければ「根拠不足」］
 
 ## Change Delta
 

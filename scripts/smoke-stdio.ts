@@ -11,6 +11,7 @@ const EXPECTED_TOOLS = [
   "get_status",
   "save_artifact",
   "save_persona",
+  "steam_brief",
   "steam_discover",
   "steam_fetch",
   "steam_reviews",
@@ -185,7 +186,7 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
-      && statusJson.includes('"toolCount":13')
+      && statusJson.includes('"toolCount":14')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",
   );
@@ -458,6 +459,11 @@ try {
   );
 
   let liveSearch = false;
+  let liveBrief = false;
+  let liveBriefBytes: number | null = null;
+  let liveBriefStatus: unknown = null;
+  let liveBriefGapCount: number | null = null;
+  let liveBriefCoverage: Array<{dimension?: unknown; status?: unknown}> = [];
   let liveDiscovery = false;
   let liveUpdates = false;
   let livePersonaReadiness = false;
@@ -478,6 +484,53 @@ try {
       "steam_search did not expose an exact-save result handle",
     );
     liveSearch = true;
+
+    const brief = await client.callTool({
+      name: "steam_brief",
+      arguments: {appid: 1145360, language: "japanese", country: "JP"},
+    });
+    assert(brief.isError !== true, "steam_brief returned a tool error");
+    const briefData = structuredData(brief) as {
+      target?: {appid?: unknown; name?: unknown};
+      evidence?: {
+        reviews?: {positive?: unknown[]; negative?: unknown[]};
+        competition?: {candidates?: unknown[]};
+      };
+      readiness?: {
+        status?: unknown;
+        unsupportedClaims?: unknown[];
+        gaps?: unknown[];
+        dimensions?: Array<{dimension?: unknown; status?: unknown}>;
+      };
+      provenance?: unknown[];
+    } | null;
+    assert(
+      briefData?.target?.appid === 1145360
+      && briefData.target.name === "Hades"
+      && (briefData.evidence?.reviews?.positive?.length ?? 0) > 0
+      && (briefData.evidence?.reviews?.negative?.length ?? 0) > 0
+      && (briefData.evidence?.competition?.candidates?.length ?? 0) > 0
+      && briefData.readiness?.status !== "blocked"
+      && briefData.readiness?.unsupportedClaims?.includes(
+        "gameplay quality without direct playtest evidence",
+      )
+      && briefData.provenance?.length === 6,
+      "steam_brief did not return bounded, decision-scoped Hades evidence",
+    );
+    liveBriefBytes = Buffer.byteLength(JSON.stringify(brief.structuredContent), "utf8");
+    assert(
+      liveBriefBytes < 50_000,
+      "steam_brief exceeded the 50 KiB first-pass budget",
+    );
+    assert(
+      typeof (brief.structuredContent?.meta as Record<string, unknown> | undefined)
+        ?.resultHandle === "string",
+      "steam_brief did not expose an exact-save result handle",
+    );
+    liveBriefStatus = briefData.readiness?.status;
+    liveBriefGapCount = briefData.readiness?.gaps?.length ?? 0;
+    liveBriefCoverage = briefData.readiness?.dimensions ?? [];
+    liveBrief = true;
 
     const discovery = await client.callTool({
       name: "steam_discover",
@@ -619,6 +672,11 @@ try {
     playtestPromptRoundTrip: true,
     playtestCohortRoundTrip: true,
     liveSearch,
+    liveBrief,
+    liveBriefBytes,
+    liveBriefStatus,
+    liveBriefGapCount,
+    liveBriefCoverage,
     liveDiscovery,
     liveUpdates,
     livePersonaReadiness,

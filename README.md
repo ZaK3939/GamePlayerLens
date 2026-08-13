@@ -67,7 +67,7 @@ pnpm smoke:stdio
 pnpm smoke:stdio --live
 ```
 
-`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 13 tools、2 prompts、safe status、prompt arguments、intake診断、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search`、`steam_discover`、`derive_personas`のgeneration readiness、`steam_updates` とresultHandle原本保存を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
+`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 14 tools、2 prompts、safe status、prompt arguments、intake診断、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search`、`steam_brief`の50 KiB first-pass budget、`steam_discover`、`derive_personas`のgeneration readiness、`steam_updates` とresultHandle原本保存を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
 
 ## 任意設定
 
@@ -354,11 +354,12 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 
 ## Tools
 
-現在の tool surface は次の exactly 13 tools です。
+現在の tool surface は次の exactly 14 tools です。
 
 | Tool | 用途 |
 |---|---|
 | `steam_search` | 既知名から Steam appid 候補を検索 |
+| `steam_brief` | store、地域価格、任意の価格履歴要約、両極レビュー、現在値、更新、競合候補を1回で収集し、判断可能範囲・欠損・次の取得を返す |
 | `steam_fetch` | 3地域価格、英/日/独store copy、categories、画像、Steam Sonar/SteamDBリンク、SteamSpy情報を取得 |
 | `steam_reviews` | 言語・極性・最低プレイ時間で recent review を取得 |
 | `steam_timeline` | SteamSpy snapshot と任意の ITAD 価格履歴を取得 |
@@ -372,7 +373,9 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 | `save_artifact` | intel JSON、evaluation Markdown、またはハッシュ付き immutable simulation run を安全に保存 |
 | `get_artifact` | intel、evaluation、run、capture、ui-reference を一覧または読出し |
 
-全toolは`{data, warnings, meta?}`を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`steam_updates`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。`derive_personas`へ`market`または`language`を直接渡さない場合は互換用のJapan / japanese既定値を適用しますが、audience mismatchを見逃さないようwarningを返します。新しいworkflowでは両方を明示してください。入力違反と path 境界違反は tool error です。
+全toolは`{data, warnings, meta?}`を返します。一部の外部取得だけが失敗しても取得済みデータを維持します。`steam_search`、`steam_brief`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`steam_updates`、`derive_personas` の1 MiB以下の結果には `meta.resultHandle` も付き、モデルがJSONを再構成せず原本を保存できます。`derive_personas`へ`market`または`language`を直接渡さない場合は互換用のJapan / japanese既定値を適用しますが、audience mismatchを見逃さないようwarningを返します。新しいworkflowでは両方を明示してください。入力違反と path 境界違反は tool error です。
+
+公開済みゲームの初回相談では、appidを解決した後にまず`steam_brief`へ対象言語と国を明示します。取得量を抑えたrecent review抜粋とupdate要約、最上位tagによる競合候補、source別provenance、coverage dimensionを返します。`readiness.supportedDecisions`にない判断は確定せず、`gaps`と`nextActions`に従って必要な個別toolだけを追加してください。briefは実際のbuildを操作しないため、gameplay品質、fun、retention、変更の因果効果を証明しません。
 
 `steam_discover` は `value` を主条件とし、任意の `additionalValues` 最大3件をすべて満たす候補だけを返せます。交差検索は各条件のSteamSpy上位50件を使い、各API順位の合計が小さい順に並べます。対象自身や既知の不適合候補は `excludeAppids` 最大50件で除外します。たとえばHades IIに近い候補は次の入力で探索できます。
 
@@ -477,6 +480,6 @@ fixture / smokeとは別に、保存した実相談でproduct workflowを検証�
 
 ## v1 から v1.1
 
-v1 の既存8 tool名とv1.1の11 tool surfaceは互換です。`FetchResult.data` と `warnings` は維持され、`meta` が optional field として追加されました。`ui_capture` も既存 field を維持しつつ image metadata と標準 `ImageContent` を追加します。v1.1 の新規 tool は `steam_discover`、`save_artifact`、`get_artifact` です。その後`steam_updates`とread-onlyの`get_status`を追加し、現在は13 toolsです。canonical knowledge の既存 `get_knowledge` semantics は維持し、dynamic artifact の list/read は `get_artifact` を使用します。
+v1.1では`steam_discover`、`save_artifact`、`get_artifact`を追加し、その後`steam_updates`、read-onlyの`get_status`、初回相談用の`steam_brief`を重ね、現在は14 toolsです。`steam_brief`は個別toolを置き換える完全調査ではなく、どこを深掘りすべきかを決めるbounded triageです。canonical knowledge の `get_knowledge` は固定recipe・rubric用、dynamic artifact の list/read は `get_artifact` を使用します。
 
 現在の判断は [v1.1 設計](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md)、実装・検証条件は [v1.1 計画](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md) を参照してください。継続実験のPilotは[Game Discovery Loop設計](docs/superpowers/specs/2026-08-12-game-discovery-loop-design.md)と[実装計画](docs/superpowers/plans/2026-08-12-game-discovery-loop-pilot.md)に分離しています。旧 [v1 設計](docs/superpowers/specs/2026-08-10-steam-user-sim-design.md) と [v1 計画](docs/superpowers/plans/2026-08-10-steam-user-sim.md) は履歴として残しています。npm `bin` packagingは実装済みです。過去CCUとremote deploymentは今後の対象です。
