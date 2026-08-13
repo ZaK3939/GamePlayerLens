@@ -224,6 +224,17 @@ describe("persona derivation pack", () => {
     ]);
     expect(new Set(result.data?.reviews.map((item) => item.recommendationId)).size).toBe(50);
     expect(result.data?.instruction).toContain("save_persona");
+    expect(result.data?.generationReadiness).toEqual({
+      status: "ready",
+      generationAllowed: true,
+      requestedCount: 5,
+      supportedCount: 5,
+      availableUniqueReviewCount: 50,
+      requiredUniqueReviewCount: 15,
+      minimumUniqueReviewsPerPersona: 3,
+      voiceReuseAllowed: false,
+    });
+    expect(result.data?.instruction).toContain("persona間で再利用しない");
     expect(fetchReviews).toHaveBeenCalledTimes(4);
     expect(result.data?.schema).toMatchObject({type: "object"});
     expect(result.meta).toMatchObject({
@@ -245,6 +256,68 @@ describe("persona derivation pack", () => {
       },
     });
     expect(result.data?.instruction).toMatch(/balanced.*not representative.*population shares/i);
+  });
+
+  it("blocks persona generation when no persona has enough unique review voices", async () => {
+    const fetchGame = vi.fn(async (appid: number) => ({data: {appid}, warnings: []}));
+    const fetchReviews = vi.fn(async () => ({data: [], warnings: []}));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([1145360], 2, 3, {language: "all"});
+
+    expect(result.data?.generationReadiness).toEqual({
+      status: "blocked",
+      generationAllowed: false,
+      requestedCount: 2,
+      supportedCount: 0,
+      availableUniqueReviewCount: 0,
+      requiredUniqueReviewCount: 6,
+      minimumUniqueReviewsPerPersona: 3,
+      voiceReuseAllowed: false,
+    });
+    expect(result.data?.instruction).toContain("ペルソナを生成・保存しないでください");
+    expect(result.data?.instruction).not.toContain("2 件生成してください");
+    expect(result.warnings).toContain(
+      "persona generation blocked: 0 of 2 requested personas have disjoint review voice support",
+    );
+  });
+
+  it("limits persona generation to the count supported by disjoint review voices", async () => {
+    const fetchGame = vi.fn(async (appid: number) => ({data: {appid}, warnings: []}));
+    const fetchReviews = vi.fn(async (
+      _appid: number,
+      opts: ReviewOptions = {},
+    ) => ({
+      data: Array.from({length: opts.type === "positive" ? 3 : 2}, (_, index) =>
+        review(`${opts.type}-${index}`, opts.type === "positive")),
+      warnings: [],
+    }));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([1145360], 3, 3, {language: "all"});
+
+    expect(result.data?.generationReadiness).toEqual({
+      status: "partial",
+      generationAllowed: true,
+      requestedCount: 3,
+      supportedCount: 1,
+      availableUniqueReviewCount: 5,
+      requiredUniqueReviewCount: 9,
+      minimumUniqueReviewsPerPersona: 3,
+      voiceReuseAllowed: false,
+    });
+    expect(result.data?.instruction).toContain("1 件だけ生成してください");
+    expect(result.data?.instruction).toContain("persona間で再利用しない");
+    expect(result.data?.instruction).not.toContain("3 件生成してください");
+    expect(result.warnings).toContain(
+      "persona generation limited: 1 of 3 requested personas have disjoint review voice support",
+    );
   });
 
   it("bounds and round-robins evidence across appids and polarities", async () => {

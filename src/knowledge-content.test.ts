@@ -533,6 +533,10 @@ describe("MCP prompt source recipes", () => {
     expect(content.indexOf("`derive_personas`")).toBeLessThan(
       content.indexOf("`save_persona`"),
     );
+    expect(content).toContain("generationReadiness");
+    expect(content).toContain("generationAllowed=false");
+    expect(content).toContain("generationReadiness.supportedCount");
+    expect(content).toContain("同じreview voiceをpersona間で再利用しません");
     expect(content).toContain("workspaces/");
   });
 

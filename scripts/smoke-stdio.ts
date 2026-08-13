@@ -460,6 +460,7 @@ try {
   let liveSearch = false;
   let liveDiscovery = false;
   let liveUpdates = false;
+  let livePersonaReadiness = false;
   let liveResultHandles = false;
   if (process.argv.includes("--live")) {
     const search = await client.callTool({
@@ -519,6 +520,60 @@ try {
     );
     liveDiscovery = true;
 
+    const personas = await client.callTool({
+      name: "derive_personas",
+      arguments: {
+        appids: [1145360],
+        count: 5,
+        reviewsPerPolarity: 8,
+        targetAppid: 1145360,
+        market: "Japan",
+        language: "japanese",
+        sourceRoles: [{appid: 1145360, role: "target"}],
+      },
+    });
+    assert(personas.isError !== true, "derive_personas returned a tool error");
+    const personasData = structuredData(personas) as {
+      reviews?: Array<{recommendationId?: unknown}>;
+      generationReadiness?: {
+        status?: unknown;
+        generationAllowed?: unknown;
+        requestedCount?: unknown;
+        supportedCount?: unknown;
+        availableUniqueReviewCount?: unknown;
+        requiredUniqueReviewCount?: unknown;
+        minimumUniqueReviewsPerPersona?: unknown;
+        voiceReuseAllowed?: unknown;
+      };
+      instruction?: unknown;
+    } | null;
+    const uniqueReviewIds = new Set(
+      personasData?.reviews?.map(({recommendationId}) => recommendationId) ?? [],
+    );
+    const supportedPersonaCount = Math.min(5, Math.floor(uniqueReviewIds.size / 3));
+    const expectedReadinessStatus = supportedPersonaCount === 0
+      ? "blocked"
+      : supportedPersonaCount < 5
+        ? "partial"
+        : "ready";
+    assert(
+      personasData?.generationReadiness?.status === expectedReadinessStatus
+      && personasData.generationReadiness.generationAllowed === (supportedPersonaCount > 0)
+      && personasData.generationReadiness.requestedCount === 5
+      && personasData.generationReadiness.supportedCount === supportedPersonaCount
+      && personasData.generationReadiness.availableUniqueReviewCount === uniqueReviewIds.size
+      && personasData.generationReadiness.requiredUniqueReviewCount === 15
+      && personasData.generationReadiness.minimumUniqueReviewsPerPersona === 3
+      && personasData.generationReadiness.voiceReuseAllowed === false,
+      "derive_personas did not return evidence-bounded generation readiness",
+    );
+    assert(
+      typeof (personas.structuredContent?.meta as Record<string, unknown> | undefined)
+        ?.resultHandle === "string",
+      "derive_personas did not expose an exact-save result handle",
+    );
+    livePersonaReadiness = true;
+
     const updates = await client.callTool({
       name: "steam_updates",
       arguments: {appid: 1145360, scope: "updates", limit: 8, contentChars: 600},
@@ -566,6 +621,7 @@ try {
     liveSearch,
     liveDiscovery,
     liveUpdates,
+    livePersonaReadiness,
     liveResultHandles,
     runListing: true,
     protocolErrors: protocolErrors.length,

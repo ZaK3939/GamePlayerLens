@@ -15,6 +15,17 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
     expect(result.data?.reviews.length).toBeLessThanOrEqual(16);
     const ids = result.data?.reviews.map((review) => review.recommendationId) ?? [];
     expect(new Set(ids).size).toBe(ids.length);
+    const supportedCount = Math.min(5, Math.floor(ids.length / 3));
+    expect(result.data?.generationReadiness).toEqual({
+      status: supportedCount === 0 ? "blocked" : supportedCount < 5 ? "partial" : "ready",
+      generationAllowed: supportedCount > 0,
+      requestedCount: 5,
+      supportedCount,
+      availableUniqueReviewCount: ids.length,
+      requiredUniqueReviewCount: 15,
+      minimumUniqueReviewsPerPersona: 3,
+      voiceReuseAllowed: false,
+    });
     expect(result.data?.instruction).toContain("save_persona");
     expect(result.data?.brief).toMatchObject({
       targetAppid: 1145360,

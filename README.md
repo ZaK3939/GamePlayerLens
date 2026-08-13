@@ -67,7 +67,7 @@ pnpm smoke:stdio
 pnpm smoke:stdio --live
 ```
 
-`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 13 tools、2 prompts、safe status、prompt arguments、intake診断、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search`、`steam_discover`、`steam_updates` とresultHandle原本保存を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
+`pnpm smoke:stdio` は dist の実 stdio 接続越しに、exactly 13 tools、2 prompts、safe status、prompt arguments、intake診断、playtest protocolの値往復、canonical knowledge、evaluation/run の read-only artifact list、protocol の正常終了を検証します。package smoke は分離data homeで synthetic playtest protocol fixture（実ゲーム操作ではない）とpersona・evaluationを作り、gameplay simulation runの封印、構造coverage、canonical seal、全dependencyのintegrity readbackまで確認します。`--live` はさらに `steam_search`、`steam_discover`、`derive_personas`のgeneration readiness、`steam_updates` とresultHandle原本保存を実 API で確認します。サーバー stdout は JSON-RPC 専用で、診断は stderr に出ます。
 
 ## 任意設定
 
@@ -363,7 +363,7 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 | `steam_reviews` | 言語・極性・最低プレイ時間で recent review を取得 |
 | `steam_timeline` | SteamSpy snapshot と任意の ITAD 価格履歴を取得 |
 | `steam_updates` | Steam公式更新履歴をSteamSonar互換分類、highlights、cadence、分類根拠付きで取得 |
-| `derive_personas` | 件数を調整できるレビュー出典、Persona JSON Schema、生成指示をまとめる |
+| `derive_personas` | レビュー出典、Persona JSON Schema、証拠から安全に生成できる件数と生成指示をまとめる |
 | `save_persona` | 生成済み persona を検証し、原子的に保存 |
 | `ui_capture` | 通常ページをObscuraでPNG capture、またはSteam CDN画像をJPEG保存し、上限内なら `ImageContent` も返す |
 | `get_knowledge` | canonical templates、rubrics、personas、互換用 intel を一覧・取得 |
@@ -442,6 +442,8 @@ repo内の直接起動では上記layoutの起点はrepository rootです。npm 
 ## データの解釈
 
 `derive_personas.reviewsPerPolarity` は1 appid・1極性あたり3〜25件を指定でき、既定値は後方互換の25件です。通常の3〜5 persona生成には8件、深掘り監査には25件を目安にしてください。`language`で指定した言語を先に集め、不足分だけall-languageで補い、appidと極性をラウンドロビンに並べます。`sourceRoles` には入力した全appidをちょうど1回ずつ列挙し、各ゲームを `target` / `competitor` / `reference` に明示分類できます。`targetAppid`も渡す場合は唯一の`target`と一致させます。`sourceRoles`を省略して`targetAppid`だけを渡した場合は対象以外を`competitor`、両方を省略した場合は全件を`reference`とする互換動作です。各reviewには確定したsource roleが付き、playtime band・言語・有効な投稿日range・不正日時件数のsample coverageも返ります。`market` / `language`未指定時は後方互換としてJapan / japaneseを使います。
+
+返却される`generationReadiness`は、1 personaにつき最低3件の一意なreview voiceを割り当て、persona間でvoiceを再利用しない前提で生成可能件数を計算します。`blocked`では`generationAllowed=false`となるためpersonaを生成・保存しません。`partial`では要求件数ではなく`supportedCount`件だけを生成し、`ready`でも同じreviewを複数personaのvoiceへ流用しません。`availableUniqueReviewCount`と`requiredUniqueReviewCount`で不足量を確認できます。これはpersonaの妥当性を保証する品質点ではなく、捏造を防ぐ最低限の生成gateです。
 
 新しく生成するpersonaはv2 schemaを使い、`target_context`、購入・継続・離脱・更新反応を持つ`decision_profile`、voiceへ逆参照できるobserved patterns、分離されたinferred traits、limitations、overall confidenceを必須にします。既存のv1 personaは読込・run監査のため引き続き有効です。v2の`update_reaction`に直接根拠がなければ、推論またはunknownとして記録し、市場比率へ変換しません。
 

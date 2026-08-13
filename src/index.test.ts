@@ -264,13 +264,33 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("forwards bounded persona evidence size to the derivation service", async () => {
+  it("forwards bounded persona evidence size and returns generation readiness", async () => {
     const buildDerivationPack = vi.fn(async (
       appids: number[],
       count?: number,
       reviewsPerPolarity?: number,
       options?: unknown,
-    ) => ({data: {appids, count, reviewsPerPolarity, options}, warnings: []}));
+    ) => ({
+      data: {
+        appids,
+        count,
+        reviewsPerPolarity,
+        options,
+        generationReadiness: {
+          status: "partial",
+          generationAllowed: true,
+          requestedCount: 3,
+          supportedCount: 2,
+          availableUniqueReviewCount: 8,
+          requiredUniqueReviewCount: 9,
+          minimumUniqueReviewsPerPersona: 3,
+          voiceReuseAllowed: false,
+        },
+      },
+      warnings: [
+        "persona generation limited: 2 of 3 requested personas have disjoint review voice support",
+      ],
+    }));
     const {client, server} = await createHarness({buildDerivationPack});
     try {
       const result = await client.callTool({
@@ -307,7 +327,20 @@ describe("MCP server contract", () => {
               {appid: 588650, role: "reference"},
             ],
           },
+          generationReadiness: {
+            status: "partial",
+            generationAllowed: true,
+            requestedCount: 3,
+            supportedCount: 2,
+            availableUniqueReviewCount: 8,
+            requiredUniqueReviewCount: 9,
+            minimumUniqueReviewsPerPersona: 3,
+            voiceReuseAllowed: false,
+          },
         },
+        warnings: [
+          "persona generation limited: 2 of 3 requested personas have disjoint review voice support",
+        ],
       });
       expect(buildDerivationPack).toHaveBeenCalledWith([1145350, 1145360, 588650], 3, 8, {
         targetAppid: 1145350,

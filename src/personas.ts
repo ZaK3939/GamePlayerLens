@@ -17,6 +17,7 @@ import type {FetchMeta, FetchResult, JsonValue} from "./http.js";
 export const MIN_REVIEWS_PER_POLARITY = 3;
 export const MAX_REVIEWS_PER_POLARITY = 25;
 export const DEFAULT_REVIEWS_PER_POLARITY = MAX_REVIEWS_PER_POLARITY;
+export const MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA = 3;
 export const MAX_DERIVATION_APPIDS = 12;
 export const PERSONA_FOCUS_VALUES = [
   "adoption",
@@ -80,7 +81,7 @@ const PersonaBaseShape = {
   archetype: z.string().min(1),
   playtime_profile: z.string().min(1),
   priorities: z.array(z.string().min(1)).min(1),
-  voice: z.array(VoiceEvidenceSchema).min(3).max(5),
+  voice: z.array(VoiceEvidenceSchema).min(MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA).max(5),
   dealbreakers: z.array(z.string().min(1)),
   price_sensitivity: z.string().min(1),
 };
@@ -339,6 +340,16 @@ interface NormalizedPersonaDerivationOptions {
 
 export interface DerivationPack {
   requestedCount: number;
+  generationReadiness: {
+    status: "ready" | "partial" | "blocked";
+    generationAllowed: boolean;
+    requestedCount: number;
+    supportedCount: number;
+    availableUniqueReviewCount: number;
+    requiredUniqueReviewCount: number;
+    minimumUniqueReviewsPerPersona: number;
+    voiceReuseAllowed: false;
+  };
   schema: Record<string, unknown>;
   brief: {
     targetAppid: number | null;
@@ -437,6 +448,55 @@ async function fetchPolarityEvidence(
 function ratio(positive: number, negative: number): number | null {
   const total = positive + negative;
   return total > 0 ? Math.round((positive / total) * 100) : null;
+}
+
+function generationReadiness(
+  requestedCount: number,
+  availableUniqueReviewCount: number,
+): DerivationPack["generationReadiness"] {
+  const supportedCount = Math.min(
+    requestedCount,
+    Math.floor(availableUniqueReviewCount / MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA),
+  );
+  return {
+    status: supportedCount === 0
+      ? "blocked"
+      : supportedCount < requestedCount
+        ? "partial"
+        : "ready",
+    generationAllowed: supportedCount > 0,
+    requestedCount,
+    supportedCount,
+    availableUniqueReviewCount,
+    requiredUniqueReviewCount: requestedCount * MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA,
+    minimumUniqueReviewsPerPersona: MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA,
+    voiceReuseAllowed: false,
+  };
+}
+
+function personaGenerationInstruction(
+  readiness: DerivationPack["generationReadiness"],
+): string {
+  if (readiness.status === "blocked") {
+    return [
+      "generationReadiness.status=blockedです。ペルソナを生成・保存しないでください。",
+      `一意なreview voice根拠は${readiness.availableUniqueReviewCount}件で、1 personaに必要な${readiness.minimumUniqueReviewsPerPersona}件を満たしていません。`,
+      "voice、observed_patterns、decision_profileを捏造せず、根拠不足を途中結果として返してください。",
+    ].join(" ");
+  }
+
+  const generationDirective = readiness.status === "partial"
+    ? `要求${readiness.requestedCount}件のうち、根拠で支えられるペルソナを ${readiness.supportedCount} 件だけ生成してください。`
+    : `この根拠素材から異なるペルソナを ${readiness.supportedCount} 件生成してください。`;
+  return [
+    generationDirective,
+    "voice の各項目は reviews の本文・sourceAppid・recommendationId・language・votedUp に直接対応させ、同じreview voiceをpersona間で再利用しないでください。",
+    "schema_version=2 とし、target_context、decision_profile、evidence_basisを省略しないでください。",
+    "observed_patternsはvoiceを参照し、inferred_traitsとlimitationsを分離してください。更新反応の根拠がなければupdate_reactionをunknownとして不足根拠を記録してください。",
+    "target、competitor、referenceのsourceRoleを混同せず、各personaのadoption/retention/churn triggerが実質的に異なることを確認してください。",
+    "The polarity-balanced review sample is not representative of population shares.",
+    "生成した各 JSON は Persona schema で検証し、save_persona で1件ずつ保存してください。",
+  ].join(" ");
 }
 
 function personaMeta(
@@ -740,9 +800,20 @@ export function createPersonaDeriver(
       sampling,
       options,
     );
+    const readiness = generationReadiness(count, reviews.length);
+    if (readiness.status === "blocked") {
+      warnings.push(
+        `persona generation blocked: 0 of ${count} requested personas have disjoint review voice support`,
+      );
+    } else if (readiness.status === "partial") {
+      warnings.push(
+        `persona generation limited: ${readiness.supportedCount} of ${count} requested personas have disjoint review voice support`,
+      );
+    }
     return {
       data: {
         requestedCount: count,
+        generationReadiness: readiness,
         schema: z.toJSONSchema(GeneratedPersonaSchema) as Record<string, unknown>,
         brief: {
           targetAppid: options.targetAppid ?? null,
@@ -753,15 +824,7 @@ export function createPersonaDeriver(
         },
         games,
         reviews,
-        instruction: [
-          `この根拠素材から異なるペルソナを ${count} 件生成してください。`,
-          "voice の各項目は reviews の本文・sourceAppid・recommendationId・language・votedUp に直接対応させてください。",
-          "schema_version=2 とし、target_context、decision_profile、evidence_basisを省略しないでください。",
-          "observed_patternsはvoiceを参照し、inferred_traitsとlimitationsを分離してください。更新反応の根拠がなければupdate_reactionをunknownとして不足根拠を記録してください。",
-          "target、competitor、referenceのsourceRoleを混同せず、各personaのadoption/retention/churn triggerが実質的に異なることを確認してください。",
-          "The polarity-balanced review sample is not representative of population shares.",
-          "生成した各 JSON は Persona schema で検証し、save_persona で1件ずつ保存してください。",
-        ].join(" "),
+        instruction: personaGenerationInstruction(readiness),
       },
       warnings,
       meta,
