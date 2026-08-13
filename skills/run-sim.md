@@ -28,6 +28,7 @@
 1. 最初に`intakeDiagnostics`を確認します。`needs-input`なら`missingFields`を列挙するのではなく、ユーザーが一度で回答できる一つの質問にまとめます。
 2. `domains=auto`から後で`ui`を選んだ場合、`uiBenchmarkTask`が未入力なら同じgateへ戻して確認します。
 3. `get_status`は保存先の書込可否と任意連携の設定有無を確認するsetup診断です。秘密値や絶対pathを要求せず、設定済みかどうかだけを使います。未設定の任意連携は該当領域のwarningとして扱い、他領域の分析を止めません。
+   外部sourceの`recovered after ... on attempt 2` warningは取得成功と一時障害の両方を示すため、Evidenceから削除しません。`after 2 attempts`または`retry after ...s`でdataがnullならmissingのままにし、再試行時刻を次の行動へ入れます。response本文、URL、query、keyを要求または推測しません。
 4. gateを通過したらScopeを確定します。以降に新しいblocking inputが判明した場合も、その場で推測せず確認します。
 
 ## Scope の確定

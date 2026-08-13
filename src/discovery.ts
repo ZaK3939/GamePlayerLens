@@ -1,5 +1,15 @@
 import {type FetchMeta, type FetchResult, type JsonValue} from "./http.js";
 import {strictFiniteNumber} from "./normalize.js";
+import {
+  DEFAULT_EXTERNAL_RETRY_DELAY_MS,
+  MAX_EXTERNAL_ATTEMPTS,
+  MAX_EXTERNAL_RETRY_AFTER_MS,
+  externalFailureWarning,
+  externalRetryAfterMs,
+  isExternalTimeout,
+  isTransientHttpStatus,
+  waitForExternalRetry,
+} from "./retry.js";
 
 const STEAMSPY_API = "https://steamspy.com/api.php";
 const STEAMSPY_ABOUT = "https://steamspy.com/about";
@@ -348,41 +358,100 @@ async function loadOrderedSteamSpyObject(
   url: URL,
   request: DiscoveryRequest,
 ): Promise<FetchResult<OrderedTopLevelObject>> {
-  try {
-    const response = await request(url, {
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      headers: {"User-Agent": "game-player-lens/0.1"},
-    });
-    if (!response.ok) {
-      return {
-        data: null,
-        warnings: [`${STEAMSPY_SOURCE} HTTP ${response.status}`],
-      };
-    }
-
+  let previousFailure: string | null = null;
+  for (let attempt = 1; attempt <= MAX_EXTERNAL_ATTEMPTS; attempt += 1) {
     try {
-      const text = await readBoundedBody(response);
-      return {data: parseOrderedTopLevelObject(text), warnings: []};
-    } catch (error) {
-      if (error instanceof NonObjectJsonError) {
+      const response = await request(url, {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        headers: {"User-Agent": "game-player-lens/0.1"},
+      });
+      if (!response.ok) {
+        const cause = `HTTP ${response.status}`;
+        const delayMs = externalRetryAfterMs(response);
+        if (
+          attempt < MAX_EXTERNAL_ATTEMPTS
+          && isTransientHttpStatus(response.status)
+          && (delayMs === null || delayMs <= MAX_EXTERNAL_RETRY_AFTER_MS)
+        ) {
+          previousFailure = cause;
+          await response.body?.cancel().catch(() => undefined);
+          await waitForExternalRetry(delayMs ?? DEFAULT_EXTERNAL_RETRY_DELAY_MS);
+          continue;
+        }
+        if (
+          attempt < MAX_EXTERNAL_ATTEMPTS
+          && isTransientHttpStatus(response.status)
+          && delayMs !== null
+          && delayMs > MAX_EXTERNAL_RETRY_AFTER_MS
+        ) {
+          await response.body?.cancel().catch(() => undefined);
+          return {
+            data: null,
+            warnings: [
+              `${STEAMSPY_SOURCE} ${cause}; retry after ${Math.ceil(delayMs / 1_000)}s`,
+            ],
+          };
+        }
+        await response.body?.cancel().catch(() => undefined);
         return {
           data: null,
-          warnings: [`${STEAMSPY_SOURCE} returned an invalid response`],
+          warnings: [externalFailureWarning(STEAMSPY_SOURCE, cause, attempt)],
         };
       }
-      if (error instanceof InvalidJsonBodyError || error instanceof SyntaxError) {
-        return {data: null, warnings: [`${STEAMSPY_SOURCE} invalid JSON`]};
+
+      try {
+        const text = await readBoundedBody(response);
+        return {
+          data: parseOrderedTopLevelObject(text),
+          warnings: previousFailure
+            ? [`${STEAMSPY_SOURCE} recovered after ${previousFailure} on attempt ${attempt}`]
+            : [],
+        };
+      } catch (error) {
+        const cause = error instanceof NonObjectJsonError
+          ? "returned an invalid response"
+          : error instanceof InvalidJsonBodyError || error instanceof SyntaxError
+            ? "invalid JSON"
+            : null;
+        if (cause === "returned an invalid response") {
+          return {data: null, warnings: [`${STEAMSPY_SOURCE} ${cause}`]};
+        }
+        if (cause !== null) {
+          if (attempt === MAX_EXTERNAL_ATTEMPTS) {
+            return {
+              data: null,
+              warnings: [externalFailureWarning(STEAMSPY_SOURCE, cause, attempt)],
+            };
+          }
+          previousFailure = cause;
+          await response.body?.cancel().catch(() => undefined);
+          await waitForExternalRetry();
+          continue;
+        }
+        throw error;
       }
-      throw error;
+    } catch (error) {
+      if (isExternalTimeout(error)) {
+        return {data: null, warnings: [`${STEAMSPY_SOURCE} timeout`]};
+      }
+      const cause = "unreachable";
+      if (attempt === MAX_EXTERNAL_ATTEMPTS) {
+        return {
+          data: null,
+          warnings: [externalFailureWarning(STEAMSPY_SOURCE, cause, attempt)],
+        };
+      }
+      previousFailure = cause;
+      await waitForExternalRetry();
     }
-  } catch (error) {
-    const isTimeout = error instanceof Error
-      && (error.name === "TimeoutError" || error.name === "AbortError");
-    return {
-      data: null,
-      warnings: [`${STEAMSPY_SOURCE} ${isTimeout ? "timeout" : "unreachable"}`],
-    };
   }
+
+  return {
+    data: null,
+    warnings: [
+      `${STEAMSPY_SOURCE} unreachable after ${MAX_EXTERNAL_ATTEMPTS} attempts`,
+    ],
+  };
 }
 
 function resolveInput(input: DiscoveryInput): DiscoveryQuery {

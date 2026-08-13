@@ -85,6 +85,12 @@ export GAME_PLAYER_LENS_HOME="/absolute/path/to/player-research-data"
 
 GUI クライアントは terminal の `export` を継承しない場合があります。その場合はクライアント自身の MCP server 設定へ環境変数を設定し、クライアントを完全に再起動してください。外部連携の設定項目は `ITAD_API_KEY` と `OBSCURA_PATH` の2つだけです。`.mcp.json` に空の env 値は書かず、利用できる場合は親プロセスの環境を継承します。
 
+### 外部endpoint障害
+
+Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短い429・408・425・5xx、接続瞬断、一時的なinvalid JSONだけを最大2回まで再試行します。`Retry-After`が1秒を超える場合はMCP呼び出し内で待ち続けず、待機秒数をwarningへ返します。timeoutは同じ長い待ちを繰り返さず、そのsourceを`null`または`unavailable`として返します。warningにはresponse body、request URL、query、keyを含めません。
+
+`steam_brief`は各sourceを独立して扱うため、1 endpointが例外をthrowしても、取得済みのstore、review、updateなどを失いません。`provenance.status`、`readiness.gaps`、`nextActions`で不足範囲を確認してください。SteamSpyの複数条件intersectionは、1条件でも取得できなければ候補を捏造せず全体をunavailableにします。Steam画像とObscura page captureは失敗時に不完全な画像を保存せず、`knowledge/ui-references/`への手動配置手順を返します。
+
 ## Prompts と相談例
 
 - `run-sim`: 対象理解、競合選定、persona 派生、領域別評価、批評、レポート保存までの実行レシピ

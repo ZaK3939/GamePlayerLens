@@ -1,3 +1,14 @@
+import {
+  DEFAULT_EXTERNAL_RETRY_DELAY_MS,
+  MAX_EXTERNAL_ATTEMPTS,
+  MAX_EXTERNAL_RETRY_AFTER_MS,
+  externalFailureWarning,
+  externalRetryAfterMs,
+  isExternalTimeout,
+  isTransientHttpStatus,
+  waitForExternalRetry,
+} from "./retry.js";
+
 export type JsonValue =
   | null
   | boolean
@@ -46,32 +57,78 @@ export async function fetchJson<T>(
 ): Promise<FetchResult<T>> {
   const timeoutMs = opts.timeoutMs ?? 8_000;
   const source = sourceName(url, opts.source);
+  let previousFailure: string | null = null;
 
-  try {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: {"User-Agent": "game-player-lens/0.1"},
-    });
-
-    if (!response.ok) {
-      return {data: null, warnings: [`${source} HTTP ${response.status}`]};
-    }
-
+  for (let attempt = 1; attempt <= MAX_EXTERNAL_ATTEMPTS; attempt += 1) {
     try {
-      return {data: (await response.json()) as T, warnings: []};
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        return {data: null, warnings: [`${source} invalid JSON`]};
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: {"User-Agent": "game-player-lens/0.1"},
+      });
+
+      if (!response.ok) {
+        const cause = `HTTP ${response.status}`;
+        const delayMs = externalRetryAfterMs(response);
+        if (
+          attempt < MAX_EXTERNAL_ATTEMPTS
+          && isTransientHttpStatus(response.status)
+          && (delayMs === null || delayMs <= MAX_EXTERNAL_RETRY_AFTER_MS)
+        ) {
+          previousFailure = cause;
+          await response.body?.cancel().catch(() => undefined);
+          await waitForExternalRetry(delayMs ?? DEFAULT_EXTERNAL_RETRY_DELAY_MS);
+          continue;
+        }
+        if (
+          attempt < MAX_EXTERNAL_ATTEMPTS
+          && isTransientHttpStatus(response.status)
+          && delayMs !== null
+          && delayMs > MAX_EXTERNAL_RETRY_AFTER_MS
+        ) {
+          await response.body?.cancel().catch(() => undefined);
+          return {
+            data: null,
+            warnings: [`${source} ${cause}; retry after ${Math.ceil(delayMs / 1_000)}s`],
+          };
+        }
+        await response.body?.cancel().catch(() => undefined);
+        return {data: null, warnings: [externalFailureWarning(source, cause, attempt)]};
       }
-      throw error;
+
+      try {
+        const data = (await response.json()) as T;
+        return {
+          data,
+          warnings: previousFailure
+            ? [`${source} recovered after ${previousFailure} on attempt ${attempt}`]
+            : [],
+        };
+      } catch (error) {
+        if (isExternalTimeout(error)) {
+          return {data: null, warnings: [`${source} timeout`]};
+        }
+        const cause = error instanceof SyntaxError ? "invalid JSON" : "unreachable";
+        if (attempt === MAX_EXTERNAL_ATTEMPTS) {
+          return {data: null, warnings: [externalFailureWarning(source, cause, attempt)]};
+        }
+        previousFailure = cause;
+        await waitForExternalRetry();
+      }
+    } catch (error) {
+      if (isExternalTimeout(error)) {
+        return {data: null, warnings: [`${source} timeout`]};
+      }
+      const cause = "unreachable";
+      if (attempt === MAX_EXTERNAL_ATTEMPTS) {
+        return {data: null, warnings: [externalFailureWarning(source, cause, attempt)]};
+      }
+      previousFailure = cause;
+      await waitForExternalRetry();
     }
-  } catch (error) {
-    const isTimeout =
-      error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
-    return {
-      data: null,
-      warnings: [`${source} ${isTimeout ? "timeout" : "unreachable"}`],
-    };
   }
+
+  return {
+    data: null,
+    warnings: [`${source} unreachable after ${MAX_EXTERNAL_ATTEMPTS} attempts`],
+  };
 }

@@ -189,7 +189,7 @@ describe("createDiscoveryFetcher", () => {
 
     expect(response.data).toBeNull();
     expect(response.warnings).toEqual([
-      "steamspy discovery HTTP 503",
+      "steamspy discovery HTTP 503 after 2 attempts",
       "steamspy discovery intersection unavailable because one or more value requests failed",
     ]);
   });
@@ -398,10 +398,51 @@ describe("createDiscoveryFetcher", () => {
     });
 
     expect(response.data).toBeNull();
-    expect(response.warnings).toEqual(["steamspy discovery HTTP 503"]);
+    expect(response.warnings).toEqual(["steamspy discovery HTTP 503 after 2 attempts"]);
     expect(response.warnings.join(" ")).not.toContain(secretLikeValue);
     expect(response.warnings.join(" ")).not.toContain("request=tag");
     expect(response.meta?.request).toEqual({kind: "tag", value: secretLikeValue, limit: 20});
+  });
+
+  it("recovers from one transient SteamSpy discovery response", async () => {
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response("maintenance", {
+        status: 503,
+        headers: {"Retry-After": "0"},
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        "10": game(10, "Recovered game"),
+      })));
+
+    const response = await createDiscoveryFetcher({now: () => NOW, request})({
+      kind: "tag",
+      value: "Action",
+    });
+
+    expect(response.data?.candidates).toMatchObject([{appid: 10, name: "Recovered game"}]);
+    expect(response.warnings).toEqual([
+      "steamspy discovery recovered after HTTP 503 on attempt 2",
+    ]);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns a long discovery Retry-After without blocking", async () => {
+    const request = vi.fn(async () => new Response("rate limited", {
+      status: 429,
+      headers: {"Retry-After": "120"},
+    }));
+
+    const startedAt = Date.now();
+    const response = await createDiscoveryFetcher({now: () => NOW, request})({
+      kind: "tag",
+      value: "Action",
+    });
+
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    expect(response.warnings).toEqual([
+      "steamspy discovery HTTP 429; retry after 120s",
+    ]);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it("maps timeout and unreachable failures to source-scoped warnings", async () => {
@@ -420,20 +461,22 @@ describe("createDiscoveryFetcher", () => {
     })({kind: "tag", value: "Action"});
 
     expect(timeoutResult.warnings).toEqual(["steamspy discovery timeout"]);
-    expect(unreachableResult.warnings).toEqual(["steamspy discovery unreachable"]);
+    expect(unreachableResult.warnings).toEqual([
+      "steamspy discovery unreachable after 2 attempts",
+    ]);
   });
 
   it.each([
-    ["malformed JSON", "{\"10\": {", "steamspy discovery invalid JSON"],
+    ["malformed JSON", "{\"10\": {", "steamspy discovery invalid JSON after 2 attempts"],
     [
       "duplicate keys",
       "{\"10\": {\"name\": \"first\"}, \"\\u0031\\u0030\": {\"name\": \"second\"}}",
-      "steamspy discovery invalid JSON",
+      "steamspy discovery invalid JSON after 2 attempts",
     ],
     [
       "nested duplicate keys",
       "{\"10\": {\"name\": \"first\", \"nested\": {\"x\": 1, \"\\u0078\": 2}}}",
-      "steamspy discovery invalid JSON",
+      "steamspy discovery invalid JSON after 2 attempts",
     ],
     ["non-object top level", "[]", "steamspy discovery returned an invalid response"],
   ])("rejects %s from the raw loader", async (_label, raw, warning) => {
@@ -456,7 +499,9 @@ describe("createDiscoveryFetcher", () => {
     });
 
     expect(response.data).toBeNull();
-    expect(response.warnings).toEqual(["steamspy discovery invalid JSON"]);
+    expect(response.warnings).toEqual([
+      "steamspy discovery invalid JSON after 2 attempts",
+    ]);
   });
 
   it("returns an empty successful result with a no-candidates warning", async () => {

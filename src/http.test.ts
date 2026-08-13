@@ -79,23 +79,110 @@ describe("fetchJson", () => {
     });
   });
 
-  it("returns a source-scoped warning for non-2xx responses", async () => {
+  it("returns a source-scoped warning for non-retryable responses", async () => {
+    let requests = 0;
     const url = await listen((_req, res) => {
-      res.statusCode = 503;
+      requests += 1;
+      res.statusCode = 404;
       res.end("unavailable");
     });
 
     const result = await fetchJson(url, {source: "test-api"});
     expect(result.data).toBeNull();
-    expect(result.warnings).toEqual(["test-api HTTP 503"]);
+    expect(result.warnings).toEqual(["test-api HTTP 404"]);
+    expect(requests).toBe(1);
   });
 
-  it("returns a warning for invalid JSON", async () => {
-    const url = await listen((_req, res) => res.end("not-json"));
+  it("recovers once from a short transient HTTP failure", async () => {
+    let requests = 0;
+    const url = await listen((_req, res) => {
+      requests += 1;
+      if (requests === 1) {
+        res.statusCode = 503;
+        res.setHeader("Retry-After", "0");
+        res.end("temporarily unavailable");
+        return;
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({appid: 1145360}));
+    });
+
+    await expect(fetchJson<{appid: number}>(url, {source: "test-api"})).resolves.toEqual({
+      data: {appid: 1145360},
+      warnings: ["test-api recovered after HTTP 503 on attempt 2"],
+    });
+    expect(requests).toBe(2);
+  });
+
+  it("bounds repeated transient failures to two attempts", async () => {
+    let requests = 0;
+    const url = await listen((_req, res) => {
+      requests += 1;
+      res.statusCode = 429;
+      res.setHeader("Retry-After", "0");
+      res.end("rate limited with secret request details");
+    });
+
+    const result = await fetchJson(url, {source: "test-api"});
+    expect(result).toEqual({
+      data: null,
+      warnings: ["test-api HTTP 429 after 2 attempts"],
+    });
+    expect(requests).toBe(2);
+    expect(result.warnings.join(" ")).not.toContain("secret request details");
+  });
+
+  it("does not sleep through a long Retry-After window", async () => {
+    let requests = 0;
+    const url = await listen((_req, res) => {
+      requests += 1;
+      res.statusCode = 429;
+      res.setHeader("Retry-After", "120");
+      res.end("rate limited");
+    });
+
+    const startedAt = Date.now();
+    const result = await fetchJson(url, {source: "test-api"});
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    expect(result).toEqual({
+      data: null,
+      warnings: ["test-api HTTP 429; retry after 120s"],
+    });
+    expect(requests).toBe(1);
+  });
+
+  it("retries invalid JSON once before returning a warning", async () => {
+    let requests = 0;
+    const url = await listen((_req, res) => {
+      requests += 1;
+      res.end("not-json");
+    });
 
     const result = await fetchJson(url, {source: "test-api"});
     expect(result.data).toBeNull();
-    expect(result.warnings.join()).toContain("invalid JSON");
+    expect(result.warnings).toEqual(["test-api invalid JSON after 2 attempts"]);
+    expect(requests).toBe(2);
+  });
+
+  it("recovers from a connection reset without exposing the request URL", async () => {
+    let requests = 0;
+    const url = await listen((req, res) => {
+      requests += 1;
+      if (requests === 1) {
+        req.socket.destroy();
+        return;
+      }
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ok: true}));
+    });
+
+    const result = await fetchJson<{ok: boolean}>(url, {source: "test-api"});
+    expect(result).toEqual({
+      data: {ok: true},
+      warnings: ["test-api recovered after unreachable on attempt 2"],
+    });
+    expect(result.warnings.join(" ")).not.toContain(url.toString());
+    expect(requests).toBe(2);
   });
 
   it("times out without throwing", async () => {

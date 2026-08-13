@@ -238,6 +238,16 @@ function prefixWarnings(label: string, warnings: string[]): string[] {
   return warnings.map((warning) => `${label}: ${warning}`);
 }
 
+async function safeDependency<T>(
+  operation: () => Promise<FetchResult<T>>,
+): Promise<FetchResult<T>> {
+  try {
+    return await operation();
+  } catch {
+    return {data: null, warnings: ["unexpected dependency failure"]};
+  }
+}
+
 function uniqueSources(results: Array<FetchResult<unknown>>): FetchSource[] {
   const sources = results.flatMap((result) => result.meta?.sources ?? []);
   return [...new Map(sources.map((source) => [
@@ -394,23 +404,23 @@ export function createDeveloperBriefFetcher(
 
     const [profileResult, positiveResult, negativeResult, timelineResult, updatesResult] =
       await Promise.all([
-        dependencies.fetchGame(parsed.appid),
-        dependencies.fetchReviews(parsed.appid, {
+        safeDependency(() => dependencies.fetchGame(parsed.appid)),
+        safeDependency(() => dependencies.fetchReviews(parsed.appid, {
           language,
           type: "positive",
           limit: reviewLimit,
-        }),
-        dependencies.fetchReviews(parsed.appid, {
+        })),
+        safeDependency(() => dependencies.fetchReviews(parsed.appid, {
           language,
           type: "negative",
           limit: reviewLimit,
-        }),
-        dependencies.fetchTimeline(parsed.appid, {country}),
-        dependencies.fetchUpdates(parsed.appid, {
+        })),
+        safeDependency(() => dependencies.fetchTimeline(parsed.appid, {country})),
+        safeDependency(() => dependencies.fetchUpdates(parsed.appid, {
           scope: "updates",
           limit: updateLimit,
           contentChars: 600,
-        }),
+        })),
       ]);
 
     const selection = profileResult.data?.tags[0]
@@ -419,12 +429,12 @@ export function createDeveloperBriefFetcher(
         ? {kind: "genre" as const, value: profileResult.data.genres[0]}
         : null;
     const discoveryResult = selection
-      ? await dependencies.discoverGames({
+      ? await safeDependency(() => dependencies.discoverGames({
         kind: selection.kind,
         value: selection.value,
         excludeAppids: [parsed.appid],
         limit: competitorLimit,
-      })
+      }))
       : {
         data: null,
         warnings: ["target profile has no SteamSpy tag for automatic competitor discovery"],

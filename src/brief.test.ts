@@ -322,6 +322,49 @@ describe("Steam developer brief", () => {
     ]));
   });
 
+  it("keeps other evidence when external dependencies unexpectedly throw", async () => {
+    const deps = dependencies({
+      fetchTimeline: vi.fn(async () => {
+        throw new Error("https://secret.example/timeline?token=do-not-leak");
+      }),
+      discoverGames: vi.fn(async () => {
+        throw new Error("private upstream response body");
+      }),
+    });
+
+    const result = await createDeveloperBriefFetcher(deps)({
+      appid: 1145360,
+      language: "japanese",
+      country: "JP",
+    });
+
+    expect(result.data).toMatchObject({
+      target: {appid: 1145360, name: "Hades"},
+      evidence: {
+        reviews: {positive: [{recommendationId: "positive-1"}]},
+        updates: {recentItems: [{gid: "update-1"}]},
+        competition: {candidates: []},
+      },
+      readiness: {
+        status: "partial",
+        gaps: expect.arrayContaining([
+          expect.stringContaining("current-indicators"),
+          expect.stringContaining("competition-shortlist"),
+        ]),
+      },
+      provenance: expect.arrayContaining([
+        expect.objectContaining({sourceTool: "steam_timeline", status: "unavailable"}),
+        expect.objectContaining({sourceTool: "steam_discover", status: "unavailable"}),
+      ]),
+    });
+    expect(result.warnings).toEqual(expect.arrayContaining([
+      "steam_timeline: unexpected dependency failure",
+      "steam_discover: unexpected dependency failure",
+    ]));
+    expect(JSON.stringify(result)).not.toContain("do-not-leak");
+    expect(JSON.stringify(result)).not.toContain("private upstream response body");
+  });
+
   it("does not overstate incomplete prices, fallback-like copy, or current indicators", async () => {
     const sparseProfile = profile();
     sparseProfile.data!.tags = [];
