@@ -531,6 +531,149 @@ describe("run-sim prompt arguments", () => {
     expect(result).not.toContain('"felt-reward-follow-up"');
   });
 
+  it("links a retest to one declared change without claiming causality", () => {
+    const retest = {
+      ...playtestSessionFixture(),
+      sessionId: "playtest-build-043-p05",
+      buildId: "0.4.3-dev",
+      participantId: "p-05",
+      parentSessionId: "playtest-build-042-p04",
+      changeSummary: "Made the successful parry response visually and audibly distinct",
+      changedVariables: ["reward"],
+      invariantsKept: [
+        "Same task, platform, controls, start state, target-player definition, and moderation script",
+      ],
+    };
+
+    const result = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "parry reward retest",
+      domains: "gameplay",
+      playtestSession: JSON.stringify(retest),
+    });
+
+    expect(result).toContain('"parentSessionId": "playtest-build-042-p04"');
+    expect(result).toContain('"status": "linked-retest"');
+    expect(result).toContain('"artifactId": "playtest-session-playtest-build-043-p05"');
+    expect(result).toContain('"parentArtifactId": "playtest-session-playtest-build-042-p04"');
+    expect(result).toContain('"parentEvidenceStatus": "pending-exact-readback"');
+    expect(result).toContain('"changedVariables": [\n        "reward"\n      ]');
+    expect(result).toContain('"invariantsDeclaredCount": 1');
+    expect(result).toContain('"causalAttributionStatus": "comparison-candidate-only"');
+    expect(result).toContain("do not verify that the parent protocol or cohort actually matched");
+  });
+
+  it("requires a complete and unambiguous retest design", () => {
+    const incomplete = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest retest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        sessionId: "playtest-build-043-p05",
+        parentSessionId: "playtest-build-042-p04",
+      }),
+    });
+    expect(incomplete.success).toBe(false);
+    if (!incomplete.success) {
+      expect(JSON.stringify(incomplete.error)).toContain("changeSummary");
+      expect(JSON.stringify(incomplete.error)).toContain("changedVariables");
+      expect(JSON.stringify(incomplete.error)).toContain("invariantsKept");
+    }
+
+    const unlinkedDesign = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest retest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        changeSummary: "Changed the parry cue",
+        changedVariables: ["reward"],
+        invariantsKept: ["Same task and controls"],
+      }),
+    });
+    expect(unlinkedDesign.success).toBe(false);
+    if (!unlinkedDesign.success) {
+      expect(JSON.stringify(unlinkedDesign.error)).toContain("parentSessionId");
+    }
+
+    const ambiguous = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest retest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        sessionId: "playtest-build-043-p05",
+        parentSessionId: "playtest-build-042-p04",
+        changeSummary: "Changed the parry cue and enemy timing",
+        changedVariables: ["reward", "system"],
+        invariantsKept: ["Same task and controls"],
+      }),
+    });
+    expect(ambiguous.success).toBe(true);
+    if (ambiguous.success) {
+      const result = buildRunSimPrompt(recipe, ambiguous.data);
+      expect(result).toContain('"causalAttributionStatus": "unresolved-multiple-changes"');
+      expect(result).toContain('"multi-variable-change"');
+    }
+
+    const selfLinked = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest retest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        parentSessionId: "playtest-build-042-p01",
+        changeSummary: "Changed the parry cue",
+        changedVariables: ["reward"],
+        invariantsKept: ["Same task and controls"],
+      }),
+    });
+    expect(selfLinked.success).toBe(false);
+    if (!selfLinked.success) {
+      expect(JSON.stringify(selfLinked.error)).toContain("parentSessionId");
+    }
+
+    const oversizedCanonicalId = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest retest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        sessionId: "s".repeat(48),
+      }),
+    });
+    expect(oversizedCanonicalId.success).toBe(false);
+    if (!oversizedCanonicalId.success) {
+      expect(JSON.stringify(oversizedCanonicalId.error)).toContain("sessionId");
+    }
+
+    const nonCanonicalId = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest retest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        sessionId: "Playtest_042",
+      }),
+    });
+    expect(nonCanonicalId.success).toBe(false);
+    if (!nonCanonicalId.success) {
+      expect(JSON.stringify(nonCanonicalId.error)).toContain("sessionId");
+    }
+
+    const duplicateVariables = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest retest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        sessionId: "playtest-build-043-p05",
+        parentSessionId: "playtest-build-042-p04",
+        changeSummary: "Changed the parry cue",
+        changedVariables: ["reward", "reward"],
+        invariantsKept: ["Same task and controls"],
+      }),
+    });
+    expect(duplicateVariables.success).toBe(false);
+    if (!duplicateVariables.success) {
+      expect(JSON.stringify(duplicateVariables.error)).toContain("changedVariables");
+    }
+  });
+
   it("rejects invalid playtest chronology and human/AI evidence mixing", () => {
     const nonChronological = playtestSessionFixture();
     nonChronological.observations = [

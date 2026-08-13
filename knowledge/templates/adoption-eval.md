@@ -128,6 +128,8 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 - Exact-save evidence: ［`playtestSessionEvidence.resultHandle`で保存したmanual intel path / missing理由］
 - Session boundary: ［session ID、build、task、start/end state、platform、controls、duration、tester type、prior knowledge］
 - Protocol alignment / deviations: ［build / task / controlsのmatched・mismatched・not-supplied、deviation］
+- Retest lineage: ［sessionId / parentSessionId / changeSummary / changedVariables / invariantsKept / parent artifact、またはinitial］
+- Retest comparability: ［parentとcurrentのtask、platform、controls、start state、tester / cohort、observation sourceの差。1変数でもcausal proofではない］
 - Human report boundary: ［humanReportのfelt reward / repeat intent / confusion、またはAI-operatedなのでN/A］
 
 | Step / time | Player intent | Input / Action | System response | Friction | rewardSignal | Evidence ID |

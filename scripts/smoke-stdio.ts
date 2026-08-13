@@ -270,6 +270,10 @@ try {
         startedAt: "2026-08-12T12:00:00+04:00",
         endedAt: "2026-08-12T12:06:00+04:00",
         sessionId: "stdio-playtest-p03",
+        parentSessionId: "stdio-playtest-p02",
+        changeSummary: "Made checkpoint reward feedback distinct",
+        changedVariables: ["reward"],
+        invariantsKept: ["Same task, platform, controls, cohort, and moderation script"],
         buildId: "protocol-fixture-1",
         platform: "desktop browser",
         controls: "keyboard and mouse",
@@ -319,6 +323,9 @@ try {
       && playtestContent.text.includes('"playtestSessionEvidence": {')
       && playtestContent.text.includes('"humanEvidenceStatus": "human-report-present"')
       && playtestContent.text.includes('"rewardSignalCounts": {')
+      && playtestContent.text.includes('"parentSessionId": "stdio-playtest-p02"')
+      && playtestContent.text.includes('"status": "linked-retest"')
+      && playtestContent.text.includes('"causalAttributionStatus": "comparison-candidate-only"')
       && playtestContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && playtestContent.text.includes('"selectedDomains": [\n    "gameplay",\n    "ui"\n  ]'),
     "run-sim did not round-trip the supplied playtest protocol",

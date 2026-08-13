@@ -372,6 +372,16 @@ describe("playtest rubric", () => {
     expect(recipe).toMatch(/playtestSessionEvidence\.resultHandle[\s\S]*save_artifact/);
     expect(recipe).toMatch(/one bounded session[\s\S]*(completion rate|retention|需要)/);
   });
+
+  it("connects ordinary retests through explicit revision lineage", async () => {
+    const rubric = await read("knowledge/rubrics/playtest.md");
+    const recipe = await read("skills/run-sim.md");
+
+    expect(rubric).toMatch(/parentSessionId[\s\S]*changeSummary[\s\S]*changedVariables[\s\S]*invariantsKept/);
+    expect(rubric).toMatch(/複数[\s\S]*(因果|causal)[\s\S]*(unresolved|未解決)/);
+    expect(recipe).toMatch(/playtest-session-<sessionId>[\s\S]*parentSessionId[\s\S]*get_artifact/);
+    expect(recipe).toMatch(/parent[\s\S]*task[\s\S]*platform[\s\S]*controls[\s\S]*(cohort|participant)/);
+  });
 });
 
 describe("update strategy rubric", () => {

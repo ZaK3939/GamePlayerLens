@@ -43,7 +43,7 @@ interface RevisionDesign {
 function validateRevisionDesign(
   value: RevisionDesign,
   context: z.RefinementCtx,
-  parentField: "parentStimulusId" | "parentAssetId",
+  parentField: "parentStimulusId" | "parentAssetId" | "parentSessionId",
 ): void {
   const hasDesignFields = value.changeSummary !== undefined
     || value.changedVariables !== undefined
@@ -243,6 +243,10 @@ const PlaytestEventTypeSchema = z.enum([
   "goal",
   "technical",
 ]);
+const PlaytestSessionIdSchema = z.string().trim().min(1).max(47).regex(
+  /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+  "playtest session IDs must use lowercase kebab-case",
+);
 const FrictionSeveritySchema = z.enum(["none", "minor", "material", "blocker"]);
 const RewardSignalSchema = z.enum([
   "demonstrated",
@@ -274,7 +278,9 @@ const HumanPlaytestReportSchema = z.object({
 export const PlaytestSessionObjectSchema = z.object({
   startedAt: z.iso.datetime({offset: true}),
   endedAt: z.iso.datetime({offset: true}),
-  sessionId: RevisionIdSchema,
+  sessionId: PlaytestSessionIdSchema,
+  parentSessionId: PlaytestSessionIdSchema.optional(),
+  ...RevisionDesignShape,
   buildId: ManualTestTextSchema,
   platform: ManualTestTextSchema,
   controls: ManualTestTextSchema,
@@ -301,6 +307,13 @@ export const PlaytestSessionObjectSchema = z.object({
   humanReport: HumanPlaytestReportSchema.optional(),
   deviations: z.array(ManualTestTextSchema).max(20).optional(),
 }).strict().superRefine((value, context) => {
+  validateRevisionDesign({
+    parentId: value.parentSessionId,
+    currentId: value.sessionId,
+    changeSummary: value.changeSummary,
+    changedVariables: value.changedVariables,
+    invariantsKept: value.invariantsKept,
+  }, context, "parentSessionId");
   const durationSeconds = (Date.parse(value.endedAt) - Date.parse(value.startedAt)) / 1_000;
   if (durationSeconds <= 0 || durationSeconds > 7_200) {
     context.addIssue({
@@ -370,7 +383,8 @@ export const PlaytestSessionObjectSchema = z.object({
 export type PlaytestSession = z.infer<typeof PlaytestSessionObjectSchema>;
 
 const PLAYTEST_SESSION_SAFE_FIELDS = new Set<string>([
-  "startedAt", "endedAt", "sessionId", "buildId", "platform", "controls",
+  "startedAt", "endedAt", "sessionId", "parentSessionId", "changeSummary",
+  "changedVariables", "invariantsKept", "buildId", "platform", "controls",
   "task", "startState", "endState", "testerType", "participantId", "targetFit",
   "observationSource", "priorKnowledge", "priorKnowledgeDetails", "observations",
   "outcome", "stopReason", "humanReport", "deviations", "step", "elapsedSeconds",
@@ -677,9 +691,15 @@ export function buildPlaytestSessionDiagnostics(
       || session.humanReport.feltReward === "not-asked"
       || session.humanReport.wouldRepeat === "not-asked"
       || !session.humanReport.rewardDescription);
+  const revisionDesign = buildRevisionDesignDiagnostics(
+    session.parentSessionId,
+    session.changedVariables,
+    session.invariantsKept,
+  );
   const candidateReviewAreas = [
     ...([buildStatus, taskStatus, controlsStatus].includes("mismatched")
       ? ["protocol-provenance"] : []),
+    ...revisionDesign.candidateReviewAreas,
     ...(deviationCount > 0 ? ["protocol-deviation"] : []),
     ...(session.priorKnowledge === "specification"
       || session.priorKnowledge === "source-code"
@@ -732,6 +752,22 @@ export function buildPlaytestSessionDiagnostics(
       interpretationLimit: "Exact matches establish session provenance only; they do not prove equivalent execution or player experience.",
     },
     deviationCount,
+    revisionLoop: {
+      status: session.parentSessionId ? "linked-retest" : "initial-session",
+      artifactId: `playtest-session-${session.sessionId}`,
+      ...(session.parentSessionId ? {parentSessionId: session.parentSessionId} : {}),
+      ...(session.parentSessionId
+        ? {parentArtifactId: `playtest-session-${session.parentSessionId}`}
+        : {}),
+      parentEvidenceStatus: session.parentSessionId
+        ? "pending-exact-readback"
+        : "not-applicable-initial",
+      changeSummaryDeclared: session.changeSummary !== undefined,
+      changedVariables: revisionDesign.changedVariables,
+      invariantsDeclaredCount: revisionDesign.invariantsDeclaredCount,
+      causalAttributionStatus: revisionDesign.causalAttributionStatus,
+      comparisonInterpretationLimit: "Declared changes and invariants do not verify that the parent protocol or cohort actually matched; read the exact-saved parent session before interpreting a difference.",
+    },
     candidateReviewAreas,
     nextAction: candidateReviewAreas.length > 0
       ? "Treat these as inspection priorities, not causes. Inspect the chronological evidence and retest a bounded change under a comparable protocol."

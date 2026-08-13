@@ -1873,6 +1873,11 @@ describe("MCP server contract", () => {
           taskStatus: "matched",
           controlsStatus: "matched",
         },
+        revisionLoop: {
+          status: "initial-session",
+          artifactId: "playtest-session-playtest-build-042-p03",
+          parentEvidenceStatus: "not-applicable-initial",
+        },
       });
       expect(playtestEvidence).toMatchObject({
         sourceTool: "manual",
@@ -1970,7 +1975,7 @@ describe("MCP server contract", () => {
         arguments: {
           kind: "intel",
           target: "Project Nyx",
-          id: "Playtest Build 042 P03",
+          id: "playtest-session-playtest-build-042-p03",
           resultHandle: playtestEvidence.resultHandle,
         },
       });
@@ -1980,7 +1985,7 @@ describe("MCP server contract", () => {
         arguments: {
           kind: "intel",
           target: "Project Nyx",
-          id: "Playtest Build 042 P03",
+          id: "playtest-session-playtest-build-042-p03",
         },
       });
       expect(readPlaytest.structuredContent).toMatchObject({

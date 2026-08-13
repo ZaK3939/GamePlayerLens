@@ -70,6 +70,16 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 
 入力がある場合は`playtestSessionEvidence.resultHandle`を使い、モデルによる転記を挟まず`save_artifact(kind=intel)`へexact-saveします。handleがない、期限切れ、保存失敗のsessionを完全保存済みと主張しません。
 
+### Lightweight retest lineage
+
+通常の早期ブラッシュアップは、厳密なA/B実験を毎回要求せずsession lineageで追跡します。再検証するsessionでは`parentSessionId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて必須にし、親を指定せず比較設計fieldだけを追加した入力も受理しません。
+
+- `sessionId`と`parentSessionId`は47文字以内のlowercase kebab-case IDとし、異なる値にする。これによりdiagnosticsが返すcanonical artifact IDの64文字上限内で`playtest-session-<sessionId>`へ保存できる。
+- `changedVariables`は重複を禁止する。複数の変数を同時に変えた場合、差の因果帰属は`unresolved-multiple-changes`として未解決にする。
+- 1変数と維持条件を宣言しても`comparison-candidate-only`であり、親sessionとtask、platform、controls、start state、target cohort、moderationが実際に一致した証明ではない。
+- `parentEvidenceStatus=pending-exact-readback`は親IDが入力されたことだけを示す。保存済みparentを読めた後にだけ比較へ進む。
+- 厳密な成功criterion、guardrail、複数scenario集計が必要なら`experiment.md`へ進み、軽量retestを事前登録済み実験と呼ばない。
+
 ## 7. playtest provenance
 
 `playtestSession`入力は前節のresultHandleでexact-saveします。prompt外で受け取ったrecordingやlogだけを保存する場合は、検証済みsessionと混同せず`save_artifact(kind=intel, sourceTool=manual)`でprovenanceを保存します。

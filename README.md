@@ -330,6 +330,8 @@ browser/desktop controlを持つAI clientでは実buildを操作します。操�
 }
 ```
 
+改善後のretestでは、47文字以内のlowercase kebab-caseによる新しい`sessionId`に`parentSessionId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて追加します。diagnosticsが返すartifact IDを使ってsession原本を`playtest-session-<sessionId>`へimmutableに保存し、親原本のtask、platform、controls、start state、tester / cohort、observation sourceと照合します。単一変更でも比較候補であり因果証明ではありません。複数変更は`unresolved-multiple-changes`となります。事前の成功criterion、guardrail、複数scenario集計が必要な比較はExperimentSpecを使います。
+
 ### 継続的な実験loop
 
 変更案をprospectiveに検証するときは、[Discovery Loop](https://www.discoveryloop.com/)のpropose → run → examine → iterateを、GamePlayerLensでは`ExperimentSpec → Prediction Run → ExperimentOutcome → next ExperimentSpec`として扱います。詳細なshapeと判定境界は`get_knowledge(kind=rubrics, id=experiment.md)`で取得できます。
