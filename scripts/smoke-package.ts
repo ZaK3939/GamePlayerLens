@@ -666,7 +666,7 @@ try {
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 2
+      && runRecord.schemaVersion === 3
       && typeof runRecord.recipe?.sha256 === "string"
       && runRecord.model?.reportedByClient === true
       && runRecord.confidence?.reportedByClient === true
@@ -729,6 +729,7 @@ try {
         source: "ai-playtest",
         instrument: "package smoke playtest protocol v1",
         unit: "boolean/session",
+        aggregation: "proportion",
         cohort: "single package smoke client",
         window: "15 minute checkpoint task",
         sampleSize: 0,
@@ -808,6 +809,135 @@ try {
       && outcomePayload.results[0]?.window === "15 minute checkpoint task"
       && outcomePayload.results[0]?.value === undefined,
     "packaged experiment outcome did not preserve unresolved hash-linked evidence",
+  );
+
+  const nextExperimentSpec = await client.callTool({
+    name: "save_artifact",
+    arguments: {
+      ...experimentSpecArguments,
+      id: "Experiment Package Smoke 002 Spec",
+      payload: {
+        ...experimentSpecArguments.payload,
+        experimentId: "package-smoke-002",
+        parentOutcomeRef: {
+          target: "package-smoke-game",
+          id: "experiment-package-smoke-001-outcome",
+        },
+      },
+      observedAt: new Date().toISOString(),
+    },
+  });
+  assert(nextExperimentSpec.isError !== true, "packaged CLI could not save next experiment spec");
+  const nextRun = await client.callTool({
+    name: "save_artifact",
+    arguments: {
+      kind: "run",
+      target: "Package Smoke Game",
+      topic: "Package calibration readback",
+      mode: "baseline",
+      selectedDomains: ["gameplay"],
+      model: {provider: "smoke", name: "package-client"},
+      scenarios: experimentSpecArguments.payload.plannedScenarios,
+      personaIds: ["package-smoke-player"],
+      evidence: [
+        {
+          ref: "next-experiment-spec",
+          kind: "intel",
+          target: "Package Smoke Game",
+          id: "Experiment Package Smoke 002 Spec",
+        },
+        {
+          ref: "prior-experiment-outcome",
+          kind: "intel",
+          target: "Package Smoke Game",
+          id: "Experiment Package Smoke 001 Outcome",
+        },
+        {
+          ref: "playtest-protocol",
+          kind: "intel",
+          target: "Package Smoke Game",
+          id: "Playtest Protocol Fixture",
+        },
+        {
+          ref: "evaluation",
+          kind: "evaluation",
+          target: "Package Smoke Game",
+          id: "2026-08-11-package-run",
+        },
+      ],
+      rounds: [
+        {
+          sequence: 1,
+          phase: "persona",
+          actor: "package-smoke-player",
+          personaId: "package-smoke-player",
+          scenarioId: "current",
+          output: "The prior outcome is unresolved and cannot calibrate the forecast.",
+          evidenceRefs: ["next-experiment-spec", "prior-experiment-outcome", "playtest-protocol"],
+        },
+        {
+          sequence: 2,
+          phase: "domain",
+          actor: "gameplay-reviewer",
+          domain: "gameplay",
+          scenarioId: "current",
+          output: "No raw gameplay measurement exists for the prior prediction.",
+          evidenceRefs: ["next-experiment-spec", "prior-experiment-outcome", "playtest-protocol"],
+        },
+        {
+          sequence: 3,
+          phase: "critic",
+          actor: "harsh-critic",
+          output: "A valid hash chain cannot turn a missing result into an observation.",
+          evidenceRefs: ["next-experiment-spec", "prior-experiment-outcome", "playtest-protocol"],
+        },
+        {
+          sequence: 4,
+          phase: "synthesis",
+          actor: "lead-synthesizer",
+          output: "Keep server calibration false and repeat with a playable build.",
+          evidenceRefs: ["next-experiment-spec", "prior-experiment-outcome", "playtest-protocol"],
+        },
+      ],
+      warnings: ["No raw measurement exists; the prior outcome is unresolved"],
+      confidence: {
+        level: "low",
+        basis: "Hash-chain transport is present but the primary result is missing",
+        calibrationStatus: "partially-calibrated",
+      },
+      finalEvaluationRef: "evaluation",
+    },
+  });
+  assert(nextRun.isError !== true, "packaged CLI could not run Outcome verification");
+  const nextRunId = (nextRun.structuredContent?.data as {id?: unknown} | undefined)?.id;
+  assert(typeof nextRunId === "string", "packaged Outcome verification run id is missing");
+  const nextRunRead = await client.callTool({
+    name: "get_artifact",
+    arguments: {kind: "run", target: "Package Smoke Game", id: nextRunId},
+  });
+  const nextReadiness = (nextRunRead.structuredContent?.data as {
+    record?: {simulationReadiness?: {
+      calibration?: {
+        serverVerified?: unknown;
+        outcomeChecks?: Array<{ref?: unknown; status?: unknown; issues?: unknown[]}>;
+        forecastComparisons?: unknown[];
+      };
+      heldOutValidation?: {verifiedExperimentOutcomeRefs?: unknown[]};
+    }};
+    integrity?: {status?: unknown};
+  } | undefined);
+  assert(
+    nextRunRead.isError !== true
+      && nextReadiness?.integrity?.status === "verified"
+      && nextReadiness.record?.simulationReadiness?.calibration?.serverVerified === false
+      && nextReadiness.record.simulationReadiness.calibration.outcomeChecks?.[0]?.ref
+        === "prior-experiment-outcome"
+      && nextReadiness.record.simulationReadiness.calibration.outcomeChecks[0]?.status
+        === "unresolved"
+      && nextReadiness.record.simulationReadiness.calibration.forecastComparisons?.length === 0
+      && nextReadiness.record.simulationReadiness.heldOutValidation
+        ?.verifiedExperimentOutcomeRefs?.length === 0,
+    "packaged Outcome validator did not preserve missing as unresolved",
   );
   experimentLoopRoundTrip = true;
 

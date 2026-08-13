@@ -23,6 +23,7 @@ import {
 const roots: string[] = [];
 const NOW = new Date("2026-08-11T12:34:56.000Z");
 const RUN_ID = "11111111-1111-4111-8111-111111111111";
+const CALIBRATED_RUN_ID = "22222222-2222-4222-8222-222222222222";
 const PNG_BYTES = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
 
 function sha256(value: string | Buffer): string {
@@ -244,6 +245,220 @@ function experimentSpec(overrides: Record<string, unknown> = {}) {
   };
 }
 
+async function calibrationHarness(
+  variant: "verified" | "broken-hash" | "missing",
+) {
+  const context = await harness();
+  const {artifacts, resolver, store} = context;
+  await artifacts.saveIntel({
+    target: "Hades II",
+    id: "Historical Experiment Spec",
+    sourceTool: "manual",
+    observedAt: "2026-08-11T10:30:00.000Z",
+    payload: experimentSpec(),
+  });
+  const predictionInput = runInput({
+    evidence: [
+      {
+        ref: "historical-spec",
+        kind: "intel",
+        target: "Hades II",
+        id: "Historical Experiment Spec",
+      },
+      ...runInput().evidence,
+    ],
+    rounds: runInput().rounds.map((round) => ({
+      ...round,
+      evidenceRefs: [...round.evidenceRefs, "historical-spec"],
+    })),
+  });
+  const predictionMetadata = await store.saveRun(predictionInput);
+  const predictionRead = await store.readRun("Hades II", RUN_ID);
+  const historicalSpecEvidence = predictionRead.record.evidence.find(
+    ({ref}) => ref === "historical-spec",
+  )!;
+
+  let measurementSha: string | undefined;
+  if (variant !== "missing") {
+    await artifacts.saveIntel({
+      target: "Hades II",
+      id: "Historical Human Sessions",
+      sourceTool: "manual",
+      observedAt: "2026-08-11T13:00:00.000Z",
+      payload: {
+        schemaVersion: 1,
+        artifactType: "experiment-measurement",
+        measurementId: "store-promise-001-primary",
+        experimentId: "store-promise-001",
+        targetId: "hades-ii",
+        metricId: "qualified-wishlist-intent",
+        source: "human-playtest",
+        instrument: "moderated store-page interview v1",
+        unit: "ordinal-response",
+        aggregation: "median",
+        cohort: "Japanese action roguelike players",
+        window: "first 30 seconds",
+        scenarioResults: [
+          {scenarioId: "current", value: 2, sampleSize: 8},
+          {scenarioId: "proposal", value: 4, sampleSize: 8},
+        ],
+        protocolDeviations: [],
+      },
+    });
+    measurementSha = sha256(await readFile(
+      resolver.resolveIntelArtifactPath(
+        "Hades II",
+        "Historical Human Sessions",
+      ).absolutePath,
+    ));
+  }
+
+  await artifacts.saveIntel({
+    target: "Hades II",
+    id: "Historical Experiment Outcome",
+    sourceTool: "manual",
+    observedAt: "2026-08-11T13:30:00.000Z",
+    payload: {
+      schemaVersion: 1,
+      artifactType: "experiment-outcome",
+      experimentId: "store-promise-001",
+      targetId: "hades-ii",
+      specRef: {
+        target: "hades-ii",
+        id: "historical-experiment-spec",
+        sha256: variant === "broken-hash" ? "f".repeat(64) : historicalSpecEvidence.sha256,
+      },
+      predictionRunRef: {
+        target: "hades-ii",
+        runId: RUN_ID,
+        runArtifactSha256: predictionMetadata.sha256,
+        canonicalRecordSha256: predictionRead.record.seal!.canonicalSha256,
+      },
+      measurementEvidence: variant === "missing" ? [] : [{
+        ref: "human-sessions",
+        target: "hades-ii",
+        id: "historical-human-sessions",
+        sha256: measurementSha,
+        metricId: "qualified-wishlist-intent",
+        source: "human-playtest",
+      }],
+      results: variant === "missing" ? [{
+        metricId: "qualified-wishlist-intent",
+        scenarioId: "proposal",
+        status: "missing",
+        source: "human-playtest",
+        instrument: "moderated store-page interview v1",
+        unit: "ordinal-response",
+        aggregation: "median",
+        cohort: "Japanese action roguelike players",
+        window: "first 30 seconds",
+        sampleSize: 0,
+        evidenceRefs: [],
+      }] : [
+        {
+          metricId: "qualified-wishlist-intent",
+          scenarioId: "current",
+          status: "observed",
+          source: "human-playtest",
+          instrument: "moderated store-page interview v1",
+          unit: "ordinal-response",
+          aggregation: "median",
+          cohort: "Japanese action roguelike players",
+          window: "first 30 seconds",
+          value: 2,
+          sampleSize: 8,
+          evidenceRefs: ["human-sessions"],
+        },
+        {
+          metricId: "qualified-wishlist-intent",
+          scenarioId: "proposal",
+          status: "observed",
+          source: "human-playtest",
+          instrument: "moderated store-page interview v1",
+          unit: "ordinal-response",
+          aggregation: "median",
+          cohort: "Japanese action roguelike players",
+          window: "first 30 seconds",
+          value: 4,
+          sampleSize: 8,
+          evidenceRefs: ["human-sessions"],
+        },
+      ],
+      criterionVerdicts: [{
+        criterionId: "intent-improves",
+        verdict: variant === "missing" ? "unresolved" : "met",
+      }],
+      guardrailVerdicts: [],
+      overallVerdict: variant === "missing" ? "unresolved" : "success",
+      deviations: [],
+      learnings: [{
+        claim: variant === "missing"
+          ? "The measurement remains unresolved"
+          : "Observed lift exceeded the forecast",
+        basis: variant === "missing" ? "No completed sessions" : "human-sessions",
+        nextAction: "Use this bounded result in the next preregistered loop",
+      }],
+    },
+  });
+  await artifacts.saveIntel({
+    target: "Hades II",
+    id: "Next Experiment Spec",
+    sourceTool: "manual",
+    observedAt: "2026-08-11T14:00:00.000Z",
+    payload: experimentSpec({
+      experimentId: "store-promise-002",
+      parentOutcomeRef: {
+        target: "hades-ii",
+        id: "historical-experiment-outcome",
+      },
+    }),
+  });
+
+  const calibrationRefs = ["next-spec", "prior-outcome"];
+  const currentInput = runInput({
+    evidence: [
+      {
+        ref: "next-spec",
+        kind: "intel",
+        target: "Hades II",
+        id: "Next Experiment Spec",
+      },
+      {
+        ref: "prior-outcome",
+        kind: "intel",
+        target: "Hades II",
+        id: "Historical Experiment Outcome",
+      },
+      ...(variant === "missing" ? [] : [{
+        ref: "human-sessions" as const,
+        kind: "intel" as const,
+        target: "Hades II",
+        id: "Historical Human Sessions",
+      }]),
+      ...runInput().evidence,
+    ],
+    rounds: runInput().rounds.map((round) => ({
+      ...round,
+      evidenceRefs: [
+        ...round.evidenceRefs,
+        ...calibrationRefs,
+        ...(variant === "missing" ? [] : ["human-sessions"]),
+      ],
+    })),
+    confidence: {
+      level: "medium",
+      basis: "Bounded to the matching historical protocol and one forecast",
+      calibrationStatus: variant === "verified" ? "calibrated" : "partially-calibrated",
+    },
+  });
+  const currentStore = createRunStore(resolver, {
+    clock: () => new Date("2026-08-11T15:00:00.000Z"),
+    idFactory: () => CALIBRATED_RUN_ID,
+  });
+  await currentStore.saveRun(currentInput);
+  return currentStore.readRun("Hades II", CALIBRATED_RUN_ID);
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, {recursive: true, force: true})));
 });
@@ -350,7 +565,7 @@ describe("run store", () => {
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       runId: RUN_ID,
       targetId: "hades-ii",
       recipe: {
@@ -607,6 +822,85 @@ describe("run store", () => {
         serverVerified: false,
       },
       blockedClaims: expect.arrayContaining(["causal-lift", "retention-impact"]),
+    });
+  });
+
+  it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
+    const read = await calibrationHarness("verified");
+
+    expect(read.record.schemaVersion).toBe(3);
+    expect(read.record.simulationReadiness).toMatchObject({
+      status: "validation-ready",
+      heldOutValidation: {
+        status: "planned",
+        matchedExperimentSpecRefs: ["next-spec"],
+        experimentOutcomeRefs: ["prior-outcome"],
+        verifiedExperimentOutcomeRefs: ["prior-outcome"],
+      },
+      calibration: {
+        clientReportedStatus: "calibrated",
+        serverVerified: true,
+        outcomeChecks: [{ref: "prior-outcome", status: "verified", issues: []}],
+        forecastComparisons: [expect.objectContaining({
+          outcomeRef: "prior-outcome",
+          experimentId: "store-promise-001",
+          metricId: "qualified-wishlist-intent",
+          kind: "delta",
+          predicted: 1,
+          observed: 2,
+          signedError: 1,
+          absoluteError: 1,
+          sampleSize: 8,
+          referenceSampleSize: 8,
+          aggregation: "median",
+        })],
+      },
+      allowedClaims: expect.arrayContaining([
+        "preregistered-prediction",
+        "validated-forecast-error",
+      ]),
+      blockedClaims: expect.arrayContaining(["population-rate", "causal-lift"]),
+    });
+    expect(read.integrity.status).toBe("verified");
+  });
+
+  it("rejects a broken Outcome hash chain even when the client claims calibration", async () => {
+    const read = await calibrationHarness("broken-hash");
+
+    expect(read.record.simulationReadiness.calibration).toMatchObject({
+      clientReportedStatus: "partially-calibrated",
+      serverVerified: false,
+      outcomeChecks: [{
+        ref: "prior-outcome",
+        status: "invalid",
+        issues: expect.arrayContaining([
+          "Historical ExperimentSpec SHA-256 does not match Outcome specRef.",
+        ]),
+      }],
+      forecastComparisons: [],
+    });
+    expect(
+      read.record.simulationReadiness.heldOutValidation.verifiedExperimentOutcomeRefs,
+    ).toEqual([]);
+    expect(read.record.simulationReadiness.allowedClaims).not.toContain(
+      "validated-forecast-error",
+    );
+  });
+
+  it("keeps a valid but missing primary result explicitly unresolved", async () => {
+    const read = await calibrationHarness("missing");
+
+    expect(read.record.simulationReadiness.calibration).toMatchObject({
+      serverVerified: false,
+      outcomeChecks: [{
+        ref: "prior-outcome",
+        status: "unresolved",
+        issues: [
+          "Primary result qualified-wishlist-intent/proposal is not observed.",
+          "Primary result qualified-wishlist-intent/current is not observed.",
+        ],
+      }],
+      forecastComparisons: [],
     });
   });
 

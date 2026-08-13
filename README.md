@@ -338,11 +338,11 @@ browser/desktop controlを持つAI clientでは実buildを操作します。操�
 
 変更案をprospectiveに検証するときは、[Discovery Loop](https://www.discoveryloop.com/)のpropose → run → examine → iterateを、GamePlayerLensでは`ExperimentSpec → Prediction Run → ExperimentOutcome → next ExperimentSpec`として扱います。詳細なshapeと判定境界は`get_knowledge(kind=rubrics, id=experiment.md)`で取得できます。
 
-PilotではExperimentSpecとExperimentOutcomeを`save_artifact(kind=intel, sourceTool=manual)`で保存し、どちらにも`overwrite=true`を渡しません。specは結果を見る前に保存し、Prediction Runのevidenceへ含めます。run readbackのspec evidence SHA-256、run artifact SHA-256、canonical record SHA-256をOutcomeへ記録します。Prediction Runは予測の封印であり、実験実行済みを意味しません。
+ExperimentSpec、ExperimentMeasurement、ExperimentOutcomeは`save_artifact(kind=intel, sourceTool=manual)`で保存し、`overwrite=true`を渡しません。specは結果を見る前に保存し、Prediction Runのevidenceへ含めます。run readbackのspec evidence SHA-256、run artifact SHA-256、canonical record SHA-256をOutcomeへ記録します。Prediction Runは予測の封印であり、実験実行済みを意味しません。
 
-Outcomeのmetricは`ai-playtest / human-playtest / telemetry / steam-reviews / store-metric / manual-observation`を区別し、source、instrument、unit、cohort、windowがspecと一致しない値で登録済みcriterionを満たしません。測定できなかった場合もmissingを0やfailureへ変換せず、`overallVerdict=unresolved`として保存します。次のspecが`parentOutcomeRef`を持ち、次runが新specとparent outcomeの両方をevidenceとして封印したときにloopがつながります。
+Outcomeのmetricは`ai-playtest / human-playtest / telemetry / steam-reviews / store-metric / manual-observation`を区別し、source、instrument、unit、aggregation、cohort、windowがspecと一致しない値で登録済みcriterionを満たしません。測定できなかった場合もmissingを0やfailureへ変換せず、`overallVerdict=unresolved`として保存します。次のspecが`parentOutcomeRef`を持ち、次runが新spec、parent outcome、raw measurementのすべてをevidenceとして各analysis phaseで使ったときにloopがつながります。
 
-Pilotは既存intel schema上の運用規約です。generic intelは明示overwrite可能なので、2〜3件のprospective dogfoodでshapeが安定した後、専用immutable `experiment` / `outcome` artifact kindとserver-side validationへ移行します。実験scheduler、統計engine、telemetry自動取込、server-side LLMはPilotの対象外です。
+実験artifactは既存intel storeへ保存しますが、run schema v3はExperimentSpec / Measurement / Outcomeをstrict validationします。次runの`simulationReadiness.calibration.serverVerified=true`は、parent ref、spec / Prediction Run / measurementのSHA-256 chain、時刻順、primary protocol、minimum sample、raw valueの再計算がすべて一致した場合だけ返ります。`forecastComparisons`はその1予測の誤差を示すもので、因果効果や母集団代表性ではありません。実験scheduler、統計engine、telemetry自動取込、server-side LLMは対象外です。
 
 ### UI実力差の比較
 
@@ -406,7 +406,7 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 
 `save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`payload`、任意の `observedAt` を直接渡す方式も維持します。直接保存で `observedAt` を省略すると、サーバーが `savedAt` と同じ時刻を設定します。取得時刻を確実に把握している場合だけ明示してください。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
 
-ExperimentSpec / ExperimentOutcomeのPilot保存は直接intel方式を使いますが、事前登録と結果のimmutabilityを保つため`overwrite`を常に省略します。run保存時はExperimentSpecのtarget、mode、planned scenarios、primary metric、success criterion、predictionを検証し、runと一致するspecを実際にevidenceとして使った場合だけ`simulationReadiness.status=validation-ready`にします。spec driftはPrediction Runのintegrity readbackでも検出できます。Outcomeのspec / prediction run hash-chainと測定条件のserver-side照合はまだ未実装なので、Outcome evidenceやclient-reported `calibrationStatus=calibrated`だけでserver verifiedにはなりません。
+ExperimentSpec / ExperimentMeasurement / ExperimentOutcomeは直接intel方式で保存し、immutabilityのため`overwrite`を常に省略します。run保存時はExperimentSpecのtarget、mode、planned scenarios、primary metric、success criterion、predictionを検証し、runと一致するspecを実際にevidenceとして使った場合だけ`simulationReadiness.status=validation-ready`にします。Outcome evidenceやclient-reported `calibrationStatus=calibrated`だけではserver verifiedにならず、次runで完全なhash chainとraw measurementを検証できた場合だけ`validated-forecast-error`がallowed claimになります。
 
 `kind=run` は、evaluation 保存後に simulation を再生・監査するための ledger を封印します。Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済み evidence refs、連続した各 pass の rounds、warnings、confidence / `calibrationStatus`、最終 evaluation ref を受けます。サーバーは参照先を実際に読み、persona・evidence・現在の `skills/run-sim.md` の SHA-256、構造coverage、`simulationReadiness`、run recordのcanonical SHA-256 seal、`reportedByClient=true`を記録してUUIDごとのJSONを作ります。runは常にimmutableで、overwrite入力はありません。これは同じ入力からモデル出力が決定的に再生成されるという保証ではなく、「どのrecipe・根拠・申告モデルから、どのround出力を得たか」を後から検証する記録です。
 

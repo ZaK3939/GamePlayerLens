@@ -9,13 +9,13 @@ stageはmutable status fieldを持たない設計とし、次のartifact chain�
 - `registered`: ExperimentSpec intelが存在する。
 - `predicted`: Prediction RunがExperimentSpecをevidenceとして使用し、specと同じplanned scenariosを封印する。
 - `observed`: ExperimentOutcomeがspec SHA-256とPrediction Runのhashを参照する。測定不能で全resultがmissingでもoutcomeは作る。
-- `learned`: 次のExperimentSpecが`parentOutcomeRef`を持ち、次のPrediction Runが新specとparent outcomeの両方をevidenceとして封印する。
+- `learned`: 次のExperimentSpecが`parentOutcomeRef`を持ち、次のPrediction Runが新spec、parent outcome、hash-linked measurementを全analysis phaseで使って封印する。
 
 既存のrunは予測simulationの封印であり、ゲームbuildやexperimentが実行済みであることを意味しません。そのため`executed`とは呼ばないで、`predicted`とします。
 
 ここで`observed`はOutcome artifactが記録されたstage名であり、個々のmetricが観測済みという意味ではありません。metricの測定状態はresultの`status`だけで判断します。
 
-PilotではExperimentSpecとExperimentOutcomeを`save_artifact(kind=intel, sourceTool=manual)`で保存します。どちらも`overwrite=true`は禁止し、同じcanonical IDの再利用もしません。Pilotのgeneric intel storeは明示overwriteを技術的には許すため、Prediction Runが保存したevidence SHA-256によるdrift検出と運用規約が保証境界です。
+ExperimentSpec、ExperimentMeasurement、ExperimentOutcomeは`save_artifact(kind=intel, sourceTool=manual)`で保存します。いずれも`overwrite=true`は禁止し、同じcanonical IDを再利用しません。generic intel storeは明示overwriteを技術的には許すため、run integrityとOutcome validatorが照合するexact SHA-256を保証境界に含めます。
 
 ## 2. ExperimentSpec
 
@@ -120,7 +120,31 @@ Prediction Run保存時、serverは上記shapeと参照整合性に加え、spec
 
 ## 4. ExperimentOutcome
 
-Prediction Runをverifiedにした後で、事前登録したsourceとprotocolを使って測定します。raw session、telemetry export、集計根拠は別intelとして先に保存し、Outcomeは参照と判定だけを持ちます。
+Prediction Runをverifiedにした後で、事前登録したsourceとprotocolを使って測定します。raw session、telemetry export、集計根拠はstrictなExperimentMeasurement envelopeを持つ別intelとして先に保存し、Outcomeはそのexact SHA-256参照と判定を持ちます。
+
+Measurement payloadは`artifactType: "experiment-measurement"`として識別します。
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "artifactType": "experiment-measurement",
+  "measurementId": "inventory-rail-001-misinput",
+  "experimentId": "inventory-rail-001",
+  "targetId": "project-nyx",
+  "metricId": "misinput-count",
+  "source": "human-playtest",
+  "instrument": "moderated task observation v1",
+  "unit": "count/session",
+  "aggregation": "median",
+  "cohort": "new keyboard-and-mouse players",
+  "window": "first inventory task",
+  "scenarioResults": [
+    {"scenarioId": "current", "value": 4, "sampleSize": 8},
+    {"scenarioId": "proposal", "value": 1, "sampleSize": 8}
+  ],
+  "protocolDeviations": []
+}
+```
 
 Outcome payloadは`artifactType: "experiment-outcome"`として識別します。
 
@@ -145,6 +169,8 @@ Outcome payloadは`artifactType: "experiment-outcome"`として識別します�
     "ref": "human-sessions",
     "target": "project-nyx",
     "id": "inventory-rail-human-sessions",
+    "sha256": "measurement intel SHA-256",
+    "metricId": "misinput-count",
     "source": "human-playtest"
   }],
   "results": [
@@ -155,6 +181,7 @@ Outcome payloadは`artifactType: "experiment-outcome"`として識別します�
       "source": "human-playtest",
       "instrument": "moderated task observation v1",
       "unit": "count/session",
+      "aggregation": "median",
       "cohort": "new keyboard-and-mouse players",
       "window": "first inventory task",
       "value": 4,
@@ -168,6 +195,7 @@ Outcome payloadは`artifactType: "experiment-outcome"`として識別します�
       "source": "human-playtest",
       "instrument": "moderated task observation v1",
       "unit": "count/session",
+      "aggregation": "median",
       "cohort": "new keyboard-and-mouse players",
       "window": "first inventory task",
       "value": 1,
@@ -181,6 +209,7 @@ Outcome payloadは`artifactType: "experiment-outcome"`として識別します�
       "source": "human-playtest",
       "instrument": "moderated task observation v1",
       "unit": "proportion",
+      "aggregation": "rate",
       "cohort": "new keyboard-and-mouse players",
       "window": "first inventory task",
       "value": 0.875,
@@ -194,6 +223,7 @@ Outcome payloadは`artifactType: "experiment-outcome"`として識別します�
       "source": "human-playtest",
       "instrument": "moderated task observation v1",
       "unit": "proportion",
+      "aggregation": "rate",
       "cohort": "new keyboard-and-mouse players",
       "window": "first inventory task",
       "value": 0.875,
@@ -215,7 +245,7 @@ Outcome payloadは`artifactType: "experiment-outcome"`として識別します�
 
 必須fieldは`schemaVersion`、`artifactType`、`experimentId`、`targetId`、`specRef`、`predictionRunRef`、`measurementEvidence`、`results`、`criterionVerdicts`、`guardrailVerdicts`、`overallVerdict`、`deviations`、`learnings`です。
 
-各resultは`metricId`、`scenarioId`、`status`、`source`、`instrument`、`unit`、`cohort`、`window`、`sampleSize`、`evidenceRefs`を持ちます。statusは`observed / reported-zero / estimated / missing`です。observed、reported-zero、estimatedは有限なvalueを持ち、missingはvalueを持ちません。期限、build、participant、telemetryの不足で測れなかった場合もOutcomeを作ります。missingは0やfailureへ変換しないで、criterionをunresolved、`overallVerdict=unresolved`とします。
+各resultは`metricId`、`scenarioId`、`status`、`source`、`instrument`、`unit`、`aggregation`、`cohort`、`window`、`sampleSize`、`evidenceRefs`を持ちます。statusは`observed / reported-zero / estimated / missing`です。observed、reported-zero、estimatedは有限なvalueを持ち、missingはvalueを持ちません。期限、build、participant、telemetryの不足で測れなかった場合もOutcomeを作ります。missingは0やfailureへ変換しないで、criterionをunresolved、`overallVerdict=unresolved`とします。
 
 resultは`metricId × scenarioId`ごとに一意にします。`referenceScenarioId`を持つcriterionはcandidateとreference双方の同一metric resultから`candidate value - reference value`を計算し、その差分を登録済みcomparator / valueへ適用します。どちらかがmissing、sample minimum未達、またはsource条件不一致なら計算で補完せずunresolvedです。
 
@@ -223,7 +253,7 @@ resultは`metricId × scenarioId`ごとに一意にします。`referenceScenari
 
 ## 5. Source and measurement integrity
 
-- specとoutcomeのsource、instrument、unit、cohort、windowが一致しないresultはexploratoryには使えますが、登録済みcriterionはunresolvedとします。
+- spec、measurement、outcomeのsource、instrument、unit、aggregation、cohort、windowが一致しないresultはexploratoryには使えますが、登録済みcriterionとserver verificationはunresolvedです。
 - AI playtestのtask成功をhuman completion rateやretentionのobservedとして扱わない。AI操作で直接観測できるのは、そのAI client、build、task、control条件での操作・UI反応・再現可能な摩擦です。
 - human-playtestは指定participantとprotocolの範囲だけを表し、市場全体へ外挿しない。
 - telemetryはevent definition、build、cohort、window、aggregationをEvidenceへ保存する。
@@ -236,9 +266,9 @@ resultは`metricId × scenarioId`ごとに一意にします。`referenceScenari
 - `partially-calibrated`: 過去Outcomeはあるがprimaryがestimated / missing、criteriaの一部だけobserved、またはtarget、metric、source、instrument、unit、cohort、protocolの一部が異なる。
 - `calibrated`: 同一target、metric、source、instrument、unit、cohort、protocolのprimary predictionとobserved outcomeが対応し、そのOutcomeを現在runのevidenceに含め、限定範囲をconfidence basisへ明記している。
 
-`calibrated`はモデル全般の統計的校正を意味しない。何が一致し、何件のprediction / outcomeを比較したかを明記します。`calibrationStatus`は引き続き`reportedByClient=true`であり、server attestationと表現しません。
+`calibrated`はモデル全般の統計的校正を意味しない。何が一致し、何件のprediction / outcomeを比較したかを明記します。client入力の`calibrationStatus`は引き続き`reportedByClient=true`です。
 
-現在のserver-side `simulationReadiness`はExperimentSpecまでを検証し、ExperimentOutcomeのspec / run hash-chainと測定条件の一致はまだ検証しません。そのため`simulationReadiness.calibration.serverVerified=false`は、client-reported `calibrationStatus`が`partially-calibrated`または`calibrated`でも変わりません。Outcome chainの専用validatorが実装されるまでは、server verified calibrationと表現しません。
+次run保存時、serverはcurrent specの`parentOutcomeRef`、historical spec SHA-256、verified Prediction Runのartifact / canonical SHA-256、Prediction Run → measurement → Outcome → next specの時刻順、raw measurement SHA-256、primary metricのsource / instrument / unit / aggregation / cohort / window、minimum sample、実測値を照合します。current spec、Outcome、measurementをpersona / domain / critic / synthesisの全phaseで実際に使い、primary predictionのvalueまたはdeltaをraw measurementから再計算できた場合だけ`calibration.serverVerified=true`になります。readbackの`forecastComparisons`はpredicted、observed、signed / absolute errorを限定条件付きで返します。これは実験成功、因果lift、母集団代表性、モデル全般の校正を証明しません。
 
 ## 7. Next experiment and stopping
 

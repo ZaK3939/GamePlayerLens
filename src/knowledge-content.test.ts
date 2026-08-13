@@ -427,6 +427,7 @@ describe("experiment loop rubric", () => {
     const content = await read("knowledge/rubrics/experiment.md");
 
     expect(content).toContain('artifactType: "experiment-spec"');
+    expect(content).toContain('artifactType: "experiment-measurement"');
     expect(content).toContain('artifactType: "experiment-outcome"');
     for (const field of [
       "primaryMetricId",
@@ -446,6 +447,7 @@ describe("experiment loop rubric", () => {
     }
     expect(content).toContain("run artifact SHA-256");
     expect(content).toContain("canonical record SHA-256");
+    expect(content).toContain("forecastComparisons");
   });
 
   it("derives immutable stages without calling prediction execution", async () => {
@@ -568,7 +570,9 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("simulationReadiness");
     expect(content).toContain("simulationReadinessStatus");
     expect(content).toContain("status=rehearsal");
-    expect(content).toContain("calibration.serverVerified=false");
+    expect(content).toContain("calibration.serverVerified=true");
+    expect(content).toContain("outcomeChecks");
+    expect(content).toContain("forecastComparisons");
     expect(content).toContain("population rate");
     expect(content).toContain("causal lift");
   });
@@ -586,7 +590,8 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/次[\s\S]*ExperimentSpec[\s\S]*parentOutcomeRef/);
     expect(content).toContain("simulationReadiness.status=validation-ready");
     expect(content).toContain("heldOutValidation.status=planned");
-    expect(content).toContain("calibration.serverVerified=false");
+    expect(content).toContain("artifactType=experiment-measurement");
+    expect(content).toContain("calibration.serverVerified=true");
   });
 
   it("applies the indie survival strategy to concept, launch, and marketing consultations", async () => {

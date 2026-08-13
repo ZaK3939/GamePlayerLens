@@ -19,7 +19,13 @@ import {
 } from "./artifacts.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {PersonaSchema} from "./personas.js";
-import {matchesExperimentSpec} from "./experiments.js";
+import {
+  ExperimentOutcomeSchema,
+  ExperimentSpecSchema,
+  matchesExperimentSpec,
+  verifyOutcomeForecast,
+  type VerifiedForecastComparison,
+} from "./experiments.js";
 import type {
   PathResolver,
   ResolvedImagePath,
@@ -304,7 +310,12 @@ const ResolvedEvidenceSchema = z.object({
   path: z.string().min(1),
   sha256: Sha256Schema,
   sourceTool: SourceToolSchema.optional(),
-  artifactType: z.enum(["experiment-spec", "experiment-outcome"]).optional(),
+  observedAt: IsoDateTimeSchema.optional(),
+  artifactType: z.enum([
+    "experiment-spec",
+    "experiment-measurement",
+    "experiment-outcome",
+  ]).optional(),
 }).strict();
 
 const SimulationClaimSchema = z.enum([
@@ -312,11 +323,40 @@ const SimulationClaimSchema = z.enum([
   "directional-response-hypothesis",
   "test-priority",
   "preregistered-prediction",
+  "validated-forecast-error",
   "population-rate",
   "market-share",
   "causal-lift",
   "retention-impact",
 ]);
+
+const ForecastComparisonSchema = z.object({
+  outcomeRef: ReferenceIdSchema,
+  experimentId: ReferenceIdSchema,
+  metricId: ReferenceIdSchema,
+  kind: z.enum(["value", "delta"]),
+  scenarioId: ReferenceIdSchema,
+  referenceScenarioId: ReferenceIdSchema.optional(),
+  predicted: z.number().finite(),
+  observed: z.number().finite(),
+  signedError: z.number().finite(),
+  absoluteError: z.number().finite().nonnegative(),
+  sampleSize: z.number().int().nonnegative(),
+  referenceSampleSize: z.number().int().nonnegative().optional(),
+  source: z.enum([
+    "ai-playtest",
+    "human-playtest",
+    "telemetry",
+    "steam-reviews",
+    "store-metric",
+    "manual-observation",
+  ]),
+  instrument: z.string().min(1).max(500),
+  unit: z.string().min(1).max(120),
+  aggregation: z.string().min(1).max(120),
+  cohort: z.string().min(1).max(1_000),
+  window: z.string().min(1).max(500),
+}).strict();
 
 export const SimulationReadinessSchema = z.object({
   status: z.enum(["rehearsal", "validation-ready"]),
@@ -329,10 +369,17 @@ export const SimulationReadinessSchema = z.object({
     experimentSpecRefs: z.array(ReferenceIdSchema),
     matchedExperimentSpecRefs: z.array(ReferenceIdSchema),
     experimentOutcomeRefs: z.array(ReferenceIdSchema),
+    verifiedExperimentOutcomeRefs: z.array(ReferenceIdSchema),
   }).strict(),
   calibration: z.object({
     clientReportedStatus: ConfidenceInputSchema.shape.calibrationStatus,
-    serverVerified: z.literal(false),
+    serverVerified: z.boolean(),
+    outcomeChecks: z.array(z.object({
+      ref: ReferenceIdSchema,
+      status: z.enum(["verified", "unresolved", "invalid"]),
+      issues: z.array(z.string().min(1).max(1_000)).max(20),
+    }).strict()).max(50),
+    forecastComparisons: z.array(ForecastComparisonSchema).max(50),
   }).strict(),
   allowedClaims: z.array(SimulationClaimSchema).min(1),
   blockedClaims: z.array(SimulationClaimSchema).min(1),
@@ -381,7 +428,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
@@ -657,19 +704,33 @@ function buildCoverage(
 
 function experimentArtifactType(
   payload: unknown,
-): "experiment-spec" | "experiment-outcome" | undefined {
+): "experiment-spec" | "experiment-measurement" | "experiment-outcome" | undefined {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
   const artifactType = (payload as Record<string, unknown>).artifactType;
-  return artifactType === "experiment-spec" || artifactType === "experiment-outcome"
+  return artifactType === "experiment-spec"
+    || artifactType === "experiment-measurement"
+    || artifactType === "experiment-outcome"
     ? artifactType
     : undefined;
 }
 
-function buildSimulationReadiness(
+interface OutcomeChainCheck {
+  ref: string;
+  status: "verified" | "unresolved" | "invalid";
+  issues: string[];
+  comparison?: VerifiedForecastComparison;
+}
+
+async function buildSimulationReadiness(
   input: SaveRunInput,
   targetId: string,
+  savedAt: string,
   evidence: ResolvedEvidenceResult[],
-): z.infer<typeof SimulationReadinessSchema> {
+  verifyOutcome: (
+    outcome: ResolvedEvidenceResult,
+    currentSpec: ResolvedEvidenceResult | undefined,
+  ) => Promise<OutcomeChainCheck>,
+): Promise<z.infer<typeof SimulationReadinessSchema>> {
   const experimentSpecs = evidence.filter(
     ({record}) => record.artifactType === "experiment-spec",
   );
@@ -680,11 +741,21 @@ function buildSimulationReadiness(
       mode: input.mode,
       scenarios: input.scenarios,
     })
+    && Boolean(record.observedAt && Date.parse(record.observedAt) <= Date.parse(savedAt))
     && requiredSpecPhases.every((phase) => input.rounds.some((round) =>
       round.phase === phase && round.evidenceRefs.includes(record.ref))));
   const experimentOutcomes = evidence.filter(
     ({record}) => record.artifactType === "experiment-outcome",
   );
+  const currentSpec = matchedExperimentSpecs.length === 1
+    ? matchedExperimentSpecs[0]
+    : undefined;
+  const outcomeChecks: OutcomeChainCheck[] = [];
+  for (const outcome of experimentOutcomes) {
+    outcomeChecks.push(await verifyOutcome(outcome, currentSpec));
+  }
+  const verifiedChecks = outcomeChecks.filter(({status}) => status === "verified");
+  const serverVerified = verifiedChecks.length > 0;
   const validationStatus = experimentSpecs.length === 0
     ? "absent" as const
     : matchedExperimentSpecs.length === 0
@@ -699,13 +770,15 @@ function buildSimulationReadiness(
     experimentSpecs.length === 0
       ? "No ExperimentSpec evidence is linked to this run."
       : matchedExperimentSpecs.length === 0
-        ? "No linked ExperimentSpec matches this run's target, mode, scenarios, primary prediction contract, and required analysis phases."
+        ? "No linked ExperimentSpec matches this run's target, mode, scenarios, temporal order, primary prediction contract, and required analysis phases."
         : matchedExperimentSpecs.length > 1
           ? "Multiple matching ExperimentSpecs make the preregistered prediction ambiguous."
           : "One matching ExperimentSpec is linked and used across all required analysis phases.",
     "Population representativeness is not established.",
-    experimentOutcomes.length > 0
-      ? "ExperimentOutcome evidence is linked, but its calibration chain is not server-verified."
+    serverVerified
+      ? `${verifiedChecks.length} ExperimentOutcome forecast comparison(s) passed server-side hash-chain, timing, protocol, sample, and raw-measurement verification.`
+      : experimentOutcomes.length > 0
+        ? "ExperimentOutcome evidence is linked, but no calibration chain passed server verification."
       : "Held-out outcome calibration is not server-verified.",
   ];
   const allowedClaims = [
@@ -713,6 +786,7 @@ function buildSimulationReadiness(
     "directional-response-hypothesis",
     "test-priority",
     ...(status === "validation-ready" ? ["preregistered-prediction"] as const : []),
+    ...(serverVerified ? ["validated-forecast-error"] as const : []),
   ];
   return SimulationReadinessSchema.parse({
     status,
@@ -725,10 +799,15 @@ function buildSimulationReadiness(
       experimentSpecRefs: experimentSpecs.map(({record}) => record.ref),
       matchedExperimentSpecRefs: matchedExperimentSpecs.map(({record}) => record.ref),
       experimentOutcomeRefs: experimentOutcomes.map(({record}) => record.ref),
+      verifiedExperimentOutcomeRefs: verifiedChecks.map(({ref}) => ref),
     },
     calibration: {
       clientReportedStatus: input.confidence.calibrationStatus,
-      serverVerified: false,
+      serverVerified,
+      outcomeChecks: outcomeChecks.map(({ref, status, issues}) => ({ref, status, issues})),
+      forecastComparisons: verifiedChecks.flatMap(({ref, comparison}) => comparison
+        ? [{outcomeRef: ref, ...comparison}]
+        : []),
     },
     allowedClaims,
     blockedClaims: [
@@ -849,6 +928,7 @@ export function createRunStore(
           path: resolved.relativePath,
           sha256: hash(bytes),
           sourceTool: record.sourceTool,
+          observedAt: record.observedAt,
           ...(artifactType ? {artifactType} : {}),
         }),
         payload: record.payload,
@@ -1116,6 +1196,198 @@ export function createRunStore(
     }
   }
 
+  async function verifyOutcomeChain(
+    outcomeEvidence: ResolvedEvidenceResult,
+    currentSpecEvidence: ResolvedEvidenceResult | undefined,
+    currentEvidence: ResolvedEvidenceResult[],
+    input: SaveRunInput,
+    currentSavedAt: string,
+  ): Promise<OutcomeChainCheck> {
+    const ref = outcomeEvidence.record.ref;
+    const outcomeResult = ExperimentOutcomeSchema.safeParse(outcomeEvidence.payload);
+    const currentSpecResult = ExperimentSpecSchema.safeParse(currentSpecEvidence?.payload);
+    if (!outcomeResult.success) {
+      return {ref, status: "invalid", issues: ["ExperimentOutcome schema is invalid."]};
+    }
+    if (!currentSpecResult.success || !currentSpecEvidence) {
+      return {
+        ref,
+        status: "invalid",
+        issues: ["A single matching current ExperimentSpec is required for calibration."],
+      };
+    }
+    const outcome = outcomeResult.data;
+    const currentSpec = currentSpecResult.data;
+    const chainIssues: string[] = [];
+    const requiredPhases = ["persona", "domain", "critic", "synthesis"] as const;
+    const usedAcrossRequiredPhases = (evidenceRef: string) => requiredPhases.every(
+      (phase) => input.rounds.some((round) =>
+        round.phase === phase && round.evidenceRefs.includes(evidenceRef)),
+    );
+
+    const parentOutcomeRef = currentSpec.parentOutcomeRef;
+    if (
+      !parentOutcomeRef
+      || parentOutcomeRef.target !== outcomeEvidence.record.targetId
+      || parentOutcomeRef.id !== outcomeEvidence.record.id
+    ) {
+      chainIssues.push("Current ExperimentSpec parentOutcomeRef does not select this Outcome.");
+    }
+    if (!usedAcrossRequiredPhases(ref)) {
+      chainIssues.push("ExperimentOutcome is not used across all required analysis phases.");
+    }
+    if (
+      !outcomeEvidence.record.observedAt
+      || !currentSpecEvidence.record.observedAt
+      || Date.parse(currentSpecEvidence.record.observedAt) < Date.parse(outcomeEvidence.record.observedAt)
+    ) {
+      chainIssues.push("Current ExperimentSpec must be observed at or after its parent Outcome.");
+    }
+    if (
+      (outcomeEvidence.record.observedAt
+        && Date.parse(outcomeEvidence.record.observedAt) > Date.parse(currentSavedAt))
+      || (currentSpecEvidence.record.observedAt
+        && Date.parse(currentSpecEvidence.record.observedAt) > Date.parse(currentSavedAt))
+    ) {
+      chainIssues.push("Current calibration evidence postdates this run.");
+    }
+
+    let historicalSpecEvidence: ResolvedEvidenceResult | undefined;
+    try {
+      historicalSpecEvidence = await resolveEvidence({
+        ref: "historical-spec",
+        kind: "intel",
+        target: outcome.specRef.target,
+        id: outcome.specRef.id,
+      });
+    } catch {
+      chainIssues.push("Referenced historical ExperimentSpec is unavailable.");
+    }
+    const historicalSpecResult = ExperimentSpecSchema.safeParse(
+      historicalSpecEvidence?.payload,
+    );
+    if (!historicalSpecResult.success || !historicalSpecEvidence) {
+      chainIssues.push("Referenced historical ExperimentSpec schema is invalid.");
+    } else if (historicalSpecEvidence.record.sha256 !== outcome.specRef.sha256) {
+      chainIssues.push("Historical ExperimentSpec SHA-256 does not match Outcome specRef.");
+    }
+
+    let predictionRun: {metadata: RunArtifactMetadata; record: RunRecord} | undefined;
+    try {
+      predictionRun = await parseStoredRun(
+        outcome.predictionRunRef.target,
+        outcome.predictionRunRef.runId,
+      );
+    } catch {
+      chainIssues.push("Referenced Prediction Run is unavailable or invalid.");
+    }
+    if (predictionRun) {
+      if (
+        predictionRun.record.targetId !== outcome.targetId
+        || predictionRun.metadata.sha256 !== outcome.predictionRunRef.runArtifactSha256
+        || predictionRun.record.seal?.canonicalSha256
+          !== outcome.predictionRunRef.canonicalRecordSha256
+      ) {
+        chainIssues.push("Prediction Run target or SHA-256 chain does not match Outcome.");
+      }
+      const historicalSpecRecord = predictionRun.record.evidence.find((item) =>
+        item.kind === "intel"
+        && item.targetId === outcome.specRef.target
+        && item.id === outcome.specRef.id
+        && item.sha256 === outcome.specRef.sha256
+        && item.artifactType === "experiment-spec");
+      if (
+        predictionRun.record.simulationReadiness.status !== "validation-ready"
+        || !historicalSpecRecord
+        || !predictionRun.record.simulationReadiness.heldOutValidation
+          .matchedExperimentSpecRefs.includes(historicalSpecRecord.ref)
+      ) {
+        chainIssues.push("Prediction Run did not seal the referenced ExperimentSpec as its matched plan.");
+      }
+      try {
+        const integrity = await auditRun(predictionRun.record);
+        if (integrity.status !== "verified") {
+          chainIssues.push("Prediction Run integrity is not verified.");
+        }
+      } catch {
+        chainIssues.push("Prediction Run integrity could not be verified.");
+      }
+      if (
+        !outcomeEvidence.record.observedAt
+        || Date.parse(outcomeEvidence.record.observedAt) < Date.parse(predictionRun.record.savedAt)
+      ) {
+        chainIssues.push("ExperimentOutcome predates its Prediction Run.");
+      }
+      if (
+        historicalSpecEvidence?.record.observedAt
+        && Date.parse(historicalSpecEvidence.record.observedAt)
+          > Date.parse(predictionRun.record.savedAt)
+      ) {
+        chainIssues.push("Historical ExperimentSpec was not observed before the Prediction Run.");
+      }
+    }
+
+    const measurementInputs: Array<{ref: string; payload: unknown}> = [];
+    for (const measurementRef of outcome.measurementEvidence) {
+      const resolved = currentEvidence.find(({record}) =>
+        record.ref === measurementRef.ref
+        && record.kind === "intel"
+        && record.targetId === measurementRef.target
+        && record.id === measurementRef.id);
+      if (
+        !resolved
+        || resolved.record.artifactType !== "experiment-measurement"
+        || resolved.record.sha256 !== measurementRef.sha256
+      ) {
+        chainIssues.push(`Measurement evidence ${measurementRef.ref} is not hash-linked in the current run.`);
+        continue;
+      }
+      if (!usedAcrossRequiredPhases(measurementRef.ref)) {
+        chainIssues.push(`Measurement evidence ${measurementRef.ref} is not used across all required analysis phases.`);
+      }
+      if (
+        !resolved.record.observedAt
+        || !outcomeEvidence.record.observedAt
+        || (predictionRun
+          && Date.parse(resolved.record.observedAt) < Date.parse(predictionRun.record.savedAt))
+        || Date.parse(resolved.record.observedAt) > Date.parse(outcomeEvidence.record.observedAt)
+      ) {
+        chainIssues.push(`Measurement evidence ${measurementRef.ref} violates Prediction Run → measurement → Outcome ordering.`);
+      }
+      measurementInputs.push({ref: measurementRef.ref, payload: resolved.payload});
+    }
+
+    if (historicalSpecResult.success) {
+      const historicalMetric = historicalSpecResult.data.metrics.find(
+        ({metricId}) => metricId === historicalSpecResult.data.primaryMetricId,
+      );
+      const currentMetric = currentSpec.metrics.find(
+        ({metricId}) => metricId === currentSpec.primaryMetricId,
+      );
+      const keys = ["metricId", "source", "instrument", "unit", "aggregation", "cohort", "window"] as const;
+      if (!historicalMetric || !currentMetric || keys.some(
+        (key) => historicalMetric[key] !== currentMetric[key],
+      )) {
+        chainIssues.push("Current and historical primary measurement contracts do not match.");
+      }
+    }
+
+    const forecast = historicalSpecResult.success
+      ? verifyOutcomeForecast(
+        historicalSpecResult.data,
+        outcome,
+        measurementInputs,
+      )
+      : {issues: ["Historical ExperimentSpec is unavailable for forecast comparison."]};
+    if (chainIssues.length > 0) {
+      return {ref, status: "invalid", issues: [...new Set([...chainIssues, ...forecast.issues])]};
+    }
+    if (!forecast.comparison) {
+      return {ref, status: "unresolved", issues: forecast.issues};
+    }
+    return {ref, status: "verified", issues: [], comparison: forecast.comparison};
+  }
+
   async function saveRun(input: SaveRunInput): Promise<RunArtifactMetadata> {
     const parsed = SaveRunInputSchema.parse(input);
     const runId = RunIdSchema.parse(idFactory());
@@ -1129,7 +1401,7 @@ export function createRunStore(
     }
     const evidence = resolvedEvidence.map(({record}) => record);
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 2,
+      schemaVersion: 3,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,
@@ -1143,10 +1415,18 @@ export function createRunStore(
       rounds: parsed.rounds,
       warnings: parsed.warnings,
       confidence: {...parsed.confidence, reportedByClient: true},
-      simulationReadiness: buildSimulationReadiness(
+      simulationReadiness: await buildSimulationReadiness(
         parsed,
         resolved.targetId,
+        savedAt,
         resolvedEvidence,
+        (outcome, currentSpec) => verifyOutcomeChain(
+          outcome,
+          currentSpec,
+          resolvedEvidence,
+          parsed,
+          savedAt,
+        ),
       ),
       finalEvaluationRef: parsed.finalEvaluationRef,
       savedAt,
