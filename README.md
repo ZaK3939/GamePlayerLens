@@ -7,10 +7,49 @@ Steam の実データに接地したゲーム開発コンサル用 MCP サーバ
 | 目的 | 入口 | 最初に渡すもの |
 |---|---|---|
 | 自作ゲームの企画・prototype・変更案を相談する | `run-sim` | `target`、`topic`、`market`、Steam language codeの`language`。必要に応じて`projectBrief`、`conceptTest`、`firstContactTest`、playtest情報 |
-| 公開済みゲームの競合・価格・レビュー・更新を分析する | `run-sim` | `target`、`topic`、`market`、`language`。appidが不明でも名前から開始可能 |
+| 公開済みゲームを素早く診断する | `steam_search` → `steam_brief` | ゲーム名またはappid、Steam language code、国コード |
+| 公開済みゲームの競合・価格・レビュー・更新を深掘りする | `run-sim` | `target`、`topic`、`market`、`language`。appidが不明でも名前から開始可能 |
 | 過去の相談や保存根拠を読み返す | `get_artifact` | `kind`。まずtarget一覧、次にitem一覧、最後に本文を読む |
 
 接続後は引数なしの`get_status`で、保存先が書込可能か、ITAD価格履歴とObscura page captureが設定済みかを確認できます。返すのは状態だけで、秘密値や絶対pathは返しません。`run-sim`の`intakeDiagnostics.status`が`needs-input`なら、クライアントは`missingFields`を一度に確認してから根拠収集を始めます。`ready`は入力準備の完了であり、分析品質の合格判定ではありません。
+
+## 現在できること
+
+GamePlayerLensは、外部データと開発者の入力を集めるだけでなく、「どの判断を根拠付きで行えるか」「何が不足しているか」「次に何を検証するか」までを一つの相談履歴として扱います。
+
+| 段階 | できること | 主な出力 |
+|---|---|---|
+| 理解する | 公開ゲームのstore・地域価格・レビュー・更新・現在値・競合候補を調べる | `steam_brief`、source別provenance、supported decisions、gaps |
+| 構造化する | 自作ゲームのtarget player、core action、system response、reward、差別化、開発制約を整理する | Project Brief diagnostics、Core Experience Map |
+| 比較する | gameplay、storefront、UI、price、localization、competitionを、同じ条件の競合・referenceと比較する | Data Coverage Matrix、領域別所見、UI quality gap |
+| 観測する | concept、第一印象、単発playtest、複数session cohortの結果を、匿名・時系列・変更条件付きで診断する | Concept Test Trace、First-contact trace、Action → response log |
+| 判断する | 問題仮説、最小変更、対象persona、success signal、guardrail、再確認条件をまとめる | Decision Card、Prioritized Backlog |
+| 学習する | 取得原本、persona、評価、simulation run、実験spec・measurement・outcomeを保存して再検証する | exact-save artifact、immutable run、integrity report、experiment decision |
+
+実際の助言文は`run-sim`などのMCP promptを取得したクライアント側モデルが作ります。MCPサーバーは、入力検証、外部取得、根拠の正規化、保存、coverage・integrity・実験判定を担当し、server-side LLMは持ちません。
+
+## 現在できないこと
+
+- 実build、recording、input logなしに、gameplayの面白さ、操作感、内部ロジックの正しさを断定すること。
+- 少数のSteam review、SteamSpy推定値、単発playtestから、母集団の割合、販売本数、market share、retention、conversionを推定すること。
+- static画像だけからmotion、latency、controller feel、未表示stateを評価すること。
+- 変更と結果の因果効果を、事前登録した比較条件と実測なしに証明すること。
+- Game UI Databaseなどの認証・robots・利用条件・download制限を回避してbulk取得すること。
+- クライアントにbrowser / desktop controlがない状態でゲームを直接操作すること。
+- telemetryの自動取込、実験scheduler、汎用統計engineとして動作すること。
+
+## 現在の成熟度
+
+| 機能 | 現在地 | 残る検証 |
+|---|---|---|
+| 公開Steamゲームの取得・初回診断 | Hades固定live API、stdio、配布package、exact-saveまで検証済み | 別規模・別genre・新作での継続dogfood |
+| 既存ゲームの根拠付き相談 | 保存済み実相談、replay audit、UI quality-gapまでdogfood済み | 実案件を増やした勧告精度の比較 |
+| 自作ゲームのstructured Project Brief | schema、prompt、intake、stdio、package smokeを検証済み | 実在する開発中ゲームでのend-to-end dogfood |
+| concept / first-contact test | 入力検証、匿名化境界、exact-save、記述診断を検証済み | 実際の第三者testによる反復検証 |
+| playtest session / cohort | protocol、retest比較、synthetic transportを検証済み | 操作可能な実buildでの継続test play |
+| prospective experiment | spec・measurement・outcome、hash chain、server decisionを検証済み | 実buildの予測→測定→次のspecという完全loop |
+
+したがって現時点で最も強い用途は、公開済みゲームの調査と根拠管理です。次に検証価値が高いのは、実在する開発中ゲームについて一つの判断を選び、Project Briefから実buildまたは第三者testまでを通すことです。
 
 ## クライアント要件
 
