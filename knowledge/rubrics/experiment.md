@@ -247,9 +247,11 @@ Outcome payloadは`artifactType: "experiment-outcome"`として識別します�
 
 各resultは`metricId`、`scenarioId`、`status`、`source`、`instrument`、`unit`、`aggregation`、`cohort`、`window`、`sampleSize`、`evidenceRefs`を持ちます。statusは`observed / reported-zero / estimated / missing`です。observed、reported-zero、estimatedは有限なvalueを持ち、missingはvalueを持ちません。期限、build、participant、telemetryの不足で測れなかった場合もOutcomeを作ります。missingは0やfailureへ変換しないで、criterionをunresolved、`overallVerdict=unresolved`とします。
 
-resultは`metricId × scenarioId`ごとに一意にします。`referenceScenarioId`を持つcriterionはcandidateとreference双方の同一metric resultから`candidate value - reference value`を計算し、その差分を登録済みcomparator / valueへ適用します。どちらかがmissing、sample minimum未達、またはsource条件不一致なら計算で補完せずunresolvedです。
+resultは`metricId × scenarioId`ごとに一意にします。`referenceScenarioId`を持つcriterionはcandidateとreference双方の同一metric resultから`candidate value - reference value`を計算し、その差分を登録済みcomparator / valueへ適用します。どちらかがmissing、sample minimum未達、source条件不一致、またはraw measurementで再現できない場合は計算で補完せずunresolvedです。
 
-失敗した実験も`overallVerdict=failure`として保存し、削除や成功への書換えをしません。guardrail breachは`overallVerdict=stopped`またはmixedとし、停止時点、測定済み範囲、rollback判断をdeviations / learningsへ残します。
+次runのserver decisionは、success criterionを`met / not-met / unresolved`、guardrailを`met / breached / unresolved`として再計算し、各項目の`issues`に未解決理由を残します。guardrailが1件でもbreachedなら`serverOverallVerdict=stopped`、breachがなく未解決があれば`unresolved`、全successがmetなら`success`、それ以外は`failure`です。`recommendedAction`は順に`stop-and-investigate-guardrail / collect-missing-evidence / consider-adoption-within-tested-scope / do-not-adopt-tested-change`を返します。Outcomeの`criterionVerdicts`、`guardrailVerdicts`、`overallVerdict`はclient申告として保持し、`reportedVerdictsMatch`でserver再計算との完全一致を示します。不一致でもserver結果をclient申告へ合わせません。
+
+失敗した実験も`overallVerdict=failure`として保存し、削除や成功への書換えをしません。clientが複数結果を`mixed`と申告しても、serverはguardrail breachを`stopped`として優先します。停止時点、測定済み範囲、rollback判断をdeviations / learningsへ残します。
 
 ## 5. Source and measurement integrity
 
@@ -268,7 +270,7 @@ resultは`metricId × scenarioId`ごとに一意にします。`referenceScenari
 
 `calibrated`はモデル全般の統計的校正を意味しない。何が一致し、何件のprediction / outcomeを比較したかを明記します。client入力の`calibrationStatus`は引き続き`reportedByClient=true`です。
 
-次run保存時、serverはcurrent specの`parentOutcomeRef`、historical spec SHA-256、verified Prediction Runのartifact / canonical SHA-256、Prediction Run → measurement → Outcome → next specの時刻順、raw measurement SHA-256、primary metricのsource / instrument / unit / aggregation / cohort / window、minimum sample、実測値を照合します。current spec、Outcome、measurementをpersona / domain / critic / synthesisの全phaseで実際に使い、primary predictionのvalueまたはdeltaをraw measurementから再計算できた場合だけ`calibration.serverVerified=true`になります。readbackの`forecastComparisons`はpredicted、observed、signed / absolute errorを限定条件付きで返します。これは実験成功、因果lift、母集団代表性、モデル全般の校正を証明しません。
+次run保存時、serverはcurrent specの`parentOutcomeRef`、historical spec SHA-256、verified Prediction Runのartifact / canonical SHA-256、Prediction Run → measurement → Outcome → next specの時刻順、raw measurement SHA-256、primary metricのsource / instrument / unit / aggregation / cohort / window、minimum sample、実測値を照合します。current spec、Outcome、measurementをpersona / domain / critic / synthesisの全phaseで実際に使い、primary predictionのvalueまたはdeltaをraw measurementから再計算できた場合だけ`calibration.serverVerified=true`になります。readbackの`forecastComparisons`はpredicted、observed、signed / absolute errorを、`experimentDecisions`は全criterion、guardrail、server / reported overall verdictを返します。`verified-experiment-decision`は登録済み判定を限定sampleで再計算できたことを示すだけで、因果lift、母集団代表性、モデル全般の校正を証明しません。
 
 ## 7. Next experiment and stopping
 

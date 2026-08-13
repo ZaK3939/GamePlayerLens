@@ -666,7 +666,7 @@ try {
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 3
+      && runRecord.schemaVersion === 4
       && typeof runRecord.recipe?.sha256 === "string"
       && runRecord.model?.reportedByClient === true
       && runRecord.confidence?.reportedByClient === true
@@ -922,6 +922,14 @@ try {
         outcomeChecks?: Array<{ref?: unknown; status?: unknown; issues?: unknown[]}>;
         forecastComparisons?: unknown[];
       };
+      experimentDecisions?: Array<{
+        outcomeRef?: unknown;
+        status?: unknown;
+        serverOverallVerdict?: unknown;
+        recommendedAction?: unknown;
+        reportedOverallVerdict?: unknown;
+        reportedVerdictsMatch?: unknown;
+      }>;
       heldOutValidation?: {verifiedExperimentOutcomeRefs?: unknown[]};
     }};
     integrity?: {status?: unknown};
@@ -935,9 +943,21 @@ try {
       && nextReadiness.record.simulationReadiness.calibration.outcomeChecks[0]?.status
         === "unresolved"
       && nextReadiness.record.simulationReadiness.calibration.forecastComparisons?.length === 0
+      && nextReadiness.record.simulationReadiness.experimentDecisions?.[0]?.outcomeRef
+        === "prior-experiment-outcome"
+      && nextReadiness.record.simulationReadiness.experimentDecisions[0]?.status
+        === "unresolved"
+      && nextReadiness.record.simulationReadiness.experimentDecisions[0]
+        ?.serverOverallVerdict === "unresolved"
+      && nextReadiness.record.simulationReadiness.experimentDecisions[0]
+        ?.recommendedAction === "collect-missing-evidence"
+      && nextReadiness.record.simulationReadiness.experimentDecisions[0]
+        ?.reportedOverallVerdict === "unresolved"
+      && nextReadiness.record.simulationReadiness.experimentDecisions[0]
+        ?.reportedVerdictsMatch === true
       && nextReadiness.record.simulationReadiness.heldOutValidation
         ?.verifiedExperimentOutcomeRefs?.length === 0,
-    "packaged Outcome validator did not preserve missing as unresolved",
+    "packaged Outcome validator did not preserve missing as an unresolved decision",
   );
   experimentLoopRoundTrip = true;
 

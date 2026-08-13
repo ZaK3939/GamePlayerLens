@@ -448,6 +448,7 @@ describe("experiment loop rubric", () => {
     expect(content).toContain("run artifact SHA-256");
     expect(content).toContain("canonical record SHA-256");
     expect(content).toContain("forecastComparisons");
+    expect(content).toContain("experimentDecisions");
   });
 
   it("derives immutable stages without calling prediction execution", async () => {
@@ -493,6 +494,17 @@ describe("experiment loop rubric", () => {
     expect(content).toContain("reportedByClient=true");
     expect(content).toMatch(/calibrated[\s\S]*同一target[\s\S]*metric[\s\S]*source[\s\S]*instrument/);
     expect(content).toMatch(/モデル全般[\s\S]*統計的校正[\s\S]*意味しない/);
+  });
+
+  it("recomputes developer decisions without trusting reported verdicts", async () => {
+    const content = await read("knowledge/rubrics/experiment.md");
+
+    expect(content).toContain("serverOverallVerdict");
+    expect(content).toContain("recommendedAction");
+    expect(content).toContain("reportedVerdictsMatch");
+    expect(content).toMatch(/guardrail[\s\S]*breached[\s\S]*stopped/);
+    expect(content).toMatch(/未解決[\s\S]*unresolved/);
+    expect(content).toMatch(/client申告[\s\S]*合わせません/);
   });
 });
 
@@ -573,6 +585,9 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("calibration.serverVerified=true");
     expect(content).toContain("outcomeChecks");
     expect(content).toContain("forecastComparisons");
+    expect(content).toContain("experimentDecisions");
+    expect(content).toContain("recommendedAction");
+    expect(content).toContain("reportedVerdictsMatch=false");
     expect(content).toContain("population rate");
     expect(content).toContain("causal lift");
   });

@@ -246,7 +246,7 @@ function experimentSpec(overrides: Record<string, unknown> = {}) {
 }
 
 async function calibrationHarness(
-  variant: "verified" | "broken-hash" | "missing",
+  variant: "verified" | "broken-hash" | "missing" | "contradictory",
 ) {
   const context = await harness();
   const {artifacts, resolver, store} = context;
@@ -386,10 +386,18 @@ async function calibrationHarness(
       ],
       criterionVerdicts: [{
         criterionId: "intent-improves",
-        verdict: variant === "missing" ? "unresolved" : "met",
+        verdict: variant === "missing"
+          ? "unresolved"
+          : variant === "contradictory"
+            ? "not-met"
+            : "met",
       }],
       guardrailVerdicts: [],
-      overallVerdict: variant === "missing" ? "unresolved" : "success",
+      overallVerdict: variant === "missing"
+        ? "unresolved"
+        : variant === "contradictory"
+          ? "failure"
+          : "success",
       deviations: [],
       learnings: [{
         claim: variant === "missing"
@@ -448,7 +456,9 @@ async function calibrationHarness(
     confidence: {
       level: "medium",
       basis: "Bounded to the matching historical protocol and one forecast",
-      calibrationStatus: variant === "verified" ? "calibrated" : "partially-calibrated",
+      calibrationStatus: variant === "verified" || variant === "contradictory"
+        ? "calibrated"
+        : "partially-calibrated",
     },
   });
   const currentStore = createRunStore(resolver, {
@@ -565,7 +575,7 @@ describe("run store", () => {
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       runId: RUN_ID,
       targetId: "hades-ii",
       recipe: {
@@ -828,7 +838,7 @@ describe("run store", () => {
   it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
     const read = await calibrationHarness("verified");
 
-    expect(read.record.schemaVersion).toBe(3);
+    expect(read.record.schemaVersion).toBe(4);
     expect(read.record.simulationReadiness).toMatchObject({
       status: "validation-ready",
       heldOutValidation: {
@@ -855,9 +865,26 @@ describe("run store", () => {
           aggregation: "median",
         })],
       },
+      experimentDecisions: [{
+        outcomeRef: "prior-outcome",
+        status: "verified",
+        experimentId: "store-promise-001",
+        successCriteria: [expect.objectContaining({
+          criterionId: "intent-improves",
+          observed: 2,
+          verdict: "met",
+          issues: [],
+        })],
+        guardrails: [],
+        serverOverallVerdict: "success",
+        recommendedAction: "consider-adoption-within-tested-scope",
+        reportedOverallVerdict: "success",
+        reportedVerdictsMatch: true,
+      }],
       allowedClaims: expect.arrayContaining([
         "preregistered-prediction",
         "validated-forecast-error",
+        "verified-experiment-decision",
       ]),
       blockedClaims: expect.arrayContaining(["population-rate", "causal-lift"]),
     });
@@ -879,11 +906,29 @@ describe("run store", () => {
       }],
       forecastComparisons: [],
     });
+    expect(read.record.simulationReadiness.experimentDecisions).toEqual([]);
     expect(
       read.record.simulationReadiness.heldOutValidation.verifiedExperimentOutcomeRefs,
     ).toEqual([]);
     expect(read.record.simulationReadiness.allowedClaims).not.toContain(
       "validated-forecast-error",
+    );
+  });
+
+  it("keeps the server decision when the Outcome reports the opposite verdict", async () => {
+    const read = await calibrationHarness("contradictory");
+
+    expect(read.record.simulationReadiness.calibration.serverVerified).toBe(true);
+    expect(read.record.simulationReadiness.experimentDecisions).toMatchObject([{
+      status: "verified",
+      serverOverallVerdict: "success",
+      recommendedAction: "consider-adoption-within-tested-scope",
+      reportedOverallVerdict: "failure",
+      reportedVerdictsMatch: false,
+      successCriteria: [{observed: 2, verdict: "met", issues: []}],
+    }]);
+    expect(read.record.simulationReadiness.allowedClaims).toContain(
+      "verified-experiment-decision",
     );
   });
 
@@ -902,6 +947,21 @@ describe("run store", () => {
       }],
       forecastComparisons: [],
     });
+    expect(read.record.simulationReadiness.experimentDecisions).toMatchObject([{
+      outcomeRef: "prior-outcome",
+      status: "unresolved",
+      serverOverallVerdict: "unresolved",
+      recommendedAction: "collect-missing-evidence",
+      reportedOverallVerdict: "unresolved",
+      reportedVerdictsMatch: true,
+      successCriteria: [{
+        verdict: "unresolved",
+        issues: expect.arrayContaining([
+          "Criterion result qualified-wishlist-intent/proposal is not observed.",
+          "Criterion result qualified-wishlist-intent/current is not observed.",
+        ]),
+      }],
+    }]);
   });
 
   it("preserves Unicode canonical target ids in saved and listed runs", async () => {

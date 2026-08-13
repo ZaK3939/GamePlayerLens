@@ -309,8 +309,35 @@ export interface VerifiedForecastComparison {
   window: string;
 }
 
+export interface VerifiedCriterionDecision {
+  criterionId: string;
+  metricId: string;
+  scenarioId: string;
+  referenceScenarioId?: string;
+  comparator: "<" | "<=" | "=" | ">=" | ">";
+  threshold: number;
+  observed?: number;
+  verdict: "met" | "not-met" | "breached" | "unresolved";
+  issues: string[];
+}
+
+export interface VerifiedExperimentDecision {
+  experimentId: string;
+  successCriteria: VerifiedCriterionDecision[];
+  guardrails: VerifiedCriterionDecision[];
+  serverOverallVerdict: "success" | "failure" | "stopped" | "unresolved";
+  recommendedAction:
+    | "consider-adoption-within-tested-scope"
+    | "do-not-adopt-tested-change"
+    | "stop-and-investigate-guardrail"
+    | "collect-missing-evidence";
+  reportedOverallVerdict: ExperimentOutcome["overallVerdict"];
+  reportedVerdictsMatch: boolean;
+}
+
 export interface OutcomeVerificationResult {
   comparison?: VerifiedForecastComparison;
+  decision?: VerifiedExperimentDecision;
   issues: string[];
 }
 
@@ -326,7 +353,170 @@ function sameConditions(
     && left.window === right.window;
 }
 
-export function verifyOutcomeForecast(
+function compare(
+  observed: number,
+  comparator: VerifiedCriterionDecision["comparator"],
+  threshold: number,
+): boolean {
+  switch (comparator) {
+    case "<": return observed < threshold;
+    case "<=": return observed <= threshold;
+    case "=": return observed === threshold;
+    case ">=": return observed >= threshold;
+    case ">": return observed > threshold;
+  }
+}
+
+interface VerifiedResultValue {
+  value: number;
+  sampleSize: number;
+}
+
+function verifyResultValue(
+  spec: ExperimentSpec,
+  outcome: ExperimentOutcome,
+  measurements: Map<string, ExperimentMeasurement>,
+  metricId: string,
+  scenarioId: string,
+  label: string,
+): {result?: VerifiedResultValue; issues: string[]} {
+  const issues: string[] = [];
+  const metric = spec.metrics.find((item) => item.metricId === metricId);
+  const result = outcome.results.find((item) =>
+    item.metricId === metricId && item.scenarioId === scenarioId);
+  if (!metric) return {issues: [`${label} ${metricId}/${scenarioId} has no registered metric.`]};
+  if (!result || (result.status !== "observed" && result.status !== "reported-zero")) {
+    return {issues: [`${label} ${metricId}/${scenarioId} is not observed.`]};
+  }
+  if (!sameConditions(metric, result)) {
+    issues.push(`${label} ${metricId}/${scenarioId} changed measurement conditions.`);
+  }
+  if (result.sampleSize < metric.samplePlan.minimumCount) {
+    issues.push(`${label} ${metricId}/${scenarioId} is below minimum sample size.`);
+  }
+  const backed = result.evidenceRefs.some((ref) => {
+    const measurement = measurements.get(ref);
+    const reference = outcome.measurementEvidence.find((item) => item.ref === ref);
+    const measured = measurement?.scenarioResults.find((item) => item.scenarioId === scenarioId);
+    return Boolean(
+      measurement
+      && reference
+      && measurement.metricId === result.metricId
+      && sameConditions(measurement, result)
+      && measured
+      && measured.value === result.value
+      && measured.sampleSize === result.sampleSize,
+    );
+  });
+  if (!backed) {
+    issues.push(`${label} ${metricId}/${scenarioId} is not reproduced by raw measurement evidence.`);
+  }
+  return issues.length > 0
+    ? {issues}
+    : {issues, result: {value: result.value!, sampleSize: result.sampleSize}};
+}
+
+function criterionDecision(
+  spec: ExperimentSpec,
+  outcome: ExperimentOutcome,
+  measurements: Map<string, ExperimentMeasurement>,
+  criterion: z.infer<typeof CriterionSchema>,
+  guardrail: boolean,
+): VerifiedCriterionDecision {
+  const candidate = verifyResultValue(
+    spec,
+    outcome,
+    measurements,
+    criterion.metricId,
+    criterion.scenarioId,
+    "Criterion result",
+  );
+  const reference = criterion.referenceScenarioId
+    ? verifyResultValue(
+      spec,
+      outcome,
+      measurements,
+      criterion.metricId,
+      criterion.referenceScenarioId,
+      "Criterion result",
+    )
+    : undefined;
+  const verified = candidate.result !== undefined
+    && (reference === undefined || reference.result !== undefined);
+  const issues = [...candidate.issues, ...(reference?.issues ?? [])];
+  const observed = verified
+    ? candidate.result!.value - (reference?.result?.value ?? 0)
+    : undefined;
+  const met = observed === undefined
+    ? undefined
+    : compare(observed, criterion.comparator, criterion.value);
+  return {
+    criterionId: criterion.criterionId,
+    metricId: criterion.metricId,
+    scenarioId: criterion.scenarioId,
+    ...(criterion.referenceScenarioId
+      ? {referenceScenarioId: criterion.referenceScenarioId}
+      : {}),
+    comparator: criterion.comparator,
+    threshold: criterion.value,
+    ...(observed === undefined ? {} : {observed}),
+    verdict: met === undefined
+      ? "unresolved"
+      : met
+        ? "met"
+        : guardrail
+          ? "breached"
+          : "not-met",
+    issues,
+  };
+}
+
+function sameReportedVerdicts(
+  computed: VerifiedCriterionDecision[],
+  reported: Array<z.infer<typeof CriterionVerdictSchema>>,
+): boolean {
+  return computed.length === reported.length && computed.every((criterion) =>
+    reported.some(({criterionId, verdict}) =>
+      criterionId === criterion.criterionId && verdict === criterion.verdict));
+}
+
+function experimentDecision(
+  spec: ExperimentSpec,
+  outcome: ExperimentOutcome,
+  measurements: Map<string, ExperimentMeasurement>,
+): VerifiedExperimentDecision {
+  const successCriteria = spec.successCriteria.map((criterion) =>
+    criterionDecision(spec, outcome, measurements, criterion, false));
+  const guardrails = spec.guardrails.map((criterion) =>
+    criterionDecision(spec, outcome, measurements, criterion, true));
+  const serverOverallVerdict = guardrails.some(({verdict}) => verdict === "breached")
+    ? "stopped" as const
+    : [...successCriteria, ...guardrails].some(({verdict}) => verdict === "unresolved")
+      ? "unresolved" as const
+      : successCriteria.every(({verdict}) => verdict === "met")
+        ? "success" as const
+        : "failure" as const;
+  const recommendedAction = serverOverallVerdict === "success"
+    ? "consider-adoption-within-tested-scope" as const
+    : serverOverallVerdict === "failure"
+      ? "do-not-adopt-tested-change" as const
+      : serverOverallVerdict === "stopped"
+        ? "stop-and-investigate-guardrail" as const
+        : "collect-missing-evidence" as const;
+  return {
+    experimentId: spec.experimentId,
+    successCriteria,
+    guardrails,
+    serverOverallVerdict,
+    recommendedAction,
+    reportedOverallVerdict: outcome.overallVerdict,
+    reportedVerdictsMatch: outcome.overallVerdict === serverOverallVerdict
+      && sameReportedVerdicts(successCriteria, outcome.criterionVerdicts)
+      && sameReportedVerdicts(guardrails, outcome.guardrailVerdicts),
+  };
+}
+
+export function verifyExperimentOutcome(
   specInput: unknown,
   outcomeInput: unknown,
   measurementInputs: OutcomeMeasurementInput[],
@@ -367,53 +557,35 @@ export function verifyOutcomeForecast(
     }
   }
 
+  const decision = experimentDecision(spec, outcome, measurements);
+
   const primaryMetric = spec.metrics.find(({metricId}) => metricId === spec.primaryMetricId);
   const primaryPredictions = spec.predictions.filter(
     ({metricId}) => metricId === spec.primaryMetricId,
   );
   if (!primaryMetric || primaryPredictions.length !== 1) {
     issues.push("ExperimentSpec must have exactly one primary prediction for verification.");
-    return {issues};
+    return {decision, issues};
   }
   const prediction = primaryPredictions[0]!;
   const requiredScenarioIds = [
     prediction.scenarioId,
     ...(prediction.referenceScenarioId ? [prediction.referenceScenarioId] : []),
   ];
-  const observed = new Map<string, z.infer<typeof ExperimentResultSchema>>();
+  const observed = new Map<string, VerifiedResultValue>();
   for (const scenarioId of requiredScenarioIds) {
-    const result = outcome.results.find(({metricId, scenarioId: resultScenarioId}) =>
-      metricId === primaryMetric.metricId && resultScenarioId === scenarioId);
-    if (!result || (result.status !== "observed" && result.status !== "reported-zero")) {
-      issues.push(`Primary result ${primaryMetric.metricId}/${scenarioId} is not observed.`);
-      continue;
-    }
-    if (!sameConditions(primaryMetric, result)) {
-      issues.push(`Primary result ${primaryMetric.metricId}/${scenarioId} changed measurement conditions.`);
-    }
-    if (result.sampleSize < primaryMetric.samplePlan.minimumCount) {
-      issues.push(`Primary result ${primaryMetric.metricId}/${scenarioId} is below minimum sample size.`);
-    }
-    const backed = result.evidenceRefs.some((ref) => {
-      const measurement = measurements.get(ref);
-      const reference = outcome.measurementEvidence.find((item) => item.ref === ref);
-      const measured = measurement?.scenarioResults.find((item) => item.scenarioId === scenarioId);
-      return Boolean(
-        measurement
-        && reference
-        && measurement.metricId === result.metricId
-        && sameConditions(measurement, result)
-        && measured
-        && measured.value === result.value
-        && measured.sampleSize === result.sampleSize,
-      );
-    });
-    if (!backed) {
-      issues.push(`Primary result ${primaryMetric.metricId}/${scenarioId} is not reproduced by raw measurement evidence.`);
-    }
-    observed.set(scenarioId, result);
+    const verified = verifyResultValue(
+      spec,
+      outcome,
+      measurements,
+      primaryMetric.metricId,
+      scenarioId,
+      "Primary result",
+    );
+    issues.push(...verified.issues);
+    if (verified.result) observed.set(scenarioId, verified.result);
   }
-  if (issues.length > 0) return {issues};
+  if (issues.length > 0) return {decision, issues};
 
   const candidate = observed.get(prediction.scenarioId)!;
   const reference = prediction.referenceScenarioId
@@ -421,10 +593,11 @@ export function verifyOutcomeForecast(
     : undefined;
   const predicted = prediction.predictedValue ?? prediction.predictedDelta!;
   const actual = prediction.predictedValue !== undefined
-    ? candidate.value!
-    : candidate.value! - reference!.value!;
+    ? candidate.value
+    : candidate.value - reference!.value;
   const signedError = actual - predicted;
   return {
+    decision,
     issues: [],
     comparison: {
       experimentId: spec.experimentId,

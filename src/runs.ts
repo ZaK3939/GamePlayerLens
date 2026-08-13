@@ -23,7 +23,8 @@ import {
   ExperimentOutcomeSchema,
   ExperimentSpecSchema,
   matchesExperimentSpec,
-  verifyOutcomeForecast,
+  verifyExperimentOutcome,
+  type VerifiedExperimentDecision,
   type VerifiedForecastComparison,
 } from "./experiments.js";
 import type {
@@ -324,6 +325,7 @@ const SimulationClaimSchema = z.enum([
   "test-priority",
   "preregistered-prediction",
   "validated-forecast-error",
+  "verified-experiment-decision",
   "population-rate",
   "market-share",
   "causal-lift",
@@ -358,6 +360,35 @@ const ForecastComparisonSchema = z.object({
   window: z.string().min(1).max(500),
 }).strict();
 
+const CriterionDecisionSchema = z.object({
+  criterionId: ReferenceIdSchema,
+  metricId: ReferenceIdSchema,
+  scenarioId: ReferenceIdSchema,
+  referenceScenarioId: ReferenceIdSchema.optional(),
+  comparator: z.enum(["<", "<=", "=", ">=", ">"]),
+  threshold: z.number().finite(),
+  observed: z.number().finite().optional(),
+  verdict: z.enum(["met", "not-met", "breached", "unresolved"]),
+  issues: z.array(z.string().min(1).max(1_000)).max(20),
+}).strict();
+
+const ExperimentDecisionSchema = z.object({
+  outcomeRef: ReferenceIdSchema,
+  status: z.enum(["verified", "unresolved"]),
+  experimentId: ReferenceIdSchema,
+  successCriteria: z.array(CriterionDecisionSchema).min(1).max(50),
+  guardrails: z.array(CriterionDecisionSchema).max(50),
+  serverOverallVerdict: z.enum(["success", "failure", "stopped", "unresolved"]),
+  recommendedAction: z.enum([
+    "consider-adoption-within-tested-scope",
+    "do-not-adopt-tested-change",
+    "stop-and-investigate-guardrail",
+    "collect-missing-evidence",
+  ]),
+  reportedOverallVerdict: z.enum(["success", "failure", "mixed", "stopped", "unresolved"]),
+  reportedVerdictsMatch: z.boolean(),
+}).strict();
+
 export const SimulationReadinessSchema = z.object({
   status: z.enum(["rehearsal", "validation-ready"]),
   serverAssessed: z.literal(true),
@@ -381,6 +412,7 @@ export const SimulationReadinessSchema = z.object({
     }).strict()).max(50),
     forecastComparisons: z.array(ForecastComparisonSchema).max(50),
   }).strict(),
+  experimentDecisions: z.array(ExperimentDecisionSchema).max(50),
   allowedClaims: z.array(SimulationClaimSchema).min(1),
   blockedClaims: z.array(SimulationClaimSchema).min(1),
   reasons: z.array(z.string().min(1).max(1_000)).min(1).max(10),
@@ -428,7 +460,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(3),
+  schemaVersion: z.literal(4),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
@@ -719,6 +751,7 @@ interface OutcomeChainCheck {
   status: "verified" | "unresolved" | "invalid";
   issues: string[];
   comparison?: VerifiedForecastComparison;
+  decision?: VerifiedExperimentDecision;
 }
 
 async function buildSimulationReadiness(
@@ -756,6 +789,15 @@ async function buildSimulationReadiness(
   }
   const verifiedChecks = outcomeChecks.filter(({status}) => status === "verified");
   const serverVerified = verifiedChecks.length > 0;
+  const experimentDecisions = outcomeChecks.flatMap(({ref, status: outcomeStatus, decision}) => {
+    if (!decision) return [];
+    const status = outcomeStatus === "verified"
+      && decision.serverOverallVerdict !== "unresolved"
+      ? "verified" as const
+      : "unresolved" as const;
+    return [{outcomeRef: ref, status, ...decision}];
+  });
+  const hasVerifiedDecision = experimentDecisions.some(({status}) => status === "verified");
   const validationStatus = experimentSpecs.length === 0
     ? "absent" as const
     : matchedExperimentSpecs.length === 0
@@ -787,6 +829,7 @@ async function buildSimulationReadiness(
     "test-priority",
     ...(status === "validation-ready" ? ["preregistered-prediction"] as const : []),
     ...(serverVerified ? ["validated-forecast-error"] as const : []),
+    ...(hasVerifiedDecision ? ["verified-experiment-decision"] as const : []),
   ];
   return SimulationReadinessSchema.parse({
     status,
@@ -809,6 +852,7 @@ async function buildSimulationReadiness(
         ? [{outcomeRef: ref, ...comparison}]
         : []),
     },
+    experimentDecisions,
     allowedClaims,
     blockedClaims: [
       "population-rate",
@@ -1373,7 +1417,7 @@ export function createRunStore(
     }
 
     const forecast = historicalSpecResult.success
-      ? verifyOutcomeForecast(
+      ? verifyExperimentOutcome(
         historicalSpecResult.data,
         outcome,
         measurementInputs,
@@ -1383,9 +1427,20 @@ export function createRunStore(
       return {ref, status: "invalid", issues: [...new Set([...chainIssues, ...forecast.issues])]};
     }
     if (!forecast.comparison) {
-      return {ref, status: "unresolved", issues: forecast.issues};
+      return {
+        ref,
+        status: "unresolved",
+        issues: forecast.issues,
+        ...(forecast.decision ? {decision: forecast.decision} : {}),
+      };
     }
-    return {ref, status: "verified", issues: [], comparison: forecast.comparison};
+    return {
+      ref,
+      status: "verified",
+      issues: [],
+      comparison: forecast.comparison,
+      ...(forecast.decision ? {decision: forecast.decision} : {}),
+    };
   }
 
   async function saveRun(input: SaveRunInput): Promise<RunArtifactMetadata> {
@@ -1401,7 +1456,7 @@ export function createRunStore(
     }
     const evidence = resolvedEvidence.map(({record}) => record);
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 3,
+      schemaVersion: 4,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,

@@ -4,7 +4,7 @@ import {
   ExperimentOutcomeSchema,
   ExperimentSpecSchema,
   matchesExperimentSpec,
-  verifyOutcomeForecast,
+  verifyExperimentOutcome,
 } from "./experiments.js";
 
 const SHA = "a".repeat(64);
@@ -186,7 +186,7 @@ describe("ExperimentOutcome verification", () => {
     expect(ExperimentMeasurementSchema.safeParse(measurement()).success).toBe(true);
     expect(ExperimentOutcomeSchema.safeParse(outcome()).success).toBe(true);
 
-    expect(verifyOutcomeForecast(spec(), outcome(), [{
+    expect(verifyExperimentOutcome(spec(), outcome(), [{
       ref: "human-sessions",
       payload: measurement(),
     }])).toEqual({
@@ -202,6 +202,20 @@ describe("ExperimentOutcome verification", () => {
         sampleSize: 8,
         aggregation: "median",
       }),
+      decision: {
+        experimentId: "tutorial-001",
+        successCriteria: [expect.objectContaining({
+          criterionId: "friction-below-threshold",
+          observed: 1,
+          verdict: "met",
+          issues: [],
+        })],
+        guardrails: [],
+        serverOverallVerdict: "success",
+        recommendedAction: "consider-adoption-within-tested-scope",
+        reportedOverallVerdict: "success",
+        reportedVerdictsMatch: true,
+      },
     });
   });
 
@@ -217,12 +231,23 @@ describe("ExperimentOutcome verification", () => {
       }],
       overallVerdict: "unresolved",
     });
-    expect(verifyOutcomeForecast(spec(), missing, []).comparison).toBeUndefined();
+    const missingVerification = verifyExperimentOutcome(spec(), missing, []);
+    expect(missingVerification.comparison).toBeUndefined();
+    expect(missingVerification.decision).toMatchObject({
+      serverOverallVerdict: "unresolved",
+      recommendedAction: "collect-missing-evidence",
+      reportedOverallVerdict: "unresolved",
+      reportedVerdictsMatch: false,
+      successCriteria: [{
+        verdict: "unresolved",
+        issues: ["Criterion result friction-count/current is not observed."],
+      }],
+    });
 
     const underSampled = outcome({
       results: [{...outcome().results[0], sampleSize: 5}],
     });
-    expect(verifyOutcomeForecast(spec(), underSampled, [{
+    expect(verifyExperimentOutcome(spec(), underSampled, [{
       ref: "human-sessions",
       payload: measurement({
         scenarioResults: [{scenarioId: "current", value: 1, sampleSize: 5}],
@@ -231,7 +256,7 @@ describe("ExperimentOutcome verification", () => {
       "Primary result friction-count/current is below minimum sample size.",
     );
 
-    expect(verifyOutcomeForecast(spec(), outcome(), [{
+    expect(verifyExperimentOutcome(spec(), outcome(), [{
       ref: "human-sessions",
       payload: measurement({
         scenarioResults: [{scenarioId: "current", value: 3, sampleSize: 8}],
@@ -239,6 +264,67 @@ describe("ExperimentOutcome verification", () => {
     }]).issues).toContain(
       "Primary result friction-count/current is not reproduced by raw measurement evidence.",
     );
+  });
+
+  it("recomputes failure and detects a contradictory client verdict", () => {
+    const failedOutcome = outcome({
+      results: [{...outcome().results[0], value: 3}],
+      criterionVerdicts: [{criterionId: "friction-below-threshold", verdict: "not-met"}],
+      overallVerdict: "failure",
+    });
+    const failed = verifyExperimentOutcome(spec(), failedOutcome, [{
+      ref: "human-sessions",
+      payload: measurement({
+        scenarioResults: [{scenarioId: "current", value: 3, sampleSize: 8}],
+      }),
+    }]);
+    expect(failed.decision).toMatchObject({
+      serverOverallVerdict: "failure",
+      recommendedAction: "do-not-adopt-tested-change",
+      reportedOverallVerdict: "failure",
+      reportedVerdictsMatch: true,
+      successCriteria: [{observed: 3, verdict: "not-met", issues: []}],
+    });
+
+    const contradictory = verifyExperimentOutcome(spec(), outcome({
+      criterionVerdicts: [{criterionId: "friction-below-threshold", verdict: "not-met"}],
+      overallVerdict: "failure",
+    }), [{ref: "human-sessions", payload: measurement()}]);
+    expect(contradictory.decision).toMatchObject({
+      serverOverallVerdict: "success",
+      reportedOverallVerdict: "failure",
+      reportedVerdictsMatch: false,
+    });
+  });
+
+  it("makes a verified guardrail breach stop the experiment", () => {
+    const stoppedSpec = spec({
+      guardrails: [{
+        criterionId: "zero-friction-guardrail",
+        metricId: "friction-count",
+        scenarioId: "current",
+        comparator: "<=",
+        value: 0,
+      }],
+    });
+    const stoppedOutcome = outcome({
+      guardrailVerdicts: [{criterionId: "zero-friction-guardrail", verdict: "breached"}],
+      overallVerdict: "stopped",
+    });
+    expect(verifyExperimentOutcome(stoppedSpec, stoppedOutcome, [{
+      ref: "human-sessions",
+      payload: measurement(),
+    }]).decision).toMatchObject({
+      serverOverallVerdict: "stopped",
+      recommendedAction: "stop-and-investigate-guardrail",
+      reportedVerdictsMatch: true,
+      guardrails: [{
+        criterionId: "zero-friction-guardrail",
+        observed: 1,
+        verdict: "breached",
+        issues: [],
+      }],
+    });
   });
 
   it("rejects malformed outcome value states and duplicate measurement scenarios", () => {

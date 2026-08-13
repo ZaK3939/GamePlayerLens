@@ -1378,7 +1378,7 @@ describe("MCP server contract", () => {
         data: {
           metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
           record: {
-            schemaVersion: 3,
+            schemaVersion: 4,
             runId,
             targetId: "hades-ii",
             recipe: {path: "skills/run-sim.md", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
