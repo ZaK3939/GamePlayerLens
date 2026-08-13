@@ -247,6 +247,10 @@ const PlaytestSessionIdSchema = z.string().trim().min(1).max(47).regex(
   /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
   "playtest session IDs must use lowercase kebab-case",
 );
+const PlaytestCohortIdSchema = z.string().trim().min(1).max(48).regex(
+  /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+  "playtest cohort IDs must use lowercase kebab-case",
+);
 const FrictionSeveritySchema = z.enum(["none", "minor", "material", "blocker"]);
 const RewardSignalSchema = z.enum([
   "demonstrated",
@@ -398,6 +402,82 @@ export const PlaytestSessionSchema = createJsonStringSchema(
   100_000,
   PlaytestSessionObjectSchema,
   PLAYTEST_SESSION_SAFE_FIELDS,
+);
+
+export const PlaytestCohortObjectSchema = z.object({
+  assembledAt: z.iso.datetime({offset: true}),
+  cohortId: PlaytestCohortIdSchema,
+  purpose: ManualTestTextSchema,
+  recruitment: ManualTestTextSchema,
+  targetPlayerDefinition: ManualTestTextSchema,
+  samplingBoundary: ManualTestTextSchema,
+  sessions: z.array(PlaytestSessionObjectSchema).min(2).max(20),
+}).strict().superRefine((value, context) => {
+  const assembledAt = Date.parse(value.assembledAt);
+  const sessionsById = new Map<string, PlaytestSession>();
+  for (const [index, session] of value.sessions.entries()) {
+    if (sessionsById.has(session.sessionId)) {
+      context.addIssue({
+        code: "custom",
+        path: ["sessions", index, "sessionId"],
+        message: "playtest cohort sessionId values must be unique",
+      });
+    } else {
+      sessionsById.set(session.sessionId, session);
+    }
+    if (Date.parse(session.endedAt) > assembledAt) {
+      context.addIssue({
+        code: "custom",
+        path: ["assembledAt"],
+        message: "assembledAt must not precede a cohort session",
+      });
+    }
+  }
+
+  if (sessionsById.size !== value.sessions.length) return;
+  for (const [index, session] of value.sessions.entries()) {
+    if (!session.parentSessionId) continue;
+    const parent = sessionsById.get(session.parentSessionId);
+    if (parent && Date.parse(parent.endedAt) >= Date.parse(session.startedAt)) {
+      context.addIssue({
+        code: "custom",
+        path: ["sessions", index, "parentSessionId"],
+        message: "an internal parent session must end before its retest starts",
+      });
+    }
+
+    const visited = new Set<string>();
+    let current: PlaytestSession | undefined = session;
+    while (current) {
+      if (visited.has(current.sessionId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["sessions", index, "parentSessionId"],
+          message: "playtest cohort lineage must not contain a cycle",
+        });
+        break;
+      }
+      visited.add(current.sessionId);
+      current = current.parentSessionId
+        ? sessionsById.get(current.parentSessionId)
+        : undefined;
+    }
+  }
+});
+
+export type PlaytestCohort = z.infer<typeof PlaytestCohortObjectSchema>;
+
+const PLAYTEST_COHORT_SAFE_FIELDS = new Set<string>([
+  ...PLAYTEST_SESSION_SAFE_FIELDS,
+  "assembledAt", "cohortId", "purpose", "recruitment",
+  "targetPlayerDefinition", "samplingBoundary", "sessions",
+]);
+
+export const PlaytestCohortSchema = createJsonStringSchema(
+  "playtestCohort",
+  200_000,
+  PlaytestCohortObjectSchema,
+  PLAYTEST_COHORT_SAFE_FIELDS,
 );
 
 function createJsonStringSchema<T extends z.ZodType>(
@@ -773,5 +853,206 @@ export function buildPlaytestSessionDiagnostics(
       ? "Treat these as inspection priorities, not causes. Inspect the chronological evidence and retest a bounded change under a comparable protocol."
       : "No bounded issue signal was recorded; add another independent human session before making a broader experience claim.",
     interpretationLimit: "This describes one bounded session only; it is not a fun score, completion rate, retention estimate, or demand forecast.",
+  };
+}
+
+function countStringGroups(values: readonly string[]) {
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([value, sessionCount]) => ({value, sessionCount}));
+}
+
+function buildPlaytestCohortEvidenceSummary(sessions: readonly PlaytestSession[]) {
+  const observations = sessions.flatMap((session) => session.observations);
+  return {
+    sessionCount: sessions.length,
+    observationCount: observations.length,
+    outcomeCounts: countValues(
+      sessions.map((session) => session.outcome),
+      ["completed", "failed", "blocked", "stopped"],
+    ),
+    eventCounts: countValues(
+      observations.map((observation) => observation.eventType),
+      PlaytestEventTypeSchema.options,
+    ),
+    frictionObservationCounts: countValues(
+      observations.map((observation) => observation.frictionSeverity),
+      FrictionSeveritySchema.options,
+    ),
+    frictionAffectedSessionCounts: Object.fromEntries(
+      (["minor", "material", "blocker"] as const).map((severity) => [
+        severity,
+        sessions.filter((session) =>
+          session.observations.some(
+            (observation) => observation.frictionSeverity === severity,
+          )
+        ).length,
+      ]),
+    ),
+    rewardObservationCounts: countValues(
+      observations.map((observation) => observation.rewardSignal),
+      RewardSignalSchema.options,
+    ),
+    rewardEvidenceSessionCounts: {
+      demonstrated: sessions.filter((session) =>
+        session.observations.some(
+          (observation) => observation.rewardSignal === "demonstrated",
+        )
+      ).length,
+      "not-observed": sessions.filter((session) =>
+        session.observations.some(
+          (observation) => observation.rewardSignal === "not-observed",
+        )
+      ).length,
+      unclear: sessions.filter((session) =>
+        session.observations.some(
+          (observation) => observation.rewardSignal === "unclear",
+        )
+      ).length,
+      "unassessed-only": sessions.filter((session) =>
+        session.observations.every(
+          (observation) => observation.rewardSignal === "not-assessed",
+        )
+      ).length,
+    },
+  };
+}
+
+export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
+  const sessions = cohort.sessions;
+  const humanSessions = sessions.filter(
+    (session) => session.testerType === "human-participant",
+  );
+  const aiSessions = sessions.filter(
+    (session) => session.testerType === "ai-operated",
+  );
+  const participantExposureCounts = new Map<string, number>();
+  for (const session of humanSessions) {
+    const participantId = session.participantId!;
+    participantExposureCounts.set(
+      participantId,
+      (participantExposureCounts.get(participantId) ?? 0) + 1,
+    );
+  }
+  const repeatHumanParticipantCount = [...participantExposureCounts.values()].filter(
+    (count) => count > 1,
+  ).length;
+  const observations = sessions.flatMap((session) => session.observations);
+  const sessionIds = new Set(sessions.map((session) => session.sessionId));
+  const linkedSessions = sessions.filter((session) => session.parentSessionId !== undefined);
+  const internalParentCount = linkedSessions.filter(
+    (session) => sessionIds.has(session.parentSessionId!),
+  ).length;
+  const externalParentCount = linkedSessions.length - internalParentCount;
+  const humanReportStatuses = sessions.map((session) =>
+    session.testerType === "ai-operated"
+      ? "not-applicable-ai-operated"
+      : session.humanReport
+        ? "human-report-present"
+        : "human-report-missing"
+  );
+  const buildGroups = countStringGroups(sessions.map((session) => session.buildId));
+  const taskGroups = countStringGroups(sessions.map((session) => session.task));
+  const platformGroups = countStringGroups(sessions.map((session) => session.platform));
+  const controlsGroups = countStringGroups(sessions.map((session) => session.controls));
+  const allSessionEvidence = buildPlaytestCohortEvidenceSummary(sessions);
+  const humanReportCoverageMissing = humanSessions.some((session) =>
+    !session.humanReport
+      || session.humanReport.feltReward === "not-asked"
+      || session.humanReport.wouldRepeat === "not-asked"
+      || !session.humanReport.rewardDescription
+  );
+  const testerTypeCounts = countValues(
+    sessions.map((session) => session.testerType),
+    ["human-participant", "ai-operated"],
+  );
+  const candidateReviewAreas = [
+    ...(testerTypeCounts["human-participant"] > 0 && testerTypeCounts["ai-operated"] > 0
+      ? ["mixed-tester-types"] : []),
+    ...(buildGroups.length > 1
+      || taskGroups.length > 1
+      || platformGroups.length > 1
+      || controlsGroups.length > 1
+      ? ["protocol-variation"] : []),
+    ...(repeatHumanParticipantCount > 0 ? ["repeat-participant-exposure"] : []),
+    ...(humanReportCoverageMissing ? ["human-report-coverage"] : []),
+    ...(sessions.some((session) => session.outcome !== "completed")
+      ? ["incomplete-session-outcome"] : []),
+    ...(sessions.some((session) => (session.deviations?.length ?? 0) > 0)
+      ? ["protocol-deviation"] : []),
+    ...(allSessionEvidence.frictionAffectedSessionCounts.material > 0
+      || allSessionEvidence.frictionAffectedSessionCounts.blocker > 0
+      ? ["material-friction"] : []),
+    ...(allSessionEvidence.rewardEvidenceSessionCounts["unassessed-only"] > 0
+      ? ["reward-evidence-coverage"] : []),
+    ...(allSessionEvidence.rewardEvidenceSessionCounts["not-observed"] > 0
+      || allSessionEvidence.rewardEvidenceSessionCounts.unclear > 0
+      ? ["reward-delivery"] : []),
+    ...(humanSessions.some((session) =>
+      session.humanReport?.feltReward === "no"
+        || session.humanReport?.feltReward === "unclear"
+    ) ? ["felt-reward-follow-up"] : []),
+    ...(linkedSessions.some((session) => (session.changedVariables?.length ?? 0) > 1)
+      ? ["multi-variable-change"] : []),
+    ...(externalParentCount > 0 ? ["external-parent-readback"] : []),
+  ];
+  const earliestSession = sessions.reduce((earliest, session) =>
+    Date.parse(session.startedAt) < Date.parse(earliest.startedAt) ? session : earliest
+  );
+  const latestSession = sessions.reduce((latest, session) =>
+    Date.parse(session.endedAt) > Date.parse(latest.endedAt) ? session : latest
+  );
+
+  return {
+    status: "descriptive-only",
+    cohortId: cohort.cohortId,
+    artifactId: `playtest-cohort-${cohort.cohortId}`,
+    sessionCount: sessions.length,
+    observationWindow: {
+      startedAt: earliestSession.startedAt,
+      endedAt: latestSession.endedAt,
+    },
+    observationCount: observations.length,
+    testerTypeCounts,
+    humanReportStatusCounts: countValues(humanReportStatuses, [
+      "human-report-present",
+      "human-report-missing",
+      "not-applicable-ai-operated",
+    ]),
+    uniqueHumanParticipantCount: participantExposureCounts.size,
+    repeatHumanParticipantCount,
+    targetFitCounts: countValues(
+      humanSessions.map((session) => session.targetFit!),
+      TargetFitSchema.options,
+    ),
+    evidenceByTesterType: {
+      "human-participant": buildPlaytestCohortEvidenceSummary(humanSessions),
+      "ai-operated": buildPlaytestCohortEvidenceSummary(aiSessions),
+    },
+    protocolGroups: {
+      builds: buildGroups,
+      tasks: taskGroups,
+      platforms: platformGroups,
+      controls: controlsGroups,
+      observationSourceCounts: countValues(
+        sessions.map((session) => session.observationSource),
+        ["direct-session", "moderated", "recording-review"],
+      ),
+    },
+    lineage: {
+      linkedRetestCount: linkedSessions.length,
+      internalParentCount,
+      externalParentCount,
+      multiVariableRetestCount: linkedSessions.filter(
+        (session) => (session.changedVariables?.length ?? 0) > 1,
+      ).length,
+    },
+    candidateReviewAreas,
+    nextAction: candidateReviewAreas.length > 0
+      ? "Inspect candidate areas by exact session ID; do not rank causes from counts alone. Retest one bounded change or register an ExperimentSpec for a planned comparison."
+      : "No bounded cohort issue signal was recorded; preserve session-level evidence and define the next falsifiable question before expanding scope.",
+    interpretationLimit: "Counts describe this bounded cohort and its recorded exposure only; they are not population rates, independent-sample estimates, completion rates, retention estimates, fun scores, or demand forecasts.",
   };
 }

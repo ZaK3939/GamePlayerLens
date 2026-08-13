@@ -30,6 +30,7 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
   "conceptTest",
   "firstContactTest",
   "playtestSession",
+  "playtestCohort",
   "playtestUrl",
   "playtestTask",
   "playtestBuild",
@@ -48,6 +49,65 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
+}
+
+function playtestCohortFixture(prefix: string) {
+  const firstSession = {
+    startedAt: "2026-08-12T12:00:00+04:00",
+    endedAt: "2026-08-12T12:03:00+04:00",
+    sessionId: `${prefix}-session-01`,
+    buildId: `${prefix}-build-1`,
+    platform: "desktop browser",
+    controls: "keyboard and mouse",
+    task: "Reach the tutorial checkpoint",
+    startState: "Fresh save at title",
+    endState: "Tutorial checkpoint reached",
+    testerType: "ai-operated",
+    observationSource: "direct-session",
+    priorKnowledge: "none",
+    observations: [{
+      step: 1,
+      elapsedSeconds: 10,
+      eventType: "action",
+      meaningfulAction: true,
+      playerIntent: "Advance toward the checkpoint",
+      inputAction: "Used the prompted movement input",
+      systemResponse: "The avatar moved toward the checkpoint",
+      frictionSeverity: "none",
+      rewardSignal: "not-assessed",
+    }],
+    outcome: "completed",
+  };
+  return {
+    assembledAt: "2026-08-13T13:00:00+04:00",
+    cohortId: `${prefix}-cohort-01`,
+    purpose: "Verify bounded cohort prompt wiring",
+    recruitment: "AI-operated transport fixture",
+    targetPlayerDefinition: "Not applicable to this transport fixture",
+    samplingBoundary: "Two synthetic sessions for MCP wiring only",
+    sessions: [
+      firstSession,
+      {
+        ...firstSession,
+        startedAt: "2026-08-13T12:00:00+04:00",
+        endedAt: "2026-08-13T12:04:00+04:00",
+        sessionId: `${prefix}-session-02`,
+        parentSessionId: `${prefix}-session-01`,
+        changeSummary: "Made checkpoint completion feedback distinct",
+        changedVariables: ["reward"],
+        invariantsKept: [
+          "Same task, platform, controls, start state, and operator protocol",
+        ],
+        buildId: `${prefix}-build-2`,
+        observations: [{
+          ...firstSession.observations[0],
+          eventType: "reward",
+          systemResponse: "The checkpoint emitted a distinct flash and sound",
+          rewardSignal: "demonstrated",
+        }],
+      },
+    ],
+  };
 }
 
 function stringEnvironment(): Record<string, string> {
@@ -331,6 +391,31 @@ try {
     "run-sim did not round-trip the supplied playtest protocol",
   );
 
+  const cohortPrompt = await client.getPrompt({
+    name: "run-sim",
+    arguments: {
+      target: "Cohort Fixture Game",
+      topic: "Bounded playtest cohort wiring",
+      mode: "baseline",
+      domains: "gameplay",
+      playtestCohort: JSON.stringify(playtestCohortFixture("stdio")),
+    },
+  });
+  const cohortContent = cohortPrompt.messages[0]?.content;
+  assert(cohortContent?.type === "text", "run-sim cohort prompt must return text content");
+  assert(
+    cohortContent.text.includes('"playtestCohort": {')
+      && cohortContent.text.includes('"playtestCohortDiagnostics": {')
+      && cohortContent.text.includes('"artifactId": "playtest-cohort-stdio-cohort-01"')
+      && cohortContent.text.includes('"playtestCohortEvidence": {')
+      && cohortContent.text.includes('"observedAt": "2026-08-13T12:04:00+04:00"')
+      && cohortContent.text.includes('"evidenceByTesterType": {')
+      && cohortContent.text.includes('"ai-operated": {')
+      && cohortContent.text.includes('"internalParentCount": 1')
+      && !cohortContent.text.includes('"completionRate"'),
+    "run-sim did not preserve bounded cohort evidence separation",
+  );
+
   const knowledge = await client.callTool({
     name: "get_knowledge",
     arguments: {kind: "templates", id: "adoption-eval.md"},
@@ -474,6 +559,7 @@ try {
     tools: tools.length,
     prompts: prompts.length,
     playtestPromptRoundTrip: true,
+    playtestCohortRoundTrip: true,
     liveSearch,
     liveDiscovery,
     liveUpdates,

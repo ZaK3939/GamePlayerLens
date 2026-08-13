@@ -2,11 +2,14 @@ import {z} from "zod";
 import {
   buildConceptTestDiagnostics,
   buildFirstContactTestDiagnostics,
+  buildPlaytestCohortDiagnostics,
   buildPlaytestSessionDiagnostics,
   ConceptTestObjectSchema,
   ConceptTestSchema,
   FirstContactTestObjectSchema,
   FirstContactTestSchema,
+  PlaytestCohortObjectSchema,
+  PlaytestCohortSchema,
   PlaytestSessionObjectSchema,
   PlaytestSessionSchema,
 } from "./manual-tests.js";
@@ -255,6 +258,9 @@ export const RunSimPromptArgumentsSchema = z.object({
   playtestSession: PlaytestSessionSchema.optional().describe(
     "JSON object containing one chronological, evidence-linked playtest session",
   ),
+  playtestCohort: PlaytestCohortSchema.optional().describe(
+    "JSON object containing 2 to 20 full playtest sessions for bounded descriptive aggregation",
+  ),
   playtestUrl: PlaytestUrlSchema.optional(),
   playtestTask: z.string().trim().min(1).max(1_000).optional(),
   playtestBuild: z.string().trim().min(1).max(200).optional(),
@@ -275,6 +281,13 @@ export const RunSimPromptArgumentsSchema = z.object({
       code: "custom",
       path: ["playtestTask"],
       message: "playtestTask is required when playtestUrl is provided",
+    });
+  }
+  if (value.playtestSession && value.playtestCohort) {
+    context.addIssue({
+      code: "custom",
+      path: ["playtestCohort"],
+      message: "playtestSession and playtestCohort must not be supplied together",
     });
   }
 });
@@ -301,6 +314,11 @@ export interface RunSimPromptContext {
     resultHandle: string;
   };
   playtestSessionEvidence?: {
+    sourceTool: "manual";
+    observedAt: string;
+    resultHandle: string;
+  };
+  playtestCohortEvidence?: {
     sourceTool: "manual";
     observedAt: string;
     resultHandle: string;
@@ -341,6 +359,22 @@ export function buildPlaytestSessionEvidenceEnvelope(input: RunSimPromptArgument
     data: playtestSession,
     warnings: [] as string[],
     meta: {observedAt: playtestSession.startedAt},
+  };
+}
+
+export function buildPlaytestCohortEvidenceEnvelope(input: RunSimPromptArguments) {
+  const parsed = RunSimPromptArgumentsSchema.parse(input);
+  if (!parsed.playtestCohort) return undefined;
+  const playtestCohort = PlaytestCohortObjectSchema.parse(
+    JSON.parse(parsed.playtestCohort),
+  );
+  const latestSession = playtestCohort.sessions.reduce((latest, session) =>
+    Date.parse(session.endedAt) > Date.parse(latest.endedAt) ? session : latest
+  );
+  return {
+    data: playtestCohort,
+    warnings: [] as string[],
+    meta: {observedAt: latestSession.endedAt},
   };
 }
 
@@ -386,6 +420,7 @@ export function buildRunSimPrompt(
   const {
     conceptTest,
     firstContactTest,
+    playtestCohort,
     playtestSession,
     projectBrief,
     uiReferenceUrls,
@@ -403,6 +438,9 @@ export function buildRunSimPrompt(
     : undefined;
   const structuredPlaytestSession = playtestSession
     ? PlaytestSessionObjectSchema.parse(JSON.parse(playtestSession))
+    : undefined;
+  const structuredPlaytestCohort = playtestCohort
+    ? PlaytestCohortObjectSchema.parse(JSON.parse(playtestCohort))
     : undefined;
 
   return appendSerializedInput(recipe, {
@@ -461,6 +499,22 @@ export function buildRunSimPrompt(
             ? {
                 playtestSessionEvidence: {
                   ...context.playtestSessionEvidence,
+                  exactSaveRequired: true,
+                },
+              }
+            : {}),
+        }
+      : {}),
+    ...(structuredPlaytestCohort
+      ? {
+          playtestCohort: structuredPlaytestCohort,
+          playtestCohortDiagnostics: buildPlaytestCohortDiagnostics(
+            structuredPlaytestCohort,
+          ),
+          ...(context.playtestCohortEvidence
+            ? {
+                playtestCohortEvidence: {
+                  ...context.playtestCohortEvidence,
                   exactSaveRequired: true,
                 },
               }

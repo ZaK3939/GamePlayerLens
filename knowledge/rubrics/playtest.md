@@ -80,6 +80,19 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 - `parentEvidenceStatus=pending-exact-readback`は親IDが入力されたことだけを示す。保存済みparentを読めた後にだけ比較へ進む。
 - 厳密な成功criterion、guardrail、複数scenario集計が必要なら`experiment.md`へ進み、軽量retestを事前登録済み実験と呼ばない。
 
+### Bounded cohort aggregation
+
+`playtestCohort`は2〜20件の完全なsessionを1つのbounded cohortとして保存します。`playtestSession`と`playtestCohort`は同時入力せず、単発観測かcohort原本の一方を選びます。cohortにはassembledAt、cohort ID、purpose、recruitment、target player定義、sampling boundaryを必須にし、session ID重複、未来sessionの混入、内部lineageの循環や時間逆転を受理しません。
+
+`playtestCohortDiagnostics`は`sessionCount`、`uniqueHumanParticipantCount`、`repeatHumanParticipantCount`、tester type / outcome / human report statusの件数、session単位のfriction / reward coverage、protocol groups、lineage coverageを返します。
+
+- AI-operated sessionとhuman participant sessionを分離し、両者の結果を一つのhuman metricへ混ぜない。
+- 同一participantの複数sessionはrepeat exposureとして示し、独立participantが増えたと数えない。
+- 観測件数・session件数をcompletion rate、retention rate、fun rate、需要率へ変換しない。このcohortに対する率の生成は禁止する。
+- build、task、platform、controlsが異なるsessionを平均しない。group差は比較可能性のwarningであり、原因ではない。
+- `playtestCohortEvidence.resultHandle`を使ってcohort原本を`playtest-cohort-<cohortId>`へexact-saveし、session本文をモデルが再集計用に転記しない。
+- 厳密なscenario差、sample minimum、success criterion、guardrailが必要なら、cohort件数から後付けthresholdを作らず`experiment.md`で事前登録する。
+
 ## 7. playtest provenance
 
 `playtestSession`入力は前節のresultHandleでexact-saveします。prompt外で受け取ったrecordingやlogだけを保存する場合は、検証済みsessionと混同せず`save_artifact(kind=intel, sourceTool=manual)`でprovenanceを保存します。

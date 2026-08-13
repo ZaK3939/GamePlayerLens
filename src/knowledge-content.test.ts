@@ -382,6 +382,20 @@ describe("playtest rubric", () => {
     expect(recipe).toMatch(/playtest-session-<sessionId>[\s\S]*parentSessionId[\s\S]*get_artifact/);
     expect(recipe).toMatch(/parent[\s\S]*task[\s\S]*platform[\s\S]*controls[\s\S]*(cohort|participant)/);
   });
+
+  it("aggregates bounded cohorts without inventing population rates", async () => {
+    const rubric = await read("knowledge/rubrics/playtest.md");
+    const recipe = await read("skills/run-sim.md");
+    const template = await read("knowledge/templates/adoption-eval.md");
+
+    expect(rubric).toMatch(/playtestCohortEvidence\.resultHandle[\s\S]*exact-save/);
+    expect(rubric).toMatch(/sessionCount[\s\S]*uniqueHumanParticipantCount[\s\S]*repeatHumanParticipantCount/);
+    expect(rubric).toMatch(/AI[\s\S]*human[\s\S]*(分離|混ぜない)/);
+    expect(rubric).toMatch(/件数[\s\S]*(率|rate)[\s\S]*(禁止|変換しない)/);
+    expect(recipe).toMatch(/playtestCohortEvidence\.resultHandle[\s\S]*save_artifact/);
+    expect(recipe).toMatch(/playtestSession[\s\S]*playtestCohort[\s\S]*(同時|一方)/);
+    expect(template).toContain("Playtest Cohort Summary");
+  });
 });
 
 describe("update strategy rubric", () => {

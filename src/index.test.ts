@@ -2017,6 +2017,139 @@ describe("MCP server contract", () => {
     }
   });
 
+  it("exact-saves a normalized playtest cohort with the latest session time", async () => {
+    const {client, server} = await createHarness();
+    const firstSession = {
+      startedAt: "2026-08-12T12:00:00+04:00",
+      endedAt: "2026-08-12T12:03:00+04:00",
+      sessionId: "cohort-session-01",
+      buildId: "cohort-build-1",
+      platform: "desktop browser",
+      controls: "keyboard and mouse",
+      task: "Reach the tutorial checkpoint",
+      startState: "Fresh save at title",
+      endState: "Tutorial checkpoint reached",
+      testerType: "ai-operated",
+      observationSource: "direct-session",
+      priorKnowledge: "none",
+      observations: [{
+        step: 1,
+        elapsedSeconds: 10,
+        eventType: "action",
+        meaningfulAction: true,
+        playerIntent: "Advance toward the checkpoint",
+        inputAction: "Used the prompted movement input",
+        systemResponse: "The avatar moved toward the checkpoint",
+        frictionSeverity: "none",
+        rewardSignal: "not-assessed",
+      }],
+      outcome: "completed",
+    };
+    const secondSession = {
+      ...firstSession,
+      startedAt: "2026-08-13T12:00:00+04:00",
+      endedAt: "2026-08-13T12:04:00+04:00",
+      sessionId: "cohort-session-02",
+      parentSessionId: "cohort-session-01",
+      changeSummary: "Made checkpoint completion feedback distinct",
+      changedVariables: ["reward"],
+      invariantsKept: ["Same task, platform, controls, start state, and operator protocol"],
+      buildId: "cohort-build-2",
+      observations: [{
+        ...firstSession.observations[0],
+        eventType: "reward",
+        systemResponse: "The checkpoint emitted a distinct flash and sound",
+        rewardSignal: "demonstrated",
+      }],
+    };
+    const cohort = {
+      assembledAt: "2026-08-13T13:00:00+04:00",
+      cohortId: "mcp-cohort-01",
+      purpose: "Verify bounded cohort normalization and persistence",
+      recruitment: "AI-operated protocol fixture",
+      targetPlayerDefinition: "Not applicable to this transport fixture",
+      samplingBoundary: "Two synthetic sessions for MCP wiring only",
+      sessions: [firstSession, secondSession],
+    };
+
+    try {
+      const prompt = await client.getPrompt({
+        name: "run-sim",
+        arguments: {
+          target: "Project Nyx",
+          topic: "cohort exact-save wiring",
+          playtestCohort: JSON.stringify(cohort),
+        },
+      });
+      const promptData = promptInputData(prompt);
+      expect(promptData.playtestCohortDiagnostics).toMatchObject({
+        artifactId: "playtest-cohort-mcp-cohort-01",
+        sessionCount: 2,
+        testerTypeCounts: {"human-participant": 0, "ai-operated": 2},
+        humanReportStatusCounts: {"not-applicable-ai-operated": 2},
+        evidenceByTesterType: {
+          "human-participant": {sessionCount: 0},
+          "ai-operated": {
+            sessionCount: 2,
+            outcomeCounts: {completed: 2},
+            rewardEvidenceSessionCounts: {demonstrated: 1, "unassessed-only": 1},
+          },
+        },
+        lineage: {linkedRetestCount: 1, internalParentCount: 1, externalParentCount: 0},
+      });
+      const evidence = promptData.playtestCohortEvidence as Record<string, unknown>;
+      expect(evidence).toMatchObject({
+        sourceTool: "manual",
+        observedAt: "2026-08-13T12:04:00+04:00",
+        resultHandle: expect.any(String),
+        exactSaveRequired: true,
+      });
+
+      const saved = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "playtest-cohort-mcp-cohort-01",
+          resultHandle: evidence.resultHandle,
+        },
+      });
+      expect(saved.isError).not.toBe(true);
+      const read = await client.callTool({
+        name: "get_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "playtest-cohort-mcp-cohort-01",
+        },
+      });
+      expect(read.structuredContent).toMatchObject({
+        data: {
+          sourceTool: "manual",
+          observedAt: "2026-08-13T12:04:00+04:00",
+          payload: {
+            data: {
+              cohortId: "mcp-cohort-01",
+              sessions: [
+                {sessionId: "cohort-session-01"},
+                {sessionId: "cohort-session-02", parentSessionId: "cohort-session-01"},
+              ],
+            },
+            warnings: [],
+            meta: {
+              observedAt: "2026-08-13T12:04:00+04:00",
+              resultHandle: evidence.resultHandle,
+            },
+          },
+        },
+        warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("keeps the ui-blind-compare prompt contract", async () => {
     const {client, server} = await createHarness();
     try {
@@ -2034,6 +2167,7 @@ describe("MCP server contract", () => {
         "conceptTest",
         "firstContactTest",
         "playtestSession",
+        "playtestCohort",
         "playtestUrl",
         "playtestTask",
         "playtestBuild",

@@ -138,6 +138,24 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 
 この表はone bounded sessionの記述であり、fun score、completion rate、retention、需要を推定しません。
 
+### Playtest Cohort Summary
+
+- Exact-save evidence: ［`playtestCohortEvidence.resultHandle`で保存したmanual intel path / missing理由］
+- Cohort boundary: ［cohort ID、purpose、recruitment、target player、sampling boundary、observation window］
+- Exposure counts: ［sessionCount、uniqueHumanParticipantCount、repeatHumanParticipantCount］
+- Evidence separation: ［human / AI、human-report-present / missing / AI N/Aを別々に記録］
+- Protocol groups: ［build、task、platform、controls、observation sourceごとのsession件数］
+- Lineage: ［linked retest、internal parent、external parent、multi-variable retestの件数］
+- Candidate review areas: ［原因や順位ではなく、session IDへ戻って調べる項目］
+
+| Evidence dimension | Session / observation counts | Missing / variation | Interpretation limit |
+|---|---|---|---|
+| Outcome | ［completed / failed / blocked / stopped］ | ［stop reason coverage］ | completion rateへ変換しない |
+| Friction | ［minor / material / blockerを含むsession件数］ | ［protocol差］ | severity件数を人口比率にしない |
+| Reward evidence | ［demonstrated / not-observed / unclear / unassessed-only session件数］ | ［human report coverage］ | fun、retention、需要へ変換しない |
+
+cohort集計はboundedな問題発見用です。同じparticipantの再参加を独立sampleにせず、AIとhumanを平均せず、後付けthresholdでpass / failを作りません。
+
 ### Funnel Health
 
 `impression → store visit → wishlist → demo start → demo completion → purchase → retained play`の各段階を、同じcohortとwindowで可能な範囲まで記録します。wishlistを面白さや販売本数の単独原因にしません。

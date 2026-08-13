@@ -33,6 +33,7 @@ import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
 import {
   buildConceptTestEvidenceEnvelope,
   buildFirstContactTestEvidenceEnvelope,
+  buildPlaytestCohortEvidenceEnvelope,
   buildPlaytestSessionEvidenceEnvelope,
   buildRunSimPrompt,
   buildUiBlindComparePrompt,
@@ -585,6 +586,10 @@ export function buildServer(
         services.resultStore,
         buildPlaytestSessionEvidenceEnvelope(arguments_),
       );
+      const playtestCohortEvidence = trackManualPromptEvidence(
+        services.resultStore,
+        buildPlaytestCohortEvidenceEnvelope(arguments_),
+      );
       return {
         messages: [{
           role: "user" as const,
@@ -593,7 +598,12 @@ export function buildServer(
             text: buildRunSimPrompt(
               await services.readSkill("run-sim.md"),
               arguments_,
-              {conceptTestEvidence, firstContactTestEvidence, playtestSessionEvidence},
+              {
+                conceptTestEvidence,
+                firstContactTestEvidence,
+                playtestSessionEvidence,
+                playtestCohortEvidence,
+              },
             ),
           },
         }],

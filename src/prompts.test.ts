@@ -131,6 +131,52 @@ function playtestSessionFixture(): Record<string, unknown> {
   };
 }
 
+function playtestCohortFixture(): Record<string, unknown> {
+  const initial = playtestSessionFixture();
+  const retest = {
+    ...playtestSessionFixture(),
+    startedAt: "2026-08-13T12:00:00+04:00",
+    endedAt: "2026-08-13T12:07:00+04:00",
+    sessionId: "playtest-build-043-p05",
+    parentSessionId: "playtest-build-042-p01",
+    changeSummary: "Made the successful parry response visually and audibly distinct",
+    changedVariables: ["reward"],
+    invariantsKept: [
+      "Same task, platform, controls, start state, target-player definition, and moderation script",
+    ],
+    buildId: "0.4.3-dev",
+    participantId: "p-05",
+    observations: [{
+      step: 1,
+      elapsedSeconds: 11,
+      eventType: "reward",
+      meaningfulAction: true,
+      playerIntent: "Parry the enemy attack",
+      inputAction: "Pressed parry after the attack flash",
+      systemResponse: "Enemy staggered with a distinct flash and isolated success sound",
+      frictionSeverity: "none",
+      rewardSignal: "demonstrated",
+      evidenceIds: ["capture-playtest-003"],
+    }],
+    humanReport: {
+      feltReward: "yes",
+      rewardDescription: "The flash and isolated sound made the success decisive",
+      wouldRepeat: "yes",
+      confusions: [],
+    },
+    deviations: [],
+  };
+  return {
+    assembledAt: "2026-08-13T13:00:00+04:00",
+    cohortId: "parry-feedback-round-01",
+    purpose: "Describe reward delivery across the initial session and one bounded retest",
+    recruitment: "External action-game players recruited with the same screener",
+    targetPlayerDefinition: "Players familiar with timing-based defensive actions",
+    samplingBoundary: "Convenience sample for issue discovery, not population estimation",
+    sessions: [initial, retest],
+  };
+}
+
 async function skill(name: string): Promise<string> {
   return readFile(join(process.cwd(), "skills", name), "utf8");
 }
@@ -672,6 +718,169 @@ describe("run-sim prompt arguments", () => {
     if (!duplicateVariables.success) {
       expect(JSON.stringify(duplicateVariables.error)).toContain("changedVariables");
     }
+  });
+
+  it("aggregates a bounded playtest cohort as counts and coverage, not rates", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "parry reward cohort review",
+      domains: "gameplay",
+      playtestCohort: JSON.stringify(playtestCohortFixture()),
+    }, {
+      playtestCohortEvidence: {
+        sourceTool: "manual",
+        observedAt: "2026-08-13T12:07:00+04:00",
+        resultHandle: "123e4567-e89b-42d3-a456-426614174003",
+      },
+    });
+
+    expect(result).toContain('"playtestCohort": {');
+    expect(result).toContain('"playtestCohortDiagnostics": {');
+    expect(result).toContain('"artifactId": "playtest-cohort-parry-feedback-round-01"');
+    expect(result).toContain('"sessionCount": 2');
+    expect(result).toContain('"uniqueHumanParticipantCount": 2');
+    expect(result).toContain('"repeatHumanParticipantCount": 0');
+    expect(result).toContain('"human-participant": 2');
+    expect(result).toContain('"evidenceByTesterType": {');
+    expect(result).toContain('"completed": 2');
+    expect(result).toContain('"material": 1');
+    expect(result).toContain('"demonstrated": 1');
+    expect(result).toContain('"unclear": 1');
+    expect(result).toContain('"human-report-present": 2');
+    expect(result).toContain('"linkedRetestCount": 1');
+    expect(result).toContain('"internalParentCount": 1');
+    expect(result).toContain('"externalParentCount": 0');
+    expect(result).toContain('"playtestCohortEvidence": {');
+    expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174003"');
+    expect(result).toContain('"exactSaveRequired": true');
+    expect(result).toContain("bounded cohort");
+    expect(result).not.toContain("completionRate");
+    expect(result).not.toContain("funScore");
+    expect(result).not.toContain("independentParticipantRate");
+
+    const offsetCohort = playtestCohortFixture();
+    const offsetSessions = offsetCohort.sessions as Array<Record<string, unknown>>;
+    offsetSessions[0] = {
+      ...offsetSessions[0],
+      startedAt: "2026-08-12T10:00:00+04:00",
+      endedAt: "2026-08-12T10:05:00+04:00",
+    };
+    offsetSessions[1] = {
+      ...offsetSessions[1],
+      startedAt: "2026-08-12T04:30:00-02:00",
+      endedAt: "2026-08-12T04:37:00-02:00",
+    };
+    const offsetResult = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "timezone-safe cohort window",
+      playtestCohort: JSON.stringify(offsetCohort),
+    });
+    expect(offsetResult).toContain(
+      '"observationWindow": {\n      "startedAt": "2026-08-12T10:00:00+04:00",\n      "endedAt": "2026-08-12T04:37:00-02:00"\n    }',
+    );
+  });
+
+  it("reports repeat exposure and mixed tester evidence without merging them", () => {
+    const cohort = playtestCohortFixture();
+    const sessions = cohort.sessions as Array<Record<string, unknown>>;
+    sessions[1] = {
+      ...sessions[1],
+      testerType: "ai-operated",
+      participantId: undefined,
+      targetFit: undefined,
+      humanReport: undefined,
+    };
+    const mixedResult = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "mixed evidence audit",
+      domains: "gameplay",
+      playtestCohort: JSON.stringify(cohort),
+    });
+    expect(mixedResult).toContain('"human-participant": 1');
+    expect(mixedResult).toContain('"ai-operated": 1');
+    expect(mixedResult).toContain('"mixed-tester-types"');
+    expect(mixedResult).toContain('"not-applicable-ai-operated": 1');
+    expect(mixedResult).toMatch(/"human-participant": \{\s+"sessionCount": 1/);
+    expect(mixedResult).toMatch(/"ai-operated": \{\s+"sessionCount": 1/);
+
+    const repeated = playtestCohortFixture();
+    const repeatedSessions = repeated.sessions as Array<Record<string, unknown>>;
+    repeatedSessions[1] = {...repeatedSessions[1], participantId: "p-04"};
+    const repeatedResult = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "repeat exposure audit",
+      domains: "gameplay",
+      playtestCohort: JSON.stringify(repeated),
+    });
+    expect(repeatedResult).toContain('"uniqueHumanParticipantCount": 1');
+    expect(repeatedResult).toContain('"repeatHumanParticipantCount": 1');
+    expect(repeatedResult).toContain('"repeat-participant-exposure"');
+  });
+
+  it("rejects ambiguous or invalid playtest cohort composition", () => {
+    const duplicate = playtestCohortFixture();
+    const duplicateSessions = duplicate.sessions as Array<Record<string, unknown>>;
+    duplicateSessions[1] = {
+      ...duplicateSessions[1],
+      sessionId: duplicateSessions[0]?.sessionId,
+      parentSessionId: undefined,
+      changeSummary: undefined,
+      changedVariables: undefined,
+      invariantsKept: undefined,
+    };
+    const duplicateResult = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "cohort",
+      playtestCohort: JSON.stringify(duplicate),
+    });
+    expect(duplicateResult.success).toBe(false);
+    if (!duplicateResult.success) {
+      expect(JSON.stringify(duplicateResult.error)).toContain("sessions");
+    }
+
+    const earlyAssembly = playtestCohortFixture();
+    earlyAssembly.assembledAt = "2026-08-12T11:59:00+04:00";
+    const earlyAssemblyResult = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "cohort",
+      playtestCohort: JSON.stringify(earlyAssembly),
+    });
+    expect(earlyAssemblyResult.success).toBe(false);
+    if (!earlyAssemblyResult.success) {
+      expect(JSON.stringify(earlyAssemblyResult.error)).toContain("assembledAt");
+    }
+
+    const reversedRetest = playtestCohortFixture();
+    const reversedSessions = reversedRetest.sessions as Array<Record<string, unknown>>;
+    reversedSessions[1] = {
+      ...reversedSessions[1],
+      startedAt: "2026-08-12T12:07:00+04:00",
+      endedAt: "2026-08-12T12:09:00+04:00",
+    };
+    const reversedRetestResult = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "cohort",
+      playtestCohort: JSON.stringify(reversedRetest),
+    });
+    expect(reversedRetestResult.success).toBe(false);
+    if (!reversedRetestResult.success) {
+      expect(JSON.stringify(reversedRetestResult.error)).toContain("parentSessionId");
+    }
+
+    const oneSession = playtestCohortFixture();
+    oneSession.sessions = [(oneSession.sessions as Array<Record<string, unknown>>)[0]];
+    expect(RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "cohort",
+      playtestCohort: JSON.stringify(oneSession),
+    }).success).toBe(false);
+
+    expect(RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "cohort",
+      playtestSession: JSON.stringify(playtestSessionFixture()),
+      playtestCohort: JSON.stringify(playtestCohortFixture()),
+    }).success).toBe(false);
   });
 
   it("rejects invalid playtest chronology and human/AI evidence mixing", () => {
