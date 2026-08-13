@@ -2,6 +2,10 @@ import {readFile} from "node:fs/promises";
 import {join} from "node:path";
 import {describe, expect, it} from "vitest";
 import {
+  buildPlaytestCohortDiagnostics,
+  PlaytestCohortObjectSchema,
+} from "./manual-tests.js";
+import {
   buildRunSimPrompt,
   buildUiBlindComparePrompt,
   RunSimPromptArgumentsSchema,
@@ -815,6 +819,98 @@ describe("run-sim prompt arguments", () => {
     expect(repeatedResult).toContain('"uniqueHumanParticipantCount": 1');
     expect(repeatedResult).toContain('"repeatHumanParticipantCount": 1');
     expect(repeatedResult).toContain('"repeat-participant-exposure"');
+    expect(repeatedResult).toContain('"participantExposure": "repeat-human-participant"');
+  });
+
+  it("compares internal retests without promoting descriptive differences to causality", () => {
+    const cohort = PlaytestCohortObjectSchema.parse(playtestCohortFixture());
+    const diagnostics = buildPlaytestCohortDiagnostics(cohort);
+
+    expect(diagnostics.retestComparisons).toMatchObject({
+      internalComparisons: [{
+        sessionId: "playtest-build-043-p05",
+        parentSessionId: "playtest-build-042-p01",
+        parentEvidenceStatus: "present-in-cohort",
+        comparisonStatus: "comparison-candidate-only",
+        unresolvedReasons: [],
+        changedVariables: ["reward"],
+        declaredInvariantCount: 1,
+        protocolComparison: {
+          mismatchedFields: [],
+          fields: {
+            task: "matched",
+            platform: "matched",
+            controls: "matched",
+            startState: "matched",
+            testerType: "matched",
+            observationSource: "matched",
+            priorKnowledge: "matched",
+          },
+        },
+        participantExposure: "different-human-participants",
+        evidenceTransition: {
+          outcome: {parent: "completed", current: "completed"},
+          rewardSignals: {
+            parent: ["unclear", "not-assessed"],
+            current: ["demonstrated"],
+          },
+          materialOrBlockerFrictionPresent: {parent: true, current: false},
+          humanReportedFeltReward: {parent: "unclear", current: "yes"},
+        },
+      }],
+      externalParentReadbacks: [],
+    });
+    expect(diagnostics.retestComparisons.interpretationLimit).toMatch(
+      /descriptive|causality/i,
+    );
+  });
+
+  it("keeps protocol mismatches, multiple changes, and external parents unresolved", () => {
+    const mismatch = playtestCohortFixture();
+    const mismatchSessions = mismatch.sessions as Array<Record<string, unknown>>;
+    mismatchSessions[1] = {...mismatchSessions[1], controls: "gamepad"};
+    const mismatchDiagnostics = buildPlaytestCohortDiagnostics(
+      PlaytestCohortObjectSchema.parse(mismatch),
+    );
+    expect(mismatchDiagnostics.retestComparisons.internalComparisons[0]).toMatchObject({
+      comparisonStatus: "unresolved-protocol-mismatch",
+      unresolvedReasons: ["protocol-mismatch"],
+      protocolComparison: {mismatchedFields: ["controls"]},
+    });
+
+    const multiple = playtestCohortFixture();
+    const multipleSessions = multiple.sessions as Array<Record<string, unknown>>;
+    multipleSessions[1] = {
+      ...multipleSessions[1],
+      changedVariables: ["reward", "presentation"],
+    };
+    const multipleDiagnostics = buildPlaytestCohortDiagnostics(
+      PlaytestCohortObjectSchema.parse(multiple),
+    );
+    expect(multipleDiagnostics.retestComparisons.internalComparisons[0]).toMatchObject({
+      comparisonStatus: "unresolved-multiple-changes",
+      unresolvedReasons: ["multiple-changed-variables"],
+      changedVariables: ["reward", "presentation"],
+    });
+
+    const external = playtestCohortFixture();
+    const externalSessions = external.sessions as Array<Record<string, unknown>>;
+    externalSessions[1] = {
+      ...externalSessions[1],
+      parentSessionId: "external-playtest-session-01",
+    };
+    const externalDiagnostics = buildPlaytestCohortDiagnostics(
+      PlaytestCohortObjectSchema.parse(external),
+    );
+    expect(externalDiagnostics.retestComparisons).toMatchObject({
+      internalComparisons: [],
+      externalParentReadbacks: [{
+        sessionId: "playtest-build-043-p05",
+        parentSessionId: "external-playtest-session-01",
+        parentArtifactId: "playtest-session-external-playtest-session-01",
+        status: "pending-exact-readback",
+      }],
+    });
   });
 
   it("rejects ambiguous or invalid playtest cohort composition", () => {

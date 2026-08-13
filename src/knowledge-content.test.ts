@@ -395,6 +395,11 @@ describe("playtest rubric", () => {
     expect(recipe).toMatch(/playtestCohortEvidence\.resultHandle[\s\S]*save_artifact/);
     expect(recipe).toMatch(/playtestSession[\s\S]*playtestCohort[\s\S]*(同時|一方)/);
     expect(template).toContain("Playtest Cohort Summary");
+    expect(rubric).toMatch(/retestComparisons[\s\S]*mismatchedFields/);
+    expect(rubric).toMatch(/comparison-candidate-only[\s\S]*(因果|causality)/);
+    expect(recipe).toMatch(/internalComparisons[\s\S]*evidenceTransition/);
+    expect(recipe).toMatch(/externalParentReadbacks[\s\S]*get_artifact/);
+    expect(template).toContain("Retest Comparison Trace");
   });
 });
 

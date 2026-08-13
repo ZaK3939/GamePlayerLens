@@ -156,6 +156,14 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 
 cohort集計はboundedな問題発見用です。同じparticipantの再参加を独立sampleにせず、AIとhumanを平均せず、後付けthresholdでpass / failを作りません。
 
+#### Retest Comparison Trace
+
+| Current session | Parent session / artifact | Declared change | Recorded protocol mismatches | Participant exposure | Evidence transition | Comparison status / unresolved reasons |
+|---|---|---|---|---|---|---|
+| ［session ID］ | ［parent ID、exact-readback済みpath / pending理由］ | ［change summary、changed variables、declared invariants］ | ［task / platform / controls / start state / tester type / observation source / prior knowledge］ | ［different / repeat human、AI pair、mixed］ | ［outcome、reward signals、material/blocker friction、human felt rewardのparent → current］ | ［comparison-candidate-only / unresolved、理由］ |
+
+`evidenceTransition`は2つのbounded sessionの記述差です。別participantの感想を同一playerの変化として扱わず、protocol一致や1変数変更だけから因果効果、改善率、fun、retentionを生成しません。
+
 ### Funnel Health
 
 `impression → store visit → wishlist → demo start → demo completion → purchase → retained play`の各段階を、同じcohortとwindowで可能な範囲まで記録します。wishlistを面白さや販売本数の単独原因にしません。

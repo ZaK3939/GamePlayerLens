@@ -93,6 +93,16 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 - `playtestCohortEvidence.resultHandle`を使ってcohort原本を`playtest-cohort-<cohortId>`へexact-saveし、session本文をモデルが再集計用に転記しない。
 - 厳密なscenario差、sample minimum、success criterion、guardrailが必要なら、cohort件数から後付けthresholdを作らず`experiment.md`で事前登録する。
 
+### Retest comparison trace
+
+cohort内でparent sessionも見つかるretestは、`retestComparisons.internalComparisons`として原本同士を照合します。task、platform、controls、start state、tester type、observation source、prior knowledgeを完全一致で比較し、不一致fieldを`protocolComparison.mismatchedFields`へ残します。build IDはrevisionの識別子なのでprotocol一致判定には含めず、変更内容は`changedVariables`で追跡します。
+
+- `participantExposure`は`different-human-participants`、`repeat-human-participant`、`ai-operated-pair`、`mixed-tester-types`を区別する。別人のhuman reportを同一playerの変化として読まず、repeat participantを独立sampleとして読まない。
+- `evidenceTransition`はparent / currentのoutcome、reward signalの集合、material / blocker frictionの有無、human felt rewardを並べるだけにする。減少、増加、改善率、効果量を自動生成しない。
+- 1変数かつ記録済みprotocol fieldが一致しても`comparison-candidate-only`であり、free-textの維持条件、moderator behavior、experience同等性、因果を証明しない。
+- 複数変更は`unresolved-multiple-changes`、field不一致は`unresolved-protocol-mismatch`にし、`unresolvedReasons`ですべての未解決理由を保持する。
+- cohort外のparentは`externalParentReadbacks`へ`pending-exact-readback`として残す。canonical `playtest-session-<parentSessionId>`原本を取得するまで値を補完しない。
+
 ## 7. playtest provenance
 
 `playtestSession`入力は前節のresultHandleでexact-saveします。prompt外で受け取ったrecordingやlogだけを保存する場合は、検証済みsessionと混同せず`save_artifact(kind=intel, sourceTool=manual)`でprovenanceを保存します。

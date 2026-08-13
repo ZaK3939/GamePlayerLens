@@ -412,6 +412,9 @@ try {
       && cohortContent.text.includes('"evidenceByTesterType": {')
       && cohortContent.text.includes('"ai-operated": {')
       && cohortContent.text.includes('"internalParentCount": 1')
+      && cohortContent.text.includes('"comparisonStatus": "comparison-candidate-only"')
+      && cohortContent.text.includes('"participantExposure": "ai-operated-pair"')
+      && cohortContent.text.includes('"evidenceTransition": {')
       && !cohortContent.text.includes('"completionRate"'),
     "run-sim did not preserve bounded cohort evidence separation",
   );

@@ -2096,6 +2096,23 @@ describe("MCP server contract", () => {
           },
         },
         lineage: {linkedRetestCount: 1, internalParentCount: 1, externalParentCount: 0},
+        retestComparisons: {
+          internalComparisons: [{
+            sessionId: "cohort-session-02",
+            parentSessionId: "cohort-session-01",
+            comparisonStatus: "comparison-candidate-only",
+            unresolvedReasons: [],
+            participantExposure: "ai-operated-pair",
+            protocolComparison: {mismatchedFields: []},
+            evidenceTransition: {
+              rewardSignals: {
+                parent: ["not-assessed"],
+                current: ["demonstrated"],
+              },
+            },
+          }],
+          externalParentReadbacks: [],
+        },
       });
       const evidence = promptData.playtestCohortEvidence as Record<string, unknown>;
       expect(evidence).toMatchObject({

@@ -32,6 +32,7 @@
 - `playtestSession`入力を`playtestSessionEvidence.resultHandle`でexact-saveしない場合、Action / system response / friction / rewardSignalを一つのscoreへ統合した場合、AI-operated sessionへ`humanReport`を補完した場合、またはone sessionからfun、completion rate、retention、需要を断定した場合は差し戻す。
 - playtest retestで`parentSessionId`、`changeSummary`、`changedVariables`、`invariantsKept`が揃わない場合、exact-save済みparentを読まず自己申告の維持条件だけで比較した場合、または複数変更・protocol / cohort差がある結果を一つの原因へ帰属した場合は差し戻す。
 - `playtestCohort`をexact-saveしない場合、重複session ID・lineage循環・観測後でないassembledAtを受理した場合、AIとhumanを統合した場合、repeat participantを独立sampleへ数えた場合、またはboundedな件数からcompletion / fun / retention / 需要の率や固定pass thresholdを作った場合は差し戻す。
+- cohort内retestのrecorded protocol mismatch、participant exposure、複数変更、external parent未取得を無視した場合、または`evidenceTransition`の前後差をそのまま変更の因果効果と呼んだ場合は差し戻す。
 - ストア訴求を選択した場合は、`localizedStorefronts`のcopy、screenshotsまたはcapture、競合の同種根拠、レビュー上の期待差を分けて示す。deep linkを貼っただけでリンク先の内容を取得済み根拠にしない。
 - 対応言語一覧だけから翻訳品質、文化適合、フォント可読性を断定した場合は差し戻す。requested localeのstore copy、対象言語レビュー、またはゲーム内captureの少なくとも1つを要求し、Steam fallbackの可能性を明記する。`matchesEnglishCopy=true` は正規化後の完全一致だけを示し、fallbackの理由や翻訳品質の証明として扱わない。`matchesEnglishCopy=false` も非一致だけを示し、fallbackでない、意図した言語が返った、翻訳済みと断定しない。
 

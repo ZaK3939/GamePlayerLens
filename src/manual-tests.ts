@@ -920,6 +920,101 @@ function buildPlaytestCohortEvidenceSummary(sessions: readonly PlaytestSession[]
   };
 }
 
+const PlaytestProtocolComparisonFields = [
+  "task",
+  "platform",
+  "controls",
+  "startState",
+  "testerType",
+  "observationSource",
+  "priorKnowledge",
+] as const;
+
+function classifyParticipantExposure(
+  parent: PlaytestSession,
+  current: PlaytestSession,
+) {
+  if (parent.testerType !== current.testerType) return "mixed-tester-types";
+  if (current.testerType === "ai-operated") return "ai-operated-pair";
+  return parent.participantId === current.participantId
+    ? "repeat-human-participant"
+    : "different-human-participants";
+}
+
+function presentRewardSignals(session: PlaytestSession) {
+  const present = new Set(
+    session.observations.map((observation) => observation.rewardSignal),
+  );
+  return RewardSignalSchema.options.filter((signal) => present.has(signal));
+}
+
+function hasMaterialOrBlockerFriction(session: PlaytestSession) {
+  return session.observations.some((observation) =>
+    observation.frictionSeverity === "material"
+      || observation.frictionSeverity === "blocker"
+  );
+}
+
+function buildInternalRetestComparison(
+  parent: PlaytestSession,
+  current: PlaytestSession,
+) {
+  const fields = Object.fromEntries(
+    PlaytestProtocolComparisonFields.map((field) => [
+      field,
+      parent[field] === current[field] ? "matched" : "mismatched",
+    ]),
+  );
+  const mismatchedFields = PlaytestProtocolComparisonFields.filter(
+    (field) => fields[field] === "mismatched",
+  );
+  const changedVariables = current.changedVariables ?? [];
+  const unresolvedReasons = [
+    ...(changedVariables.length > 1 ? ["multiple-changed-variables"] : []),
+    ...(mismatchedFields.length > 0 ? ["protocol-mismatch"] : []),
+  ];
+  const comparisonStatus = changedVariables.length > 1
+    ? "unresolved-multiple-changes"
+    : mismatchedFields.length > 0
+      ? "unresolved-protocol-mismatch"
+      : "comparison-candidate-only";
+
+  return {
+    sessionId: current.sessionId,
+    parentSessionId: parent.sessionId,
+    parentArtifactId: `playtest-session-${parent.sessionId}`,
+    parentEvidenceStatus: "present-in-cohort",
+    comparisonStatus,
+    unresolvedReasons,
+    changeSummary: current.changeSummary!,
+    changedVariables,
+    declaredInvariantCount: current.invariantsKept?.length ?? 0,
+    declaredInvariants: current.invariantsKept ?? [],
+    protocolComparison: {
+      mismatchedFields,
+      fields,
+      interpretationLimit: "Exact field matches verify only the recorded protocol fields; free-text invariants, moderation behavior, and equivalent player experience remain unverified.",
+    },
+    participantExposure: classifyParticipantExposure(parent, current),
+    evidenceTransition: {
+      outcome: {parent: parent.outcome, current: current.outcome},
+      rewardSignals: {
+        parent: presentRewardSignals(parent),
+        current: presentRewardSignals(current),
+      },
+      materialOrBlockerFrictionPresent: {
+        parent: hasMaterialOrBlockerFriction(parent),
+        current: hasMaterialOrBlockerFriction(current),
+      },
+      humanReportedFeltReward: {
+        parent: parent.humanReport?.feltReward ?? null,
+        current: current.humanReport?.feltReward ?? null,
+      },
+    },
+    interpretationLimit: "The before/after values are descriptive evidence from two bounded sessions. They do not establish that the declared change caused the difference.",
+  };
+}
+
 export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
   const sessions = cohort.sessions;
   const humanSessions = sessions.filter(
@@ -941,11 +1036,26 @@ export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
   ).length;
   const observations = sessions.flatMap((session) => session.observations);
   const sessionIds = new Set(sessions.map((session) => session.sessionId));
+  const sessionsById = new Map(sessions.map((session) => [session.sessionId, session]));
   const linkedSessions = sessions.filter((session) => session.parentSessionId !== undefined);
   const internalParentCount = linkedSessions.filter(
     (session) => sessionIds.has(session.parentSessionId!),
   ).length;
   const externalParentCount = linkedSessions.length - internalParentCount;
+  const internalComparisons = linkedSessions.flatMap((session) => {
+    const parent = sessionsById.get(session.parentSessionId!);
+    return parent ? [buildInternalRetestComparison(parent, session)] : [];
+  });
+  const externalParentReadbacks = linkedSessions.flatMap((session) =>
+    sessionIds.has(session.parentSessionId!)
+      ? []
+      : [{
+          sessionId: session.sessionId,
+          parentSessionId: session.parentSessionId!,
+          parentArtifactId: `playtest-session-${session.parentSessionId!}`,
+          status: "pending-exact-readback",
+        }]
+  );
   const humanReportStatuses = sessions.map((session) =>
     session.testerType === "ai-operated"
       ? "not-applicable-ai-operated"
@@ -971,11 +1081,14 @@ export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
   const candidateReviewAreas = [
     ...(testerTypeCounts["human-participant"] > 0 && testerTypeCounts["ai-operated"] > 0
       ? ["mixed-tester-types"] : []),
-    ...(buildGroups.length > 1
-      || taskGroups.length > 1
+    ...(buildGroups.length > 1 ? ["build-variation"] : []),
+    ...(taskGroups.length > 1
       || platformGroups.length > 1
       || controlsGroups.length > 1
       ? ["protocol-variation"] : []),
+    ...(internalComparisons.some(
+      (comparison) => comparison.protocolComparison.mismatchedFields.length > 0,
+    ) ? ["retest-protocol-mismatch"] : []),
     ...(repeatHumanParticipantCount > 0 ? ["repeat-participant-exposure"] : []),
     ...(humanReportCoverageMissing ? ["human-report-coverage"] : []),
     ...(sessions.some((session) => session.outcome !== "completed")
@@ -1048,6 +1161,11 @@ export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
       multiVariableRetestCount: linkedSessions.filter(
         (session) => (session.changedVariables?.length ?? 0) > 1,
       ).length,
+    },
+    retestComparisons: {
+      internalComparisons,
+      externalParentReadbacks,
+      interpretationLimit: "Internal comparisons are descriptive and never prove causality. External parents remain unresolved until their exact-saved session artifact is read and compared.",
     },
     candidateReviewAreas,
     nextAction: candidateReviewAreas.length > 0

@@ -332,7 +332,7 @@ browser/desktop controlを持つAI clientでは実buildを操作します。操�
 
 改善後のretestでは、47文字以内のlowercase kebab-caseによる新しい`sessionId`に`parentSessionId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて追加します。diagnosticsが返すartifact IDを使ってsession原本を`playtest-session-<sessionId>`へimmutableに保存し、親原本のtask、platform、controls、start state、tester / cohort、observation sourceと照合します。単一変更でも比較候補であり因果証明ではありません。複数変更は`unresolved-multiple-changes`となります。事前の成功criterion、guardrail、複数scenario集計が必要な比較はExperimentSpecを使います。
 
-2〜20件のsessionをまとめる場合は、完全なsession objectを`sessions`へ入れた`playtestCohort`を使います。`playtestSession`との同時入力は拒否されます。cohortには`assembledAt`、48文字以内のlowercase kebab-case `cohortId`、`purpose`、`recruitment`、`targetPlayerDefinition`、`samplingBoundary`が必要です。原本は`playtest-cohort-<cohortId>`へexact-saveされ、session count、unique human participant、repeat exposure、AI / human、outcome、human report coverage、friction / reward evidence、protocol group、lineageを件数のまま返します。率、fun score、需要予測は生成しません。
+2〜20件のsessionをまとめる場合は、完全なsession objectを`sessions`へ入れた`playtestCohort`を使います。`playtestSession`との同時入力は拒否されます。cohortには`assembledAt`、48文字以内のlowercase kebab-case `cohortId`、`purpose`、`recruitment`、`targetPlayerDefinition`、`samplingBoundary`が必要です。原本は`playtest-cohort-<cohortId>`へexact-saveされ、session count、unique human participant、repeat exposure、AI / human、outcome、human report coverage、friction / reward evidence、protocol group、lineageを件数のまま返します。内部parentがあるretestは`retestComparisons`でrecorded protocol、participant exposure、変更変数、outcome / reward / material friction / human reportの前後差を照合します。cohort外parentはexact-readbackまで未解決です。前後差を率、fun score、因果効果、需要予測へ変換しません。
 
 ### 継続的な実験loop
 
