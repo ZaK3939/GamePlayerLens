@@ -193,6 +193,57 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
   };
 }
 
+function experimentSpec(overrides: Record<string, unknown> = {}) {
+  return {
+    schemaVersion: 1,
+    artifactType: "experiment-spec",
+    experimentId: "store-promise-001",
+    targetId: "hades-ii",
+    hypothesis: "A clearer promise increases qualified wishlist intent",
+    mode: "change",
+    plannedScenarios: runInput().scenarios,
+    primaryMetricId: "qualified-wishlist-intent",
+    metrics: [{
+      metricId: "qualified-wishlist-intent",
+      role: "primary",
+      source: "human-playtest",
+      instrument: "moderated store-page interview v1",
+      unit: "ordinal-response",
+      aggregation: "median",
+      direction: "increase",
+      cohort: "Japanese action roguelike players",
+      window: "first 30 seconds",
+      samplePlan: {unit: "participant", targetCount: 8, minimumCount: 6},
+    }],
+    successCriteria: [{
+      criterionId: "intent-improves",
+      metricId: "qualified-wishlist-intent",
+      scenarioId: "proposal",
+      referenceScenarioId: "current",
+      comparator: ">=",
+      value: 1,
+    }],
+    guardrails: [],
+    predictions: [{
+      metricId: "qualified-wishlist-intent",
+      scenarioId: "proposal",
+      referenceScenarioId: "current",
+      predictedDelta: 1,
+      confidence: "medium",
+      basis: "Review-grounded persona comparison",
+    }],
+    stoppingRule: {
+      outcomeDeadline: "2026-09-12",
+      maximumSessions: 16,
+      onGuardrailBreach: "stop-and-review",
+      onRepeatedSourceBias: "stop-and-change-source",
+    },
+    orderBiasPlan: "Counterbalance current and proposal order",
+    parentOutcomeRef: null,
+    ...overrides,
+  };
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, {recursive: true, force: true})));
 });
@@ -294,11 +345,12 @@ describe("run store", () => {
       savedAt: NOW.toISOString(),
       roundCount: 8,
       evidenceCount: 3,
+      simulationReadinessStatus: "rehearsal",
       sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       runId: RUN_ID,
       targetId: "hades-ii",
       recipe: {
@@ -365,6 +417,39 @@ describe("run store", () => {
         calibrationStatus: "not-calibrated",
         reportedByClient: true,
       },
+      simulationReadiness: {
+        status: "rehearsal",
+        serverAssessed: true,
+        populationRepresentativeness: "not-established",
+        scenarioComparison: "paired-coverage",
+        interventionIsolation: "not-verified",
+        heldOutValidation: {
+          status: "absent",
+          experimentSpecRefs: [],
+          matchedExperimentSpecRefs: [],
+          experimentOutcomeRefs: [],
+        },
+        calibration: {
+          clientReportedStatus: "not-calibrated",
+          serverVerified: false,
+        },
+        allowedClaims: [
+          "issue-hypothesis",
+          "directional-response-hypothesis",
+          "test-priority",
+        ],
+        blockedClaims: [
+          "population-rate",
+          "market-share",
+          "causal-lift",
+          "retention-impact",
+        ],
+        reasons: expect.arrayContaining([
+          "No ExperimentSpec evidence is linked to this run.",
+          "Population representativeness is not established.",
+          "Held-out outcome calibration is not server-verified.",
+        ]),
+      },
     });
     expect(read.integrity).toMatchObject({
       status: "verified",
@@ -381,6 +466,148 @@ describe("run store", () => {
     )));
     await expect(store.listTargets()).resolves.toEqual(["hades-ii"]);
     await expect(store.listRuns("Hades II")).resolves.toEqual([saved]);
+  });
+
+  it("marks a run validation-ready only with a matching ExperimentSpec", async () => {
+    const {artifacts, store} = await harness();
+    await artifacts.saveIntel({
+      target: "Hades II",
+      id: "Experiment Spec",
+      sourceTool: "manual",
+      observedAt: "2026-08-11T10:30:00.000Z",
+      payload: experimentSpec(),
+    });
+    const input = runInput({
+      evidence: [
+        {ref: "experiment-spec", kind: "intel", target: "Hades II", id: "Experiment Spec"},
+        ...runInput().evidence,
+      ],
+      rounds: runInput().rounds.map((round) => ({
+        ...round,
+        evidenceRefs: [...round.evidenceRefs, "experiment-spec"],
+      })),
+    });
+
+    await store.saveRun(input);
+    const read = await store.readRun("Hades II", RUN_ID);
+
+    expect(read.metadata.simulationReadinessStatus).toBe("validation-ready");
+    expect(read.record.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        ref: "experiment-spec",
+        artifactType: "experiment-spec",
+      }),
+    ]));
+    expect(read.record.simulationReadiness).toMatchObject({
+      status: "validation-ready",
+      serverAssessed: true,
+      scenarioComparison: "paired-coverage",
+      heldOutValidation: {
+        status: "planned",
+        experimentSpecRefs: ["experiment-spec"],
+        matchedExperimentSpecRefs: ["experiment-spec"],
+        experimentOutcomeRefs: [],
+      },
+      calibration: {
+        clientReportedStatus: "not-calibrated",
+        serverVerified: false,
+      },
+      allowedClaims: [
+        "issue-hypothesis",
+        "directional-response-hypothesis",
+        "test-priority",
+        "preregistered-prediction",
+      ],
+    });
+  });
+
+  it("keeps a matching spec in rehearsal until every required analysis phase uses it", async () => {
+    const {artifacts, store} = await harness();
+    await artifacts.saveIntel({
+      target: "Hades II",
+      id: "Underused Experiment Spec",
+      sourceTool: "manual",
+      observedAt: "2026-08-11T10:30:00.000Z",
+      payload: experimentSpec(),
+    });
+    await store.saveRun(runInput({
+      evidence: [
+        {
+          ref: "underused-spec",
+          kind: "intel",
+          target: "Hades II",
+          id: "Underused Experiment Spec",
+        },
+        ...runInput().evidence,
+      ],
+      rounds: runInput().rounds.map((round, index) => index === 0
+        ? {...round, evidenceRefs: [...round.evidenceRefs, "underused-spec"]}
+        : round),
+    }));
+
+    const read = await store.readRun("Hades II", RUN_ID);
+    expect(read.record.simulationReadiness).toMatchObject({
+      status: "rehearsal",
+      heldOutValidation: {
+        status: "invalid-plan",
+        experimentSpecRefs: ["underused-spec"],
+        matchedExperimentSpecRefs: [],
+      },
+    });
+  });
+
+  it("keeps mismatched plans and client calibration claims in rehearsal", async () => {
+    const {artifacts, store} = await harness();
+    await artifacts.saveIntel({
+      target: "Hades II",
+      id: "Mismatched Experiment Spec",
+      sourceTool: "manual",
+      observedAt: "2026-08-11T10:30:00.000Z",
+      payload: experimentSpec({
+        plannedScenarios: [{
+          id: "other",
+          label: "Other",
+          specification: "A different intervention",
+        }],
+      }),
+    });
+    const input = runInput({
+      evidence: [
+        {
+          ref: "mismatched-spec",
+          kind: "intel",
+          target: "Hades II",
+          id: "Mismatched Experiment Spec",
+        },
+        ...runInput().evidence,
+      ],
+      rounds: runInput().rounds.map((round) => ({
+        ...round,
+        evidenceRefs: [...round.evidenceRefs, "mismatched-spec"],
+      })),
+      confidence: {
+        level: "high",
+        basis: "Client claims calibration without a server-verified outcome chain",
+        calibrationStatus: "calibrated",
+      },
+    });
+
+    await store.saveRun(input);
+    const read = await store.readRun("Hades II", RUN_ID);
+
+    expect(read.record.simulationReadiness).toMatchObject({
+      status: "rehearsal",
+      heldOutValidation: {
+        status: "invalid-plan",
+        experimentSpecRefs: ["mismatched-spec"],
+        matchedExperimentSpecRefs: [],
+      },
+      calibration: {
+        clientReportedStatus: "calibrated",
+        serverVerified: false,
+      },
+      blockedClaims: expect.arrayContaining(["causal-lift", "retention-impact"]),
+    });
   });
 
   it("preserves Unicode canonical target ids in saved and listed runs", async () => {

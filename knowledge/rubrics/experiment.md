@@ -105,6 +105,8 @@ PilotではExperimentSpecとExperimentOutcomeを`save_artifact(kind=intel, sourc
 - guardrailは悪化停止条件であり、primary successより優先する。
 - `plannedScenarios`はPrediction Runのscenario ID、label、specificationと一致させる。
 
+Prediction Run保存時、serverは上記shapeと参照整合性に加え、specの`targetId`、`mode`、`plannedScenarios`がrunと完全一致するかを判定します。一致するspecをrun evidenceとして実際に使用した場合だけ`simulationReadiness.status=validation-ready`になります。specがない、schema不正、またはrunと不一致の場合も監査記録としてrunは保存できますが、statusは`rehearsal`のままです。
+
 ## 3. Prediction Run
 
 通常の`run-sim.md`に従ってsimulationを行いますが、outcome measurementより前の根拠だけを使います。
@@ -112,6 +114,7 @@ PilotではExperimentSpecとExperimentOutcomeを`save_artifact(kind=intel, sourc
 - ExperimentSpecをrunのintel evidenceに含め、少なくともpersona、domain、critic、synthesisの判断で引用する。
 - 次loopではparent ExperimentOutcomeもevidenceに含め、どのlearningを採用したかroundへ記録する。
 - run保存後に`get_artifact(kind=run)`で`integrity.status=verified`を確認する。
+- `simulationReadiness.status=validation-ready`と`heldOutValidation.status=planned`を確認する。`rehearsal`なら事前登録済みPrediction Runとして扱わず、spec mismatchを修正して新しいrunを封印する。
 - run recordに保存されたspec evidence SHA-256、run metadataのrun artifact SHA-256、sealのcanonical record SHA-256をOutcomeへ引き継ぐ。
 - proposal buildの実測結果をPrediction Runへ混ぜない。すでに結果を知っている場合はpredictionではなくretrospective analysisとする。
 
@@ -234,6 +237,8 @@ resultは`metricId × scenarioId`ごとに一意にします。`referenceScenari
 - `calibrated`: 同一target、metric、source、instrument、unit、cohort、protocolのprimary predictionとobserved outcomeが対応し、そのOutcomeを現在runのevidenceに含め、限定範囲をconfidence basisへ明記している。
 
 `calibrated`はモデル全般の統計的校正を意味しない。何が一致し、何件のprediction / outcomeを比較したかを明記します。`calibrationStatus`は引き続き`reportedByClient=true`であり、server attestationと表現しません。
+
+現在のserver-side `simulationReadiness`はExperimentSpecまでを検証し、ExperimentOutcomeのspec / run hash-chainと測定条件の一致はまだ検証しません。そのため`simulationReadiness.calibration.serverVerified=false`は、client-reported `calibrationStatus`が`partially-calibrated`または`calibrated`でも変わりません。Outcome chainの専用validatorが実装されるまでは、server verified calibrationと表現しません。
 
 ## 7. Next experiment and stopping
 

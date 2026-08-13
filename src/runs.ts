@@ -19,6 +19,7 @@ import {
 } from "./artifacts.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {PersonaSchema} from "./personas.js";
+import {matchesExperimentSpec} from "./experiments.js";
 import type {
   PathResolver,
   ResolvedImagePath,
@@ -303,6 +304,39 @@ const ResolvedEvidenceSchema = z.object({
   path: z.string().min(1),
   sha256: Sha256Schema,
   sourceTool: SourceToolSchema.optional(),
+  artifactType: z.enum(["experiment-spec", "experiment-outcome"]).optional(),
+}).strict();
+
+const SimulationClaimSchema = z.enum([
+  "issue-hypothesis",
+  "directional-response-hypothesis",
+  "test-priority",
+  "preregistered-prediction",
+  "population-rate",
+  "market-share",
+  "causal-lift",
+  "retention-impact",
+]);
+
+export const SimulationReadinessSchema = z.object({
+  status: z.enum(["rehearsal", "validation-ready"]),
+  serverAssessed: z.literal(true),
+  populationRepresentativeness: z.literal("not-established"),
+  scenarioComparison: z.enum(["single-scenario", "paired-coverage"]),
+  interventionIsolation: z.literal("not-verified"),
+  heldOutValidation: z.object({
+    status: z.enum(["absent", "invalid-plan", "ambiguous-plan", "planned"]),
+    experimentSpecRefs: z.array(ReferenceIdSchema),
+    matchedExperimentSpecRefs: z.array(ReferenceIdSchema),
+    experimentOutcomeRefs: z.array(ReferenceIdSchema),
+  }).strict(),
+  calibration: z.object({
+    clientReportedStatus: ConfidenceInputSchema.shape.calibrationStatus,
+    serverVerified: z.literal(false),
+  }).strict(),
+  allowedClaims: z.array(SimulationClaimSchema).min(1),
+  blockedClaims: z.array(SimulationClaimSchema).min(1),
+  reasons: z.array(z.string().min(1).max(1_000)).min(1).max(10),
 }).strict();
 
 const CoverageRatioSchema = z.number().min(0).max(1);
@@ -347,7 +381,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
@@ -365,6 +399,7 @@ const RunRecordCoreSchema = z.object({
   rounds: z.array(SimulationRoundSchema).min(1).max(100),
   warnings: z.array(z.string().max(2_000)).max(100),
   confidence: ConfidenceInputSchema.extend({reportedByClient: z.literal(true)}).strict(),
+  simulationReadiness: SimulationReadinessSchema,
   finalEvaluationRef: ReferenceIdSchema,
   savedAt: IsoDateTimeSchema,
   coverage: RunCoverageSchema.optional(),
@@ -393,6 +428,7 @@ export const RunArtifactMetadataSchema = z.object({
   savedAt: IsoDateTimeSchema,
   roundCount: z.number().int().positive(),
   evidenceCount: z.number().int().positive(),
+  simulationReadinessStatus: SimulationReadinessSchema.shape.status,
   sizeBytes: z.number().int().positive().max(MAX_RUN_BYTES),
   sha256: Sha256Schema,
 }).strict();
@@ -425,6 +461,11 @@ export type SaveRunInput = z.infer<typeof SaveRunInputSchema>;
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 export type RunArtifactMetadata = z.infer<typeof RunArtifactMetadataSchema>;
 export type RunIntegrityReport = z.infer<typeof RunIntegrityReportSchema>;
+
+interface ResolvedEvidenceResult {
+  record: z.infer<typeof ResolvedEvidenceSchema>;
+  payload?: unknown;
+}
 
 export interface RunArtifact {
   metadata: RunArtifactMetadata;
@@ -614,6 +655,92 @@ function buildCoverage(
   });
 }
 
+function experimentArtifactType(
+  payload: unknown,
+): "experiment-spec" | "experiment-outcome" | undefined {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
+  const artifactType = (payload as Record<string, unknown>).artifactType;
+  return artifactType === "experiment-spec" || artifactType === "experiment-outcome"
+    ? artifactType
+    : undefined;
+}
+
+function buildSimulationReadiness(
+  input: SaveRunInput,
+  targetId: string,
+  evidence: ResolvedEvidenceResult[],
+): z.infer<typeof SimulationReadinessSchema> {
+  const experimentSpecs = evidence.filter(
+    ({record}) => record.artifactType === "experiment-spec",
+  );
+  const requiredSpecPhases = ["persona", "domain", "critic", "synthesis"] as const;
+  const matchedExperimentSpecs = experimentSpecs.filter(({payload, record}) =>
+    matchesExperimentSpec(payload, {
+      targetId,
+      mode: input.mode,
+      scenarios: input.scenarios,
+    })
+    && requiredSpecPhases.every((phase) => input.rounds.some((round) =>
+      round.phase === phase && round.evidenceRefs.includes(record.ref))));
+  const experimentOutcomes = evidence.filter(
+    ({record}) => record.artifactType === "experiment-outcome",
+  );
+  const validationStatus = experimentSpecs.length === 0
+    ? "absent" as const
+    : matchedExperimentSpecs.length === 0
+      ? "invalid-plan" as const
+      : matchedExperimentSpecs.length > 1
+        ? "ambiguous-plan" as const
+        : "planned" as const;
+  const status = matchedExperimentSpecs.length === 1
+    ? "validation-ready" as const
+    : "rehearsal" as const;
+  const reasons = [
+    experimentSpecs.length === 0
+      ? "No ExperimentSpec evidence is linked to this run."
+      : matchedExperimentSpecs.length === 0
+        ? "No linked ExperimentSpec matches this run's target, mode, scenarios, primary prediction contract, and required analysis phases."
+        : matchedExperimentSpecs.length > 1
+          ? "Multiple matching ExperimentSpecs make the preregistered prediction ambiguous."
+          : "One matching ExperimentSpec is linked and used across all required analysis phases.",
+    "Population representativeness is not established.",
+    experimentOutcomes.length > 0
+      ? "ExperimentOutcome evidence is linked, but its calibration chain is not server-verified."
+      : "Held-out outcome calibration is not server-verified.",
+  ];
+  const allowedClaims = [
+    "issue-hypothesis",
+    "directional-response-hypothesis",
+    "test-priority",
+    ...(status === "validation-ready" ? ["preregistered-prediction"] as const : []),
+  ];
+  return SimulationReadinessSchema.parse({
+    status,
+    serverAssessed: true,
+    populationRepresentativeness: "not-established",
+    scenarioComparison: input.mode === "baseline" ? "single-scenario" : "paired-coverage",
+    interventionIsolation: "not-verified",
+    heldOutValidation: {
+      status: validationStatus,
+      experimentSpecRefs: experimentSpecs.map(({record}) => record.ref),
+      matchedExperimentSpecRefs: matchedExperimentSpecs.map(({record}) => record.ref),
+      experimentOutcomeRefs: experimentOutcomes.map(({record}) => record.ref),
+    },
+    calibration: {
+      clientReportedStatus: input.confidence.calibrationStatus,
+      serverVerified: false,
+    },
+    allowedClaims,
+    blockedClaims: [
+      "population-rate",
+      "market-share",
+      "causal-lift",
+      "retention-impact",
+    ],
+    reasons,
+  });
+}
+
 export function createRunStore(
   resolver: PathResolver,
   options: RunStoreOptions = {},
@@ -698,7 +825,7 @@ export function createRunStore(
 
   async function resolveEvidence(
     input: z.infer<typeof EvidenceReferenceInputSchema>,
-  ): Promise<z.infer<typeof ResolvedEvidenceSchema>> {
+  ): Promise<ResolvedEvidenceResult> {
     if (input.kind === "intel") {
       const resolved = resolver.resolveIntelArtifactPath(input.target, input.id);
       const {bytes} = await readRegularBytes(
@@ -712,14 +839,19 @@ export function createRunStore(
       ) {
         throw new Error("intel evidence does not match its path");
       }
+      const artifactType = experimentArtifactType(record.payload);
       return {
-        ref: input.ref,
-        kind: input.kind,
-        targetId: resolved.targetId,
-        id: resolved.artifactId,
-        path: resolved.relativePath,
-        sha256: hash(bytes),
-        sourceTool: record.sourceTool,
+        record: ResolvedEvidenceSchema.parse({
+          ref: input.ref,
+          kind: input.kind,
+          targetId: resolved.targetId,
+          id: resolved.artifactId,
+          path: resolved.relativePath,
+          sha256: hash(bytes),
+          sourceTool: record.sourceTool,
+          ...(artifactType ? {artifactType} : {}),
+        }),
+        payload: record.payload,
       };
     }
     if (input.kind === "evaluation") {
@@ -729,24 +861,24 @@ export function createRunStore(
         resolved.absolutePath,
         MAX_EVALUATION_BYTES,
       );
-      return {
+      return {record: ResolvedEvidenceSchema.parse({
         ref: input.ref,
         kind: input.kind,
         targetId: resolved.targetId,
         id: `${parsed.date}-${resolved.topicId}`,
         path: resolved.relativePath,
         sha256: hash(bytes),
-      };
+      })};
     }
     if (input.kind === "capture") {
       const {resolved, bytes} = await resolveCapture(input.id);
-      return {
+      return {record: ResolvedEvidenceSchema.parse({
         ref: input.ref,
         kind: input.kind,
         id: resolved.id,
         path: resolved.relativePath,
         sha256: hash(bytes),
-      };
+      })};
     }
     const resolved = resolver.resolveUiReferencePath(input.id);
     const {bytes} = await readRegularBytes(
@@ -754,13 +886,13 @@ export function createRunStore(
       MAX_INLINE_IMAGE_BYTES,
     );
     verifyImageSignature(resolved, bytes);
-    return {
+    return {record: ResolvedEvidenceSchema.parse({
       ref: input.ref,
       kind: input.kind,
       id: resolved.id,
       path: resolved.relativePath,
       sha256: hash(bytes),
-    };
+    })};
   }
 
   async function resolvePersonas(ids: string[]): Promise<Array<z.infer<
@@ -877,7 +1009,7 @@ export function createRunStore(
             input = {ref: evidence.ref, kind: evidence.kind, id: evidence.id};
           }
           const current = await resolveEvidence(input);
-          return {path: current.path, sha256: current.sha256};
+          return {path: current.record.path, sha256: current.record.sha256};
         },
       ));
     }
@@ -958,6 +1090,7 @@ export function createRunStore(
       savedAt: record.savedAt,
       roundCount: record.rounds.length,
       evidenceCount: record.evidence.length,
+      simulationReadinessStatus: record.simulationReadiness.status,
       sizeBytes: bytes.length,
       sha256: hash(bytes),
     });
@@ -990,12 +1123,13 @@ export function createRunStore(
     if (Number.isNaN(current.getTime())) throw new Error("run clock is invalid");
     const savedAt = IsoDateTimeSchema.parse(current.toISOString());
     const resolved = await ensureDestination(parsed.target, runId);
-    const evidence = [];
+    const resolvedEvidence: ResolvedEvidenceResult[] = [];
     for (const reference of parsed.evidence) {
-      evidence.push(await resolveEvidence(reference));
+      resolvedEvidence.push(await resolveEvidence(reference));
     }
+    const evidence = resolvedEvidence.map(({record}) => record);
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 1,
+      schemaVersion: 2,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,
@@ -1009,6 +1143,11 @@ export function createRunStore(
       rounds: parsed.rounds,
       warnings: parsed.warnings,
       confidence: {...parsed.confidence, reportedByClient: true},
+      simulationReadiness: buildSimulationReadiness(
+        parsed,
+        resolved.targetId,
+        resolvedEvidence,
+      ),
       finalEvaluationRef: parsed.finalEvaluationRef,
       savedAt,
       coverage: buildCoverage(parsed, evidence),

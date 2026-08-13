@@ -626,6 +626,7 @@ try {
     id?: unknown;
     savedAt?: unknown;
     sha256?: unknown;
+    simulationReadinessStatus?: unknown;
   } | undefined;
   const runId = runMetadata?.id;
   assert(typeof runId === "string", "packaged CLI run save did not return an id");
@@ -636,12 +637,24 @@ try {
   const runRecord = (runRead.structuredContent?.data as {
     record?: {
       runId?: unknown;
+      schemaVersion?: unknown;
       recipe?: {sha256?: unknown};
       coverage?: {scenarioDomain?: {ratio?: unknown}};
       seal?: {canonicalSha256?: unknown};
       model?: {reportedByClient?: unknown};
       confidence?: {reportedByClient?: unknown};
-      evidence?: Array<{ref?: unknown; sha256?: unknown}>;
+      simulationReadiness?: {
+        status?: unknown;
+        serverAssessed?: unknown;
+        heldOutValidation?: {
+          status?: unknown;
+          matchedExperimentSpecRefs?: unknown[];
+        };
+        calibration?: {serverVerified?: unknown};
+        allowedClaims?: unknown[];
+        blockedClaims?: unknown[];
+      };
+      evidence?: Array<{ref?: unknown; sha256?: unknown; artifactType?: unknown}>;
       rounds?: unknown[];
     };
     integrity?: {status?: unknown; issueCount?: unknown};
@@ -652,10 +665,20 @@ try {
   assert(runRead.isError !== true, "packaged CLI could not read a simulation run");
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
-    typeof runRecord.recipe?.sha256 === "string"
+    runMetadata?.simulationReadinessStatus === "validation-ready"
+      && runRecord.schemaVersion === 2
+      && typeof runRecord.recipe?.sha256 === "string"
       && runRecord.model?.reportedByClient === true
       && runRecord.confidence?.reportedByClient === true
       && runRecord.coverage?.scenarioDomain?.ratio === 1
+      && runRecord.simulationReadiness?.status === "validation-ready"
+      && runRecord.simulationReadiness.serverAssessed === true
+      && runRecord.simulationReadiness.heldOutValidation?.status === "planned"
+      && runRecord.simulationReadiness.heldOutValidation.matchedExperimentSpecRefs
+        ?.includes("experiment-spec")
+      && runRecord.simulationReadiness.calibration?.serverVerified === false
+      && runRecord.simulationReadiness.allowedClaims?.includes("preregistered-prediction")
+      && runRecord.simulationReadiness.blockedClaims?.includes("causal-lift")
       && typeof runRecord.seal?.canonicalSha256 === "string"
       && runRecord.rounds?.length === 4,
     "packaged CLI run record is incomplete",
@@ -665,7 +688,8 @@ try {
   );
   const canonicalRecordSha256 = runRecord.seal?.canonicalSha256;
   assert(
-    typeof experimentSpecEvidence?.sha256 === "string"
+    experimentSpecEvidence?.artifactType === "experiment-spec"
+      && typeof experimentSpecEvidence.sha256 === "string"
       && typeof runMetadata?.sha256 === "string"
       && typeof canonicalRecordSha256 === "string",
     "packaged CLI did not expose experiment lineage hashes",

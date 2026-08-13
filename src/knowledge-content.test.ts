@@ -565,6 +565,12 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("persona × scenario");
     expect(content).toMatch(/finalEvaluationRef[\s\S]*evidenceRefs[\s\S]*含め/);
     expect(content).toContain("integrity.status");
+    expect(content).toContain("simulationReadiness");
+    expect(content).toContain("simulationReadinessStatus");
+    expect(content).toContain("status=rehearsal");
+    expect(content).toContain("calibration.serverVerified=false");
+    expect(content).toContain("population rate");
+    expect(content).toContain("causal lift");
   });
 
   it("runs prospective experiments as spec, prediction, outcome, and learning artifacts", async () => {
@@ -578,6 +584,9 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/ExperimentSpec[\s\S]*evidence[\s\S]*SHA-256/);
     expect(content).toMatch(/missing[\s\S]*unresolved[\s\S]*保存/);
     expect(content).toMatch(/次[\s\S]*ExperimentSpec[\s\S]*parentOutcomeRef/);
+    expect(content).toContain("simulationReadiness.status=validation-ready");
+    expect(content).toContain("heldOutValidation.status=planned");
+    expect(content).toContain("calibration.serverVerified=false");
   });
 
   it("applies the indie survival strategy to concept, launch, and marketing consultations", async () => {

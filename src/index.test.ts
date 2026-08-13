@@ -1344,6 +1344,7 @@ describe("MCP server contract", () => {
           mode: "change",
           roundCount: 6,
           evidenceCount: 2,
+          simulationReadinessStatus: "rehearsal",
           sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         },
         warnings: [],
@@ -1377,10 +1378,40 @@ describe("MCP server contract", () => {
         data: {
           metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
           record: {
+            schemaVersion: 2,
             runId,
             targetId: "hades-ii",
             recipe: {path: "skills/run-sim.md", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
             model: {name: "GPT-5", reportedByClient: true},
+            simulationReadiness: {
+              status: "rehearsal",
+              serverAssessed: true,
+              populationRepresentativeness: "not-established",
+              scenarioComparison: "paired-coverage",
+              interventionIsolation: "not-verified",
+              heldOutValidation: {
+                status: "absent",
+                experimentSpecRefs: [],
+                matchedExperimentSpecRefs: [],
+                experimentOutcomeRefs: [],
+              },
+              calibration: {
+                clientReportedStatus: "not-calibrated",
+                serverVerified: false,
+              },
+              allowedClaims: [
+                "issue-hypothesis",
+                "directional-response-hypothesis",
+                "test-priority",
+              ],
+              blockedClaims: [
+                "population-rate",
+                "market-share",
+                "causal-lift",
+                "retention-impact",
+              ],
+              reasons: expect.any(Array),
+            },
             evidence: [
               expect.objectContaining({ref: "profile", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
               expect.objectContaining({ref: "evaluation", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
