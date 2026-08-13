@@ -307,6 +307,8 @@ const ConceptTestParticipantSchema = z.object({
 const ConceptTestObjectSchema = z.object({
   testedAt: z.iso.datetime({offset: true}),
   stimulusId: RevisionIdSchema,
+  parentStimulusId: RevisionIdSchema.optional(),
+  changeSummary: ConceptTestTextSchema.optional(),
   projectBriefRevision: RevisionIdSchema.optional(),
   promiseShown: ConceptTestTextSchema,
   stimulusDescription: ConceptTestTextSchema,
@@ -317,6 +319,27 @@ const ConceptTestObjectSchema = z.object({
   participants: z.array(ConceptTestParticipantSchema).min(1).max(50),
   deviations: z.array(ConceptTestTextSchema).max(20).optional(),
 }).strict().superRefine((value, context) => {
+  if (value.parentStimulusId && !value.changeSummary) {
+    context.addIssue({
+      code: "custom",
+      path: ["changeSummary"],
+      message: "changeSummary is required when parentStimulusId is provided",
+    });
+  }
+  if (value.changeSummary && !value.parentStimulusId) {
+    context.addIssue({
+      code: "custom",
+      path: ["parentStimulusId"],
+      message: "parentStimulusId is required when changeSummary is provided",
+    });
+  }
+  if (value.parentStimulusId === value.stimulusId) {
+    context.addIssue({
+      code: "custom",
+      path: ["parentStimulusId"],
+      message: "parentStimulusId must differ from stimulusId",
+    });
+  }
   const seen = new Set<string>();
   for (const [index, participant] of value.participants.entries()) {
     if (seen.has(participant.participantId)) {
@@ -335,6 +358,8 @@ type ConceptTest = z.infer<typeof ConceptTestObjectSchema>;
 const CONCEPT_TEST_SAFE_FIELDS = new Set<string>([
   "testedAt",
   "stimulusId",
+  "parentStimulusId",
+  "changeSummary",
   "projectBriefRevision",
   "promiseShown",
   "stimulusDescription",
@@ -391,6 +416,18 @@ function buildConceptTestDiagnostics(
   projectBrief?: ProjectBrief,
 ) {
   const participants = conceptTest.participants;
+  const actionUnderstandingCounts = countValues(
+    participants.map((participant) => participant.understoodAction),
+    UnderstandingSchema.options,
+  );
+  const rewardUnderstandingCounts = countValues(
+    participants.map((participant) => participant.understoodReward),
+    UnderstandingSchema.options,
+  );
+  const interestCounts = countValues(
+    participants.map((participant) => participant.interest),
+    InterestSchema.options,
+  );
   const revisionStatus = !projectBrief
     ? "not-supplied"
     : !projectBrief.revisionId || !conceptTest.projectBriefRevision
@@ -405,6 +442,34 @@ function buildConceptTestDiagnostics(
       : projectBrief.oneSentencePromise === conceptTest.promiseShown
         ? "matched"
         : "mismatched";
+  const unaidedSummaryCount = participants.filter(
+    (participant) => participant.unaidedSummary !== undefined,
+  ).length;
+  const confusionNoteCount = participants.reduce(
+    (total, participant) => total + participant.confusions.length,
+    0,
+  );
+  const deviationCount = conceptTest.deviations?.length ?? 0;
+  const candidateReviewAreas = [
+    ...(revisionStatus === "mismatched" || promiseStatus === "mismatched"
+      ? ["stimulus-provenance"]
+      : []),
+    ...(deviationCount > 0 ? ["protocol-deviation"] : []),
+    ...(actionUnderstandingCounts["not-measured"] > 0
+      || rewardUnderstandingCounts["not-measured"] > 0
+      || interestCounts["not-asked"] > 0
+      || unaidedSummaryCount < participants.length
+      ? ["measurement-coverage"]
+      : []),
+    ...(actionUnderstandingCounts.no > 0 || actionUnderstandingCounts.unclear > 0
+      ? ["action-legibility"]
+      : []),
+    ...(rewardUnderstandingCounts.no > 0 || rewardUnderstandingCounts.unclear > 0
+      ? ["reward-legibility"]
+      : []),
+    ...(confusionNoteCount > 0 ? ["reported-confusions"] : []),
+    ...(interestCounts["would-not-play"] > 0 ? ["interest-follow-up"] : []),
+  ];
   return {
     status: "descriptive-only",
     participantCount: participants.length,
@@ -412,22 +477,28 @@ function buildConceptTestDiagnostics(
       participants.map((participant) => participant.targetFit),
       TargetFitSchema.options,
     ),
-    actionUnderstandingCounts: countValues(
-      participants.map((participant) => participant.understoodAction),
-      UnderstandingSchema.options,
-    ),
-    rewardUnderstandingCounts: countValues(
-      participants.map((participant) => participant.understoodReward),
-      UnderstandingSchema.options,
-    ),
-    interestCounts: countValues(
-      participants.map((participant) => participant.interest),
-      InterestSchema.options,
-    ),
+    actionUnderstandingCounts,
+    rewardUnderstandingCounts,
+    interestCounts,
+    unaidedSummaryCount,
+    confusionNoteCount,
+    deviationCount,
     briefAlignment: {
       revisionStatus,
       promiseStatus,
       interpretationLimit: "Exact matches establish provenance only; they do not score comprehension, appeal, or brief quality.",
+    },
+    revisionLoop: {
+      status: conceptTest.parentStimulusId ? "linked-revision" : "initial-stimulus",
+      ...(conceptTest.parentStimulusId
+        ? {parentStimulusId: conceptTest.parentStimulusId}
+        : {}),
+      changeSummaryDeclared: conceptTest.changeSummary !== undefined,
+      candidateReviewAreas,
+      nextAction: candidateReviewAreas.length > 0
+        ? "Treat these as inspection priorities, not causes. If revising, change one core or asset variable, assign a new stimulusId, link parentStimulusId, and retest under a comparable protocol."
+        : "No bounded issue signal was recorded; seek gameplay and first-contact asset evidence before making a broader claim.",
+      interpretationLimit: "Signals prioritize inspection only; they neither require a revision nor establish which change caused a later result.",
     },
     interpretationLimit: "Counts describe this bounded sample only; they are not population rates, purchase forecasts, or fixed pass thresholds.",
   };

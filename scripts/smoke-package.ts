@@ -170,6 +170,9 @@ try {
   const indieSurvivalContent = JSON.stringify(indieSurvivalRubric.structuredContent);
   assert(
     indieSurvivalContent.includes("Promise-Delivery Trace")
+      && indieSurvivalContent.includes("Core Legibility Gate")
+      && indieSurvivalContent.includes("Core Revision Ledger")
+      && indieSurvivalContent.includes("First-contact Asset Readiness")
       && indieSurvivalContent.includes("partner.steamgames.com/doc/marketing/upcoming_events/nextfest"),
     "packaged CLI returned the wrong indie survival strategy rubric",
   );
@@ -193,6 +196,8 @@ try {
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "package-pitch-v1",
+        parentStimulusId: "package-pitch-v0",
+        changeSummary: "Reduced the pitch to one repeated action",
         projectBriefRevision: "brief-v1",
         promiseShown: "Learn the loop and reach the checkpoint",
         stimulusDescription: "A short pitch card",
@@ -206,6 +211,7 @@ try {
           understoodAction: "yes",
           understoodReward: "unclear",
           interest: "maybe",
+          unaidedSummary: "Read, act, and recover until the checkpoint",
           confusions: ["The checkpoint reward was unclear"],
         }],
       }),
@@ -233,6 +239,9 @@ try {
       && playtestContent.text.includes('"exactSaveRequired": true')
       && playtestContent.text.includes('"status": "descriptive-only"')
       && playtestContent.text.includes('"participantCount": 1')
+      && playtestContent.text.includes('"unaidedSummaryCount": 1')
+      && playtestContent.text.includes('"status": "linked-revision"')
+      && playtestContent.text.includes('"parentStimulusId": "package-pitch-v0"')
       && playtestContent.text.includes('"developmentStage": "prototype"')
       && playtestContent.text.includes('"runwayMonths": 6')
       && playtestContent.text.includes('"playtestTask": "Reach the first checkpoint"')

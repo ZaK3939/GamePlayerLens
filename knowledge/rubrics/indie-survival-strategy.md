@@ -95,10 +95,49 @@ reward familyは`sensory / mastery / discovery / agency / attachment / aesthetic
 - Meaningful Difference: action、decision、response、rewardの少なくとも1つを変える差分。
 - Proof moment: その差分が説明ではなく短い映像やplayable momentで分かる状態。
 
-## 4. Human validation and playtest
+## 4. Core learning loop
+
+Core Experience Mapを埋めただけでは企画のreadinessをpassにしません。declared hypothesisを、第三者のunaided response、動くbuild、first-contact assetへ順に接続します。
+
+### Core Legibility Gate
+
+次の4問を別々に判定し、`declared / observed / contradicted / missing`とEvidence IDを記録します。1問の成功で他を補完せず、合計scoreへ変換しません。
+
+| Check | Question | Required evidence | Failure diagnosis boundary |
+|---|---|---|---|
+| theme-specific play | この`themeWorld`だから自然に生まれるaction / systemか | briefと第三者のunaided teach-back | 理解失敗と好み不一致を分ける |
+| theme-system fit | `distinctiveSystem`がthemeを体験として強めるか | build momentまたは具体的prototype | 題材の珍しさだけをfitにしない |
+| experience → reward | playerが何をし、どう反応を受け、何を報酬として感じる仮説か | action → response → rewardの観測 | 説明できることをfun実測にしない |
+| one-sentence teach-back | 答えを教えず、第三者が反復actionとrewardを自分の言葉で要約できるか | `unaidedSummary`、質問、protocol | 「分かりましたか」への同意を理解にしない |
+
+`oneSentencePromise`は短ければpassではありません。複数の売りを列挙して焦点が不明なら、何を残すか決めて新revisionへ進みます。strange premise、shock、既存作名だけでactionとrewardを想像できない場合は、catchではなく未検証のnoveltyとして扱います。
+
+### Core Revision Ledger
+
+| Brief / Stimulus / Build revision | Observed issue | Variable changed | Invariants kept | Evidence / Retest | Outcome |
+|---|---|---|---|---|---|
+| ［revision IDs］ | ［理解、操作、reward、assetの問題］ | ［theme / system / experience / reward / presentation］ | ［変えなかった条件］ | ［artifact / cohort / protocol］ | ［resolved / changed / unresolved］ |
+
+concept testの再検証では、新しい`stimulusId`に`parentStimulusId`と`changeSummary`を付けます。因果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、一度に変えた変数が複数なら何が効いたかの因果帰属を`unresolved`にします。定期的なexternal feedbackとplaytestは推奨しますが、毎月などの固定cadenceにはしません。team capacity、build cost、decision horizonに合わせて、irreversible commitmentより前に十分な反復機会を置きます。
+
+同じ相手との相互reviewは継続しやすさに役立つ場合がありますが、友人関係やreciprocity biasをdeviationに残します。指摘された数ではなく、次revisionでunaided explanationや同じtaskの行動がどう変わったかを比較します。
+
+### First-contact Asset Readiness
+
+購入前に最初に見えるものを、制作側の説明ではなく実際の表示contextで監査します。
+
+| Asset / Context | Exposure condition | Visible theme | Imagined action | Imagined reward | Immediate reject risk | Evidence | Status |
+|---|---|---|---|---|---|---|---|
+| capsule / key visual、第一viewport、最初に見えるscreenshots、trailer / microtrailer、demo entry | ［device、viewport、duration、sound、order］ | ［観測］ | ［unaided response］ | ［unaided response］ | ［Not for me / unreadable / wrong expectation］ | ［capture / participant / artifact］ | ［core-visible / theme-only / system-only / unreadable / untested］ |
+
+visual qualityは装飾量ではなく、target playerがtheme、action、reward、状態を誤解なく読めるかをmatched referenceと実表示で確認します。必要qualityへteam内で到達できない場合は、外注、scope reduction、visual languageの変更を同じcost / runway boundaryで比較します。生成AIや自動化でassetを速く作れても、人間のfun、taste fit、visual trustをcertifyしないため、実際のfirst-contact testを省略しません。
+
+「最初の4枚」「30秒PV」のような数や長さはasset案の例であり固定合格条件ではありません。第一viewport、現在のSteam表示、trailer / microtrailerの実contextを確認し、coreのproof momentがいつ現れるかを測ります。fixed asset countを満たしても、themeだけでaction / rewardが見えないなら`theme-only`です。
+
+## 5. Human validation and playtest
 
 - concept説明テストとgameplay playtestを分ける。説明理解はfunの実測ではありません。
-- `conceptTest`を使う場合は、`stimulusId`、`projectBriefRevision`、`promiseShown`、提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰がどのbrief版の何を見て何を聞かれたかを再現可能にする。promptの`conceptTestEvidence.resultHandle`で正規化済み入力をexact-saveし、モデルによる転記を挟まない。
+- `conceptTest`を使う場合は、`stimulusId`、任意の`parentStimulusId`と`changeSummary`、`projectBriefRevision`、`promiseShown`、提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰がどのbrief版の何を見て何を聞かれたかを再現可能にする。promptの`conceptTestEvidence.resultHandle`で正規化済み入力をexact-saveし、モデルによる転記を挟まない。
 - `projectBriefRevision`と`revisionId`、`promiseShown`と`oneSentencePromise`は完全一致だけをprovenanceとして判定する。mismatched / unlinkedを隠さず、文字列一致から理解、訴求力、品質を採点しない。
 - participantごとの`understoodAction`、`understoodReward`、`interest`を別の観測として扱う。行動を理解したこと、報酬を理解したこと、試したいと答えたことを相互に補完しない。
 - 「面白そうと言った率」などの固定thresholdは採用しない。sample内の件数は記述値であり、母集団のconversionやpass条件に変換しない。`interest`は`purchase`、需要、継続を証明しない。
@@ -106,10 +145,11 @@ reward familyは`sensory / mastery / discovery / agency / attachment / aesthetic
 - AI playtestは操作可能性、feedback、再現可能なfrictionを観測できます。human playtestのfun、需要、completion、retentionの代表にはしません。
 - moderatorの誘導、友人関係、順序bias、build差をdeviationsへ残す。
 - 指摘件数ではなく、同じtaskで行動がどう変わるかをsuccess criterionへ使う。
+- `conceptTestDiagnostics.revisionLoop.candidateReviewAreas`は次に調べる候補であり、原因判定ではありません。該当fieldを自動的に失敗扱いしたり、複数変更の効果を1変数へ帰属したりしません。
 
 変更をprospectiveに検証する場合は`experiment.md`に従い、結果を見る前にExperimentSpecを保存し、Prediction Runを封印し、測定後にExperimentOutcomeを保存します。
 
-## 5. Funnel Health
+## 6. Funnel Health
 
 購入前signalと購入後signalを次のfunnelへ置き、落ちた段階を特定します。
 
@@ -128,16 +168,16 @@ wishlistは露出を受けた人の興味signalであり、gameの面白さ、�
 
 Steamworksの`Marketing & Visibility > Traffic Breakdown`でplacement別impressionとstore visitを確認し、wishlist reportのaddition / purchase / deletionと観測期間を揃えます。外部campaignはUTM等、識別可能なinstrumentを使います。
 
-## 6. Milestone Readiness
+## 7. Milestone Readiness
 
 日付から逆算するだけでなく、player evidenceとasset evidenceが揃ったかをgateにします。
 
 | Gate | Required evidence | Block if |
 |---|---|---|
-| `concept` | oneSentencePromise、Core Experience Map、target-player理解test | action / rewardが説明不能 |
-| `prototype` | core action → response → rewardが動くbuild、bounded playtest | coreを未実装のままcontent量を増やす |
-| `store-reveal` | Promise-Delivery Trace、capsule、first screenshots、trailer proof moment | promiseとbuild momentが結び付かない |
-| `demo-next-fest` | stable demo、store page、current tags、trailer、feedback instrument | crash、core未到達、測定不能 |
+| `concept` | Core Legibility Gate、oneSentencePromise、target-playerのunaided teach-back | action / rewardが説明不能、revisionが追跡不能 |
+| `prototype` | core action → response → rewardが動くbuild、Core Revision Ledger、bounded playtest | coreを未実装のままcontent量を増やす |
+| `store-reveal` | First-contact Asset Readiness、Promise-Delivery Trace、capsule、first visible screenshots、trailer proof moment | 第一接触でcoreがunreadable、promiseとbuild momentが結び付かない |
+| `demo-next-fest` | coreへ到達できるstable demo、store page、current tags、trailer、feedback instrument | crash、core未到達、測定不能 |
 | `release-date` | scope、QA、localization、support、launch buildのconfidence | marketing都合だけで日付を固定 |
 | `launch` | price/package、release checklist、support、measurement plan | blocking defect、rollback不能 |
 | `post-launch` | observed player problem、update hypothesis、success / guardrail | cadenceや競合模倣だけで更新 |
@@ -148,7 +188,7 @@ Steam Next Festは現行の公式Steamworks要件を毎回確認します。公�
 
 Steamは最初のstore trailerから6秒のmicrotrailerを生成するため、first trailer全体でcoreのproof momentが複数位置に現れるか確認します。固定30秒を合格条件にせず、最初の数秒、microtrailer、full trailerを別asset / contextでtestします。[Steam Trailers](https://partner.steamgames.com/doc/store/trailer)をcurrent ruleのsourceにします。
 
-## 7. Experiment Queue
+## 8. Experiment Queue
 
 | Priority | Hypothesis | Stage | Primary metric | Source | Guardrail | Smallest build / asset | Experiment ID |
 |---|---|---|---|---|---|---|---|
@@ -159,7 +199,7 @@ Steamは最初のstore trailerから6秒のmicrotrailerを生成するため、f
 - asset A/Bが勝ってもDelivered Experience改善とは扱わない。
 - missing outcomeもunresolvedとして保存し、成功へ補完しない。
 
-## 8. Project-specific survival model
+## 9. Project-specific survival model
 
 survival targetは販売本数だけで決めず、runwayとnext projectを含むproject固有の制約として計算します。
 
@@ -177,22 +217,25 @@ platform fee、refund、taxを固定値で一律計算しません。法域、�
 
 販売本数、発売cadence、開発期間の一般的な目安はprojectの合格条件にせず、検証対象のassumptionに留めます。team size、scope、quality bar、cash need、genre、price、support burdenを入れたscenarioで、continue / reduce-scope / seek-funding / stopを判断します。
 
-## 9. Required output
+## 10. Required output
 
 適用時はevaluationに次を含めます。
 
 1. Indie Strategy Card: stage、decision horizon、runway、irreversible commitment、blocking evidence。
 2. Core Experience Map: required fields、reward family、theme-system fit、oneSentencePromise。
-3. Concept Test Trace: stimulus、protocol、sample、action理解、reward理解、interest、confusion、deviation、解釈限界。
-4. Promise-Delivery Trace: promiseとbuild momentの対応。
-5. Funnel Health: exposureからretained playまでのstatusと欠損。
-6. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
-7. Experiment Queue: 最大3件、primary metricとguardrail付き。
-8. Survival Scenarios: conservative / base / upsideとassumption boundary。
+3. Core Legibility Gate: theme-specific play、theme-system fit、experience → reward、unaided teach-back。
+4. Core Revision Ledger: revision lineage、変えた変数、維持条件、retest、未解決の因果境界。
+5. First-contact Asset Readiness: 実表示context、theme / action / rewardのlegibility、immediate reject risk。
+6. Concept Test Trace: stimulus、protocol、sample、action理解、reward理解、interest、confusion、deviation、解釈限界。
+7. Promise-Delivery Trace: promiseとbuild momentの対応。
+8. Funnel Health: exposureからretained playまでのstatusと欠損。
+9. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
+10. Experiment Queue: 最大3件、primary metricとguardrail付き。
+11. Survival Scenarios: conservative / base / upsideとassumption boundary。
 
 数字がない場合は架空の販売本数やconversionを作らずmissingとし、次に取得するreport、build、participant、期間を指定します。
 
-## 10. Source boundary
+## 11. Source boundary
 
 このrubricは調査過程や個別資料を公開するものではなく、複数の設計観点をGamePlayerLensのevidence integrityへ一般化した実行規則です。売上、conversion、税、開発期間、反応率の一般的な目安は、普遍的事実として採用しません。
 

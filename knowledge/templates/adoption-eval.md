@@ -60,18 +60,47 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 | oneSentencePromise | ［1文で理解できる約束］ | ［理解test Evidence ID］ | ［status］ |
 | Known Frame + Meaningful Difference | ［理解しやすい型と体験を変える差分］ | ［Evidence ID］ | ［status］ |
 
+### Core Legibility Gate
+
+4問を合計scoreにせず、別々のstatusと根拠で記録します。説明できたことをfunの実測へ変換しません。
+
+| Check | Current hypothesis | Third-party / Build observation | Evidence | Status |
+|---|---|---|---|---|
+| theme-specific play | ［themeだから生まれるaction / system］ | ［unaided teach-back / missing］ | ［Evidence ID］ | ［declared / observed / contradicted / missing］ |
+| theme-system fit | ［themeとsystemが互いを強める理由］ | ［build moment / missing］ | ［Evidence ID］ | ［status］ |
+| experience → reward | ［action → response → reward］ | ［playtest observation / missing］ | ［Evidence ID］ | ［status］ |
+| one-sentence teach-back | ［oneSentencePromise］ | ［participantの自発要約。誘導質問への同意は不可］ | ［Evidence ID］ | ［status］ |
+
+### Core Revision Ledger
+
+`parentStimulusId`と`changeSummary`がない初回はinitialと明記します。複数変数を同時変更した場合は、改善原因を一つへ帰属しません。
+
+| Brief / Stimulus / Build revision | Observed issue | Variable changed | Invariants kept | Evidence / Retest | Outcome |
+|---|---|---|---|---|---|
+| ［revision IDs］ | ［問題］ | ［theme / system / experience / reward / presentation］ | ［固定条件］ | ［artifact / protocol］ | ［resolved / changed / unresolved］ |
+
+### First-contact Asset Readiness
+
+| Asset / Context | Exposure condition | Visible theme | Imagined action | Imagined reward | Immediate reject risk | Evidence | Status |
+|---|---|---|---|---|---|---|---|
+| ［capsule / key visual / 第一viewport / screenshots / trailer / demo］ | ［device / viewport / duration / sound / order］ | ［観測］ | ［unaided response］ | ［unaided response］ | ［Not for me / unreadable / wrong expectation］ | ［Evidence ID］ | ［core-visible / theme-only / system-only / unreadable / untested］ |
+
+「最初の4枚」や「30秒」を固定条件にせず、現在の実表示でcoreのproof momentがいつ現れるかを記録します。生成AIや自動化で作ったassetもhuman responseの代用にはしません。
+
 ### Concept Test Trace
 
 `conceptTest`がない場合はmissing理由と次に必要なstimulus / participant条件を記録します。ある場合もsample内の件数だけを示し、固定合格率、母集団比率、conversion、purchase予測へ変換しません。個人情報は記載せず、仮名の`participantId`または集計だけを使います。schemaの自動検出はemail形式に限られるため、その他の個人情報は保存前に除去します。
 
 - Evidence ID / artifact path: ［conceptTestEvidence.resultHandleでexact-saveしたmanual intel］
 - Tested at / stimulusId: ［ISO日時 / ID］
+- Parent stimulus / change summary: ［parentStimulusId / changeSummary、またはinitial］
 - Brief revision / revision match: ［projectBriefRevision / matched・mismatched・unlinked・not-supplied］
 - Promise shown / exact match: ［実際の提示文 / matched・mismatched・unlinked・not-supplied。完全一致はprovenanceでありquality scoreではない］
 - Stimulus / exposure protocol: ［何を、何秒、どの順序で見せたか］
 - Recruitment / target player definition: ［募集元、target fitの判定基準］
 - Questions asked: ［誘導を避けた質問］
 - Deviations / limitations: ［順序、moderation、言語、sample boundary］
+- Revision candidates: ［`conceptTestDiagnostics.revisionLoop.candidateReviewAreas`。原因ではなくinspection priority］
 
 | Observation | Counts | Confusions / unaided summary | Interpretation limit |
 |---|---|---|---|

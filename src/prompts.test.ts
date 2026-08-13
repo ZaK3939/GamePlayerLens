@@ -423,6 +423,8 @@ describe("run-sim prompt arguments", () => {
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "pitch-card-v3",
+        parentStimulusId: "pitch-card-v2",
+        changeSummary: "Reduced the pitch to one repeated action and one immediate reward",
         projectBriefRevision: "brief-v3",
         promiseShown: "Outread the storm to keep a courier network alive",
         stimulusDescription: "One-sentence promise plus one gameplay mockup",
@@ -437,6 +439,7 @@ describe("run-sim prompt arguments", () => {
             understoodAction: "yes",
             understoodReward: "unclear",
             interest: "maybe",
+            unaidedSummary: "I would redraw routes around storms",
             confusions: ["Long-term goal"],
           },
           {
@@ -456,6 +459,7 @@ describe("run-sim prompt arguments", () => {
             confusions: [],
           },
         ],
+        deviations: ["One participant saw the mockup for five seconds longer"],
       }),
     }, {
       conceptTestEvidence: {
@@ -471,12 +475,63 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"participantCount": 3');
     expect(result).toContain('"revisionStatus": "matched"');
     expect(result).toContain('"promiseStatus": "matched"');
+    expect(result).toContain('"unaidedSummaryCount": 1');
+    expect(result).toContain('"confusionNoteCount": 1');
+    expect(result).toContain('"deviationCount": 1');
+    expect(result).toContain('"revisionLoop": {');
+    expect(result).toContain('"status": "linked-revision"');
+    expect(result).toContain('"parentStimulusId": "pitch-card-v2"');
+    expect(result).toContain('"changeSummaryDeclared": true');
+    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "measurement-coverage",\n        "action-legibility",\n        "reward-legibility",\n        "reported-confusions",\n        "interest-follow-up"\n      ]');
+    expect(result).toContain("change one core or asset variable");
     expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174000"');
     expect(result).toContain('"exactSaveRequired": true');
     expect(result).toMatch(/"actionUnderstandingCounts": \{[\s\S]*"yes": 1,[\s\S]*"unclear": 1,[\s\S]*"not-measured": 1/);
     expect(result).toMatch(/"interestCounts": \{[\s\S]*"maybe": 1,[\s\S]*"would-not-play": 1,[\s\S]*"not-asked": 1/);
     expect(result).not.toContain("successRate");
     expect(result).not.toContain("purchaseProbability");
+  });
+
+  it("requires safe, non-self-referential lineage for revised concept stimuli", () => {
+    const missingSummary = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify({
+        ...conceptTestFixture(),
+        parentStimulusId: "pitch-card-v2",
+      }),
+    });
+    expect(missingSummary.success).toBe(false);
+    if (!missingSummary.success) {
+      expect(JSON.stringify(missingSummary.error)).toContain("changeSummary");
+    }
+
+    const missingParent = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify({
+        ...conceptTestFixture(),
+        changeSummary: "Changed the promise",
+      }),
+    });
+    expect(missingParent.success).toBe(false);
+    if (!missingParent.success) {
+      expect(JSON.stringify(missingParent.error)).toContain("parentStimulusId");
+    }
+
+    const selfLinked = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify({
+        ...conceptTestFixture(),
+        parentStimulusId: "pitch-card-v3",
+        changeSummary: "Changed the promise",
+      }),
+    });
+    expect(selfLinked.success).toBe(false);
+    if (!selfLinked.success) {
+      expect(JSON.stringify(selfLinked.error)).toContain("parentStimulusId");
+    }
   });
 
   it("omits concept test diagnostics when no test was supplied", () => {

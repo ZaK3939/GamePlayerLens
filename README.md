@@ -115,6 +115,8 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 {
   "testedAt": "2026-08-12T10:00:00+04:00",
   "stimulusId": "pitch-card-v3",
+  "parentStimulusId": "pitch-card-v2",
+  "changeSummary": "Repeated actionを1つに絞り、直後のrewardを明記した",
   "projectBriefRevision": "brief-v3",
   "promiseShown": "嵐を読み切り、小さな空の郵便網を守る",
   "stimulusDescription": "One-sentence promise plus one gameplay mockup",
@@ -142,6 +144,10 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 ```
 
 `participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptは行動理解、報酬理解、興味を別々に件数集計し、`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示します。意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
+
+再検証では新しい`stimulusId`と一緒に`parentStimulusId`、`changeSummary`を渡します。診断はprotocol deviation、測定不足、action / rewardの読みにくさ、参加者の混乱を次に調べる候補として返しますが、原因とは断定しません。効果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、複数を変えた結果の因果は`unresolved`として残します。
+
+インディー戦略の出力では、テーマ固有のplay、theme-system fit、experience → reward、第三者のunaided teach-backを別々に扱う`Core Legibility Gate`、変更と維持条件を追う`Core Revision Ledger`、実際の第一viewport・screenshots・trailerで即離脱リスクを見る`First-contact Asset Readiness`を作ります。「最初の4枚」「30秒」などの固定数は合格条件にせず、現在の表示contextとtarget playerの証拠で判断します。AI生成や自動化は制作速度の補助であり、人間のfunやtaste fitの証明にはしません。
 
 concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動追加されます。レシピはこのhandleだけを`save_artifact(kind=intel)`へ渡すため、モデルによる転記・要約を挟まず、正規化済み入力と`testedAt`をそのまま保存できます。field-level validation errorは許可済みfield名と違反種別だけを返し、拒否した入力値や未知field名は表示しません。
 

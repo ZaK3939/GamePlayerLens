@@ -162,6 +162,8 @@ try {
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "stdio-pitch-v1",
+        parentStimulusId: "stdio-pitch-v0",
+        changeSummary: "Clarified the repeated action",
         projectBriefRevision: "brief-v1",
         promiseShown: "A more reactive journey through the underworld",
         stimulusDescription: "A short pitch card",
@@ -175,6 +177,7 @@ try {
           understoodAction: "yes",
           understoodReward: "unclear",
           interest: "maybe",
+          unaidedSummary: "Take a reactive journey through the underworld",
           confusions: ["The lasting reward was unclear"],
         }],
       }),
@@ -206,6 +209,9 @@ try {
       && promptContent.text.includes('"exactSaveRequired": true')
       && promptContent.text.includes('"status": "descriptive-only"')
       && promptContent.text.includes('"participantCount": 1')
+      && promptContent.text.includes('"unaidedSummaryCount": 1')
+      && promptContent.text.includes('"status": "linked-revision"')
+      && promptContent.text.includes('"parentStimulusId": "stdio-pitch-v0"')
       && promptContent.text.includes('"developmentStage": "prelaunch"')
       && promptContent.text.includes('"runwayMonths": 12')
       && promptContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')

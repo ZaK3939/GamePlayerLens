@@ -1729,6 +1729,8 @@ describe("MCP server contract", () => {
           conceptTest: JSON.stringify({
             testedAt: "2026-08-12T10:00:00+04:00",
             stimulusId: "pitch-card-v3",
+            parentStimulusId: "pitch-card-v2",
+            changeSummary: "Reduced the pitch to one repeated action",
             projectBriefRevision: "brief-v3",
             promiseShown: "Outread the storm",
             stimulusDescription: "One promise and one mockup",
@@ -1742,12 +1744,21 @@ describe("MCP server contract", () => {
               understoodAction: "yes",
               understoodReward: "unclear",
               interest: "maybe",
+              unaidedSummary: "Outread storms by redrawing routes",
               confusions: [],
             }],
           }),
         },
       });
       const promptData = promptInputData(prompt);
+      expect(promptData.conceptTestDiagnostics).toMatchObject({
+        unaidedSummaryCount: 1,
+        revisionLoop: {
+          status: "linked-revision",
+          parentStimulusId: "pitch-card-v2",
+          changeSummaryDeclared: true,
+        },
+      });
       const evidence = promptData.conceptTestEvidence as Record<string, unknown>;
       expect(evidence).toMatchObject({
         sourceTool: "manual",
@@ -1781,6 +1792,8 @@ describe("MCP server contract", () => {
           payload: {
             data: {
               stimulusId: "pitch-card-v3",
+              parentStimulusId: "pitch-card-v2",
+              changeSummary: "Reduced the pitch to one repeated action",
               promiseShown: "Outread the storm",
               participants: [{participantId: "p-01"}],
             },

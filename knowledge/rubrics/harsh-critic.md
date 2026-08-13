@@ -34,7 +34,7 @@
 
 ## 4. Indie survival strategyゲート
 
-- concept、prototype、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`を読む。Indie Strategy Card、Core Experience Map、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Experiment Queue、Survival Scenariosがなければ差し戻す。適用外ならtopicに対応したN/A理由を要求する。
+- concept、prototype、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`を読む。Indie Strategy Card、Core Experience Map、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Experiment Queue、Survival Scenariosがなければ差し戻す。適用外ならtopicに対応したN/A理由を要求する。
 - `Appeal Promise`と`Delivered Experience`を分離し、購入前のasset evidenceと購入後のbuild / playtest evidenceを別にする。購入前と購入後を単一score、掛け算、平均で相殺した場合は差し戻す。
 - wishlistを面白さ、販売本数、algorithmic visibilityの単独原因または証明とした場合は差し戻す。impression、store visit、cohort、window、asset、price expectationを確認する。
 - 販売本数、platform fee、refund、税率、conversion、開発期間を普遍的な固定値としてprojectへ当てはめた場合は差し戻す。契約、法域、地域、scope、team capacity、runwayをassumptionとobservedへ分ける。
@@ -45,6 +45,10 @@
 - `conceptTest`のparticipant countや`interest`から固定thresholdを作り、milestone pass、conversion、purchase、需要を断定した場合は差し戻す。`understoodAction`、`understoodReward`、`interest`を別々に示し、stimulus、募集、質問、deviation、bounded sampleの限界を要求する。
 - concept test入力を`conceptTestEvidence.resultHandle`でexact-saveせずモデルがpayloadを転記・要約した場合、brief revision / promiseのmismatched・unlinkedを隠した場合、または完全一致を意味理解や品質scoreへ変換した場合は差し戻す。
 - concept testの`participantId`が仮名でない場合、または氏名、email、連絡先などの個人情報をevaluationやartifactへ含めた場合は差し戻す。
+- oneSentencePromiseが短いという理由だけでCore Legibility Gateをpassにしない。theme-specific play、theme-system fit、experience → reward、unaided teach-backを別々に示さない場合、「分かりましたか」への同意をunaided理解とした場合、奇抜な題材だけを触りたくなるcoreとした場合は差し戻す。
+- revised concept testで`parentStimulusId`と`changeSummary`を保存しない場合、Core Revision Ledgerに変えた変数と維持条件がない場合、または一度に複数変更した結果を一つの原因へ因果帰属した場合は差し戻す。
+- 第一viewport、最初に見えるscreenshots、trailer / microtrailer、demo entryを実表示contextで確認せず、copyや制作者説明だけでFirst-contact Asset Readinessをpassにしない。AIがassetを生成・分析できたことを、人間のfun、taste fit、visual trustの証明とした場合は差し戻す。
+- 「最初の4枚」「30秒PV」をcurrent surfaceやtarget playerに関係なく固定条件にした場合は差し戻す。asset countやdurationではなく、theme、action、rewardのunaided legibilityとproof momentを要求する。
 
 ## 5. UI 品質ゲート
 

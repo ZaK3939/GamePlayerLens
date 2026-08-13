@@ -129,6 +129,10 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("Funnel Health");
     expect(content).toContain("Milestone Readiness");
     expect(content).toContain("Experiment Queue");
+    expect(content).toContain("Core Legibility Gate");
+    expect(content).toContain("Core Revision Ledger");
+    expect(content).toContain("First-contact Asset Readiness");
+    expect(content).toContain("Immediate reject risk");
     expect(content).toMatch(/適用外[\s\S]*N\/A理由/);
   });
 });
@@ -206,6 +210,9 @@ describe("harsh critic rubric", () => {
     expect(content).toMatch(/販売本数[\s\S]*税率[\s\S]*普遍[\s\S]*差し戻す/);
     expect(content).toMatch(/購入前[\s\S]*購入後[\s\S]*単一score/);
     expect(content).toMatch(/Next Fest[\s\S]*公式Steamworks[\s\S]*現在/);
+    expect(content).toMatch(/Core Legibility Gate[\s\S]*Core Revision Ledger[\s\S]*First-contact Asset Readiness/);
+    expect(content).toMatch(/AI[\s\S]*人間のfun[\s\S]*証明[\s\S]*差し戻す/);
+    expect(content).toMatch(/最初の4枚[\s\S]*30秒[\s\S]*固定条件[\s\S]*差し戻す/);
   });
 });
 
@@ -294,6 +301,23 @@ describe("indie survival strategy rubric", () => {
     expect(content).toMatch(/conceptTestEvidence\.resultHandle[\s\S]*exact-save/);
     expect(content).toMatch(/完全一致[\s\S]*品質[\s\S]*採点しない/);
     expect(content).toMatch(/自動検出[\s\S]*email形式だけ/);
+    expect(content).toMatch(/parentStimulusId[\s\S]*changeSummary[\s\S]*Core Revision Ledger/);
+    expect(content).toMatch(/一度に変えた変数[\s\S]*因果帰属/);
+  });
+
+  it("turns the core into an evidence-backed learning loop and first-contact audit", async () => {
+    const content = await read("knowledge/rubrics/indie-survival-strategy.md");
+
+    expect(content).toContain("Core Legibility Gate");
+    expect(content).toContain("theme-specific play");
+    expect(content).toContain("experience → reward");
+    expect(content).toContain("unaided teach-back");
+    expect(content).toContain("Core Revision Ledger");
+    expect(content).toMatch(/定期[\s\S]*固定cadence[\s\S]*しない/);
+    expect(content).toContain("First-contact Asset Readiness");
+    expect(content).toContain("core-visible / theme-only / system-only / unreadable / untested");
+    expect(content).toMatch(/第一viewport[\s\S]*最初に見えるscreenshots/);
+    expect(content).toMatch(/AI[\s\S]*人間のfun[\s\S]*certifyしない/);
   });
 });
 
