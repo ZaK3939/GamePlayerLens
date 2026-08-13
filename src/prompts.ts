@@ -2,10 +2,13 @@ import {z} from "zod";
 import {
   buildConceptTestDiagnostics,
   buildFirstContactTestDiagnostics,
+  buildPlaytestSessionDiagnostics,
   ConceptTestObjectSchema,
   ConceptTestSchema,
   FirstContactTestObjectSchema,
   FirstContactTestSchema,
+  PlaytestSessionObjectSchema,
+  PlaytestSessionSchema,
 } from "./manual-tests.js";
 import {addSafeSchemaIssues, RevisionIdSchema} from "./prompt-validation.js";
 
@@ -249,6 +252,9 @@ export const RunSimPromptArgumentsSchema = z.object({
   firstContactTest: FirstContactTestSchema.optional().describe(
     "JSON object containing a bounded, pseudonymous first-contact asset test",
   ),
+  playtestSession: PlaytestSessionSchema.optional().describe(
+    "JSON object containing one chronological, evidence-linked playtest session",
+  ),
   playtestUrl: PlaytestUrlSchema.optional(),
   playtestTask: z.string().trim().min(1).max(1_000).optional(),
   playtestBuild: z.string().trim().min(1).max(200).optional(),
@@ -294,6 +300,11 @@ export interface RunSimPromptContext {
     observedAt: string;
     resultHandle: string;
   };
+  playtestSessionEvidence?: {
+    sourceTool: "manual";
+    observedAt: string;
+    resultHandle: string;
+  };
 }
 
 export function buildConceptTestEvidenceEnvelope(input: RunSimPromptArguments) {
@@ -317,6 +328,19 @@ export function buildFirstContactTestEvidenceEnvelope(input: RunSimPromptArgumen
     data: firstContactTest,
     warnings: [] as string[],
     meta: {observedAt: firstContactTest.testedAt},
+  };
+}
+
+export function buildPlaytestSessionEvidenceEnvelope(input: RunSimPromptArguments) {
+  const parsed = RunSimPromptArgumentsSchema.parse(input);
+  if (!parsed.playtestSession) return undefined;
+  const playtestSession = PlaytestSessionObjectSchema.parse(
+    JSON.parse(parsed.playtestSession),
+  );
+  return {
+    data: playtestSession,
+    warnings: [] as string[],
+    meta: {observedAt: playtestSession.startedAt},
   };
 }
 
@@ -362,6 +386,7 @@ export function buildRunSimPrompt(
   const {
     conceptTest,
     firstContactTest,
+    playtestSession,
     projectBrief,
     uiReferenceUrls,
     ...promptInput
@@ -375,6 +400,9 @@ export function buildRunSimPrompt(
     : undefined;
   const structuredFirstContactTest = firstContactTest
     ? FirstContactTestObjectSchema.parse(JSON.parse(firstContactTest))
+    : undefined;
+  const structuredPlaytestSession = playtestSession
+    ? PlaytestSessionObjectSchema.parse(JSON.parse(playtestSession))
     : undefined;
 
   return appendSerializedInput(recipe, {
@@ -412,6 +440,27 @@ export function buildRunSimPrompt(
             ? {
                 conceptTestEvidence: {
                   ...context.conceptTestEvidence,
+                  exactSaveRequired: true,
+                },
+              }
+            : {}),
+        }
+      : {}),
+    ...(structuredPlaytestSession
+      ? {
+          playtestSession: structuredPlaytestSession,
+          playtestSessionDiagnostics: buildPlaytestSessionDiagnostics(
+            structuredPlaytestSession,
+            {
+              playtestBuild: parsed.playtestBuild,
+              playtestTask: parsed.playtestTask,
+              playtestControls: parsed.playtestControls,
+            },
+          ),
+          ...(context.playtestSessionEvidence
+            ? {
+                playtestSessionEvidence: {
+                  ...context.playtestSessionEvidence,
                   exactSaveRequired: true,
                 },
               }

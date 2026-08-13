@@ -1784,6 +1784,45 @@ describe("MCP server contract", () => {
               confusions: ["What can be controlled"],
             }],
           }),
+          playtestTask: "Start a new run and defeat the tutorial enemy",
+          playtestBuild: "0.4.2-dev",
+          playtestControls: "keyboard and mouse",
+          playtestSession: JSON.stringify({
+            startedAt: "2026-08-12T12:00:00+04:00",
+            endedAt: "2026-08-12T12:08:00+04:00",
+            sessionId: "playtest-build-042-p03",
+            buildId: "0.4.2-dev",
+            platform: "Windows 11 desktop",
+            controls: "keyboard and mouse",
+            task: "Start a new run and defeat the tutorial enemy",
+            startState: "Fresh save at the title screen",
+            endState: "Tutorial enemy defeated",
+            testerType: "human-participant",
+            participantId: "p-03",
+            targetFit: "high",
+            observationSource: "moderated",
+            priorKnowledge: "storefront-only",
+            observations: [{
+              step: 1,
+              elapsedSeconds: 15,
+              eventType: "reward",
+              meaningfulAction: true,
+              playerIntent: "Parry the tutorial enemy",
+              inputAction: "Pressed parry after the attack flash",
+              systemResponse: "The enemy staggered without a distinct sound cue",
+              expectedDifference: "Expected an unmistakable success cue",
+              frictionSeverity: "material",
+              rewardSignal: "unclear",
+              evidenceIds: ["capture-playtest-001"],
+            }],
+            outcome: "completed",
+            humanReport: {
+              feltReward: "unclear",
+              rewardDescription: "The stagger was visible but did not feel decisive",
+              wouldRepeat: "maybe",
+              confusions: ["Whether the parry timing was correct"],
+            },
+          }),
         },
       });
       const promptData = promptInputData(prompt);
@@ -1822,6 +1861,30 @@ describe("MCP server contract", () => {
         exactSaveRequired: true,
       });
       expect(firstContactEvidence.resultHandle).not.toBe(evidence.resultHandle);
+      const playtestEvidence = promptData.playtestSessionEvidence as Record<string, unknown>;
+      expect(promptData.playtestSessionDiagnostics).toMatchObject({
+        testerType: "human-participant",
+        humanEvidenceStatus: "human-report-present",
+        observationCount: 1,
+        frictionSeverityCounts: {material: 1},
+        rewardSignalCounts: {unclear: 1},
+        protocolAlignment: {
+          buildStatus: "matched",
+          taskStatus: "matched",
+          controlsStatus: "matched",
+        },
+      });
+      expect(playtestEvidence).toMatchObject({
+        sourceTool: "manual",
+        observedAt: "2026-08-12T12:00:00+04:00",
+        resultHandle: expect.any(String),
+        exactSaveRequired: true,
+      });
+      expect(new Set([
+        evidence.resultHandle,
+        firstContactEvidence.resultHandle,
+        playtestEvidence.resultHandle,
+      ]).size).toBe(3);
 
       const saved = await client.callTool({
         name: "save_artifact",
@@ -1901,6 +1964,48 @@ describe("MCP server contract", () => {
         },
         warnings: [],
       });
+
+      const savedPlaytest = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "Playtest Build 042 P03",
+          resultHandle: playtestEvidence.resultHandle,
+        },
+      });
+      expect(savedPlaytest.isError).not.toBe(true);
+      const readPlaytest = await client.callTool({
+        name: "get_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "Playtest Build 042 P03",
+        },
+      });
+      expect(readPlaytest.structuredContent).toMatchObject({
+        data: {
+          sourceTool: "manual",
+          observedAt: "2026-08-12T12:00:00+04:00",
+          payload: {
+            data: {
+              sessionId: "playtest-build-042-p03",
+              buildId: "0.4.2-dev",
+              testerType: "human-participant",
+              observations: [{
+                playerIntent: "Parry the tutorial enemy",
+                rewardSignal: "unclear",
+              }],
+            },
+            warnings: [],
+            meta: {
+              observedAt: "2026-08-12T12:00:00+04:00",
+              resultHandle: playtestEvidence.resultHandle,
+            },
+          },
+        },
+        warnings: [],
+      });
     } finally {
       await client.close();
       await server.close();
@@ -1923,6 +2028,7 @@ describe("MCP server contract", () => {
         "projectBrief",
         "conceptTest",
         "firstContactTest",
+        "playtestSession",
         "playtestUrl",
         "playtestTask",
         "playtestBuild",

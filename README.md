@@ -268,7 +268,7 @@ change runは全`scenario × Selected Domain`と全`persona × scenario`のround
 
 ### 実buildのtest play
 
-`run-sim`へ`playtestUrl`、`playtestTask`、`playtestBuild`、`playtestControls`、`playtestDurationMinutes`を渡せます。gameplayを選択した相談では`get_knowledge(kind=rubrics, id=playtest.md)`のprotocolを使い、build ID、start/end state、操作条件を固定して、実際のAction → response、time to first meaningful action、task completion、誤入力、feedback、failure → retryを時系列で記録します。
+`run-sim`へ`playtestUrl`、`playtestTask`、`playtestBuild`、`playtestControls`、`playtestDurationMinutes`を渡せます。完了した1 sessionは`playtestSession`へ渡すと、build / task / controlsの照合、時系列Action → system response → rewardSignal、friction、人間の任意`humanReport`を分離して診断します。promptの`playtestSessionEvidence.resultHandle`で原本をexact-saveでき、1 sessionをfun score、completion rate、retention、需要へ変換しません。gameplayを選択した相談では`get_knowledge(kind=rubrics, id=playtest.md)`のprotocolを使います。
 
 browser/desktop controlを持つAI clientでは実buildを操作します。操作能力がない場合はページ閲覧をtest playと呼ばず、recordingまたはユーザー同席sessionへ切り替えます。AI 1 testerは再現可能な操作摩擦の発見には使えますが、人間の楽しさ、需要、completion rate、retentionの代表ではありません。native buildの任意実行はMCP server自身では行いません。
 
@@ -283,6 +283,50 @@ browser/desktop controlを持つAI clientでは実buildを操作します。操�
   "playtestBuild": "0.4.2-dev",
   "playtestControls": "keyboard and mouse",
   "playtestDurationMinutes": "20"
+}
+```
+
+完了後は次の形をJSON文字列へencodeして`playtestSession`に渡します。`participantId`は仮名IDだけを使います。
+
+```json
+{
+  "startedAt": "2026-08-12T12:00:00+04:00",
+  "endedAt": "2026-08-12T12:08:00+04:00",
+  "sessionId": "playtest-build-042-p04",
+  "buildId": "0.4.2-dev",
+  "platform": "Windows 11 desktop",
+  "controls": "keyboard and mouse",
+  "task": "Start a new run and defeat the tutorial enemy",
+  "startState": "Fresh save at the title screen",
+  "endState": "Tutorial enemy defeated",
+  "testerType": "human-participant",
+  "participantId": "p-04",
+  "targetFit": "high",
+  "observationSource": "moderated",
+  "priorKnowledge": "storefront-only",
+  "observations": [
+    {
+      "step": 1,
+      "elapsedSeconds": 95,
+      "eventType": "reward",
+      "meaningfulAction": true,
+      "playerIntent": "Parry the enemy attack",
+      "inputAction": "Pressed parry after the attack flash",
+      "systemResponse": "Enemy staggered, but the success sound was masked by music",
+      "expectedDifference": "Expected an unmistakable success cue",
+      "frictionSeverity": "material",
+      "rewardSignal": "unclear",
+      "evidenceIds": ["capture-playtest-002"]
+    }
+  ],
+  "outcome": "completed",
+  "humanReport": {
+    "feltReward": "unclear",
+    "rewardDescription": "The stagger looked useful, but did not feel decisive",
+    "wouldRepeat": "maybe",
+    "confusions": ["Whether the parry timing was correct"]
+  },
+  "deviations": []
 }
 ```
 

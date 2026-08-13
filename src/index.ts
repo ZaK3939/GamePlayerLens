@@ -33,6 +33,7 @@ import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
 import {
   buildConceptTestEvidenceEnvelope,
   buildFirstContactTestEvidenceEnvelope,
+  buildPlaytestSessionEvidenceEnvelope,
   buildRunSimPrompt,
   buildUiBlindComparePrompt,
   RunSimPromptArgumentsSchema,
@@ -143,6 +144,19 @@ function trackedJsonEnvelope(
     JSON.parse(JSON.stringify(result)) as unknown,
   ) as ResultEnvelope;
   return jsonEnvelope(store.remember(sourceTool, normalized));
+}
+
+function trackManualPromptEvidence(
+  store: ResultStore,
+  envelope: (ResultEnvelope & {meta: {observedAt: string}}) | undefined,
+) {
+  if (!envelope) return undefined;
+  const tracked = store.remember("manual", envelope);
+  return {
+    sourceTool: "manual" as const,
+    observedAt: envelope.meta.observedAt,
+    resultHandle: ResultHandleSchema.parse(tracked.meta?.resultHandle),
+  };
 }
 
 function imageEnvelope(result: ImageFetchResult<unknown>) {
@@ -559,30 +573,18 @@ export function buildServer(
       argsSchema: RunSimPromptArgumentsSchema,
     },
     async (arguments_) => {
-      const evidenceEnvelope = buildConceptTestEvidenceEnvelope(arguments_);
-      const trackedEvidence = evidenceEnvelope
-        ? services.resultStore.remember("manual", evidenceEnvelope)
-        : undefined;
-      const resultHandle = trackedEvidence?.meta?.resultHandle;
-      const conceptTestEvidence = evidenceEnvelope
-        ? {
-            sourceTool: "manual" as const,
-            observedAt: evidenceEnvelope.meta.observedAt,
-            resultHandle: ResultHandleSchema.parse(resultHandle),
-          }
-        : undefined;
-      const firstContactEvidenceEnvelope = buildFirstContactTestEvidenceEnvelope(arguments_);
-      const trackedFirstContactEvidence = firstContactEvidenceEnvelope
-        ? services.resultStore.remember("manual", firstContactEvidenceEnvelope)
-        : undefined;
-      const firstContactResultHandle = trackedFirstContactEvidence?.meta?.resultHandle;
-      const firstContactTestEvidence = firstContactEvidenceEnvelope
-        ? {
-            sourceTool: "manual" as const,
-            observedAt: firstContactEvidenceEnvelope.meta.observedAt,
-            resultHandle: ResultHandleSchema.parse(firstContactResultHandle),
-          }
-        : undefined;
+      const conceptTestEvidence = trackManualPromptEvidence(
+        services.resultStore,
+        buildConceptTestEvidenceEnvelope(arguments_),
+      );
+      const firstContactTestEvidence = trackManualPromptEvidence(
+        services.resultStore,
+        buildFirstContactTestEvidenceEnvelope(arguments_),
+      );
+      const playtestSessionEvidence = trackManualPromptEvidence(
+        services.resultStore,
+        buildPlaytestSessionEvidenceEnvelope(arguments_),
+      );
       return {
         messages: [{
           role: "user" as const,
@@ -591,7 +593,7 @@ export function buildServer(
             text: buildRunSimPrompt(
               await services.readSkill("run-sim.md"),
               arguments_,
-              {conceptTestEvidence, firstContactTestEvidence},
+              {conceptTestEvidence, firstContactTestEvidence, playtestSessionEvidence},
             ),
           },
         }],

@@ -29,6 +29,7 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
   "projectBrief",
   "conceptTest",
   "firstContactTest",
+  "playtestSession",
   "playtestUrl",
   "playtestTask",
   "playtestBuild",
@@ -265,6 +266,41 @@ try {
       playtestBuild: "protocol-fixture-1",
       playtestControls: "keyboard and mouse",
       playtestDurationMinutes: "20",
+      playtestSession: JSON.stringify({
+        startedAt: "2026-08-12T12:00:00+04:00",
+        endedAt: "2026-08-12T12:06:00+04:00",
+        sessionId: "stdio-playtest-p03",
+        buildId: "protocol-fixture-1",
+        platform: "desktop browser",
+        controls: "keyboard and mouse",
+        task: "Start a new run and reach the tutorial checkpoint",
+        startState: "Fresh save at the title screen",
+        endState: "Tutorial checkpoint reached",
+        testerType: "human-participant",
+        participantId: "p-03",
+        targetFit: "medium",
+        observationSource: "moderated",
+        priorKnowledge: "none",
+        observations: [{
+          step: 1,
+          elapsedSeconds: 18,
+          eventType: "reward",
+          meaningfulAction: true,
+          playerIntent: "Complete the first action",
+          inputAction: "Used the prompted keyboard input",
+          systemResponse: "Checkpoint progress appeared without a distinct sound cue",
+          frictionSeverity: "minor",
+          rewardSignal: "unclear",
+          evidenceIds: ["stdio-capture-001"],
+        }],
+        outcome: "completed",
+        humanReport: {
+          feltReward: "unclear",
+          rewardDescription: "The visual progress appeared, but the reward was not distinct",
+          wouldRepeat: "maybe",
+          confusions: ["Whether the checkpoint granted a reward"],
+        },
+      }),
       uiBenchmarkTask: "Start a new run from the main menu and reach the tutorial checkpoint",
       market: "United States",
       language: "english",
@@ -278,6 +314,11 @@ try {
       && playtestContent.text.includes('"playtestBuild": "protocol-fixture-1"')
       && playtestContent.text.includes('"playtestControls": "keyboard and mouse"')
       && playtestContent.text.includes('"playtestDurationMinutes": "20"')
+      && playtestContent.text.includes('"playtestSession": {')
+      && playtestContent.text.includes('"playtestSessionDiagnostics": {')
+      && playtestContent.text.includes('"playtestSessionEvidence": {')
+      && playtestContent.text.includes('"humanEvidenceStatus": "human-report-present"')
+      && playtestContent.text.includes('"rewardSignalCounts": {')
       && playtestContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && playtestContent.text.includes('"selectedDomains": [\n    "gameplay",\n    "ui"\n  ]'),
     "run-sim did not round-trip the supplied playtest protocol",

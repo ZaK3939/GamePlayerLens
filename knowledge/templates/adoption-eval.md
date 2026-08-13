@@ -123,6 +123,19 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 |---|---|---|---|---|---|
 | ［購入前に約束する体験］ | ［capsule / trailer / copy］ | ［build / task / state］ | ［playtest / telemetry / missing］ | ［matched / overpromised / under-signaled / missing］ | ［施策］ |
 
+### Delivered Experience Playtest Trace
+
+- Exact-save evidence: ［`playtestSessionEvidence.resultHandle`で保存したmanual intel path / missing理由］
+- Session boundary: ［session ID、build、task、start/end state、platform、controls、duration、tester type、prior knowledge］
+- Protocol alignment / deviations: ［build / task / controlsのmatched・mismatched・not-supplied、deviation］
+- Human report boundary: ［humanReportのfelt reward / repeat intent / confusion、またはAI-operatedなのでN/A］
+
+| Step / time | Player intent | Input / Action | System response | Friction | rewardSignal | Evidence ID |
+|---|---|---|---|---|---|---|
+| ［step / 秒］ | ［目的］ | ［入力］ | ［画面・音・状態変化］ | ［none / minor / material / blocker］ | ［demonstrated / not-observed / unclear / not-assessed］ | ［capture / video / log］ |
+
+この表はone bounded sessionの記述であり、fun score、completion rate、retention、需要を推定しません。
+
 ### Funnel Health
 
 `impression → store visit → wishlist → demo start → demo completion → purchase → retained play`の各段階を、同じcohortとwindowで可能な範囲まで記録します。wishlistを面白さや販売本数の単独原因にしません。
@@ -237,7 +250,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 - Status: ［Selected / N/A と理由］
 - Mode result: ［プレイヤーから観測できるコアループ、目標、入力→反応、進行、失敗→再挑戦、継続動機 / change の場合は現状 vs 変更案］
 - Playtest protocol: ［build ID、player task、start state、end state、platform、controls、duration、tester prior knowledge / 未実施ならmissing理由］
-- Playtest observations: ［time to first meaningful action、task completion、Action → response、誤入力、feedback、failure → retry、次目標の認識とEvidence ID］
+- Playtest observations: ［time to first meaningful action、task completion、Action → response → rewardSignal、誤入力、feedback、failure → retry、次目標の認識とEvidence ID］
 - Human-validity boundary: ［AI 1 testerの観測を人間のfun、completion rate、retentionの代表値へ変換しない］
 - 観測とproxyの境界: ［仕様・build・動画・telemetry・playtestによる直接根拠 / description・categories・tags・reviewsによるプレイヤー知覚のproxy］
 - 未検証の内部ロジック: ［コード、状態遷移、数式、難易度曲線など、直接根拠がなく断定できないもの］

@@ -76,6 +76,61 @@ function firstContactTestFixture(
   };
 }
 
+function playtestSessionFixture(): Record<string, unknown> {
+  return {
+    startedAt: "2026-08-12T12:00:00+04:00",
+    endedAt: "2026-08-12T12:08:00+04:00",
+    sessionId: "playtest-build-042-p01",
+    buildId: "0.4.2-dev",
+    platform: "Windows 11 desktop",
+    controls: "keyboard and mouse",
+    task: "Start a new run and defeat the tutorial enemy",
+    startState: "Fresh save at the title screen",
+    endState: "Tutorial enemy defeated",
+    testerType: "human-participant",
+    participantId: "p-04",
+    targetFit: "high",
+    observationSource: "moderated",
+    priorKnowledge: "storefront-only",
+    priorKnowledgeDetails: "No tutorial guide or design specification",
+    observations: [
+      {
+        step: 1,
+        elapsedSeconds: 12,
+        eventType: "action",
+        meaningfulAction: true,
+        playerIntent: "Move toward the tutorial enemy",
+        inputAction: "Pressed WASD and aimed with the mouse",
+        systemResponse: "Character moved and aim indicator followed the cursor",
+        frictionSeverity: "none",
+        rewardSignal: "not-assessed",
+        evidenceIds: ["capture-playtest-001"],
+      },
+      {
+        step: 2,
+        elapsedSeconds: 95,
+        eventType: "reward",
+        meaningfulAction: false,
+        playerIntent: "Parry the enemy attack",
+        inputAction: "Pressed parry after the attack flash",
+        systemResponse: "Enemy staggered, but the success sound was masked by music",
+        expectedDifference: "Expected an unmistakable success cue",
+        frictionSeverity: "material",
+        rewardSignal: "unclear",
+        evidenceIds: ["capture-playtest-002"],
+      },
+    ],
+    outcome: "completed",
+    humanReport: {
+      feltReward: "unclear",
+      rewardDescription: "The stagger looked useful, but did not feel decisive",
+      wouldRepeat: "maybe",
+      confusions: ["Whether the parry timing was correct"],
+    },
+    deviations: ["Moderator answered one controls question"],
+  };
+}
+
 async function skill(name: string): Promise<string> {
   return readFile(join(process.cwd(), "skills", name), "utf8");
 }
@@ -408,6 +463,134 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"playtestUrl": "http://localhost:4173/play#new-game"');
     expect(result).toContain('"playtestTask": "Start a new run and defeat the tutorial enemy"');
     expect(result).toContain('"playtestDurationMinutes": "20"');
+  });
+
+  it("serializes a completed playtest session as exact-save delivered-experience evidence", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "first-session delivered experience",
+      domains: "gameplay",
+      playtestTask: "Start a new run and defeat the tutorial enemy",
+      playtestBuild: "0.4.2-dev",
+      playtestControls: "keyboard and mouse",
+      playtestSession: JSON.stringify(playtestSessionFixture()),
+    }, {
+      playtestSessionEvidence: {
+        sourceTool: "manual",
+        observedAt: "2026-08-12T12:00:00+04:00",
+        resultHandle: "123e4567-e89b-42d3-a456-426614174002",
+      },
+    });
+
+    expect(result).toContain('"playtestSession": {');
+    expect(result).toContain('"playtestSessionDiagnostics": {');
+    expect(result).toContain('"durationSeconds": 480');
+    expect(result).toContain('"firstMeaningfulActionSeconds": 12');
+    expect(result).toContain('"observationCount": 2');
+    expect(result).toContain('"material": 1');
+    expect(result).toContain('"unclear": 1');
+    expect(result).toContain('"humanEvidenceStatus": "human-report-present"');
+    expect(result).toContain('"buildStatus": "matched"');
+    expect(result).toContain('"taskStatus": "matched"');
+    expect(result).toContain('"controlsStatus": "matched"');
+    expect(result).toContain('"candidateReviewAreas": [\n      "protocol-deviation",\n      "material-friction",\n      "reward-delivery",\n      "felt-reward-follow-up",\n      "reported-confusions",\n      "repeat-intent-follow-up"\n    ]');
+    expect(result).toContain('"playtestSessionEvidence": {');
+    expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174002"');
+    expect(result).toContain('"exactSaveRequired": true');
+    expect(result).toContain("one bounded session");
+    expect(result).not.toContain("funScore");
+    expect(result).not.toContain("completionRate");
+  });
+
+  it("keeps unassessed reward evidence separate from an observed delivery problem", () => {
+    const fixture = playtestSessionFixture();
+    fixture.observations = (fixture.observations as Array<Record<string, unknown>>).map(
+      (observation) => ({
+        ...observation,
+        frictionSeverity: "none",
+        rewardSignal: "not-assessed",
+      }),
+    );
+    fixture.humanReport = {
+      feltReward: "not-asked",
+      wouldRepeat: "not-asked",
+      confusions: [],
+    };
+    fixture.deviations = [];
+
+    const result = buildRunSimPrompt(recipe, {
+      target: "Example Game",
+      topic: "reward evidence coverage",
+      domains: "gameplay",
+      playtestSession: JSON.stringify(fixture),
+    });
+
+    expect(result).toContain('"reward-evidence-coverage"');
+    expect(result).toContain('"human-report-coverage"');
+    expect(result).not.toContain('"reward-delivery"');
+    expect(result).not.toContain('"felt-reward-follow-up"');
+  });
+
+  it("rejects invalid playtest chronology and human/AI evidence mixing", () => {
+    const nonChronological = playtestSessionFixture();
+    nonChronological.observations = [
+      ...(nonChronological.observations as Array<Record<string, unknown>>),
+      {
+        ...(nonChronological.observations as Array<Record<string, unknown>>)[0],
+        step: 4,
+        elapsedSeconds: 5,
+      },
+    ];
+    const badChronology = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest",
+      playtestSession: JSON.stringify(nonChronological),
+    });
+    expect(badChronology.success).toBe(false);
+    if (!badChronology.success) {
+      expect(JSON.stringify(badChronology.error)).toContain("observations");
+    }
+
+    const aiWithHumanReport = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        testerType: "ai-operated",
+        participantId: undefined,
+        targetFit: undefined,
+      }),
+    });
+    expect(aiWithHumanReport.success).toBe(false);
+    if (!aiWithHumanReport.success) {
+      expect(JSON.stringify(aiWithHumanReport.error)).toContain("humanReport");
+    }
+
+    const humanWithoutIdentity = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        participantId: undefined,
+      }),
+    });
+    expect(humanWithoutIdentity.success).toBe(false);
+    if (!humanWithoutIdentity.success) {
+      expect(JSON.stringify(humanWithoutIdentity.error)).toContain("participantId");
+    }
+
+    const unexplainedFailure = RunSimPromptArgumentsSchema.safeParse({
+      target: "Example Game",
+      topic: "playtest",
+      playtestSession: JSON.stringify({
+        ...playtestSessionFixture(),
+        outcome: "failed",
+      }),
+    });
+    expect(unexplainedFailure.success).toBe(false);
+    if (!unexplainedFailure.success) {
+      expect(JSON.stringify(unexplainedFailure.error)).toContain("stopReason");
+    }
   });
 
   it("serializes the validated project brief as structured data", () => {

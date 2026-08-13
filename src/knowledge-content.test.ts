@@ -361,6 +361,17 @@ describe("playtest rubric", () => {
     expect(content).toMatch(/AI[\s\S]*人間[\s\S]*代表/);
     expect(content).toContain("playtest provenance");
   });
+
+  it("requires exact-saved session evidence and separates operation from human reward reports", async () => {
+    const rubric = await read("knowledge/rubrics/playtest.md");
+    const recipe = await read("skills/run-sim.md");
+
+    expect(rubric).toMatch(/playtestSessionEvidence\.resultHandle[\s\S]*exact-save/);
+    expect(rubric).toMatch(/Action[\s\S]*response[\s\S]*rewardSignal/);
+    expect(rubric).toMatch(/AI[\s\S]*humanReport[\s\S]*(禁止|受理しない)/);
+    expect(recipe).toMatch(/playtestSessionEvidence\.resultHandle[\s\S]*save_artifact/);
+    expect(recipe).toMatch(/one bounded session[\s\S]*(completion rate|retention|需要)/);
+  });
 });
 
 describe("update strategy rubric", () => {

@@ -1,4 +1,4 @@
-# AI-operated playtest rubric
+# Evidence-grounded playtest rubric
 
 目的は、実buildを操作して、仕様やストア情報だけでは分からない理解、入力、feedback、失敗、再挑戦の摩擦を時系列で観測することです。AIによる1回のtest playを、人間プレイヤーの楽しさ、需要、継続率の代表値にはしません。
 
@@ -59,9 +59,20 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 - testerが仕様やsource codeを先に読んだ場合、discoverabilityのfirst-read evidenceとして使わない。
 - blockerを見つけても原因実装を断定せず、再現手順、観測結果、必要logを示す。
 
-## 6. playtest provenance
+## 6. Structured session evidence
 
-sessionごとに`save_artifact(kind=intel, sourceTool=manual)`でplaytest provenanceを保存します。
+`run-sim`の`playtestSession`は1回のbounded sessionを時系列の原本として受け取ります。各観測は`step`と`elapsedSeconds`を連続・非減少にし、Player intent、Input / Action、system response、friction severity、`rewardSignal`、Evidence IDを別fieldで記録します。つまり、Action、response、rewardSignalを一つの「面白かった」に統合しません。
+
+- human participantでは仮名の`participantId`とtarget fitを必須にし、任意の`humanReport`でfelt reward、repeat intent、confusionを操作logと分離する。
+- AI-operated sessionでは操作と観測だけを保存し、AIが人間の感情を代弁する`humanReport`は禁止する。
+- completed以外は`stopReason`を必須にし、失敗・blocker・中断を成功へ丸めない。
+- build、task、controlsとprompt protocolの完全一致はprovenanceだけを示し、体験の同等性やqualityを証明しない。
+
+入力がある場合は`playtestSessionEvidence.resultHandle`を使い、モデルによる転記を挟まず`save_artifact(kind=intel)`へexact-saveします。handleがない、期限切れ、保存失敗のsessionを完全保存済みと主張しません。
+
+## 7. playtest provenance
+
+`playtestSession`入力は前節のresultHandleでexact-saveします。prompt外で受け取ったrecordingやlogだけを保存する場合は、検証済みsessionと混同せず`save_artifact(kind=intel, sourceTool=manual)`でprovenanceを保存します。
 
 - build ID、URLまたは配布経路の非機密識別子
 - session開始・終了時刻とduration
@@ -75,7 +86,7 @@ sessionごとに`save_artifact(kind=intel, sourceTool=manual)`でplaytest proven
 
 credential、local absolute path、未公開secretはpayloadへ入れません。top-level observedAtは権威あるsession時刻を保持している場合だけ渡し、不明ならserver clockへ委ねます。
 
-## 7. Required output
+## 8. Required output
 
 - Session verdict: completed / failed / blocked
 - Top observed frictions: 再現手順、severity、Evidence ID

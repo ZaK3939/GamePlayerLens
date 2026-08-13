@@ -29,6 +29,7 @@
 
 - タグ（tags）やcategoriesだけからゲームロジック、内部状態遷移、バランス実装を断定した場合は差し戻す。description、tags、categories、reviewsはプレイヤー知覚のproxyであり、内部ロジックの評価には仕様、build、動画、telemetry、playtestの直接根拠を要求する。
 - gameplayを選択し操作可能なbuildがある場合は`playtest.md`に従い、build ID、player task、start/end state、controls、時間上限、Action → responseの時系列logを要求する。ページを閲覧しただけでtest playと呼んだ場合、AI 1 testerを人間のfun、completion rate、retentionの代表とした場合は差し戻す。
+- `playtestSession`入力を`playtestSessionEvidence.resultHandle`でexact-saveしない場合、Action / system response / friction / rewardSignalを一つのscoreへ統合した場合、AI-operated sessionへ`humanReport`を補完した場合、またはone sessionからfun、completion rate、retention、需要を断定した場合は差し戻す。
 - ストア訴求を選択した場合は、`localizedStorefronts`のcopy、screenshotsまたはcapture、競合の同種根拠、レビュー上の期待差を分けて示す。deep linkを貼っただけでリンク先の内容を取得済み根拠にしない。
 - 対応言語一覧だけから翻訳品質、文化適合、フォント可読性を断定した場合は差し戻す。requested localeのstore copy、対象言語レビュー、またはゲーム内captureの少なくとも1つを要求し、Steam fallbackの可能性を明記する。`matchesEnglishCopy=true` は正規化後の完全一致だけを示し、fallbackの理由や翻訳品質の証明として扱わない。`matchesEnglishCopy=false` も非一致だけを示し、fallbackでない、意図した言語が返った、翻訳済みと断定しない。
 

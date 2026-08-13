@@ -233,6 +233,159 @@ export const FirstContactTestSchema = createJsonStringSchema(
   FIRST_CONTACT_TEST_SAFE_FIELDS,
 );
 
+const PlaytestEventTypeSchema = z.enum([
+  "action",
+  "feedback",
+  "failure",
+  "retry",
+  "reward",
+  "progress",
+  "goal",
+  "technical",
+]);
+const FrictionSeveritySchema = z.enum(["none", "minor", "material", "blocker"]);
+const RewardSignalSchema = z.enum([
+  "demonstrated",
+  "not-observed",
+  "unclear",
+  "not-assessed",
+]);
+const PlaytestObservationSchema = z.object({
+  step: z.number().int().positive().max(200),
+  elapsedSeconds: z.number().finite().min(0).max(7_200),
+  eventType: PlaytestEventTypeSchema,
+  meaningfulAction: z.boolean(),
+  playerIntent: ManualTestTextSchema,
+  inputAction: ManualTestTextSchema,
+  systemResponse: ManualTestTextSchema,
+  expectedDifference: ManualTestTextSchema.optional(),
+  frictionSeverity: FrictionSeveritySchema,
+  rewardSignal: RewardSignalSchema,
+  evidenceIds: z.array(RevisionIdSchema).max(10).optional(),
+}).strict();
+
+const HumanPlaytestReportSchema = z.object({
+  feltReward: z.enum(["yes", "no", "unclear", "not-asked"]),
+  rewardDescription: ManualTestTextSchema.optional(),
+  wouldRepeat: z.enum(["yes", "maybe", "no", "not-asked"]),
+  confusions: z.array(ManualTestTextSchema).max(20),
+}).strict();
+
+export const PlaytestSessionObjectSchema = z.object({
+  startedAt: z.iso.datetime({offset: true}),
+  endedAt: z.iso.datetime({offset: true}),
+  sessionId: RevisionIdSchema,
+  buildId: ManualTestTextSchema,
+  platform: ManualTestTextSchema,
+  controls: ManualTestTextSchema,
+  task: ManualTestTextSchema,
+  startState: ManualTestTextSchema,
+  endState: ManualTestTextSchema,
+  testerType: z.enum(["human-participant", "ai-operated"]),
+  participantId: PseudonymousParticipantIdSchema.optional(),
+  targetFit: TargetFitSchema.optional(),
+  observationSource: z.enum(["direct-session", "moderated", "recording-review"]),
+  priorKnowledge: z.enum([
+    "none",
+    "storefront-only",
+    "tutorial-known",
+    "specification",
+    "source-code",
+    "prior-session",
+    "other",
+  ]),
+  priorKnowledgeDetails: ManualTestTextSchema.optional(),
+  observations: z.array(PlaytestObservationSchema).min(1).max(200),
+  outcome: z.enum(["completed", "failed", "blocked", "stopped"]),
+  stopReason: ManualTestTextSchema.optional(),
+  humanReport: HumanPlaytestReportSchema.optional(),
+  deviations: z.array(ManualTestTextSchema).max(20).optional(),
+}).strict().superRefine((value, context) => {
+  const durationSeconds = (Date.parse(value.endedAt) - Date.parse(value.startedAt)) / 1_000;
+  if (durationSeconds <= 0 || durationSeconds > 7_200) {
+    context.addIssue({
+      code: "custom",
+      path: ["endedAt"],
+      message: "playtest session duration must be between 1 second and 120 minutes",
+    });
+  }
+  if (value.testerType === "human-participant") {
+    if (!value.participantId) {
+      context.addIssue({
+        code: "custom",
+        path: ["participantId"],
+        message: "participantId is required for a human participant",
+      });
+    }
+    if (!value.targetFit) {
+      context.addIssue({
+        code: "custom",
+        path: ["targetFit"],
+        message: "targetFit is required for a human participant",
+      });
+    }
+  } else {
+    if (value.participantId || value.targetFit) {
+      context.addIssue({
+        code: "custom",
+        path: ["participantId"],
+        message: "AI-operated sessions must not claim a human participant",
+      });
+    }
+    if (value.humanReport) {
+      context.addIssue({
+        code: "custom",
+        path: ["humanReport"],
+        message: "AI-operated sessions must not contain a humanReport",
+      });
+    }
+  }
+  if (value.outcome !== "completed" && !value.stopReason) {
+    context.addIssue({
+      code: "custom",
+      path: ["stopReason"],
+      message: "stopReason is required when the session did not complete",
+    });
+  }
+  let previousElapsed = -1;
+  for (const [index, observation] of value.observations.entries()) {
+    if (observation.step !== index + 1 || observation.elapsedSeconds < previousElapsed) {
+      context.addIssue({
+        code: "custom",
+        path: ["observations", index],
+        message: "observations must use contiguous steps and nondecreasing elapsedSeconds",
+      });
+    }
+    if (observation.elapsedSeconds > durationSeconds) {
+      context.addIssue({
+        code: "custom",
+        path: ["observations", index, "elapsedSeconds"],
+        message: "observation time must fall within the session",
+      });
+    }
+    previousElapsed = observation.elapsedSeconds;
+  }
+});
+
+export type PlaytestSession = z.infer<typeof PlaytestSessionObjectSchema>;
+
+const PLAYTEST_SESSION_SAFE_FIELDS = new Set<string>([
+  "startedAt", "endedAt", "sessionId", "buildId", "platform", "controls",
+  "task", "startState", "endState", "testerType", "participantId", "targetFit",
+  "observationSource", "priorKnowledge", "priorKnowledgeDetails", "observations",
+  "outcome", "stopReason", "humanReport", "deviations", "step", "elapsedSeconds",
+  "eventType", "meaningfulAction", "playerIntent", "inputAction", "systemResponse",
+  "expectedDifference", "frictionSeverity", "rewardSignal", "evidenceIds",
+  "feltReward", "rewardDescription", "wouldRepeat", "confusions",
+]);
+
+export const PlaytestSessionSchema = createJsonStringSchema(
+  "playtestSession",
+  100_000,
+  PlaytestSessionObjectSchema,
+  PLAYTEST_SESSION_SAFE_FIELDS,
+);
+
 function createJsonStringSchema<T extends z.ZodType>(
   root: string,
   maxBytes: number,
@@ -478,5 +631,111 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
     },
     rejectionReasonInterpretationLimit: "Missing immediate-reject reasons must not be inferred from other fields or participant responses.",
     interpretationLimit: "Counts describe this bounded sample and exposure context only; they do not establish fun, demand, conversion, or storefront readiness.",
+  };
+}
+
+export interface PlaytestProtocolAlignment {
+  playtestBuild?: string;
+  playtestTask?: string;
+  playtestControls?: string;
+}
+
+function exactAlignment(actual: string, expected: string | undefined) {
+  return expected === undefined ? "not-supplied" : actual === expected ? "matched" : "mismatched";
+}
+
+export function buildPlaytestSessionDiagnostics(
+  session: PlaytestSession,
+  protocol: PlaytestProtocolAlignment,
+) {
+  const durationSeconds = (Date.parse(session.endedAt) - Date.parse(session.startedAt)) / 1_000;
+  const eventCounts = countValues(
+    session.observations.map((observation) => observation.eventType),
+    PlaytestEventTypeSchema.options,
+  );
+  const frictionSeverityCounts = countValues(
+    session.observations.map((observation) => observation.frictionSeverity),
+    FrictionSeveritySchema.options,
+  );
+  const rewardSignalCounts = countValues(
+    session.observations.map((observation) => observation.rewardSignal),
+    RewardSignalSchema.options,
+  );
+  const firstMeaningfulAction = session.observations.find(
+    (observation) => observation.meaningfulAction,
+  );
+  const buildStatus = exactAlignment(session.buildId, protocol.playtestBuild);
+  const taskStatus = exactAlignment(session.task, protocol.playtestTask);
+  const controlsStatus = exactAlignment(session.controls, protocol.playtestControls);
+  const humanConfusionCount = session.humanReport?.confusions.length ?? 0;
+  const deviationCount = session.deviations?.length ?? 0;
+  const assessedRewardObservationCount = rewardSignalCounts.demonstrated
+    + rewardSignalCounts["not-observed"]
+    + rewardSignalCounts.unclear;
+  const humanReportCoverageMissing = session.testerType === "human-participant"
+    && (!session.humanReport
+      || session.humanReport.feltReward === "not-asked"
+      || session.humanReport.wouldRepeat === "not-asked"
+      || !session.humanReport.rewardDescription);
+  const candidateReviewAreas = [
+    ...([buildStatus, taskStatus, controlsStatus].includes("mismatched")
+      ? ["protocol-provenance"] : []),
+    ...(deviationCount > 0 ? ["protocol-deviation"] : []),
+    ...(session.priorKnowledge === "specification"
+      || session.priorKnowledge === "source-code"
+      || session.priorKnowledge === "prior-session"
+      ? ["prior-knowledge-bias"] : []),
+    ...(session.outcome !== "completed" ? ["task-outcome"] : []),
+    ...(frictionSeverityCounts.material > 0 || frictionSeverityCounts.blocker > 0
+      ? ["material-friction"] : []),
+    ...(assessedRewardObservationCount === 0 ? ["reward-evidence-coverage"] : []),
+    ...(assessedRewardObservationCount > 0 && (rewardSignalCounts["not-observed"] > 0
+      || rewardSignalCounts.unclear > 0
+      || rewardSignalCounts.demonstrated === 0)
+      ? ["reward-delivery"] : []),
+    ...(humanReportCoverageMissing ? ["human-report-coverage"] : []),
+    ...(session.humanReport?.feltReward === "no"
+      || session.humanReport?.feltReward === "unclear"
+      ? ["felt-reward-follow-up"] : []),
+    ...(humanConfusionCount > 0 ? ["reported-confusions"] : []),
+    ...(session.humanReport?.wouldRepeat === "maybe"
+      || session.humanReport?.wouldRepeat === "no"
+      ? ["repeat-intent-follow-up"] : []),
+  ];
+  return {
+    status: "descriptive-only",
+    sessionId: session.sessionId,
+    testerType: session.testerType,
+    humanEvidenceStatus: session.testerType === "ai-operated"
+      ? "not-applicable-ai-operated"
+      : session.humanReport
+        ? "human-report-present"
+        : "human-report-missing",
+    durationSeconds,
+    outcome: session.outcome,
+    observationCount: session.observations.length,
+    firstMeaningfulActionSeconds: firstMeaningfulAction?.elapsedSeconds ?? null,
+    eventCounts,
+    frictionSeverityCounts,
+    rewardSignalCounts,
+    humanReport: session.humanReport
+      ? {
+          feltReward: session.humanReport.feltReward,
+          wouldRepeat: session.humanReport.wouldRepeat,
+          confusionCount: humanConfusionCount,
+        }
+      : null,
+    protocolAlignment: {
+      buildStatus,
+      taskStatus,
+      controlsStatus,
+      interpretationLimit: "Exact matches establish session provenance only; they do not prove equivalent execution or player experience.",
+    },
+    deviationCount,
+    candidateReviewAreas,
+    nextAction: candidateReviewAreas.length > 0
+      ? "Treat these as inspection priorities, not causes. Inspect the chronological evidence and retest a bounded change under a comparable protocol."
+      : "No bounded issue signal was recorded; add another independent human session before making a broader experience claim.",
+    interpretationLimit: "This describes one bounded session only; it is not a fun score, completion rate, retention estimate, or demand forecast.",
   };
 }

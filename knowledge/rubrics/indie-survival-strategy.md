@@ -145,6 +145,7 @@ visual qualityは装飾量ではなく、target playerがtheme、action、reward
 - 「面白そうと言った率」などの固定thresholdは採用しない。sample内の件数は記述値であり、母集団のconversionやpass条件に変換しない。`interest`は`purchase`、需要、継続を証明しない。
 - `participantId`は匿名の仮名IDに限定し、氏名、email、連絡先などの個人情報を入力・保存しない。schemaの自動検出はemail形式だけなので、電話番号、住所、氏名、account IDなども自由記述とともに共有前に匿名化する。
 - AI playtestは操作可能性、feedback、再現可能なfrictionを観測できます。human playtestのfun、需要、completion、retentionの代表にはしません。
+- `playtestSession`を使う場合は、session / build、task、start/end state、platform、controls、tester type、prior knowledge、時系列のAction / system response / friction / rewardSignalを保存する。promptの`playtestSessionEvidence.resultHandle`で原本をexact-saveし、AI-operated sessionとhuman participantの`humanReport`を混同しない。1 sessionはDelivered Experienceのbounded evidenceであり、fun、completion rate、retention、需要の率ではない。
 - moderatorの誘導、友人関係、順序bias、build差をdeviationsへ残す。
 - 指摘件数ではなく、同じtaskで行動がどう変わるかをsuccess criterionへ使う。
 - `conceptTestDiagnostics.revisionLoop.candidateReviewAreas`は次に調べる候補であり、原因判定ではありません。該当fieldを自動的に失敗扱いしたり、複数変更の効果を1変数へ帰属したりしません。
