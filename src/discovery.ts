@@ -10,12 +10,17 @@ import {
   isTransientHttpStatus,
   waitForExternalRetry,
 } from "./retry.js";
+import {
+  MAX_JSON_RESPONSE_BYTES,
+  readBoundedJsonBody,
+  ResponseBodyTooLargeError,
+} from "./response-body.js";
 
 const STEAMSPY_API = "https://steamspy.com/api.php";
 const STEAMSPY_ABOUT = "https://steamspy.com/about";
 const STEAMSPY_SOURCE = "steamspy discovery";
 const REQUEST_TIMEOUT_MS = 8_000;
-const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MAX_RESPONSE_BYTES = MAX_JSON_RESPONSE_BYTES;
 const MAX_JSON_DEPTH = 128;
 const MAX_ADDITIONAL_VALUES = 3;
 const MAX_EXCLUDED_APPIDS = 50;
@@ -307,53 +312,6 @@ export function parseOrderedTopLevelObject(text: string): OrderedTopLevelObject 
   };
 }
 
-function decodeUtf8(
-  decoder: TextDecoder,
-  bytes?: Uint8Array,
-  stream = false,
-): string {
-  try {
-    return bytes === undefined
-      ? decoder.decode()
-      : decoder.decode(bytes, {stream});
-  } catch {
-    throw new InvalidJsonBodyError("response is not valid UTF-8");
-  }
-}
-
-async function readBoundedBody(response: Response): Promise<string> {
-  const contentLength = strictFiniteNumber(response.headers.get("content-length"));
-  if (contentLength !== null && contentLength > MAX_RESPONSE_BYTES) {
-    throw new InvalidJsonBodyError("JSON response is too large");
-  }
-  if (response.body === null) return "";
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder("utf-8", {fatal: true});
-  const chunks: string[] = [];
-  let byteLength = 0;
-  try {
-    while (true) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      byteLength += value.byteLength;
-      if (byteLength > MAX_RESPONSE_BYTES) {
-        try {
-          await reader.cancel();
-        } catch {
-          // The size failure remains the actionable error.
-        }
-        throw new InvalidJsonBodyError("JSON response is too large");
-      }
-      chunks.push(decodeUtf8(decoder, value, true));
-    }
-    chunks.push(decodeUtf8(decoder));
-    return chunks.join("");
-  } finally {
-    reader.releaseLock();
-  }
-}
-
 async function loadOrderedSteamSpyObject(
   url: URL,
   request: DiscoveryRequest,
@@ -400,7 +358,7 @@ async function loadOrderedSteamSpyObject(
       }
 
       try {
-        const text = await readBoundedBody(response);
+        const text = await readBoundedJsonBody(response);
         return {
           data: parseOrderedTopLevelObject(text),
           warnings: previousFailure
@@ -408,6 +366,9 @@ async function loadOrderedSteamSpyObject(
             : [],
         };
       } catch (error) {
+        if (error instanceof ResponseBodyTooLargeError) {
+          return {data: null, warnings: [`${STEAMSPY_SOURCE} response too large`]};
+        }
         const cause = error instanceof NonObjectJsonError
           ? "returned an invalid response"
           : error instanceof InvalidJsonBodyError || error instanceof SyntaxError

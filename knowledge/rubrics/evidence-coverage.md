@@ -24,7 +24,7 @@ Selected Domainの各必須dimensionへ、`observed`、`reported-zero`、`estima
 ### gameplay
 
 1. player-facing core loop: 目標、主要行動、feedbackを仕様、build、video、playtestのいずれかで確認。操作可能なbuildではAction → responseの時系列logを優先する。
-2. progression and reward: 短期・長期の進行と報酬を直接資料で確認。indie survival topicではCore Experience Mapの`repeatedAction → systemResponse → immediateReward / transitionReward`へ対応付ける。
+2. progression and reward: 短期・長期の進行と報酬を直接資料で確認。indie survival topicでは`rewardMechanisms`のbefore state → player action → system response → after state / perceived rewardへ対応付ける。
 3. failure and retry: 失敗条件、再挑戦、摩擦を直接資料またはplaytestで確認。
 4. player response: reviews、playtest、surveyのいずれかで期待と実感を確認。
 
@@ -72,7 +72,7 @@ Steam description、tags、categoriesだけの場合はplayer perceptionのproxy
 - manual evidenceはsource、取得条件、observedAtの信頼境界を記録する。時刻不明ならtop-level observedAtを省略する。
 - changeでは各`scenario × Selected Domain`と各`persona × scenario`を別roundで評価する。
 - 最終evaluationはsynthesis後に作るため、どのroundのevidenceRefsにも使わない。使った場合は循環参照として差し戻す。
-- run保存後に`get_artifact(kind=run)`でreadbackし、`integrity.status=verified`を完了条件にする。`failed`はrecordまたは依存artifactのmissing/mismatch/unreadableを修正する。`legacy-unsealed`は旧runを読めることだけを示し、seal済みとは表現しない。
+- run保存後に`get_artifact(kind=run)`でreadbackし、`integrity.status=verified`を完了条件にする。`failed`はrecordまたは依存artifactのmissing/mismatch/unreadableを修正する。sealまたはcoverageを欠くrecordは現行runとして受理しない。
 - canonical sealは偶発的な編集とdependency driftのchecksumであり、署名や外部attestationではない。data rootへの書込権限を持つ攻撃者への真正性保証と表現しない。
 
 ## 4. Confidence と勧告

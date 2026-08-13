@@ -8,6 +8,7 @@ import {
   isTransientHttpStatus,
   waitForExternalRetry,
 } from "./retry.js";
+import {readBoundedJsonBody, ResponseBodyTooLargeError} from "./response-body.js";
 
 export type JsonValue =
   | null
@@ -96,7 +97,7 @@ export async function fetchJson<T>(
       }
 
       try {
-        const data = (await response.json()) as T;
+        const data = JSON.parse(await readBoundedJsonBody(response)) as T;
         return {
           data,
           warnings: previousFailure
@@ -106,6 +107,9 @@ export async function fetchJson<T>(
       } catch (error) {
         if (isExternalTimeout(error)) {
           return {data: null, warnings: [`${source} timeout`]};
+        }
+        if (error instanceof ResponseBodyTooLargeError) {
+          return {data: null, warnings: [`${source} response too large`]};
         }
         const cause = error instanceof SyntaxError ? "invalid JSON" : "unreachable";
         if (attempt === MAX_EXTERNAL_ATTEMPTS) {

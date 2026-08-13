@@ -36,7 +36,7 @@ v1.1で直接受ける対象入力は仕様テキストとHTTP(S) URL。zipはMC
 | ui_capture | pageをPNG capture、Steam CDN画像をJPEG保存し、上限内ならImageContentを同じresultへ含める |
 | get_knowledge | canonical templates、rubrics、personasを取得 |
 | steam_discover | SteamSpyのtagまたはgenreから競合候補を取得 |
-| save_artifact | intel JSON、evaluation Markdown、またはimmutable simulation runを安全に保存 |
+| save_artifact | intel JSON、canonical構造を満たすevaluation Markdown、またはimmutable simulation runを安全に保存 |
 | get_artifact | intel、evaluation、run、capture、ui-referenceを一覧または読出し |
 
 最終構成は11 tools、2 prompts。
@@ -95,7 +95,7 @@ run:
 
 サーバーはpersona、evidence、現在のrun-sim recipeを実際に読み、各exact bytesのSHA-256、domain別のevidence kind/source toolを含む構造coverage、recordのcanonical SHA-256 sealを入れる。modelとconfidenceはserver attestationではないため`reportedByClient=true`を付ける。UUID run IDごとに最大2 MiBのJSONをatomicに作成し、overwriteを受け付けない。参照欠落、symlink、不正schema、record/path不一致はtool error。これにより入力と出力の監査・再生材料を固定するが、LLM出力の決定性は保証しない。
 
-runの単体readは保存recordに加え、recipe、persona、evidenceを現在のpathから安全に再読込してSHA-256を照合したintegrity reportを返す。statusはverified、failed、legacy-unsealed。failedはmissing、mismatch、unreadableをdependency別に返し、record自体が読める場合は本文を隠さない。legacy runはsealとcoverageをoptionalとして読めるが、integrity合格とはみなさない。canonical sealは偶発編集検知用checksumであり、署名や外部attestationではない。
+runの単体readは保存recordに加え、recipe、persona、evidenceを現在のpathから安全に再読込してSHA-256を照合したintegrity reportを返す。statusはverifiedまたはfailed。failedはmissing、mismatch、unreadableをdependency別に返し、record自体が読める場合は本文を隠さない。現行schemaではsealとcoverageを必須とし、欠落recordは不正schemaとして拒否する。canonical sealは偶発編集検知用checksumであり、署名や外部attestationではない。
 
 ### get_artifact
 
@@ -239,7 +239,7 @@ ui-blind-compare promptはtargetImageId、referenceImageIds、context、qualityT
 - knowledge、skillsに加えworkspacesの存在をstartup時に検証する。
 - target/id/date/topicのbasename、slug、拡張子、containment、symlinkを検証する。
 - writeはatomic。intel/evaluationはoverwrite default false、runは常にimmutable。
-- intel JSON 1 MiB、evaluation Markdown 512 KiB、run JSON 2 MiB、inline image 6 MiB。
+- intel JSON 1 MiB、evaluation Markdown 512 KiB、run JSON 2 MiB、inline image 6 MiB。evaluationは必須sectionと非空本文、Indie Survival Strategyの詳細sectionまたは具体的な適用外理由を保存時に検査し、未記入placeholderを拒否する。
 - JSON parse失敗、PNG/JPEG signature違反、path違反はtool error。
 - uiReferenceUrlsは最大8件、credentialなしHTTPSだけを受け、fragmentと重複を除去する。
 - 外部APIの期待される失敗は引き続きdata、warnings、metaの部分成功。

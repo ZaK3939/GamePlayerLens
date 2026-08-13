@@ -24,6 +24,7 @@ const EXPECTED_PROMPTS = ["run-sim", "ui-blind-compare"];
 const EXPECTED_RUN_SIM_ARGUMENTS = [
   "target",
   "topic",
+  "subjectKind",
   "mode",
   "domains",
   "specification",
@@ -212,6 +213,7 @@ try {
     arguments: {
       target: "Hades II",
       topic: "Japan launch price",
+      subjectKind: "existing-game",
       mode: "baseline",
       domains: "competition,price",
       specification: "Evaluate the current launch price without a proposed change.",
@@ -264,6 +266,7 @@ try {
         participants: [{
           participantId: "p-02",
           targetFit: "high",
+          visualQuality: "credible",
           understoodTheme: "yes",
           understoodAction: "unclear",
           understoodReward: "no",
@@ -307,6 +310,7 @@ try {
       && promptContent.text.includes('"firstContactTest": {')
       && promptContent.text.includes('"firstContactTestDiagnostics": {')
       && promptContent.text.includes('"firstContactTestEvidence": {')
+      && promptContent.text.includes('"visualQualityCounts": {')
       && promptContent.text.includes('"immediateRejectCounts": {')
       && promptContent.text.includes('"developmentStage": "prelaunch"')
       && promptContent.text.includes('"runwayMonths": 12')
@@ -320,6 +324,7 @@ try {
     arguments: {
       target: "Protocol Fixture Game",
       topic: "First-session playtest wiring",
+      subjectKind: "existing-game",
       mode: "baseline",
       domains: "gameplay,ui",
       playtestUrl: "http://127.0.0.1:4173/play#new-game",
@@ -397,6 +402,7 @@ try {
     arguments: {
       target: "Cohort Fixture Game",
       topic: "Bounded playtest cohort wiring",
+      subjectKind: "existing-game",
       mode: "baseline",
       domains: "gameplay",
       playtestCohort: JSON.stringify(playtestCohortFixture("stdio")),

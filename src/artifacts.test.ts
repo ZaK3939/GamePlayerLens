@@ -27,6 +27,55 @@ import {createPathResolver} from "./paths.js";
 const roots: string[] = [];
 const now = new Date("2026-08-11T09:10:11.000Z");
 
+const REQUIRED_INDIE_SECTIONS = [
+  "Indie Strategy Card",
+  "Core Experience Map",
+  "Concept Origin Route",
+  "Reward Mechanism Trace",
+  "Mechanism Transfer Map",
+  "Core Legibility Gate",
+  "Core Revision Ledger",
+  "First-contact Asset Readiness",
+  "Concept Test Trace",
+  "Promise-Delivery Trace",
+  "Delivered Experience Playtest Trace",
+  "Playtest Cohort Summary",
+  "Funnel Health",
+  "Milestone Readiness",
+  "Experiment Queue",
+  "Survival Scenarios",
+] as const;
+
+function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: string} = {}): string {
+  const section = (heading: string) => [`## ${heading}`, `${heading} evidence.`];
+  const indieBody = options.indieNotApplicable
+    ? ["Applicable scope was checked.", "適用外: This artifact evaluates an existing game only."]
+    : [
+      "Applicable to this developer-facing evaluation.",
+      ...REQUIRED_INDIE_SECTIONS.flatMap((heading) => [
+        `### ${heading}`,
+        `${heading} evidence.`,
+      ]),
+    ];
+
+  return [
+    "# Evaluation",
+    ...section("Decision Card"),
+    ...section("Detailed Scope"),
+    "## Indie Survival Strategy",
+    ...indieBody,
+    ...section("Overall Assessment"),
+    ...section("Who Plays and Why — Flow Analysis"),
+    ...section("Flow Summary"),
+    ...section("Domain Findings"),
+    ...section("Data Semantics"),
+    ...section("Data Coverage Matrix"),
+    ...section("Evidence Index"),
+    "## Final Recommendation",
+    options.detail ?? "Final recommendation evidence.",
+  ].join("\n\n");
+}
+
 async function tempResolver() {
   const root = await mkdtemp(join(tmpdir(), "steam-user-sim-artifacts-"));
   roots.push(root);
@@ -193,6 +242,21 @@ describe("intel artifact store", () => {
     await expect(store.listArtifacts("intel", "Broken")).rejects.toThrow(/intel schema/i);
   });
 
+  it("does not expose the data root when an artifact is missing", async () => {
+    const resolver = await tempResolver();
+    const store = createArtifactStore(resolver, {clock: () => now});
+
+    let message = "";
+    try {
+      await store.readIntel("Missing Game", "Missing Snapshot");
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toMatch(/does not exist/i);
+    expect(message).not.toContain(resolver.root);
+  });
+
   it("rejects oversized or non-JSON-safe payloads before writing", async () => {
     const resolver = await tempResolver();
     const write = vi.fn(async () => undefined);
@@ -243,7 +307,7 @@ describe("evaluation artifact store", () => {
   it("preserves Markdown bytes through save, list, and read", async () => {
     const resolver = await tempResolver();
     const store = createArtifactStore(resolver, {clock: () => now});
-    const content = "# 結論\r\n\r\n末尾に改行を足さない";
+    const content = evaluationMarkdown({detail: "末尾に改行を足さない"}).replaceAll("\n", "\r\n");
 
     const saved = await store.saveEvaluation({
       target: "Hádès II",
@@ -272,13 +336,13 @@ describe("evaluation artifact store", () => {
   it("lists evaluations by descending date with deterministic id ties", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
     await store.saveEvaluation({
-      target: "Hades II", topic: "Beta", date: "2026-08-10", content: "b",
+      target: "Hades II", topic: "Beta", date: "2026-08-10", content: evaluationMarkdown(),
     });
     await store.saveEvaluation({
-      target: "Hades II", topic: "Alpha", date: "2026-08-11", content: "a",
+      target: "Hades II", topic: "Alpha", date: "2026-08-11", content: evaluationMarkdown(),
     });
     await store.saveEvaluation({
-      target: "Hades II", topic: "Zulu", date: "2026-08-11", content: "z",
+      target: "Hades II", topic: "Zulu", date: "2026-08-11", content: evaluationMarkdown(),
     });
 
     expect((await store.listArtifacts("evaluation", "Hades II")).map((item) => item.id))
@@ -311,9 +375,60 @@ describe("evaluation artifact store", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("rejects incomplete, empty, or unfilled canonical evaluation sections", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const missingEvidenceIndex = evaluationMarkdown().replace(
+      /\n\n## Evidence Index\n\nEvidence Index evidence\./,
+      "",
+    );
+    const emptyDataSemantics = evaluationMarkdown().replace(
+      "## Data Semantics\n\nData Semantics evidence.",
+      "## Data Semantics",
+    );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Missing", content: missingEvidenceIndex,
+    })).rejects.toThrow(/Evidence Index/);
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Empty", content: emptyDataSemantics,
+    })).rejects.toThrow(/Data Semantics/);
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Placeholder", content: `${evaluationMarkdown()}\n\n［TODO］`,
+    })).rejects.toThrow(/placeholder/i);
+  });
+
+  it("accepts detailed and explicitly not-applicable indie strategy structures", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Detailed", content: evaluationMarkdown(),
+    })).resolves.toMatchObject({topicId: "detailed"});
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Existing Game",
+      content: evaluationMarkdown({indieNotApplicable: true}),
+    })).resolves.toMatchObject({topicId: "existing-game"});
+  });
+
+  it("requires every detailed indie strategy subsection", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const missingRewardTrace = evaluationMarkdown().replace(
+      /\n\n### Reward Mechanism Trace\n\nReward Mechanism Trace evidence\./,
+      "",
+    ).replace(
+      "Applicable to this developer-facing evaluation.",
+      "Applicable to this developer-facing evaluation.\n\n適用外: Mechanism transfer only.",
+    );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Missing Reward", content: missingRewardTrace,
+    })).rejects.toThrow(/Reward Mechanism Trace/);
+  });
+
   it("allows Markdown whose exact UTF-8 size is 512 KiB", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
-    const content = "é".repeat(MAX_EVALUATION_BYTES / 2);
+    const base = evaluationMarkdown({detail: ""});
+    const content = `${base}${"x".repeat(MAX_EVALUATION_BYTES - Buffer.byteLength(base, "utf8"))}`;
 
     await expect(store.saveEvaluation({target: "Hades II", topic: "Limit", content}))
       .resolves.toMatchObject({sizeBytes: MAX_EVALUATION_BYTES});
@@ -322,19 +437,24 @@ describe("evaluation artifact store", () => {
   it("supports atomic evaluation replacement and default no-overwrite", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
     const input = {
-      target: "Hades II", topic: "Test", date: "2026-08-11", content: "one",
+      target: "Hades II",
+      topic: "Test",
+      date: "2026-08-11",
+      content: evaluationMarkdown({detail: "one"}),
     };
     await store.saveEvaluation(input);
 
-    await expect(store.saveEvaluation({...input, content: "two"})).rejects.toThrow(
+    await expect(store.saveEvaluation({
+      ...input, content: evaluationMarkdown({detail: "two"}),
+    })).rejects.toThrow(
       /already exists/i,
     );
     expect((await store.readEvaluation("Hades II", "2026-08-11-test")).content)
-      .toBe("one");
+      .toBe(evaluationMarkdown({detail: "one"}));
 
-    await store.saveEvaluation({...input, content: "two"}, true);
+    await store.saveEvaluation({...input, content: evaluationMarkdown({detail: "two"})}, true);
     expect((await store.readEvaluation("Hades II", "2026-08-11-test")).content)
-      .toBe("two");
+      .toBe(evaluationMarkdown({detail: "two"}));
   });
 });
 
@@ -387,7 +507,9 @@ describe("artifact path safety", () => {
     const resolver = await tempResolver();
     const store = createArtifactStore(resolver, {clock: () => now});
     await store.saveIntel(intel({target: "New Target"}));
-    await store.saveEvaluation({target: "別 Target", topic: "Topic", content: "body"});
+    await store.saveEvaluation({
+      target: "別 Target", topic: "Topic", content: evaluationMarkdown(),
+    });
 
     expect((await lstat(join(resolver.root, "knowledge", "intel", "new-target"))).isDirectory())
       .toBe(true);

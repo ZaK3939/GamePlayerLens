@@ -91,7 +91,9 @@ export interface SteamDeveloperBrief {
     };
     reviewStats: GameProfile["reviewStats"];
     currentCcu: number | null;
+    currentCcuSource: "steam_timeline" | "steam_fetch" | null;
     owners: string | null;
+    ownersSource: "steam_timeline" | "steam_fetch" | null;
     avgPlaytimeHours: number | null;
     referenceLinks: GameProfile["referenceLinks"];
   };
@@ -502,7 +504,13 @@ export function createDeveloperBriefFetcher(
           priceHistorySummary: summarizePriceHistory(timeline),
           reviewStats: profile.reviewStats,
           currentCcu: timeline?.currentCcu ?? profile.ccu,
+          currentCcuSource: timeline?.currentCcu !== null && timeline?.currentCcu !== undefined
+            ? "steam_timeline"
+            : profile.ccu !== null ? "steam_fetch" : null,
           owners: timeline?.owners ?? profile.owners,
+          ownersSource: timeline?.owners !== null && timeline?.owners !== undefined
+            ? "steam_timeline"
+            : profile.owners !== null ? "steam_fetch" : null,
           avgPlaytimeHours: timeline?.avgPlaytimeHours ?? null,
           referenceLinks: profile.referenceLinks,
         } : null,

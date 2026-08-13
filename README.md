@@ -6,12 +6,12 @@ Steam の実データに接地したゲーム開発コンサル用 MCP サーバ
 
 | 目的 | 入口 | 最初に渡すもの |
 |---|---|---|
-| 自作ゲームの企画・prototype・変更案を相談する | `run-sim` | `target`、`topic`、`market`、Steam language codeの`language`。必要に応じて`projectBrief`、`conceptTest`、`firstContactTest`、playtest情報 |
+| 自作ゲームの企画・prototype・変更案を相談する | `run-sim` | `subjectKind=developer-concept`または`developer-project`、`target`、`topic`、`market`、Steam language codeの`language`、`projectBrief`。必要に応じて`conceptTest`、`firstContactTest`、playtest情報 |
 | 公開済みゲームを素早く診断する | `steam_search` → `steam_brief` | ゲーム名またはappid、Steam language code、国コード |
-| 公開済みゲームの競合・価格・レビュー・更新を深掘りする | `run-sim` | `target`、`topic`、`market`、`language`。appidが不明でも名前から開始可能 |
+| 公開済みゲームの競合・価格・レビュー・更新を深掘りする | `run-sim` | `subjectKind=existing-game`、`target`、`topic`、`market`、`language`。appidが不明でも名前から開始可能 |
 | 過去の相談や保存根拠を読み返す | `get_artifact` | `kind`。まずtarget一覧、次にitem一覧、最後に本文を読む |
 
-接続後は引数なしの`get_status`で、保存先が書込可能か、ITAD価格履歴とObscura page captureが設定済みかを確認できます。返すのは状態だけで、秘密値や絶対pathは返しません。`run-sim`の`intakeDiagnostics.status`が`needs-input`なら、クライアントは`missingFields`を一度に確認してから根拠収集を始めます。`ready`は入力準備の完了であり、分析品質の合格判定ではありません。
+接続後は引数なしの`get_status`で、保存先が書込可能か、ITAD価格履歴とObscura page captureが設定済みかを確認できます。返すのは状態だけで、秘密値や絶対pathは返しません。`run-sim`では`subjectKind`を`existing-game / developer-concept / developer-project`から指定します。`intakeDiagnostics.status`が`needs-input`なら、クライアントは`missingFields`を一度に確認してから根拠収集を始めます。開発中対象ではrouteに必要な`projectBrief.<field>`もgateし、`ready`は入力準備の完了だけを表します。
 
 ## 現在できること
 
@@ -126,7 +126,7 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 
 ### 外部endpoint障害
 
-Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短い429・408・425・5xx、接続瞬断、一時的なinvalid JSONだけを最大2回まで再試行します。`Retry-After`が1秒を超える場合はMCP呼び出し内で待ち続けず、待機秒数をwarningへ返します。timeoutは同じ長い待ちを繰り返さず、そのsourceを`null`または`unavailable`として返します。warningにはresponse body、request URL、query、keyを含めません。
+Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短い429・408・425・5xx、接続瞬断、一時的なinvalid JSONだけを最大2回試行します（再試行は1回）。`Retry-After`が1秒を超える場合はMCP呼び出し内で待ち続けず、待機秒数をwarningへ返します。timeoutは同じ長い待ちを繰り返さず、そのsourceを`null`または`unavailable`として返します。JSON responseは8 MiBで打ち切り、warningにはresponse body、request URL、query、keyを含めません。
 
 `steam_brief`は各sourceを独立して扱うため、1 endpointが例外をthrowしても、取得済みのstore、review、updateなどを失いません。`provenance.status`、`readiness.gaps`、`nextActions`で不足範囲を確認してください。SteamSpyの複数条件intersectionは、1条件でも取得できなければ候補を捏造せず全体をunavailableにします。Steam画像とObscura page captureは失敗時に不完全な画像を保存せず、`knowledge/ui-references/`への手動配置手順を返します。
 
@@ -143,16 +143,17 @@ Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短
 {
   "target": "Project Nyx",
   "topic": "Prototype core and next milestone",
+  "subjectKind": "developer-project",
   "mode": "baseline",
   "domains": "gameplay,storefront,competition",
-  "projectBrief": "{\"revisionId\":\"brief-v3\",\"developmentStage\":\"prototype\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"immediateReward\":\"予測した航路が成立する手応え\",\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"knownFrame\":\"route-planning management\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
+  "projectBrief": "{\"revisionId\":\"brief-v3\",\"developmentStage\":\"prototype\",\"conceptOrigin\":\"theme-first\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"rewardMechanisms\":[{\"family\":\"mastery\",\"form\":\"mixed\",\"beforeState\":\"安全な航路がまだ分からない\",\"playerAction\":\"予報を読み航路を確定する\",\"systemResponse\":\"風、燃料、荷物が選択へ反応する\",\"afterState\":\"航路予測の成否が判明する\",\"perceivedReward\":\"読みが成立し配達を完了できる手応え\",\"amplifier\":\"嵐の音、機体animation、受取人の反応\"}],\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"knownFrame\":\"route-planning management\",\"sourceAction\":\"制約を読みながら経路を選ぶ\",\"sourceSystemResponse\":\"選んだ経路に応じて時間と資源が変わる\",\"sourceReward\":\"計画が成立して効率が改善する手応え\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
   "competitors": "既知なら作品名、未知なら省略",
   "market": "Japan",
   "language": "japanese"
 }
 ```
 
-`projectBrief`は開発者が宣言した設計意図です。player evidenceとは扱わず、未入力fieldを捏造せず、store asset、third-party理解test、build、human playtest、telemetryで順に検証します。`revisionId`を付けると、concept testがどの版を見たかを追跡できます。promptにはCore Experience、Differentiation、Decision Context別の`projectBriefDiagnostics`も追加されますが、field数はquality scoreやmilestone passではありません。
+`projectBrief`は開発者が宣言した設計意図です。`conceptOrigin`は`theme-first / system-first / holistic-image / imitation`のいずれかで、優劣ではなく次に確認する不足counterpartを選ぶために使います。報酬は`rewardMechanisms`へ1〜6件、family、`inherent / transition / mixed`、before state、player action、system response、after state、perceived reward、任意のamplifierに分けます。`knownFrame`を使う場合は、参照作品で想定する体験を`sourceAction`、`sourceSystemResponse`、`sourceReward`へ分け、target側の差を`meaningfulDifference`へ書きます。いずれもplayer evidenceとは扱わず、source asset、build、third-party理解test、human playtest、telemetryで順に検証します。promptの`projectBriefDiagnostics`は`conceptRoute`、`rewardMechanism`、`mechanismTransfer`を返しますが、field数やstatusはquality scoreやmilestone passではありません。
 
 第三者へ短いpitchやmockupを見せた結果は、`conceptTest`へJSON文字列として渡せます。次はJSON文字列へencodeする前の形です。
 
@@ -190,7 +191,7 @@ Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短
 }
 ```
 
-`participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptは行動理解、報酬理解、興味を別々に件数集計し、`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示します。意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
+`participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptは行動理解、報酬理解、興味を別々に件数集計し、`teachBackAudit`でyes判定と`unaidedSummary`の有無も分けます。`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示し、意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
 
 再検証では新しい`stimulusId`と一緒に`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて渡します。親revisionを指定して比較設計の一部を省略した入力は拒否されます。診断はprotocol deviation、測定不足、action / rewardの読みにくさ、参加者の混乱を次に調べる候補として返しますが、原因とは断定しません。効果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、複数を変えた結果の因果は`unresolved`として残します。単一変更でも、維持条件は自己申告なので因果証明ではなく比較候補です。
 
@@ -198,7 +199,7 @@ Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短
 
 concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動追加されます。レシピはこのhandleだけを`save_artifact(kind=intel)`へ渡すため、モデルによる転記・要約を挟まず、正規化済み入力と`testedAt`をそのまま保存できます。field-level validation errorは許可済みfield名と違反種別だけを返し、拒否した入力値や未知field名は表示しません。
 
-第一viewport、screenshots、trailerなどを第三者へ見せた結果は`firstContactTest`へ渡せます。asset ID / type、device・viewport・duration・sound・表示順、募集条件、匿名participantごとのtheme / action / reward理解と`immediateReject`を別々に保存・診断します。promptに追加される`firstContactTestEvidence.resultHandle`で原本をexact-saveし、少人数の反応をconversion、需要、fun、readiness scoreへ変換しません。
+第一viewport、screenshots、trailerなどを第三者へ見せた結果は`firstContactTest`へ渡せます。asset ID / type、device・viewport・duration・sound・表示順、募集条件、匿名participantごとの`visualQuality`、theme / action / reward理解、`immediateReject`を別々に保存・診断します。`rough`または`style-mismatch`には`visualQualityReason`が必須です。promptに追加される`firstContactTestEvidence.resultHandle`で原本をexact-saveし、少人数の反応をconversion、需要、fun、客観的な制作品質scoreへ変換しません。
 
 次はJSON文字列へencodeする前の例です。
 
@@ -230,6 +231,8 @@ concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動�
   "participants": [{
     "participantId": "p-02",
     "targetFit": "high",
+    "visualQuality": "rough",
+    "visualQualityReason": "route overlayがこのviewportでは未完成に見える",
     "understoodTheme": "yes",
     "understoodAction": "unclear",
     "understoodReward": "no",
@@ -299,7 +302,7 @@ change runは全`scenario × Selected Domain`と全`persona × scenario`のround
 
 ### インディーゲーム生存戦略
 
-企画、prototype、store公開、demo、Next Fest、launch、post-launchの相談では、購入前の`Appeal Promise`と購入後の`Delivered Experience`を別ledgerで評価します。`Core Experience Map`でtheme、distinctive system、反復行動、player decision、system response、即時報酬・変化の報酬を結び、`Promise-Delivery Trace`でcapsule / trailer / copyが約束した体験をbuild momentとplaytestへ追跡します。表層的な競合模倣ではなく、既知の型から理解costを下げる`Known Frame`と、実際のaction / decision / rewardを変える`Meaningful Difference`を分けます。
+企画、prototype、store公開、demo、Next Fest、launch、post-launchの相談では、購入前の`Appeal Promise`と購入後の`Delivered Experience`を別ledgerで評価します。`Core Experience Map`でtheme、distinctive system、反復行動、player decision、system response、即時報酬・変化の報酬を結び、`Concept Origin Route`で企画の起点から不足側を特定し、`Reward Mechanism Trace`でbefore state → action → response → after stateを追います。`Promise-Delivery Trace`ではcapsule / trailer / copyが約束した体験をbuild momentとplaytestへ接続します。競合作品は`Mechanism Transfer Map`でsurface featureとsourceのaction → response → rewardを分け、`Known Frame`から理解costを下げつつ、targetのaction / decision / rewardを変える`Meaningful Difference`へ転用します。
 
 市場側は`impression → store visit → wishlist → demo start → demo completion → purchase → retained play`として観測し、wishlistを面白さ、販売本数、Steam visibilityの単独証明にしません。milestoneは日付だけでなくplayer / asset evidenceでgateし、Next Fest等の条件は[公式Steamworks](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest)の現在仕様を実行時に確認します。販売本数、platform fee、refund、税、conversion、開発期間は固定値を埋めず、project固有のteam capacity、cost、契約、法域、runwayをconservative / base / upside scenarioへ分離します。
 
@@ -387,7 +390,7 @@ ExperimentSpec、ExperimentMeasurement、ExperimentOutcomeは`save_artifact(kind
 
 Outcomeのmetricは`ai-playtest / human-playtest / telemetry / steam-reviews / store-metric / manual-observation`を区別し、source、instrument、unit、aggregation、cohort、windowがspecと一致しない値で登録済みcriterionを満たしません。測定できなかった場合もmissingを0やfailureへ変換せず、`overallVerdict=unresolved`として保存します。次のspecが`parentOutcomeRef`を持ち、次runが新spec、parent outcome、raw measurementのすべてをevidenceとして各analysis phaseで使ったときにloopがつながります。
 
-実験artifactは既存intel storeへ保存しますが、run schema v4はExperimentSpec / Measurement / Outcomeをstrict validationします。次runの`simulationReadiness.calibration.serverVerified=true`は、parent ref、spec / Prediction Run / measurementのSHA-256 chain、時刻順、primary protocol、minimum sample、raw valueの再計算がすべて一致した場合だけ返ります。`forecastComparisons`はその1予測の誤差を示します。`experimentDecisions`は全success criterionとguardrailをraw measurementから再計算し、server overall、限定的な`recommendedAction`、client申告との一致を表示します。どちらも因果効果や母集団代表性ではありません。実験scheduler、統計engine、telemetry自動取込、server-side LLMは対象外です。
+実験artifactは既存intel storeへ保存しますが、run schema v5は相談時の`subjectKind / market / language / projectBrief`に加え、ExperimentSpec / Measurement / Outcomeをstrict validationします。次runの`simulationReadiness.calibration.serverVerified=true`は、parent ref、spec / Prediction Run / measurementのSHA-256 chain、時刻順、primary protocol、minimum sample、raw valueの再計算がすべて一致した場合だけ返ります。`forecastComparisons`はその1予測の誤差を示します。`experimentDecisions`は全success criterionとguardrailをraw measurementから再計算し、server overall、限定的な`recommendedAction`、client申告との一致を表示します。どちらも因果効果や母集団代表性ではありません。
 
 ### UI実力差の比較
 
@@ -452,15 +455,15 @@ UI比較では [Game UI Database](https://www.gameuidatabase.com/) と [Interfac
 
 ### `save_artifact` / `get_artifact`
 
-`save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。互換用に `sourceTool`、`payload`、任意の `observedAt` を直接渡す方式も維持します。直接保存で `observedAt` を省略すると、サーバーが `savedAt` と同じ時刻を設定します。取得時刻を確実に把握している場合だけ明示してください。result handleは現在のMCP server processにある最近32件のみで、server再起動後は使えないため、取得直後に保存してください。`kind=evaluation` では `target`、`topic`、任意の `date`、`content` を受けます。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
+`save_artifact` は `kind=intel` のとき、取得toolが返した `resultHandle` と `target` / `id` だけを渡すexact saveを推奨します。サーバーが `sourceTool`、`observedAt`、warning、metaを含むpayload原本を引き継ぎます。直接保存で `observedAt` を省略すると、サーバーが `savedAt` と同じ時刻を設定します。result handleは現在のMCP server processにある最近32件のみなので、取得直後に保存してください。`kind=evaluation`ではcanonical templateの必須H2、各非空本文、Indie Survival Strategyの全必須H3または具体的な`適用外:`理由をserver側で検査し、`［...］`が残る未記入templateや短文だけの完了artifactを拒否します。intel と evaluation は `overwrite` の default が `false` で、同じ canonical path の既存ファイルを明示なしに変更しません。
 
 ExperimentSpec / ExperimentMeasurement / ExperimentOutcomeは直接intel方式で保存し、immutabilityのため`overwrite`を常に省略します。run保存時はExperimentSpecのtarget、mode、planned scenarios、primary metric、success criterion、predictionを検証し、runと一致するspecを実際にevidenceとして使った場合だけ`simulationReadiness.status=validation-ready`にします。Outcome evidenceやclient-reported `calibrationStatus=calibrated`だけではserver verifiedになりません。完全なhash chainとraw measurementを検証できた場合だけ`validated-forecast-error`、全criteriaを解決できた場合だけ`verified-experiment-decision`がallowed claimになります。guardrail breachはserver decisionを`stopped`にし、missingは`unresolved`のままです。
 
-`kind=run` は、evaluation 保存後に simulation を再生・監査するための ledger を封印します。Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済み evidence refs、連続した各 pass の rounds、warnings、confidence / `calibrationStatus`、最終 evaluation ref を受けます。サーバーは参照先を実際に読み、persona・evidence・現在の `skills/run-sim.md` の SHA-256、構造coverage、`simulationReadiness`、run recordのcanonical SHA-256 seal、`reportedByClient=true`を記録してUUIDごとのJSONを作ります。runは常にimmutableで、overwrite入力はありません。これは同じ入力からモデル出力が決定的に再生成されるという保証ではなく、「どのrecipe・根拠・申告モデルから、どのround出力を得たか」を後から検証する記録です。
+`kind=run` は、evaluation 保存後に simulation を再生・監査するためのledgerを封印します。`subjectKind / market / language`、開発中対象ではroute-completeな`projectBrief`、Mode、scenarios、Selected Domains、client-reported model、persona IDs、保存済みevidence、連続した各pass、warnings、confidence、最終evaluation refを受けます。開発中対象の最終evaluationがIndie Survival Strategyを適用外にしている場合は封印を拒否します。サーバーは相談context、各evaluationの`indieStrategyMode`、persona・evidence・recipeのSHA-256、構造coverage、`simulationReadiness`をcanonical sealへ含めます。
 
 `simulationReadiness.status=rehearsal`は、レビュー・persona・比較根拠から問題仮説、反応方向の仮説、次のtest priorityを作れる段階です。母集団代表性と介入分離は未確認なので、population rate、market share、causal lift、retention impactはblocked claimです。`validation-ready`はrunと一致するExperimentSpecが事前登録された段階であり、実測済みまたは成功を意味しません。run一覧metadataにも`simulationReadinessStatus`を含めるため、本文を開かずに保証境界を確認できます。
 
-runを`get_artifact`で読むと、保存recordに加えて現在のrecipe、persona、全evidenceを再読込してSHA-256とpathを照合した`integrity` reportを返します。`verified`は全照合成功、`failed`はmissing / mismatch / unreadable、`legacy-unsealed`は旧recordを読めるがcanonical sealを持たない状態です。依存artifactのdriftはrun本文を失敗させずwarningと個別statusで可視化します。canonical sealは偶発的な編集・driftを検出するchecksumであり、署名や外部attestationではありません。data rootへ書込権限を持つ攻撃者がrecordとsealを同時に改変する脅威までは防ぎません。
+runを`get_artifact`で読むと、保存recordに加えて現在のrecipe、persona、全evidenceを再読込してSHA-256とpathを照合した`integrity` reportを返します。`verified`は全照合成功、`failed`はmissing / mismatch / unreadableです。現行schema v5では相談context、canonical seal、構造coverageが必須で、開発中対象はroute-completeなProject Briefと詳細Indie戦略も必須です。依存artifactのdriftはrun本文を失敗させずwarningと個別statusで可視化します。canonical sealは偶発的な編集・driftを検出するchecksumであり、署名や外部attestationではありません。
 
 `get_artifact` は read-only で、list/read semantics は次のとおりです。
 

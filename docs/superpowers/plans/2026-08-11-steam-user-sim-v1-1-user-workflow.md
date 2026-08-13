@@ -15,7 +15,7 @@
 - サーバー側LLM、subagent、run_simは追加しない。
 - 外部設定はITAD_API_KEYとOBSCURA_PATHの2つだけ。
 - 全pathは共通resolver、全writeはatomic、overwrite default false。
-- intel JSON 1 MiB、evaluation Markdown 512 KiB、inline PNG 6 MiB。
+- intel JSON 1 MiB、canonical構造を満たすevaluation Markdown 512 KiB、inline PNG 6 MiB。
 - 決定的テストは外部HTTP client全体をmockせず、正規化とservice dependencyをfixtureで検証する。
 - live appidはHades 1145360。SteamSpy tag live smokeはAction Roguelike。
 - 各Taskはfailing test、implementation、pass gate、1 commitの順。
@@ -26,7 +26,7 @@
 
 UI実力差follow-upでは、run-simへ`uiBenchmarkTask`と最大8件の`uiReferenceUrls`を追加し、Game UI Database / Interface In Gameをmatched reference探索へ組み込む。新しい`ui-quality-gap.md` rubricで、2〜4本の出荷済みcohort、reference provenance、匿名pre-reveal採点、0〜4 anchor、reference中央値との差、static/videoの証拠境界を固定する。公開APIやbulk scrapingは仮定せず、画像とmanual intel provenanceを分離保存する。
 
-分析精度・integrity follow-upでは、11-tool surfaceを維持したまま、run保存時に全scenario × domain、全persona × scenario、全analysis evidence利用を機械検証し、final evaluationの循環参照を拒否する。新規runは構造coverageとcanonical SHA-256 sealを持ち、read時にrecipe、persona、全evidenceを再hashしてverified / failed / legacy-unsealedを返す。canonical `evidence-coverage.md`はdomain別の固定dimension、Coverage rate、Direct observation rate、blocking missingのconfidence境界を定義する。
+分析精度・integrity follow-upでは、11-tool surfaceを維持したまま、run保存時に全scenario × domain、全persona × scenario、全analysis evidence利用を機械検証し、final evaluationの循環参照を拒否する。新規runは構造coverageとcanonical SHA-256 sealを必須とし、read時にrecipe、persona、全evidenceを再hashしてverified / failedを返す。canonical `evidence-coverage.md`はdomain別の固定dimension、Coverage rate、Direct observation rate、blocking missingのconfidence境界を定義する。
 
 test play follow-upではrun-simにboundedなplaytestUrl/task/build/controls/duration入力を追加し、browser/desktop controlを持つclientによる実操作、またはユーザー実行recordingを`playtest.md`で標準化する。Action → response、first meaningful action、task completion、failure/retryを保存し、AI 1 testerを人間行動の代表値へ変換しない。
 
@@ -124,7 +124,7 @@ Evaluation metadataはpath、targetId、id、date、topicId、savedAt、sizeByte
 ### Tests first
 
 - [ ] temp rootでintel JSONのsave、list、read round-trip。
-- [ ] evaluation Markdownのsave、list、read round-trip。
+- [x] canonical evaluation Markdownの構造検査、save、list、read round-trip。
 - [ ] display targetとtopicからcanonical IDsとrepo-relative pathを返す。
 - [ ] default overwrite falseで既存fileを原子的にrejectする。
 - [ ] overwrite trueでatomic replaceする。

@@ -160,34 +160,40 @@ describe("image service roots and listing", () => {
     await writeFile(store.absolutePath, JPEG_BYTES);
     const images = createImageService(resolver);
 
-    expect(await images.listImages("capture")).toEqual([
-      {
-        id: "game-hero",
-        kind: "capture",
-        relativePath: "knowledge/intel/captures/game-hero.png",
-        mimeType: "image/png",
-        sizeBytes: PNG_SIGNATURE.length,
-        modifiedAt: expect.any(String),
-      },
-      {
-        id: "store-shot",
-        kind: "capture",
-        relativePath: "knowledge/intel/captures/store-shot.jpg",
-        mimeType: "image/jpeg",
-        sizeBytes: JPEG_BYTES.length,
-        modifiedAt: expect.any(String),
-      },
-    ]);
-    expect(await images.listImages("ui-reference")).toEqual([
-      {
-        id: "main-menu",
-        kind: "ui-reference",
-        relativePath: "knowledge/ui-references/main-menu.png",
-        mimeType: "image/png",
-        sizeBytes: 12,
-        modifiedAt: expect.any(String),
-      },
-    ]);
+    expect(await images.listImages("capture")).toEqual({
+      data: [
+        {
+          id: "game-hero",
+          kind: "capture",
+          relativePath: "knowledge/intel/captures/game-hero.png",
+          mimeType: "image/png",
+          sizeBytes: PNG_SIGNATURE.length,
+          modifiedAt: expect.any(String),
+        },
+        {
+          id: "store-shot",
+          kind: "capture",
+          relativePath: "knowledge/intel/captures/store-shot.jpg",
+          mimeType: "image/jpeg",
+          sizeBytes: JPEG_BYTES.length,
+          modifiedAt: expect.any(String),
+        },
+      ],
+      warnings: [],
+    });
+    expect(await images.listImages("ui-reference")).toEqual({
+      data: [
+        {
+          id: "main-menu",
+          kind: "ui-reference",
+          relativePath: "knowledge/ui-references/main-menu.png",
+          mimeType: "image/png",
+          sizeBytes: 12,
+          modifiedAt: expect.any(String),
+        },
+      ],
+      warnings: [],
+    });
     await expect(images.readImage("capture", "Main Menu")).rejects.toThrow();
     await expect(images.readImage("ui-reference", "Game Hero")).rejects.toThrow();
   });
@@ -204,8 +210,22 @@ describe("image service roots and listing", () => {
 
     const listed = await images.listImages("capture");
 
-    expect(listed.map((item) => item.id)).toEqual(["valid"]);
-    expect(listed.every((item) => !("imageContent" in item))).toBe(true);
+    expect(listed.data?.map((item) => item.id)).toEqual(["valid"]);
+    expect(listed.data?.every((item) => !("imageContent" in item))).toBe(true);
+    expect(listed.warnings).toEqual([]);
+  });
+
+  it("skips non-canonical manual filenames with an explicit warning", async () => {
+    const resolver = await tempResolver();
+    const referenceRoot = join(resolver.root, "knowledge", "ui-references");
+    await writeFile(resolver.resolveUiReferencePath("Valid Menu").absolutePath, pngBytes());
+    await writeFile(join(referenceRoot, `${"a".repeat(65)}.png`), pngBytes());
+    const images = createImageService(resolver);
+
+    await expect(images.listImages("ui-reference")).resolves.toMatchObject({
+      data: [expect.objectContaining({id: "valid-menu"})],
+      warnings: ["skipped 1 image(s) with non-canonical filenames"],
+    });
   });
 
   it("rejects visible symlinks while listing and reading", async () => {

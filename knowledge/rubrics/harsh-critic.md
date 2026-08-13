@@ -38,7 +38,7 @@
 
 ## 4. Indie survival strategyゲート
 
-- concept、prototype、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`を読む。Indie Strategy Card、Core Experience Map、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Experiment Queue、Survival Scenariosがなければ差し戻す。適用外ならtopicに対応したN/A理由を要求する。
+- concept、prototype、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`を読む。Indie Strategy Card、Core Experience Map、Concept Origin Route、Reward Mechanism Trace、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Experiment Queue、Survival Scenariosがなければ差し戻す。imitation / Known Frame / competition分析ではMechanism Transfer Mapも要求し、適用外ならtopicに対応したN/A理由を要求する。
 - `Appeal Promise`と`Delivered Experience`を分離し、購入前のasset evidenceと購入後のbuild / playtest evidenceを別にする。購入前と購入後を単一score、掛け算、平均で相殺した場合は差し戻す。
 - wishlistを面白さ、販売本数、algorithmic visibilityの単独原因または証明とした場合は差し戻す。impression、store visit、cohort、window、asset、price expectationを確認する。
 - 販売本数、platform fee、refund、税率、conversion、開発期間を普遍的な固定値としてprojectへ当てはめた場合は差し戻す。契約、法域、地域、scope、team capacity、runwayをassumptionとobservedへ分ける。
@@ -46,13 +46,18 @@
 - AI playtestをhuman playtestのfun、需要、completion、retentionの代表にしない。操作可能性や再現できるfrictionの観測と、人間participantのresponseを分ける。
 - `projectBrief`のdeclared design intentを、そのままplayer evidence、市場需要、体験実装済みの証明にした場合は差し戻す。promise、build moment、third-party responseのprovenanceを分ける。
 - `projectBriefDiagnostics`のfield数やmissing数をquality score、面白さ、readiness passへ変換した場合は差し戻す。これは入力inventoryであり、fieldの中身や外部検証の質を採点しない。
+- `conceptOrigin`を内容から推測した場合、またはConcept Origin Routeで起点に対する不足counterpartを示さず実装・asset制作へ進めた場合は差し戻す。`theme-first / system-first / holistic-image / imitation`は優劣やmaturityのscoreではない。
+- Reward Mechanism Traceでreward名や派手なeffectだけを示し、`inherent / transition`、before state、player action、system response、after state、amplifier、観測statusを分けない場合は差し戻す。responseやamplifierをplayerがrewardを感じた直接証拠にしない。
+- imitation / Known Frame / competition分析で表層featureだけを列挙し、sourceのaction → response → reward、transferable mechanism、target adaptation、proof momentをMechanism Transfer Mapへ分けない場合は差し戻す。sourceを直接確認していないproxyから内部loopを断定した場合も差し戻す。
+- imitation / Known Frameの`projectBrief`で`sourceAction`、`sourceSystemResponse`、`sourceReward`の欠落を表層featureやgenre知識から補完した場合は差し戻す。3 fieldはdeclared hypothesisであり、すべて入力済みでもsource evidenceやplayer rewardの観測済み証拠へ昇格させない。
 - `conceptTest`のparticipant countや`interest`から固定thresholdを作り、milestone pass、conversion、purchase、需要を断定した場合は差し戻す。`understoodAction`、`understoodReward`、`interest`を別々に示し、stimulus、募集、質問、deviation、bounded sampleの限界を要求する。
+- `understoodAction=yes`または`understoodReward=yes`を、対応する`unaidedSummary`なしで第三者のteach-backが成功した証拠にした場合は差し戻す。`teachBackAudit.understandingMarkedYesWithoutSummaryCount`をmissing evidenceとして残す。
 - concept test入力を`conceptTestEvidence.resultHandle`でexact-saveせずモデルがpayloadを転記・要約した場合、brief revision / promiseのmismatched・unlinkedを隠した場合、または完全一致を意味理解や品質scoreへ変換した場合は差し戻す。
 - concept testの`participantId`が仮名でない場合、または氏名、email、連絡先などの個人情報をevaluationやartifactへ含めた場合は差し戻す。
 - oneSentencePromiseが短いという理由だけでCore Legibility Gateをpassにしない。theme-specific play、theme-system fit、experience → reward、unaided teach-backを別々に示さない場合、「分かりましたか」への同意をunaided理解とした場合、奇抜な題材だけを触りたくなるcoreとした場合は差し戻す。
 - revised concept testで`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`を保存しない場合、Core Revision Ledgerに変えた変数と維持条件がない場合、または一度に複数変更した結果を一つの原因へ因果帰属した場合は差し戻す。単一変更の自己申告だけでprotocol equivalenceや因果を証明した場合も差し戻す。
 - 第一viewport、最初に見えるscreenshots、trailer / microtrailer、demo entryを実表示contextで確認せず、copyや制作者説明だけでFirst-contact Asset Readinessをpassにしない。AIがassetを生成・分析できたことを、人間のfun、taste fit、visual trustの証明とした場合は差し戻す。
-- `firstContactTest`入力を`firstContactTestEvidence.resultHandle`でexact-saveしない場合、theme / action / reward / immediateRejectを一つのscoreへ統合した場合、`immediateReject=yes`の未記録理由を他回答から推測した場合、またはbounded sampleからconversion、需要、readiness passを断定した場合は差し戻す。
+- `firstContactTest`入力を`firstContactTestEvidence.resultHandle`でexact-saveしない場合、visual quality / theme / action / reward / immediateRejectを一つのscoreへ統合した場合、`rough / style-mismatch`の理由を記録しない場合、`immediateReject=yes`の未記録理由を他回答から推測した場合、またはbounded sampleから客観的制作品質、conversion、需要、readiness passを断定した場合は差し戻す。
 - 「最初の4枚」「30秒PV」をcurrent surfaceやtarget playerに関係なく固定条件にした場合は差し戻す。asset countやdurationではなく、theme、action、rewardのunaided legibilityとproof momentを要求する。
 
 ## 5. UI 品質ゲート
@@ -93,7 +98,7 @@
 - 各`scenario × Selected Domain`と各`persona × scenario`のroundが1件以上なければ差し戻す。保存された構造coverageが100%でも、Data Coverage Matrixのmissingを解消したことにはしない。
 - `finalEvaluationRef`はsynthesis後に生成されるため、いずれかのroundの`evidenceRefs`に含まれていれば循環参照として差し戻す。final evaluation以外のevidenceがどのroundにも使われていない場合も差し戻す。
 - serverが記録する `recipe SHA-256`、各 persona と `evidence SHA-256` により、使用時点の recipe と根拠を固定する。pathだけ、deep linkだけ、未保存のtool出力だけを evidence として渡した run は差し戻す。
-- run保存直後に`get_artifact(kind=run)`でreadbackし、`integrity.status=verified`でなければ完了扱いにしない。`failed`のmissing / mismatch / unreadableを修正し、`legacy-unsealed`は旧run互換であって現在のintegrity合格ではない。
+- run保存直後に`get_artifact(kind=run)`でreadbackし、`integrity.status=verified`でなければ完了扱いにしない。`failed`のmissing / mismatch / unreadableを修正し、sealまたはcoverageを欠くrecordは現行runとして受理しない。
 - model と confidence の `reportedByClient=true` はクライアント申告であってserverによるモデル同定や品質保証ではない。この境界をレポートで逆転させた場合は差し戻す。
 - `calibrationStatus` は実測結果との比較範囲を表す。予測対象、判定基準、観測結果を対応付けた実測がないのに `calibrated` とした場合は差し戻す。実測比較がなければ `not-calibrated`、一部だけなら `partially-calibrated` とし、confidenceの理由に未検証範囲を残す。
 

@@ -9,6 +9,23 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+function evaluationMarkdown(detail: string): string {
+  return [
+    "# Package run evaluation",
+    "## Decision Card", detail,
+    "## Detailed Scope", "Packaged MCP transport fixture.",
+    "## Indie Survival Strategy", "適用外: This fixture tests package wiring only.",
+    "## Overall Assessment", "Synthetic assessment.",
+    "## Who Plays and Why — Flow Analysis", "Synthetic player flow.",
+    "## Flow Summary", "Synthetic flow summary.",
+    "## Domain Findings", "Synthetic domain finding.",
+    "## Data Semantics", "Synthetic data semantics.",
+    "## Data Coverage Matrix", "Synthetic coverage entry.",
+    "## Evidence Index", "Synthetic evidence entry.",
+    "## Final Recommendation", detail,
+  ].join("\n\n");
+}
+
 function playtestCohortFixture(prefix: string) {
   const firstSession = {
     startedAt: "2026-08-12T12:00:00+04:00",
@@ -243,14 +260,28 @@ try {
     arguments: {
       target: "Package Smoke Game",
       topic: "Playtest protocol wiring",
+      subjectKind: "developer-project",
       mode: "baseline",
       domains: "gameplay",
       projectBrief: JSON.stringify({
         revisionId: "brief-v1",
         developmentStage: "prototype",
+        conceptOrigin: "theme-first",
         targetPlayer: "players learning a new action loop",
+        themeWorld: "a compact checkpoint trial",
+        distinctiveSystem: "read a signal and choose the matching action",
         repeatedAction: "read, act, recover",
-        immediateReward: "clear response to a successful action",
+        systemResponse: "the checkpoint reacts immediately to the chosen action",
+        rewardMechanisms: [{
+          family: "mastery",
+          form: "mixed",
+          beforeState: "the checkpoint response is uncertain",
+          playerAction: "read the signal and commit to an action",
+          systemResponse: "the checkpoint confirms or rejects the action",
+          afterState: "the player can identify whether the action succeeded",
+          perceivedReward: "learning the action loop advances the run",
+          amplifier: "a distinct flash and sound",
+        }],
         oneSentencePromise: "Learn the loop and reach the checkpoint",
         runwayMonths: 6,
       }),
@@ -296,6 +327,8 @@ try {
         participants: [{
           participantId: "p-02",
           targetFit: "medium",
+          visualQuality: "rough",
+          visualQualityReason: "The checkpoint action does not yet read as production-ready",
           understoodTheme: "yes",
           understoodAction: "unclear",
           understoodReward: "no",
@@ -360,6 +393,8 @@ try {
       && playtestContent.text.includes('"projectBrief": {')
       && playtestContent.text.includes('"projectBriefDiagnostics": {')
       && playtestContent.text.includes('"status": "inventory-only"')
+      && playtestContent.text.includes('"rewardMechanism": {')
+      && playtestContent.text.includes('"status": "declared-mechanisms-ready-for-validation"')
       && playtestContent.text.includes('"conceptTest": {')
       && playtestContent.text.includes('"conceptTestDiagnostics": {')
       && playtestContent.text.includes('"revisionStatus": "matched"')
@@ -374,6 +409,7 @@ try {
       && playtestContent.text.includes('"firstContactTest": {')
       && playtestContent.text.includes('"firstContactTestDiagnostics": {')
       && playtestContent.text.includes('"firstContactTestEvidence": {')
+      && playtestContent.text.includes('"visualQualityCounts": {')
       && playtestContent.text.includes('"immediateRejectCounts": {')
       && playtestContent.text.includes('"developmentStage": "prototype"')
       && playtestContent.text.includes('"runwayMonths": 6')
@@ -399,6 +435,7 @@ try {
     arguments: {
       target: "Package Cohort Fixture Game",
       topic: "Bounded playtest cohort wiring",
+      subjectKind: "existing-game",
       mode: "baseline",
       domains: "gameplay",
       playtestCohort: JSON.stringify(playtestCohortFixture("package")),
@@ -540,7 +577,7 @@ try {
       target: "Package Smoke Game",
       topic: "Package Run",
       date: "2026-08-11",
-      content: "# Package run evaluation\n\nSynthetic protocol fixture only. No game was operated.",
+      content: evaluationMarkdown("Synthetic protocol fixture only. No game was operated."),
     },
   });
   assert(evaluation.isError !== true, "packaged CLI could not save run evaluation");
@@ -550,6 +587,9 @@ try {
       kind: "run",
       target: "Package Smoke Game",
       topic: "Package run",
+      subjectKind: "existing-game",
+      market: "United States",
+      language: "english",
       mode: "baseline",
       selectedDomains: ["gameplay"],
       model: {provider: "smoke", name: "package-client"},
@@ -639,6 +679,9 @@ try {
     record?: {
       runId?: unknown;
       schemaVersion?: unknown;
+      subjectKind?: unknown;
+      market?: unknown;
+      language?: unknown;
       recipe?: {sha256?: unknown};
       coverage?: {scenarioDomain?: {ratio?: unknown}};
       seal?: {canonicalSha256?: unknown};
@@ -667,7 +710,10 @@ try {
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 4
+      && runRecord.schemaVersion === 5
+      && runRecord.subjectKind === "existing-game"
+      && runRecord.market === "United States"
+      && runRecord.language === "english"
       && typeof runRecord.recipe?.sha256 === "string"
       && runRecord.model?.reportedByClient === true
       && runRecord.confidence?.reportedByClient === true
@@ -835,6 +881,9 @@ try {
       kind: "run",
       target: "Package Smoke Game",
       topic: "Package calibration readback",
+      subjectKind: "existing-game",
+      market: "United States",
+      language: "english",
       mode: "baseline",
       selectedDomains: ["gameplay"],
       model: {provider: "smoke", name: "package-client"},

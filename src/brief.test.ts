@@ -226,7 +226,9 @@ describe("Steam developer brief", () => {
           lowestByCurrency: [{amount: 12.49}],
         },
         currentCcu: 250,
+        currentCcuSource: "steam_timeline",
         owners: "2,000,000 .. 5,000,000",
+        ownersSource: "steam_timeline",
       },
       evidence: {
         reviews: {
@@ -412,11 +414,16 @@ describe("Steam developer brief", () => {
         expect.objectContaining({dimension: "current-indicators", status: "partial"}),
       ]),
     });
-    expect(result.data?.readiness.supportedDecisions).not.toEqual(expect.arrayContaining([
-      "regional-price-comparison",
-      "localized-copy-review",
-      "current-activity-context",
-    ]));
+    expect(result.data?.target).toMatchObject({
+      currentCcuSource: "steam_timeline",
+      ownersSource: "steam_fetch",
+    });
+    expect(result.data?.readiness.supportedDecisions)
+      .not.toContain("regional-price-comparison");
+    expect(result.data?.readiness.supportedDecisions)
+      .not.toContain("localized-copy-review");
+    expect(result.data?.readiness.supportedDecisions)
+      .not.toContain("current-activity-context");
   });
 
   it("blocks product advice when the target profile cannot be resolved", async () => {

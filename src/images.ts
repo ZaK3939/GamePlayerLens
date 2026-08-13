@@ -81,7 +81,7 @@ export interface InlineImageResult {
 export type ImageMimeType = typeof PNG_MIME_TYPE | typeof JPEG_MIME_TYPE;
 
 export interface ImageService {
-  listImages(kind: ImageArtifactKind): Promise<ImageMetadata[]>;
+  listImages(kind: ImageArtifactKind): Promise<ImageFetchResult<ImageMetadata[]>>;
   readImage(
     kind: ImageArtifactKind,
     id: string,
@@ -165,7 +165,20 @@ function imageFormat(resolved: ResolvedImagePath): {
 }
 
 function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if ("code" in current && current.code === code) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+function isNonCanonicalImageId(error: unknown): boolean {
+  return error instanceof Error && [
+    "invalid display name",
+    "invalid dot-only display name",
+    "canonical id must contain 1 to 64 characters",
+  ].includes(error.message);
 }
 
 export function createImageService(
@@ -190,7 +203,10 @@ export function createImageService(
       if (isNodeError(error, "ELOOP")) {
         throw new Error("symlink images are not allowed", {cause: error});
       }
-      throw error;
+      if (isNodeError(error, "ENOENT")) {
+        throw new Error("image does not exist", {cause: error});
+      }
+      throw new Error("image could not be opened", {cause: error});
     }
     try {
       const stats = await handle.stat();
@@ -266,12 +282,15 @@ export function createImageService(
     }
   }
 
-  async function listImages(kind: ImageArtifactKind): Promise<ImageMetadata[]> {
+  async function listImages(
+    kind: ImageArtifactKind,
+  ): Promise<ImageFetchResult<ImageMetadata[]>> {
     const parsedKind = ImageArtifactKindSchema.parse(kind);
     const entries = await ops.readdir(rootDirectory(resolver, parsedKind), {
       withFileTypes: true,
     });
     const metadata: ImageMetadata[] = [];
+    let invalidNameCount = 0;
     for (const entry of entries) {
       if (entry.name.startsWith(".")) continue;
       const extension: CaptureImageExtension | null = entry.name.endsWith(".png")
@@ -283,8 +302,18 @@ export function createImageService(
       if (entry.isSymbolicLink()) throw new Error("symlink images are not allowed");
       if (!entry.isFile()) continue;
       const id = entry.name.slice(0, -4);
-      const resolved = resolveImage(resolver, parsedKind, id, extension);
-      if (resolved.id !== id || basename(resolved.absolutePath) !== entry.name) continue;
+      let resolved: ResolvedImagePath;
+      try {
+        resolved = resolveImage(resolver, parsedKind, id, extension);
+      } catch (error) {
+        if (!isNonCanonicalImageId(error)) throw error;
+        invalidNameCount += 1;
+        continue;
+      }
+      if (resolved.id !== id || basename(resolved.absolutePath) !== entry.name) {
+        invalidNameCount += 1;
+        continue;
+      }
       const {handle, stats} = await openRegularImage(resolved);
       try {
         metadata.push(imageMetadata(parsedKind, resolved, stats));
@@ -292,7 +321,12 @@ export function createImageService(
         await handle.close();
       }
     }
-    return metadata.sort((left, right) => left.id.localeCompare(right.id));
+    return {
+      data: metadata.sort((left, right) => left.id.localeCompare(right.id)),
+      warnings: invalidNameCount > 0
+        ? [`skipped ${invalidNameCount} image(s) with non-canonical filenames`]
+        : [],
+    };
   }
 
   async function readImage(

@@ -1,12 +1,13 @@
 import {randomUUID} from "node:crypto";
-import type {Dirent, Stats} from "node:fs";
+import {constants, type Dirent, type Stats} from "node:fs";
 import {
   link as nodeLink,
   lstat as nodeLstat,
   mkdir as nodeMkdir,
-  readFile as nodeReadFile,
+  open as nodeOpen,
   readdir as nodeReaddir,
   rename as nodeRename,
+  type FileHandle,
   unlink as nodeUnlink,
   writeFile as nodeWriteFile,
 } from "node:fs/promises";
@@ -21,6 +22,154 @@ import type {
 
 export const MAX_INTEL_PAYLOAD_BYTES = 1024 * 1024;
 export const MAX_EVALUATION_BYTES = 512 * 1024;
+
+export const REQUIRED_EVALUATION_SECTIONS = [
+  "Decision Card",
+  "Detailed Scope",
+  "Indie Survival Strategy",
+  "Overall Assessment",
+  "Who Plays and Why — Flow Analysis",
+  "Flow Summary",
+  "Domain Findings",
+  "Data Semantics",
+  "Data Coverage Matrix",
+  "Evidence Index",
+  "Final Recommendation",
+] as const;
+
+export const REQUIRED_INDIE_STRATEGY_SECTIONS = [
+  "Indie Strategy Card",
+  "Core Experience Map",
+  "Concept Origin Route",
+  "Reward Mechanism Trace",
+  "Mechanism Transfer Map",
+  "Core Legibility Gate",
+  "Core Revision Ledger",
+  "First-contact Asset Readiness",
+  "Concept Test Trace",
+  "Promise-Delivery Trace",
+  "Delivered Experience Playtest Trace",
+  "Playtest Cohort Summary",
+  "Funnel Health",
+  "Milestone Readiness",
+  "Experiment Queue",
+  "Survival Scenarios",
+] as const;
+
+export type EvaluationIndieStrategyMode = "detailed" | "not-applicable";
+
+interface EvaluationHeading {
+  level: 2 | 3;
+  title: string;
+  line: number;
+}
+
+function evaluationHeadings(lines: string[]): EvaluationHeading[] {
+  const headings: EvaluationHeading[] = [];
+  let fence: "`" | "~" | undefined;
+  for (const [line, value] of lines.entries()) {
+    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(value);
+    if (fenceMatch) {
+      const marker = fenceMatch[1]?.[0] as "`" | "~";
+      if (!fence) fence = marker;
+      else if (fence === marker) fence = undefined;
+      continue;
+    }
+    if (fence) continue;
+    const match = /^ {0,3}(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$/.exec(value);
+    if (!match) continue;
+    headings.push({
+      level: match[1]?.length as 2 | 3,
+      title: match[2] ?? "",
+      line,
+    });
+  }
+  return headings;
+}
+
+function evaluationSectionBody(
+  lines: string[],
+  headings: EvaluationHeading[],
+  heading: EvaluationHeading,
+): string {
+  const next = headings.find(
+    (candidate) => candidate.line > heading.line && candidate.level <= heading.level,
+  );
+  return lines
+    .slice(heading.line + 1, next?.line ?? lines.length)
+    .filter((line) => !/^ {0,3}#{1,6}[ \t]+/.test(line))
+    .join("\n")
+    .trim();
+}
+
+function requireOrderedSections(
+  lines: string[],
+  headings: EvaluationHeading[],
+  required: readonly string[],
+  level: 2 | 3,
+): void {
+  let previousLine = -1;
+  for (const title of required) {
+    const matches = headings.filter(
+      (heading) => heading.level === level && heading.title === title,
+    );
+    const label = `${"#".repeat(level)} ${title}`;
+    if (matches.length === 0) {
+      throw new Error(`evaluation Markdown is not canonical: missing section "${label}"`);
+    }
+    if (matches.length > 1) {
+      throw new Error(`evaluation Markdown is not canonical: duplicate section "${label}"`);
+    }
+    const heading = matches[0];
+    if (!heading || heading.line <= previousLine) {
+      throw new Error(`evaluation Markdown is not canonical: section out of order "${label}"`);
+    }
+    if (!evaluationSectionBody(lines, headings, heading)) {
+      throw new Error(`evaluation Markdown is not canonical: empty section "${label}"`);
+    }
+    previousLine = heading.line;
+  }
+}
+
+export function assertCanonicalEvaluationMarkdown(
+  content: string,
+): EvaluationIndieStrategyMode {
+  if (/[［］]/u.test(content)) {
+    throw new Error("evaluation Markdown contains an unfilled template placeholder");
+  }
+  const lines = content.split(/\r?\n/);
+  const headings = evaluationHeadings(lines);
+  requireOrderedSections(lines, headings, REQUIRED_EVALUATION_SECTIONS, 2);
+
+  const indieHeading = headings.find(
+    (heading) => heading.level === 2 && heading.title === "Indie Survival Strategy",
+  );
+  if (!indieHeading) {
+    throw new Error("evaluation Markdown is not canonical: missing Indie Survival Strategy");
+  }
+  const nextTopLevelLine = headings.find(
+    (heading) => heading.level === 2 && heading.line > indieHeading.line,
+  )?.line ?? lines.length;
+  const indieLines = lines.slice(indieHeading.line + 1, nextTopLevelLine);
+  const indieHeadings = headings.filter(
+    (heading) => heading.line > indieHeading.line && heading.line < nextTopLevelLine,
+  );
+  if (indieHeadings.length === 0) {
+    if (indieLines.some((line) => /^適用外:[ \t]*\S/u.test(line.trim()))) {
+      return "not-applicable";
+    }
+    throw new Error(
+      "evaluation Markdown is not canonical: Indie Survival Strategy requires detailed sections or an applicable N/A reason",
+    );
+  }
+  requireOrderedSections(
+    lines,
+    indieHeadings,
+    REQUIRED_INDIE_STRATEGY_SECTIONS,
+    3,
+  );
+  return "detailed";
+}
 
 export const ArtifactKindSchema = z.enum(["intel", "evaluation"]);
 export const ImageArtifactKindSchema = z.enum(["capture", "ui-reference"]);
@@ -207,9 +356,15 @@ export interface ArtifactFileOps {
   link(existingPath: string, newPath: string): Promise<void>;
   rename(oldPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
-  readFile(path: string, encoding: "utf8"): Promise<string>;
+  open(path: string, flags: number): Promise<ArtifactFileHandle>;
   readdir(path: string, options: {withFileTypes: true}): Promise<Dirent[]>;
   lstat(path: string): Promise<Stats>;
+}
+
+interface ArtifactFileHandle {
+  stat(): Promise<Stats>;
+  readFile(options: {encoding: "utf8"}): Promise<string>;
+  close(): Promise<void>;
 }
 
 const nodeFileOps: ArtifactFileOps = {
@@ -218,7 +373,7 @@ const nodeFileOps: ArtifactFileOps = {
   link: nodeLink,
   rename: nodeRename,
   unlink: nodeUnlink,
-  readFile: nodeReadFile,
+  open: (path, flags) => nodeOpen(path, flags) as Promise<FileHandle>,
   readdir: (path, options) => nodeReaddir(path, options),
   lstat: nodeLstat,
 };
@@ -404,10 +559,40 @@ export function createArtifactStore(
   }
 
   async function readRegularFile(path: string): Promise<{raw: string; stats: Stats}> {
-    const stats = await ops.lstat(path);
-    if (stats.isSymbolicLink()) throw new Error("symlink artifacts are not allowed");
-    if (!stats.isFile()) throw new Error("artifact is not a regular file");
-    return {raw: await ops.readFile(path, "utf8"), stats};
+    let handle: ArtifactFileHandle;
+    try {
+      handle = await ops.open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    } catch (error) {
+      if (isNodeError(error, "ELOOP")) {
+        throw new Error("symlink artifacts are not allowed", {cause: error});
+      }
+      if (isNodeError(error, "ENOENT")) {
+        throw new Error("artifact does not exist", {cause: error});
+      }
+      throw new Error("artifact could not be opened", {cause: error});
+    }
+    try {
+      const stats = await handle.stat();
+      if (stats.isSymbolicLink()) throw new Error("symlink artifacts are not allowed");
+      if (!stats.isFile()) throw new Error("artifact is not a regular file");
+      const raw = await handle.readFile({encoding: "utf8"});
+      const finalStats = await handle.stat();
+      if (
+        finalStats.dev !== stats.dev
+        || finalStats.ino !== stats.ino
+        || finalStats.size !== stats.size
+        || finalStats.mtimeMs !== stats.mtimeMs
+        || Buffer.byteLength(raw, "utf8") !== stats.size
+      ) {
+        throw new Error("artifact changed while reading");
+      }
+      return {raw, stats};
+    } catch (error) {
+      if (error instanceof Error && !("code" in error)) throw error;
+      throw new Error("artifact could not be read", {cause: error});
+    } finally {
+      await handle.close();
+    }
   }
 
   function parseIntelRecord(
@@ -504,6 +689,7 @@ export function createArtifactStore(
     if (sizeBytes > MAX_EVALUATION_BYTES) {
       throw new Error("evaluation Markdown exceeds 512 KiB");
     }
+    assertCanonicalEvaluationMarkdown(parsed.content);
     let date = parsed.date;
     if (!date) {
       const current = clock();

@@ -20,7 +20,7 @@ topicがconcept、prototype、vertical slice、pitch、storefront、trailer、de
 
 `run-sim`の`projectBrief`にある値は、開発者が宣言した`declared design intent`としてCore Experience Mapへ配置します。保存済み仕様として追跡できますが、player evidence、市場需要、実装済み体験の観測には数えません。briefの各claimを、store asset、third-party理解test、build moment、human playtest、telemetryのどれで確認したかを別に記録します。未入力fieldを推測で埋めず、current gateをblockingするmissingを優先します。
 
-`projectBriefDiagnostics`はCore Experience、Differentiation、Decision Contextごとの入力inventoryです。field presenceは内容の質、fun、market fit、milestone readinessを証明しません。missing一覧は確認質問と次の検証を絞るためだけに使います。`revisionId`は後続testが見たbrief版を特定するprovenanceであり、新しい版や大きい番号を高品質とみなしません。
+`projectBriefDiagnostics`はCore Experience、Differentiation、Decision Contextごとの入力inventoryです。`mechanismTransfer`はimitation / Known Frameで`sourceAction`、`sourceSystemResponse`、`sourceReward`、`meaningfulDifference`の欠落を示します。field presenceは内容の質、fun、market fit、milestone readiness、参照作品の内部設計を証明しません。missing一覧は確認質問と次の検証を絞るためだけに使います。`revisionId`は後続testが見たbrief版を特定するprovenanceであり、新しい版や大きい番号を高品質とみなしません。
 
 ## 2. Two ledgers: promise and delivery
 
@@ -66,16 +66,48 @@ storefront copyやtrailerはAppeal Promiseのevidence、build操作やplaytest�
   "repeatedAction": "forecastを読み、routeを描き、飛行を調整する",
   "playerDecision": "安全、時間、積荷価値のどれを優先するか",
   "systemResponse": "風向、燃料、荷傷み、到着時刻が即時に変化する",
-  "immediateReward": "route predictionが当たり、安定飛行できる手応え",
-  "transitionReward": "危険な空域を抜けて配達を完了する安堵と達成",
-  "rewardAmplifier": "接近する嵐、音、機体animation、受取人の反応",
+  "rewardMechanisms": [{
+    "family": "mastery",
+    "form": "mixed",
+    "beforeState": "安全な航路がまだ分からない",
+    "playerAction": "forecastを読みrouteを確定する",
+    "systemResponse": "風、燃料、荷傷み、到着時刻が選択へ反応する",
+    "afterState": "route predictionの成否が判明する",
+    "perceivedReward": "予測が成立し配達を完了できる手応え",
+    "amplifier": "接近する嵐、音、機体animation、受取人の反応"
+  }],
   "oneSentencePromise": "嵐を読み切る航路設計で、小さな空の郵便網を守るゲーム",
-  "familiarFrame": "route-planning management",
+  "knownFrame": "route-planning management",
   "meaningfulDifference": "forecast uncertaintyを線として描き直せる"
 }
 ```
 
 reward familyは`sensory / mastery / discovery / agency / attachment / aesthetic-emotion`を候補にします。網羅表でも重み付きscoreでもありません。体験そのものが報酬になる場合と、緊張→安堵、弱い→強いなど体験の変化が報酬になる場合を分けます。
+
+`projectBriefDiagnostics.rewardMechanism`は宣言件数、family / form件数、amplifier件数を返します。これは入力inventoryであり、playerが実際に報酬を感じた件数やfun scoreではありません。
+
+### Concept Origin Route
+
+`projectBrief.conceptOrigin`は企画の優劣ではなく、次に不足側を聞くためのroutingです。未入力なら内容から推測せず確認します。
+
+| conceptOrigin | Starting point | Required counterpart / concrete next question |
+|---|---|---|
+| `theme-first` | 興味を引くtheme / world | このthemeだから自然に生まれる`distinctiveSystem`、反復action、system responseは何か |
+| `system-first` | 尖ったaction / system | このsystemを理解しやすくし、rewardへ感情的意味を与えるthemeは何か |
+| `holistic-image` | ぼんやりした全体像やscene | themeと反復可能なsystemへ分解し、観測できるaction → response → rewardへ具体化できるか |
+| `imitation` | 既知作品やgenre frame | 表層featureではなくsourceの体験機構を抽出し、targetでplayer experienceを変える差分は何か |
+
+routeのfieldが埋まっても企画品質やfunをpassにしません。`theme-first`と宣言したのにthemeがない、`imitation`なのにsource mechanismまたはmeaningful differenceがない場合は、実装量を増やす前に`needs-counterpart`として確認します。
+
+### Reward Mechanism Trace
+
+reward名だけで「面白い」と判定せず、どの状態と反応からその報酬が生まれる仮説かを固定します。
+
+| Reward family | Reward form | Before state | Player action | System response | After state / perceived reward | Amplifier | Evidence / status |
+|---|---|---|---|---|---|---|---|
+| ［sensory等］ | ［`inherent / transition / mixed`］ | ［開始状態・感情］ | ［観測可能なaction / decision］ | ［即時feedback・状態変化］ | ［結果状態とplayerが感じる仮説］ | ［音、animation、timing、関係性等］ | ［declared / build / playtest / missing］ |
+
+`inherent`は操作、鑑賞、関係など体験そのものが報酬になる仮説、`transition`は緊張→安堵、失敗→上達、弱い→強いなどbefore / afterの変化が報酬になる仮説です。派手なeffect、coin、level-up UIはsystem responseまたはamplifierであり、それだけでperceived rewardを観測したことにはしません。
 
 ### Theme-system fit
 
@@ -94,6 +126,18 @@ reward familyは`sensory / mastery / discovery / agency / attachment / aesthetic
 - Known Frame: playerが既に理解できるloop、genre grammar、controls。
 - Meaningful Difference: action、decision、response、rewardの少なくとも1つを変える差分。
 - Proof moment: その差分が説明ではなく短い映像やplayable momentで分かる状態。
+
+### Mechanism Transfer Map
+
+`conceptOrigin=imitation`、Known Frameを使う場合、またはcompetition分析で競合から学ぶ場合に作ります。それ以外はN/A理由を残します。
+
+`projectBrief`に`sourceAction`、`sourceSystemResponse`、`sourceReward`がある場合はsource loopのdeclared hypothesisとして対応付けます。これらが埋まってもsource evidenceを観測したことにはせず、直接play、recording、仕様、複数player evidenceのどれで確認したかを別列に残します。`mechanismTransfer.status=source-mechanism-missing`なら、表層featureからloopを補完せず3 fieldを一つの質問で確認します。
+
+| Source / Evidence | Surface feature | Source action → response → reward | Transferable mechanism | Target adaptation | Target proof / status |
+|---|---|---|---|---|---|
+| ［作品 / build・video・review等］ | ［camera、敵数、upgrade UI等］ | ［sourceで観測できる体験構造］ | ［themeを外しても残るdecision、tension、feedback等］ | ［target theme / systemでどう変えるか］ | ［prototype moment / missing］ |
+
+surface featureの一致はmechanismの証拠ではありません。sourceを直接play、recording、仕様、複数のplayer evidenceのいずれでも確認できない場合はproxyとし、内部loopを断定しません。target adaptationは少なくともaction、decision、response、rewardの1つを変え、sourceの劣化コピーではなくなる理由と最小proof momentを示します。
 
 ## 4. Core learning loop
 
@@ -134,14 +178,14 @@ visual qualityは装飾量ではなく、target playerがtheme、action、reward
 
 「最初の4枚」「30秒PV」のような数や長さはasset案の例であり固定合格条件ではありません。第一viewport、現在のSteam表示、trailer / microtrailerの実contextを確認し、coreのproof momentがいつ現れるかを測ります。fixed asset countを満たしても、themeだけでaction / rewardが見えないなら`theme-only`です。
 
-`firstContactTest`を使う場合は、asset IDとtype、device、viewport、duration、sound、order、募集条件、質問、匿名participantごとのtheme / action / reward理解と`immediateReject`を保存します。promptの`firstContactTestEvidence.resultHandle`で正規化済み入力をexact-saveし、モデルによる転記を挟みません。`immediateReject=yes`で`rejectionReason`がない場合は、他のsummaryやconfusionから理由を推測せずmissingにします。診断はこのbounded sampleの件数とinspection priorityであり、store conversion、需要、fun、readiness scoreを証明しません。
+`firstContactTest`を使う場合は、asset IDとtype、device、viewport、duration、sound、order、募集条件、質問、匿名participantごとの`visualQuality`、theme / action / reward理解、`immediateReject`を保存します。`rough / style-mismatch`にはそのparticipantの`visualQualityReason`を要求します。promptの`firstContactTestEvidence.resultHandle`で正規化済み入力をexact-saveし、理由をsummaryやconfusionから推測しません。診断はこのbounded sampleと表示contextの知覚件数であり、客観的制作品質、store conversion、需要、fun、readiness scoreを証明しません。
 
 ## 5. Human validation and playtest
 
 - concept説明テストとgameplay playtestを分ける。説明理解はfunの実測ではありません。
 - `conceptTest`を使う場合は、`stimulusId`、再検証なら必須の`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`、任意の`projectBriefRevision`、`promiseShown`、提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰がどのbrief版の何を見て何を聞かれたかを再現可能にする。promptの`conceptTestEvidence.resultHandle`で正規化済み入力をexact-saveし、モデルによる転記を挟まない。
 - `projectBriefRevision`と`revisionId`、`promiseShown`と`oneSentencePromise`は完全一致だけをprovenanceとして判定する。mismatched / unlinkedを隠さず、文字列一致から理解、訴求力、品質を採点しない。
-- participantごとの`understoodAction`、`understoodReward`、`interest`を別の観測として扱う。行動を理解したこと、報酬を理解したこと、試したいと答えたことを相互に補完しない。
+- participantごとの`understoodAction`、`understoodReward`、`interest`を別の観測として扱う。行動を理解したこと、報酬を理解したこと、試したいと答えたことを相互に補完しない。`teachBackAudit`で`understandingMarkedYesWithoutSummaryCount`を確認し、評価者がyesを付けても`unaidedSummary`がなければ第三者自身の説明として監査可能とは扱わない。
 - 「面白そうと言った率」などの固定thresholdは採用しない。sample内の件数は記述値であり、母集団のconversionやpass条件に変換しない。`interest`は`purchase`、需要、継続を証明しない。
 - `participantId`は匿名の仮名IDに限定し、氏名、email、連絡先などの個人情報を入力・保存しない。schemaの自動検出はemail形式だけなので、電話番号、住所、氏名、account IDなども自由記述とともに共有前に匿名化する。
 - AI playtestは操作可能性、feedback、再現可能なfrictionを観測できます。human playtestのfun、需要、completion、retentionの代表にはしません。
@@ -229,15 +273,18 @@ platform fee、refund、taxを固定値で一律計算しません。法域、�
 
 1. Indie Strategy Card: stage、decision horizon、runway、irreversible commitment、blocking evidence。
 2. Core Experience Map: required fields、reward family、theme-system fit、oneSentencePromise。
-3. Core Legibility Gate: theme-specific play、theme-system fit、experience → reward、unaided teach-back。
-4. Core Revision Ledger: revision lineage、変えた変数、維持条件、retest、未解決の因果境界。
-5. First-contact Asset Readiness: 実表示context、theme / action / rewardのlegibility、immediate reject risk。
-6. Concept Test Trace: stimulus、protocol、sample、action理解、reward理解、interest、confusion、deviation、解釈限界。
-7. Promise-Delivery Trace: promiseとbuild momentの対応。
-8. Funnel Health: exposureからretained playまでのstatusと欠損。
-9. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
-10. Experiment Queue: 最大3件、primary metricとguardrail付き。
-11. Survival Scenarios: conservative / base / upsideとassumption boundary。
+3. Concept Origin Route: 宣言した起点、不足counterpart、次の具体化質問。
+4. Reward Mechanism Trace: reward form、before / after state、action、response、amplifier、evidence。
+5. Mechanism Transfer Map: imitation / competition適用時のsurfaceとsource mechanism、target adaptation、proof。適用外はN/A理由。
+6. Core Legibility Gate: theme-specific play、theme-system fit、experience → reward、unaided teach-back。
+7. Core Revision Ledger: revision lineage、変えた変数、維持条件、retest、未解決の因果境界。
+8. First-contact Asset Readiness: 実表示context、theme / action / rewardのlegibility、immediate reject risk。
+9. Concept Test Trace: stimulus、protocol、sample、action理解、reward理解、interest、confusion、deviation、解釈限界。
+10. Promise-Delivery Trace: promiseとbuild momentの対応。
+11. Funnel Health: exposureからretained playまでのstatusと欠損。
+12. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
+13. Experiment Queue: 最大3件、primary metricとguardrail付き。
+14. Survival Scenarios: conservative / base / upsideとassumption boundary。
 
 数字がない場合は架空の販売本数やconversionを作らずmissingとし、次に取得するreport、build、participant、期間を指定します。
 

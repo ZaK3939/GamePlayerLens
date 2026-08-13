@@ -178,9 +178,19 @@ const FirstContactExposureContextSchema = z.object({
   orderDescription: ManualTestTextSchema,
 }).strict();
 
+const VisualQualitySchema = z.enum([
+  "credible",
+  "rough",
+  "style-mismatch",
+  "unclear",
+  "not-assessed",
+]);
+
 const FirstContactParticipantSchema = z.object({
   participantId: PseudonymousParticipantIdSchema,
   targetFit: TargetFitSchema,
+  visualQuality: VisualQualitySchema,
+  visualQualityReason: ManualTestTextSchema.optional(),
   understoodTheme: UnderstandingSchema,
   understoodAction: UnderstandingSchema,
   understoodReward: UnderstandingSchema,
@@ -188,7 +198,18 @@ const FirstContactParticipantSchema = z.object({
   unaidedSummary: ManualTestTextSchema.optional(),
   rejectionReason: ManualTestTextSchema.optional(),
   confusions: z.array(ManualTestTextSchema).max(20),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (
+    (value.visualQuality === "rough" || value.visualQuality === "style-mismatch")
+    && value.visualQualityReason === undefined
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["visualQualityReason"],
+      message: "visualQualityReason is required for rough or style-mismatch observations",
+    });
+  }
+});
 
 export const FirstContactTestObjectSchema = z.object({
   testedAt: z.iso.datetime({offset: true}),
@@ -221,7 +242,8 @@ const FIRST_CONTACT_TEST_SAFE_FIELDS = new Set<string>([
   "invariantsKept", "assetType", "assetDescription", "exposureContext", "device",
   "viewport", "durationSeconds", "sound", "orderDescription", "recruitment",
   "targetPlayerDefinition", "questionsAsked", "participants", "deviations",
-  "participantId", "targetFit", "understoodTheme", "understoodAction",
+  "participantId", "targetFit", "visualQuality", "visualQualityReason",
+  "understoodTheme", "understoodAction",
   "understoodReward", "immediateReject", "unaidedSummary", "rejectionReason",
   "confusions",
 ]);
@@ -568,6 +590,15 @@ export function buildConceptTestDiagnostics(
   const unaidedSummaryCount = participants.filter(
     (participant) => participant.unaidedSummary !== undefined,
   ).length;
+  const understandingMarkedYesWithoutSummaryCount = participants.filter(
+    (participant) => participant.unaidedSummary === undefined
+      && (participant.understoodAction === "yes" || participant.understoodReward === "yes"),
+  ).length;
+  const bothMarkedYesWithSummaryCount = participants.filter(
+    (participant) => participant.unaidedSummary !== undefined
+      && participant.understoodAction === "yes"
+      && participant.understoodReward === "yes",
+  ).length;
   const confusionNoteCount = participants.reduce(
     (total, participant) => total + participant.confusions.length,
     0,
@@ -589,6 +620,8 @@ export function buildConceptTestDiagnostics(
       || interestCounts["not-asked"] > 0
       || unaidedSummaryCount < participants.length
       ? ["measurement-coverage"] : []),
+    ...(understandingMarkedYesWithoutSummaryCount > 0
+      ? ["teach-back-evidence"] : []),
     ...(actionUnderstandingCounts.no > 0 || actionUnderstandingCounts.unclear > 0
       ? ["action-legibility"] : []),
     ...(rewardUnderstandingCounts.no > 0 || rewardUnderstandingCounts.unclear > 0
@@ -607,6 +640,15 @@ export function buildConceptTestDiagnostics(
     rewardUnderstandingCounts,
     interestCounts,
     unaidedSummaryCount,
+    teachBackAudit: {
+      status: unaidedSummaryCount === participants.length
+        ? "summary-recorded-for-all"
+        : "partial-summary-coverage",
+      summaryProvidedCount: unaidedSummaryCount,
+      understandingMarkedYesWithoutSummaryCount,
+      bothMarkedYesWithSummaryCount,
+      interpretationLimit: "understoodAction and understoodReward are coded observations; unaidedSummary is required to audit what the participant could explain in their own words.",
+    },
     confusionNoteCount,
     deviationCount,
     briefAlignment: {
@@ -636,6 +678,10 @@ export function buildConceptTestDiagnostics(
 
 export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactTest) {
   const participants = firstContactTest.participants;
+  const visualQualityCounts = countValues(
+    participants.map((participant) => participant.visualQuality),
+    VisualQualitySchema.options,
+  );
   const themeLegibilityCounts = countValues(
     participants.map((participant) => participant.understoodTheme),
     UnderstandingSchema.options,
@@ -679,8 +725,13 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
       || actionLegibilityCounts["not-measured"] > 0
       || rewardLegibilityCounts["not-measured"] > 0
       || immediateRejectCounts["not-asked"] > 0
+      || visualQualityCounts["not-assessed"] > 0
       || unaidedSummaryCount < participants.length
       ? ["measurement-coverage"] : []),
+    ...(visualQualityCounts.rough > 0
+      || visualQualityCounts["style-mismatch"] > 0
+      || visualQualityCounts.unclear > 0
+      ? ["visual-quality"] : []),
     ...(themeLegibilityCounts.no > 0 || themeLegibilityCounts.unclear > 0
       ? ["theme-legibility"] : []),
     ...(actionLegibilityCounts.no > 0 || actionLegibilityCounts.unclear > 0
@@ -699,6 +750,7 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
       participants.map((participant) => participant.targetFit),
       TargetFitSchema.options,
     ),
+    visualQualityCounts,
     themeLegibilityCounts,
     actionLegibilityCounts,
     rewardLegibilityCounts,
@@ -724,6 +776,7 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
       interpretationLimit: revisionDesign.interpretationLimit,
     },
     rejectionReasonInterpretationLimit: "Missing immediate-reject reasons must not be inferred from other fields or participant responses.",
+    visualQualityInterpretationLimit: "Visual-quality labels record participant perception in this exposure context; they are not an objective production-quality grade.",
     interpretationLimit: "Counts describe this bounded sample and exposure context only; they do not establish fun, demand, conversion, or storefront readiness.",
   };
 }

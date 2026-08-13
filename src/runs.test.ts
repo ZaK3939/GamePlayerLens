@@ -26,6 +26,76 @@ const RUN_ID = "11111111-1111-4111-8111-111111111111";
 const CALIBRATED_RUN_ID = "22222222-2222-4222-8222-222222222222";
 const PNG_BYTES = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
 
+const REQUIRED_INDIE_SECTIONS = [
+  "Indie Strategy Card",
+  "Core Experience Map",
+  "Concept Origin Route",
+  "Reward Mechanism Trace",
+  "Mechanism Transfer Map",
+  "Core Legibility Gate",
+  "Core Revision Ledger",
+  "First-contact Asset Readiness",
+  "Concept Test Trace",
+  "Promise-Delivery Trace",
+  "Delivered Experience Playtest Trace",
+  "Playtest Cohort Summary",
+  "Funnel Health",
+  "Milestone Readiness",
+  "Experiment Queue",
+  "Survival Scenarios",
+] as const;
+
+function evaluationMarkdown(detail: string, detailedIndie = false): string {
+  const indieBody = detailedIndie
+    ? [
+      "This developer project requires the full indie strategy trace.",
+      ...REQUIRED_INDIE_SECTIONS.flatMap((heading) => [
+        `### ${heading}`,
+        heading === "Mechanism Transfer Map"
+          ? "適用外: No imitation frame or mechanism transfer applies."
+          : `${heading} evidence.`,
+      ]),
+    ]
+    : ["適用外: This fixture tests run persistence only."];
+  return [
+    "# Evaluation",
+    "## Decision Card", detail,
+    "## Detailed Scope", "Run-store integration fixture.",
+    "## Indie Survival Strategy", ...indieBody,
+    "## Overall Assessment", "Synthetic assessment.",
+    "## Who Plays and Why — Flow Analysis", "Synthetic player flow.",
+    "## Flow Summary", "Synthetic flow summary.",
+    "## Domain Findings", "Synthetic domain finding.",
+    "## Data Semantics", "Synthetic data semantics.",
+    "## Data Coverage Matrix", "Synthetic coverage entry.",
+    "## Evidence Index", "Synthetic evidence entry.",
+    "## Final Recommendation", detail,
+  ].join("\n\n");
+}
+
+function projectBriefFixture() {
+  return {
+    revisionId: "brief-v1",
+    developmentStage: "prototype" as const,
+    conceptOrigin: "theme-first" as const,
+    targetPlayer: "players who enjoy readable tactical planning",
+    themeWorld: "a storm-bound courier guild",
+    distinctiveSystem: "redraw routes against a changing forecast",
+    repeatedAction: "read, route, commit, recover",
+    systemResponse: "wind and cargo state react to the committed route",
+    rewardMechanisms: [{
+      family: "mastery" as const,
+      form: "mixed" as const,
+      beforeState: "the safe route is uncertain",
+      playerAction: "read the forecast and commit to a route",
+      systemResponse: "wind and cargo state react immediately",
+      afterState: "the prediction is proven viable or visibly fails",
+      perceivedReward: "a correct read becomes a successful delivery",
+      amplifier: "storm audio and vehicle motion",
+    }],
+  };
+}
+
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -49,7 +119,7 @@ function persona(id = "jp-skeptic"): Persona {
   };
 }
 
-async function harness() {
+async function harness(clock: () => Date = () => NOW) {
   const root = await mkdtemp(join(tmpdir(), "game-player-lens-runs-"));
   roots.push(root);
   await Promise.all([
@@ -64,7 +134,7 @@ async function harness() {
   const recipe = "# run-sim\n\nEvidence-grounded simulation recipe.\n";
   await writeFile(join(root, "skills", "run-sim.md"), recipe);
   const resolver = createPathResolver(root);
-  const artifacts = createArtifactStore(resolver, {clock: () => NOW});
+  const artifacts = createArtifactStore(resolver, {clock});
   await artifacts.saveIntel({
     target: "Hades II",
     id: "Profile",
@@ -76,7 +146,7 @@ async function harness() {
     target: "Hades II",
     topic: "Store Page",
     date: "2026-08-11",
-    content: "# Evaluation\n\nCurrent versus proposal.",
+    content: evaluationMarkdown("Current versus proposal."),
   });
   await createPersonaStore(resolver).savePersona(persona());
   await writeFile(
@@ -84,7 +154,7 @@ async function harness() {
     PNG_BYTES,
   );
   const store = createRunStore(resolver, {
-    clock: () => NOW,
+    clock,
     idFactory: () => RUN_ID,
   });
   return {artifacts, recipe, resolver, root, store};
@@ -94,6 +164,9 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
   return {
     target: "Hades II",
     topic: "Store page proposition",
+    subjectKind: "existing-game",
+    market: "Japan",
+    language: "japanese",
     mode: "change",
     selectedDomains: ["storefront", "ui"],
     model: {provider: "Anthropic", name: "Claude", version: "test"},
@@ -246,9 +319,10 @@ function experimentSpec(overrides: Record<string, unknown> = {}) {
 }
 
 async function calibrationHarness(
-  variant: "verified" | "broken-hash" | "missing" | "contradictory",
+  variant: "verified" | "broken-hash" | "missing" | "contradictory" | "backdated-next-spec",
 ) {
-  const context = await harness();
+  let serverNow = NOW;
+  const context = await harness(() => serverNow);
   const {artifacts, resolver, store} = context;
   await artifacts.saveIntel({
     target: "Hades II",
@@ -277,6 +351,25 @@ async function calibrationHarness(
   const historicalSpecEvidence = predictionRead.record.evidence.find(
     ({ref}) => ref === "historical-spec",
   )!;
+
+  const saveNextSpec = () => artifacts.saveIntel({
+    target: "Hades II",
+    id: "Next Experiment Spec",
+    sourceTool: "manual",
+    observedAt: "2026-08-11T14:00:00.000Z",
+    payload: experimentSpec({
+      experimentId: "store-promise-002",
+      parentOutcomeRef: {
+        target: "hades-ii",
+        id: "historical-experiment-outcome",
+      },
+    }),
+  });
+  if (variant === "backdated-next-spec") {
+    serverNow = new Date("2026-08-11T12:40:00.000Z");
+    await saveNextSpec();
+    serverNow = new Date("2026-08-11T12:45:00.000Z");
+  }
 
   let measurementSha: string | undefined;
   if (variant !== "missing") {
@@ -408,19 +501,7 @@ async function calibrationHarness(
       }],
     },
   });
-  await artifacts.saveIntel({
-    target: "Hades II",
-    id: "Next Experiment Spec",
-    sourceTool: "manual",
-    observedAt: "2026-08-11T14:00:00.000Z",
-    payload: experimentSpec({
-      experimentId: "store-promise-002",
-      parentOutcomeRef: {
-        target: "hades-ii",
-        id: "historical-experiment-outcome",
-      },
-    }),
-  });
+  if (variant !== "backdated-next-spec") await saveNextSpec();
 
   const calibrationRefs = ["next-spec", "prior-outcome"];
   const currentInput = runInput({
@@ -550,6 +631,25 @@ describe("run input schema", () => {
       scenarios: runInput().scenarios,
     })).toThrow();
   });
+
+  it("requires consultation context and a route-complete brief for developer subjects", () => {
+    const {subjectKind: _subjectKind, ...withoutSubjectKind} = runInput();
+    expect(SaveRunInputSchema.safeParse(withoutSubjectKind).success).toBe(false);
+
+    const developerWithoutBrief = SaveRunInputSchema.safeParse(runInput({
+      subjectKind: "developer-project",
+    }));
+    expect(developerWithoutBrief.success).toBe(false);
+    if (!developerWithoutBrief.success) {
+      expect(developerWithoutBrief.error.issues.map((issue) => issue.message).join(" "))
+        .toContain("projectBrief");
+    }
+
+    expect(() => SaveRunInputSchema.parse(runInput({
+      subjectKind: "developer-project",
+      projectBrief: projectBriefFixture(),
+    }))).not.toThrow();
+  });
 });
 
 describe("run store", () => {
@@ -575,9 +675,12 @@ describe("run store", () => {
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       runId: RUN_ID,
       targetId: "hades-ii",
+      subjectKind: "existing-game",
+      market: "Japan",
+      language: "japanese",
       recipe: {
         id: "run-sim.md",
         path: "skills/run-sim.md",
@@ -691,6 +794,36 @@ describe("run store", () => {
     )));
     await expect(store.listTargets()).resolves.toEqual(["hades-ii"]);
     await expect(store.listRuns("Hades II")).resolves.toEqual([saved]);
+  });
+
+  it("rejects an indie-strategy N/A final evaluation for a developer project", async () => {
+    const {artifacts, store} = await harness();
+    const developerRun = runInput({
+      subjectKind: "developer-project",
+      projectBrief: projectBriefFixture(),
+    });
+
+    await expect(store.saveRun(developerRun)).rejects.toThrow(/Indie Survival Strategy/i);
+
+    await artifacts.saveEvaluation({
+      target: "Hades II",
+      topic: "Store Page",
+      date: "2026-08-11",
+      content: evaluationMarkdown("Current versus proposal.", true),
+    }, true);
+    await expect(store.saveRun(developerRun)).resolves.toMatchObject({id: RUN_ID});
+    await expect(store.readRun("Hades II", RUN_ID)).resolves.toMatchObject({
+      record: {
+        subjectKind: "developer-project",
+        projectBrief: {revisionId: "brief-v1"},
+        evidence: expect.arrayContaining([
+          expect.objectContaining({
+            ref: "evaluation",
+            indieStrategyMode: "detailed",
+          }),
+        ]),
+      },
+    });
   });
 
   it("marks a run validation-ready only with a matching ExperimentSpec", async () => {
@@ -838,7 +971,7 @@ describe("run store", () => {
   it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
     const read = await calibrationHarness("verified");
 
-    expect(read.record.schemaVersion).toBe(4);
+    expect(read.record.schemaVersion).toBe(5);
     expect(read.record.simulationReadiness).toMatchObject({
       status: "validation-ready",
       heldOutValidation: {
@@ -889,6 +1022,22 @@ describe("run store", () => {
       blockedClaims: expect.arrayContaining(["population-rate", "causal-lift"]),
     });
     expect(read.integrity.status).toBe("verified");
+  });
+
+  it("rejects client timestamps that hide an invalid server save order", async () => {
+    const read = await calibrationHarness("backdated-next-spec");
+
+    expect(read.record.simulationReadiness.calibration).toMatchObject({
+      serverVerified: false,
+      outcomeChecks: [{
+        ref: "prior-outcome",
+        status: "invalid",
+        issues: expect.arrayContaining([
+          "Current ExperimentSpec must be saved at or after its parent Outcome.",
+        ]),
+      }],
+      forecastComparisons: [],
+    });
   });
 
   it("rejects a broken Outcome hash chain even when the client claims calibration", async () => {
@@ -1092,7 +1241,7 @@ describe("run store", () => {
     expect(read.integrity.issueCount).toBeGreaterThanOrEqual(2);
   });
 
-  it("reports missing dependencies and preserves legacy unsealed run readability", async () => {
+  it("reports missing dependencies", async () => {
     const {resolver, store} = await harness();
     await store.saveRun(runInput());
     await rm(resolver.resolveCaptureReadPath("Store Hero").absolutePath);
@@ -1104,20 +1253,21 @@ describe("run store", () => {
         expect.objectContaining({type: "evidence", ref: "hero", status: "missing"}),
       ]),
     });
-
-    const path = resolver.resolveRunPath("Hades II", RUN_ID).absolutePath;
-    const record = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
-    delete record.seal;
-    await writeFile(path, `${JSON.stringify(record, null, 2)}\n`);
-    await writeFile(resolver.resolveCaptureReadPath("Store Hero").absolutePath, PNG_BYTES);
-
-    const legacy = await store.readRun("Hades II", RUN_ID);
-    expect(legacy.integrity).toMatchObject({
-      status: "legacy-unsealed",
-      record: {status: "unsealed"},
-      issueCount: 1,
-    });
   });
+
+  it.each(["seal", "coverage"])(
+    "rejects a current run record with stripped %s integrity data",
+    async (field) => {
+      const {resolver, store} = await harness();
+      await store.saveRun(runInput());
+      const path = resolver.resolveRunPath("Hades II", RUN_ID).absolutePath;
+      const record = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+      delete record[field];
+      await writeFile(path, `${JSON.stringify(record, null, 2)}\n`);
+
+      await expect(store.readRun("Hades II", RUN_ID)).rejects.toThrow(/run schema/i);
+    },
+  );
 
   it("rejects symlinked workspace targets while listing", async () => {
     const {root, store} = await harness();

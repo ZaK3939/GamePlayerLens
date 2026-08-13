@@ -185,6 +185,27 @@ describe("capture service", () => {
     expect(spawn).not.toHaveBeenCalled();
   });
 
+  it("round-trips long capture names without deleting the saved image", async () => {
+    const resolver = await tempResolver();
+    const captureRoot = join(resolver.root, "knowledge", "intel", "captures");
+    const capture = createCaptureService({
+      resolver,
+      fetchImage: vi.fn(async () => new Response(JPEG_BYTES, {
+        headers: {"content-type": "image/jpeg"},
+      })),
+      now: () => new Date("2026-08-11T00:00:00.000Z"),
+    });
+
+    const result = await capture(STEAM_IMAGE_URL, {
+      sourceType: "steam-image",
+      name: "a".repeat(80),
+    });
+
+    expect(result.data?.id).toMatch(/^a{27}-[a-f0-9-]{36}$/);
+    expect(result.data?.id.length).toBeLessThanOrEqual(64);
+    expect(await readdir(captureRoot)).toEqual([`${result.data?.id}.jpg`]);
+  });
+
   it.each([
     ["HTTP failure", new Response(null, {status: 503})],
     ["wrong content type", new Response(JPEG_BYTES, {

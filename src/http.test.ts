@@ -79,6 +79,39 @@ describe("fetchJson", () => {
     });
   });
 
+  it("rejects an oversized declared JSON response without retrying", async () => {
+    let requests = 0;
+    const url = await listen((_req, res) => {
+      requests += 1;
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Length", String(8 * 1024 * 1024 + 1));
+      res.end(Buffer.alloc(8 * 1024 * 1024 + 1));
+    });
+
+    await expect(fetchJson(url, {source: "test-api"})).resolves.toEqual({
+      data: null,
+      warnings: ["test-api response too large"],
+    });
+    expect(requests).toBe(1);
+  });
+
+  it("enforces the JSON response limit while streaming without Content-Length", async () => {
+    let requests = 0;
+    const url = await listen((_req, res) => {
+      requests += 1;
+      res.setHeader("Content-Type", "application/json");
+      res.write('{"padding":"');
+      res.write(Buffer.alloc(8 * 1024 * 1024, "a"));
+      res.end('"}');
+    });
+
+    await expect(fetchJson(url, {source: "test-api"})).resolves.toEqual({
+      data: null,
+      warnings: ["test-api response too large"],
+    });
+    expect(requests).toBe(1);
+  });
+
   it("returns a source-scoped warning for non-retryable responses", async () => {
     let requests = 0;
     const url = await listen((_req, res) => {

@@ -56,9 +56,35 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 | targetPlayer / themeWorld | ［誰に、どんな世界か］ | ［projectBrief / Evidence ID］ | ［declared / observed / inferred / missing］ |
 | distinctiveSystem / repeatedAction | ［固有systemと反復行動］ | ［Evidence ID］ | ［status］ |
 | playerDecision / systemResponse | ［判断と応答］ | ［Evidence ID］ | ［status］ |
-| immediateReward / transitionReward / rewardAmplifier | ［即時報酬、変化の報酬、増幅要素］ | ［Evidence ID］ | ［status］ |
+| rewardMechanisms | ［family / form / before → action → response → after / perceived reward / amplifier］ | ［Evidence ID］ | ［declared / observed / contradicted / missing］ |
 | oneSentencePromise | ［1文で理解できる約束］ | ［理解test Evidence ID］ | ［status］ |
-| Known Frame + Meaningful Difference | ［理解しやすい型と体験を変える差分］ | ［Evidence ID］ | ［status］ |
+| Known Frame / source action → response → reward / Meaningful Difference | ［理解しやすい型、source loop仮説、target体験を変える差分］ | ［source Evidence ID / missing］ | ［declared / observed / inferred / missing］ |
+
+### Concept Origin Route
+
+起点が未入力なら内容から推測せず、`origin-not-declared`と次の確認質問を残します。field充足はfunやqualityの合格ではありません。
+
+| Origin | Starting point | Missing counterpart | Next concrete question | Status |
+|---|---|---|---|---|
+| ［`theme-first / system-first / holistic-image / imitation / not-declared`］ | ［宣言された出発点］ | ［theme / system / mechanism / difference等］ | ［action → response → rewardへ具体化する質問］ | ［needs-counterpart / declared-route-ready-for-validation］ |
+
+### Reward Mechanism Trace
+
+| Reward family | Reward form | Before state | Player action | System response | After state / perceived reward | Amplifier | Evidence / status |
+|---|---|---|---|---|---|---|---|
+| ［sensory / mastery / discovery / agency / attachment / aesthetic-emotion］ | ［`inherent / transition / mixed`］ | ［開始状態・感情］ | ［action / decision］ | ［feedback・状態変化］ | ［結果状態とreward仮説］ | ［音、animation、timing等］ | ［declared / observed / contradicted / missing］ |
+
+effect、coin、level-up UIはresponse / amplifierとして記録し、それだけでplayerが報酬を感じた証拠にしません。
+
+### Mechanism Transfer Map
+
+`conceptOrigin=imitation`、Known Frame、またはcompetition分析を使う場合に作ります。適用外ならN/A理由を記録します。
+
+- projectBrief mechanismTransfer status: ［not-required-from-brief / source-mechanism-missing / source-frame-missing / target-adaptation-missing / declared-transfer-ready-for-validation］
+
+| Source / Evidence | Surface feature | Source action → response → reward | Transferable mechanism | Target adaptation | Target proof / status |
+|---|---|---|---|---|---|
+| ［作品 / Evidence ID］ | ［camera、敵数、UI等］ | ［sourceで観測した構造 / proxy境界］ | ［themeを外して残るdecision、tension、feedback等］ | ［targetで変えるaction / decision / response / reward］ | ［prototype moment / missing］ |
 
 ### Core Legibility Gate
 
@@ -88,11 +114,12 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 - Exposure context: ［device / viewport / duration / sound / order］
 - Recruitment / questions / deviations: ［条件］
 - Diagnostic candidates: ［原因ではないinspection priority］
+- Visual-quality counts: ［credible / rough / style-mismatch / unclear / not-assessed。客観的制作品質scoreではない］
 - Missing reject reasons: ［`unexplainedImmediateRejectCount`。他回答から推測しない］
 
-| Asset / Context | Exposure condition | Visible theme | Imagined action | Imagined reward | Immediate reject risk | Evidence | Status |
-|---|---|---|---|---|---|---|---|
-| ［capsule / key visual / 第一viewport / screenshots / trailer / demo］ | ［device / viewport / duration / sound / order］ | ［観測］ | ［unaided response］ | ［unaided response］ | ［Not for me / unreadable / wrong expectation］ | ［Evidence ID］ | ［core-visible / theme-only / system-only / unreadable / untested］ |
+| Asset / Context | Exposure condition | Perceived visual quality | Visible theme | Imagined action | Imagined reward | Immediate reject risk | Evidence | Status |
+|---|---|---|---|---|---|---|---|---|
+| ［capsule / key visual / 第一viewport / screenshots / trailer / demo］ | ［device / viewport / duration / sound / order］ | ［credible / rough / style-mismatch / unclear / not-assessed + reason］ | ［観測］ | ［unaided response］ | ［unaided response］ | ［Not for me / unreadable / wrong expectation］ | ［Evidence ID］ | ［core-visible / theme-only / system-only / unreadable / untested］ |
 
 「最初の4枚」や「30秒」を固定条件にせず、現在の実表示でcoreのproof momentがいつ現れるかを記録します。生成AIや自動化で作ったassetもhuman responseの代用にはしません。
 
@@ -109,6 +136,7 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 - Recruitment / target player definition: ［募集元、target fitの判定基準］
 - Questions asked: ［誘導を避けた質問］
 - Deviations / limitations: ［順序、moderation、言語、sample boundary］
+- Teach-back audit: ［summaryProvidedCount / understandingMarkedYesWithoutSummaryCount / bothMarkedYesWithSummaryCount。yes判定だけを自発説明にしない］
 - Revision candidates: ［`conceptTestDiagnostics.revisionLoop.candidateReviewAreas`。原因ではなくinspection priority］
 
 | Observation | Counts | Confusions / unaided summary | Interpretation limit |

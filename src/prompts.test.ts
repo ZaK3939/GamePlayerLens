@@ -14,6 +14,19 @@ import {
 
 const recipe = "# Repository recipe\n\nFollow only this repository recipe.";
 
+function rewardMechanismsFixture(): Array<Record<string, string>> {
+  return [{
+    family: "mastery",
+    form: "mixed",
+    beforeState: "The safe route is uncertain",
+    playerAction: "Read the forecast and commit to a route",
+    systemResponse: "Wind, fuel, and cargo state react immediately",
+    afterState: "The chosen route is proven viable or visibly fails",
+    perceivedReward: "A prediction becomes a legible successful delivery",
+    amplifier: "Storm audio, vehicle motion, and recipient reactions",
+  }];
+}
+
 function conceptTestFixture(
   participants: Array<Record<string, unknown>> = [{
     participantId: "p-01",
@@ -42,6 +55,8 @@ function firstContactTestFixture(
   participants: Array<Record<string, unknown>> = [{
     participantId: "p-01",
     targetFit: "high",
+    visualQuality: "rough",
+    visualQualityReason: "The characters and route overlay look unfinished at this viewport",
     understoodTheme: "yes",
     understoodAction: "unclear",
     understoodReward: "no",
@@ -209,15 +224,14 @@ describe("run-sim prompt arguments", () => {
       projectBrief: JSON.stringify({
         revisionId: "brief-v3",
         developmentStage: "prototype",
+        conceptOrigin: "theme-first",
         targetPlayer: "  players who enjoy readable tactical tradeoffs  ",
         themeWorld: "A storm-bound courier guild",
         distinctiveSystem: "Draw and revise routes against a changing forecast",
         repeatedAction: "Read, route, commit, recover",
         playerDecision: "Trade safety for delivery value",
         systemResponse: "Wind, fuel, and cargo condition change immediately",
-        immediateReward: "A predicted route holds",
-        transitionReward: "Tension resolves into a successful delivery",
-        rewardAmplifier: "Storm audio and recipient reactions",
+        rewardMechanisms: rewardMechanismsFixture(),
         oneSentencePromise: "Outread the storm to keep a fragile courier network alive",
         knownFrame: "Route-planning management",
         meaningfulDifference: "Forecast uncertainty can be redrawn as a route",
@@ -228,7 +242,9 @@ describe("run-sim prompt arguments", () => {
     });
     expect(JSON.parse(parsedProjectBrief.projectBrief!)).toMatchObject({
       developmentStage: "prototype",
+      conceptOrigin: "theme-first",
       targetPlayer: "players who enjoy readable tactical tradeoffs",
+      rewardMechanisms: [{family: "mastery", form: "mixed"}],
       runwayMonths: 14,
     });
 
@@ -319,10 +335,34 @@ describe("run-sim prompt arguments", () => {
       topic: "concept",
       projectBrief: JSON.stringify({developmentStage: "idea-ish"}),
     }],
+    ["invalid project concept origin", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({conceptOrigin: "trend-first"}),
+    }],
     ["invalid project runway", {
       target: "Game",
       topic: "concept",
       projectBrief: JSON.stringify({runwayMonths: -1}),
+    }],
+    ["obsolete project reward field", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({immediateReward: "hidden compatibility path"}),
+    }],
+    ["incomplete reward mechanism", {
+      target: "Game",
+      topic: "concept",
+      projectBrief: JSON.stringify({
+        rewardMechanisms: [{
+          family: "mastery",
+          form: "inherent",
+          beforeState: "uncertain",
+          playerAction: "commit",
+          systemResponse: "route reacts",
+          perceivedReward: "prediction holds",
+        }],
+      }),
     }],
     ["invalid concept test JSON", {
       target: "Game",
@@ -391,6 +431,16 @@ describe("run-sim prompt arguments", () => {
       topic: "topic",
       uiReferenceUrls: "http://gameuidatabase.com/game",
     }],
+    ["unsafe UI capture URL", {
+      target: "Game",
+      topic: "topic",
+      uiUrl: "file:///tmp/game.html",
+    }],
+    ["credentialed UI capture URL", {
+      target: "Game",
+      topic: "topic",
+      uiUrl: "https://user:pass@example.com/menu",
+    }],
     ["credentialed UI reference URL", {
       target: "Game",
       topic: "topic",
@@ -454,7 +504,7 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"missingChangeInputs": [\n    "currentState",\n    "proposal"\n  ]');
     expect(result).toContain('"intakeDiagnostics": {');
     expect(result).toContain('"status": "needs-input"');
-    expect(result).toContain('"missingFields": [\n      "market",\n      "language",\n      "currentState",\n      "proposal"\n    ]');
+    expect(result).toContain('"missingFields": [\n      "subjectKind",\n      "market",\n      "language",\n      "currentState",\n      "proposal"\n    ]');
     expect(result.slice(0, result.indexOf("--- END REPOSITORY RECIPE ---")).trimEnd()).toBe(recipe);
   });
 
@@ -462,6 +512,7 @@ describe("run-sim prompt arguments", () => {
     const ready = buildRunSimPrompt(recipe, {
       target: "Example Game",
       topic: "inventory redesign",
+      subjectKind: "existing-game",
       mode: "change",
       domains: "ui",
       market: "United States",
@@ -476,11 +527,58 @@ describe("run-sim prompt arguments", () => {
     const missingUiTask = buildRunSimPrompt(recipe, {
       target: "Example Game",
       topic: "inventory review",
+      subjectKind: "existing-game",
       domains: "ui",
       market: "Japan",
       language: "japanese",
     });
     expect(missingUiTask).toContain('"missingFields": [\n      "uiBenchmarkTask"\n    ]');
+  });
+
+  it("gates developer subjects on a route-complete structured project brief", () => {
+    const missingBrief = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept review",
+      subjectKind: "developer-concept",
+      market: "Japan",
+      language: "japanese",
+    });
+    expect(missingBrief).toContain('"missingFields": [\n      "projectBrief"\n    ]');
+
+    const incompleteBrief = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept review",
+      subjectKind: "developer-concept",
+      market: "Japan",
+      language: "japanese",
+      projectBrief: JSON.stringify({
+        conceptOrigin: "theme-first",
+        themeWorld: "storm courier guild",
+      }),
+    });
+    expect(incompleteBrief).toContain('"projectBrief.distinctiveSystem"');
+    expect(incompleteBrief).toContain('"projectBrief.repeatedAction"');
+    expect(incompleteBrief).toContain('"projectBrief.systemResponse"');
+    expect(incompleteBrief).toContain('"projectBrief.rewardMechanisms"');
+
+    const readyBrief = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "prototype review",
+      subjectKind: "developer-project",
+      market: "Japan",
+      language: "japanese",
+      projectBrief: JSON.stringify({
+        conceptOrigin: "theme-first",
+        themeWorld: "storm courier guild",
+        distinctiveSystem: "redraw routes against a changing forecast",
+        repeatedAction: "read, route, commit, recover",
+        systemResponse: "wind and cargo condition react",
+        rewardMechanisms: rewardMechanismsFixture(),
+      }),
+    });
+    expect(readyBrief).toContain('"subjectKind": "developer-project"');
+    expect(readyBrief).toContain('"intakeDiagnostics": {\n    "status": "ready"');
+    expect(readyBrief).toContain('"missingFields": []');
   });
 
   it("serializes normalized UI reference URLs as data rather than recipe text", () => {
@@ -1048,13 +1146,14 @@ describe("run-sim prompt arguments", () => {
       domains: "gameplay,storefront",
       projectBrief: JSON.stringify({
         developmentStage: "prototype",
+        conceptOrigin: "theme-first",
         targetPlayer: "deliberate route-planning players",
         themeWorld: "storm courier guild",
         distinctiveSystem: "redraw routes as the forecast changes",
         repeatedAction: "read, route, commit, recover",
         playerDecision: "trade safety for delivery value",
         systemResponse: "wind and cargo condition react",
-        immediateReward: "a predicted route holds",
+        rewardMechanisms: rewardMechanismsFixture(),
         oneSentencePromise: "Outread the storm to keep a courier network alive",
         runwayMonths: 14,
       }),
@@ -1066,13 +1165,89 @@ describe("run-sim prompt arguments", () => {
     expect(result).not.toContain('"projectBrief": "{');
     expect(result).toContain('"projectBriefDiagnostics": {');
     expect(result).toContain('"status": "inventory-only"');
+    expect(result).toContain('"conceptRoute": {');
+    expect(result).toContain('"origin": "theme-first"');
+    expect(result).toContain('"status": "declared-route-ready-for-validation"');
     expect(result).toContain('"declaredCount": 8');
-    expect(result).toContain('"totalFields": 10');
-    expect(result).toMatch(
-      /"coreExperience": \{[\s\S]*"missingFields": \[[\s\S]*"transitionReward",[\s\S]*"rewardAmplifier"/,
-    );
+    expect(result).toContain('"totalFields": 8');
+    expect(result).toContain('"rewardMechanism": {');
+    expect(result).toContain('"status": "declared-mechanisms-ready-for-validation"');
+    expect(result).toContain('"mechanismCount": 1');
+    expect(result).toContain('"familyCounts": {\n        "mastery": 1');
+    expect(result).toContain('"formCounts": {\n        "mixed": 1');
+    expect(result).toContain('"amplifiedCount": 1');
+    expect(result).toContain("Declared reward mechanisms are hypotheses, not observed player reward or fun");
     expect(result).not.toContain("qualityScore");
     expect(result).not.toContain("readinessPass");
+  });
+
+  it("turns an imitation origin into explicit missing mechanism questions", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept differentiation",
+      domains: "gameplay,competition",
+      projectBrief: JSON.stringify({
+        conceptOrigin: "imitation",
+        knownFrame: "Vampire Survivors-like",
+      }),
+    });
+
+    expect(result).toContain('"origin": "imitation"');
+    expect(result).toContain('"status": "needs-counterpart"');
+    expect(result).toMatch(
+      /"missingFields": \[[\s\S]*"sourceAction"[\s\S]*"sourceSystemResponse"[\s\S]*"sourceReward"[\s\S]*"meaningfulDifference"[\s\S]*"distinctiveSystem"[\s\S]*"repeatedAction"[\s\S]*"systemResponse"[\s\S]*"rewardMechanisms"/,
+    );
+    expect(result).toContain('"status": "reward-mechanism-missing"');
+    expect(result).toContain('"mechanismTransfer": {');
+    expect(result).toContain('"status": "source-mechanism-missing"');
+    expect(result).toContain('"applicabilityReason": "imitation-origin"');
+    expect(result).toContain("surface features do not establish a transferable play mechanism");
+  });
+
+  it("keeps a declared source loop separate from evidence while preparing mechanism transfer", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept differentiation",
+      domains: "gameplay,competition",
+      projectBrief: JSON.stringify({
+        conceptOrigin: "imitation",
+        knownFrame: "Vampire Survivors-like",
+        sourceAction: "move through enemy pressure while attacks trigger automatically",
+        sourceSystemResponse: "positioning changes enemy density and attack contact",
+        sourceReward: "surviving pressure converts into visible power growth",
+        meaningfulDifference: "route choices redirect the storm rather than only avoiding enemies",
+        distinctiveSystem: "draw and revise routes against a changing forecast",
+        repeatedAction: "read, route, commit, recover",
+        systemResponse: "wind and cargo condition react",
+        rewardMechanisms: rewardMechanismsFixture(),
+      }),
+    });
+
+    expect(result).toContain('"sourceAction": "move through enemy pressure while attacks trigger automatically"');
+    expect(result).toContain('"mechanismTransfer": {');
+    expect(result).toContain('"status": "declared-transfer-ready-for-validation"');
+    expect(result).toContain('"missingFields": []');
+    expect(result).toContain("Declared source mechanics are hypotheses, not proof of the source game's internal design or player reward");
+    expect(result).not.toContain("sourceMechanismObserved");
+  });
+
+  it("does not ignore a declared source loop when its Known Frame is missing", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept differentiation",
+      projectBrief: JSON.stringify({
+        conceptOrigin: "theme-first",
+        sourceAction: "choose a route under resource pressure",
+        sourceSystemResponse: "time and fuel react to the route",
+        sourceReward: "a constrained plan resolves efficiently",
+        meaningfulDifference: "weather can be redirected into a new route",
+      }),
+    });
+
+    expect(result).toContain('"applicabilityReason": "source-loop-declared"');
+    expect(result).toContain('"status": "source-frame-missing"');
+    expect(result).toMatch(/"missingFields": \[[\s\S]*"knownFrame"/);
+    expect(result).toContain("Which source game or established genre frame does this declared loop describe?");
   });
 
   it("omits project brief diagnostics when no brief was supplied", () => {
@@ -1168,6 +1343,21 @@ describe("run-sim prompt arguments", () => {
     expect(result).not.toContain("purchaseProbability");
   });
 
+  it("does not treat coded understanding as auditable teach-back without a summary", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify(conceptTestFixture()),
+    });
+
+    expect(result).toContain('"teachBackAudit": {');
+    expect(result).toContain('"status": "partial-summary-coverage"');
+    expect(result).toContain('"summaryProvidedCount": 0');
+    expect(result).toContain('"understandingMarkedYesWithoutSummaryCount": 1');
+    expect(result).toContain('"bothMarkedYesWithSummaryCount": 0');
+    expect(result).toMatch(/"candidateReviewAreas": \[[\s\S]*"teach-back-evidence"/);
+  });
+
   it("requires safe, non-self-referential lineage for revised concept stimuli", () => {
     const missingSummary = RunSimPromptArgumentsSchema.safeParse({
       target: "Project Nyx",
@@ -1239,12 +1429,14 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"assetType": "store-viewport"');
     expect(result).toContain('"participantCount": 1');
     expect(result).toContain('"themeLegibilityCounts": {');
+    expect(result).toContain('"visualQualityCounts": {');
+    expect(result).toContain('"rough": 1');
     expect(result).toContain('"actionLegibilityCounts": {');
     expect(result).toContain('"rewardLegibilityCounts": {');
     expect(result).toContain('"immediateRejectCounts": {');
     expect(result).toContain('"rejectionReasonCount": 1');
     expect(result).toContain('"causalAttributionStatus": "comparison-candidate-only"');
-    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "action-legibility",\n        "reward-legibility",\n        "immediate-reject",\n        "reported-confusions"\n      ]');
+    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "visual-quality",\n        "action-legibility",\n        "reward-legibility",\n        "immediate-reject",\n        "reported-confusions"\n      ]');
     expect(result).toContain('"firstContactTestEvidence": {');
     expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174001"');
     expect(result).toContain('"exactSaveRequired": true');
@@ -1293,6 +1485,36 @@ describe("run-sim prompt arguments", () => {
     expect(personalData.success).toBe(false);
     if (!personalData.success) {
       expect(JSON.stringify(personalData.error)).not.toContain(privateValue);
+    }
+  });
+
+  it("requires an independent visual-quality observation and reasons for visual concerns", () => {
+    const missingVisualQuality = {
+      ...(firstContactTestFixture().participants as Array<Record<string, unknown>>)[0],
+    };
+    delete missingVisualQuality.visualQuality;
+    const missing = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify(firstContactTestFixture([missingVisualQuality])),
+    });
+    expect(missing.success).toBe(false);
+    if (!missing.success) {
+      expect(JSON.stringify(missing.error)).toContain("visualQuality");
+    }
+
+    const unexplainedConcern = {
+      ...(firstContactTestFixture().participants as Array<Record<string, unknown>>)[0],
+    };
+    delete unexplainedConcern.visualQualityReason;
+    const unexplained = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify(firstContactTestFixture([unexplainedConcern])),
+    });
+    expect(unexplained.success).toBe(false);
+    if (!unexplained.success) {
+      expect(JSON.stringify(unexplained.error)).toContain("visualQualityReason");
     }
   });
 

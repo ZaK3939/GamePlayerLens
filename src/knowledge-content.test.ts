@@ -124,6 +124,9 @@ describe("canonical adoption evaluation template", () => {
 
     expect(content).toContain("## Indie Survival Strategy");
     expect(content).toContain("Core Experience Map");
+    expect(content).toContain("Concept Origin Route");
+    expect(content).toContain("Reward Mechanism Trace");
+    expect(content).toContain("Mechanism Transfer Map");
     expect(content).toContain("Concept Test Trace");
     expect(content).toContain("Promise-Delivery Trace");
     expect(content).toContain("Funnel Health");
@@ -211,6 +214,8 @@ describe("harsh critic rubric", () => {
     expect(content).toMatch(/購入前[\s\S]*購入後[\s\S]*単一score/);
     expect(content).toMatch(/Next Fest[\s\S]*公式Steamworks[\s\S]*現在/);
     expect(content).toMatch(/Core Legibility Gate[\s\S]*Core Revision Ledger[\s\S]*First-contact Asset Readiness/);
+    expect(content).toMatch(/Concept Origin Route[\s\S]*Reward Mechanism Trace[\s\S]*Mechanism Transfer Map/);
+    expect(content).toMatch(/表層feature[\s\S]*action → response → reward[\s\S]*差し戻す/);
     expect(content).toMatch(/AI[\s\S]*人間のfun[\s\S]*証明[\s\S]*差し戻す/);
     expect(content).toMatch(/最初の4枚[\s\S]*30秒[\s\S]*固定条件[\s\S]*差し戻す/);
   });
@@ -237,16 +242,27 @@ describe("indie survival strategy rubric", () => {
       "repeatedAction",
       "playerDecision",
       "systemResponse",
-      "immediateReward",
-      "transitionReward",
-      "rewardAmplifier",
+      "rewardMechanisms",
+      "beforeState",
+      "playerAction",
+      "afterState",
+      "perceivedReward",
       "oneSentencePromise",
     ]) {
       expect(content).toContain(field);
     }
     expect(content).toMatch(/表層[\s\S]*模倣[\s\S]*体験[\s\S]*報酬/);
     expect(content).toContain("Known Frame + Meaningful Difference");
+    expect(content).toContain("Concept Origin Route");
+    expect(content).toMatch(/theme-first[\s\S]*system-first[\s\S]*holistic-image[\s\S]*imitation/);
+    expect(content).toContain("Reward Mechanism Trace");
+    expect(content).toContain("projectBriefDiagnostics.rewardMechanism");
+    expect(content).toMatch(/inherent[\s\S]*transition/);
+    expect(content).toMatch(/Before state[\s\S]*After state/);
+    expect(content).toContain("Mechanism Transfer Map");
+    expect(content).toMatch(/surface feature[\s\S]*source action → response → reward[\s\S]*target adaptation/i);
     expect(content).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
+    expect(content).toMatch(/visualQuality[\s\S]*visualQualityReason/);
   });
 
   it("diagnoses the acquisition and play funnel without blaming one metric", async () => {
@@ -627,9 +643,12 @@ describe("MCP prompt source recipes", () => {
 
     expect(recipeContent).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
     expect(recipeContent).toMatch(/projectBriefDiagnostics[\s\S]*inventory[\s\S]*quality[\s\S]*pass/);
+    expect(recipeContent).toMatch(/sourceAction[\s\S]*sourceSystemResponse[\s\S]*sourceReward/);
+    expect(recipeContent).toMatch(/mechanismTransfer[\s\S]*declared[\s\S]*evidence/);
     expect(recipeContent).toMatch(/blocking[\s\S]*missing[\s\S]*捏造/);
     expect(criticContent).toMatch(/projectBrief[\s\S]*player evidence[\s\S]*差し戻す/);
     expect(criticContent).toMatch(/projectBriefDiagnostics[\s\S]*quality score[\s\S]*差し戻す/);
+    expect(criticContent).toMatch(/sourceAction[\s\S]*sourceSystemResponse[\s\S]*sourceReward[\s\S]*差し戻す/);
   });
 
   it("saves and interprets concept tests without turning sample counts into demand", async () => {

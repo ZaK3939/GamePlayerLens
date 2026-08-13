@@ -500,8 +500,9 @@ describe("createDiscoveryFetcher", () => {
 
     expect(response.data).toBeNull();
     expect(response.warnings).toEqual([
-      "steamspy discovery invalid JSON after 2 attempts",
+      "steamspy discovery response too large",
     ]);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it("returns an empty successful result with a no-candidates warning", async () => {

@@ -43,7 +43,13 @@ describe("result store", () => {
       data: [],
       warnings: [],
       meta: {observedAt: "not-a-date"},
-    }).meta).toEqual({observedAt: "not-a-date"});
+    })).toEqual({
+      data: [],
+      warnings: [
+        "exact result persistence unavailable: tool result has an invalid observedAt",
+      ],
+      meta: {observedAt: "not-a-date"},
+    });
   });
 
   it("does not cache results that cannot fit in an intel artifact", () => {

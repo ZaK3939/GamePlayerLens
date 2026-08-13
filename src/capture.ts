@@ -371,12 +371,8 @@ export function createCaptureService(
         spawnError = error;
       });
 
-      let bufferedLogs = "";
-      const absorbLog = (chunk: Buffer) => {
-        bufferedLogs = `${bufferedLogs}${chunk.toString("utf8")}`.slice(-4_096);
-      };
-      runningChild.stdout.on("data", absorbLog);
-      runningChild.stderr.on("data", absorbLog);
+      runningChild.stdout.resume();
+      runningChild.stderr.resume();
 
       browser = await connectWithRetry(
         connect,

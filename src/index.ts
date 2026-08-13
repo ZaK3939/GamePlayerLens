@@ -588,10 +588,7 @@ export function buildServer(
         throw new Error("target is invalid for image artifacts");
       }
       if (id === undefined) {
-        return jsonEnvelope({
-          data: await services.imageService.listImages(kind),
-          warnings: [],
-        });
+        return jsonEnvelope(await services.imageService.listImages(kind));
       }
       return imageEnvelope(await services.imageService.readImage(kind, id));
     },

@@ -53,8 +53,17 @@ export function createResultStore(
   function remember(sourceTool: SourceTool, result: ResultEnvelope): ResultEnvelope {
     const normalized = ResultEnvelopeSchema.parse(clone(result));
     const observedAt = normalized.meta?.observedAt;
-    if (typeof observedAt !== "string" || !ObservedAtSchema.safeParse(observedAt).success) {
+    if (observedAt === undefined) {
       return normalized;
+    }
+    if (typeof observedAt !== "string" || !ObservedAtSchema.safeParse(observedAt).success) {
+      return {
+        ...normalized,
+        warnings: [
+          ...normalized.warnings,
+          "exact result persistence unavailable: tool result has an invalid observedAt",
+        ],
+      };
     }
 
     SourceToolSchema.parse(sourceTool);

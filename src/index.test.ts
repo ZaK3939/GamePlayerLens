@@ -15,6 +15,23 @@ const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
 const NOW = new Date("2026-08-11T09:10:11.000Z");
 const roots: string[] = [];
 
+function evaluationMarkdown(detail: string): string {
+  return [
+    "# Evaluation",
+    "## Decision Card", detail,
+    "## Detailed Scope", "MCP integration fixture.",
+    "## Indie Survival Strategy", "適用外: This fixture tests MCP transport only.",
+    "## Overall Assessment", "Synthetic assessment.",
+    "## Who Plays and Why — Flow Analysis", "Synthetic player flow.",
+    "## Flow Summary", "Synthetic flow summary.",
+    "## Domain Findings", "Synthetic domain finding.",
+    "## Data Semantics", "Synthetic data semantics.",
+    "## Data Coverage Matrix", "Synthetic coverage entry.",
+    "## Evidence Index", "Synthetic evidence entry.",
+    "## Final Recommendation", detail,
+  ].join("\n\n");
+}
+
 function pngBytes(size = PNG_SIGNATURE.length): Buffer {
   const bytes = Buffer.alloc(size);
   PNG_SIGNATURE.copy(bytes);
@@ -153,6 +170,7 @@ async function expectToolError(
 ) {
   const result = await client.callTool({name, arguments: arguments_});
   expect(result.isError).toBe(true);
+  return result;
 }
 
 afterEach(async () => {
@@ -937,6 +955,10 @@ describe("MCP server contract", () => {
             "kind",
             "target",
             "topic",
+            "subjectKind",
+            "market",
+            "language",
+            "projectBrief",
             "mode",
             "selectedDomains",
             "model",
@@ -952,6 +974,9 @@ describe("MCP server contract", () => {
             "kind",
             "target",
             "topic",
+            "subjectKind",
+            "market",
+            "language",
             "mode",
             "selectedDomains",
             "model",
@@ -1183,7 +1208,7 @@ describe("MCP server contract", () => {
           target: "Hádès II",
           topic: "Store Page",
           date: "2026-08-11",
-          content: "# Evaluation\n\nShip the stronger capsule.",
+          content: evaluationMarkdown("Ship the stronger capsule."),
         },
       });
       expect(evaluation.isError).not.toBe(true);
@@ -1221,7 +1246,7 @@ describe("MCP server contract", () => {
         },
       });
       expect(evaluationRead.structuredContent).toMatchObject({
-        data: {content: "# Evaluation\n\nShip the stronger capsule."},
+        data: {content: evaluationMarkdown("Ship the stronger capsule.")},
         warnings: [],
       });
       expect(JSON.parse(resultText(evaluationRead))).toEqual(evaluationRead.structuredContent);
@@ -1297,7 +1322,7 @@ describe("MCP server contract", () => {
           target: "Hades II",
           topic: "Store Promise",
           date: "2026-08-11",
-          content: "# Evaluation\n\nTest the proposal before claiming lift.",
+          content: evaluationMarkdown("Test the proposal before claiming lift."),
         },
       });
 
@@ -1307,6 +1332,9 @@ describe("MCP server contract", () => {
           kind: "run",
           target: "Hades II",
           topic: "Store promise",
+          subjectKind: "existing-game",
+          market: "Japan",
+          language: "japanese",
           mode: "change",
           selectedDomains: ["storefront"],
           model: {provider: "OpenAI", name: "GPT-5", version: "test"},
@@ -1427,7 +1455,10 @@ describe("MCP server contract", () => {
         data: {
           metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
           record: {
-            schemaVersion: 4,
+            schemaVersion: 5,
+            subjectKind: "existing-game",
+            market: "Japan",
+            language: "japanese",
             runId,
             targetId: "hades-ii",
             recipe: {path: "skills/run-sim.md", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
@@ -1652,6 +1683,22 @@ describe("MCP server contract", () => {
         expect(resultText(read)).not.toContain(encoded);
         expect(JSON.stringify(read.structuredContent)).not.toContain("imageContent");
       }
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("does not expose the data root in missing artifact errors", async () => {
+    const {client, root, server} = await createHarness();
+    try {
+      const result = await expectToolError(client, "get_artifact", {
+        kind: "intel",
+        target: "Missing Game",
+        id: "Missing Snapshot",
+      });
+      expect(resultText(result)).not.toContain(root);
+      expect(resultText(result)).toMatch(/does not exist/i);
     } finally {
       await client.close();
       await server.close();
@@ -1888,6 +1935,8 @@ describe("MCP server contract", () => {
             participants: [{
               participantId: "p-02",
               targetFit: "high",
+              visualQuality: "rough",
+              visualQualityReason: "The route overlay looks unfinished at this viewport",
               understoodTheme: "yes",
               understoodAction: "unclear",
               understoodReward: "no",
@@ -1957,12 +2006,14 @@ describe("MCP server contract", () => {
       const firstContactEvidence = promptData.firstContactTestEvidence as Record<string, unknown>;
       expect(promptData.firstContactTestDiagnostics).toMatchObject({
         participantCount: 1,
+        visualQualityCounts: {rough: 1},
         immediateRejectCounts: {yes: 1},
         revisionLoop: {
           causalAttributionStatus: "comparison-candidate-only",
           candidateReviewAreas: expect.arrayContaining([
             "action-legibility",
             "reward-legibility",
+            "visual-quality",
             "immediate-reject",
           ]),
         },
@@ -2290,6 +2341,7 @@ describe("MCP server contract", () => {
       expect(runSim.arguments?.map((argument) => argument.name)).toEqual([
         "target",
         "topic",
+        "subjectKind",
         "mode",
         "domains",
         "specification",

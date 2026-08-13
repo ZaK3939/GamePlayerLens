@@ -12,6 +12,7 @@ import {
 import {basename, dirname, relative, sep} from "node:path";
 import {z} from "zod";
 import {
+  assertCanonicalEvaluationMarkdown,
   IntelRecordSchema,
   MAX_EVALUATION_BYTES,
   MAX_INTEL_PAYLOAD_BYTES,
@@ -27,6 +28,11 @@ import {
   type VerifiedExperimentDecision,
   type VerifiedForecastComparison,
 } from "./experiments.js";
+import {
+  buildProjectBriefDiagnostics,
+  ProjectBriefObjectSchema,
+  SubjectKindSchema,
+} from "./prompts.js";
 import type {
   PathResolver,
   ResolvedImagePath,
@@ -58,6 +64,7 @@ const CanonicalTargetIdSchema = z.string()
   .regex(/^[\p{L}\p{Nd}]+(?:-[\p{L}\p{Nd}]+)*$/u);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const IsoDateTimeSchema = z.iso.datetime({offset: true});
+const ConsultationTextSchema = z.string().trim().min(1).max(200);
 
 const ModelInputSchema = z.object({
   provider: z.string().trim().min(1).max(120),
@@ -275,6 +282,10 @@ function validateSaveCompleteness(
 export const SaveRunInputBaseSchema = z.object({
   target: z.string().min(1),
   topic: z.string().trim().min(1).max(120),
+  subjectKind: SubjectKindSchema,
+  market: ConsultationTextSchema,
+  language: ConsultationTextSchema,
+  projectBrief: ProjectBriefObjectSchema.optional(),
   mode: SimulationModeSchema,
   selectedDomains: z.array(SimulationDomainSchema).min(1).max(6),
   model: ModelInputSchema,
@@ -287,6 +298,39 @@ export const SaveRunInputBaseSchema = z.object({
   finalEvaluationRef: ReferenceIdSchema,
 }).strict();
 
+function validateDeveloperProjectBrief(
+  value: {
+    subjectKind: z.infer<typeof SubjectKindSchema>;
+    projectBrief?: z.infer<typeof ProjectBriefObjectSchema>;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (value.subjectKind !== "developer-concept" && value.subjectKind !== "developer-project") {
+    return;
+  }
+  if (!value.projectBrief) {
+    context.addIssue({
+      code: "custom",
+      path: ["projectBrief"],
+      message: "developer runs require projectBrief",
+    });
+    return;
+  }
+  const diagnostics = buildProjectBriefDiagnostics(value.projectBrief);
+  const missingFields = [...new Set([
+    ...diagnostics.conceptRoute.missingFields,
+    ...diagnostics.rewardMechanism.missingFields,
+    ...diagnostics.mechanismTransfer.missingFields,
+  ])];
+  for (const field of missingFields) {
+    context.addIssue({
+      code: "custom",
+      path: ["projectBrief", field],
+      message: `developer run projectBrief is missing route field: ${field}`,
+    });
+  }
+}
+
 export const SaveRunInputSchema = SaveRunInputBaseSchema.superRefine((value, context) => {
   const relations = {
     ...value,
@@ -295,6 +339,7 @@ export const SaveRunInputSchema = SaveRunInputBaseSchema.superRefine((value, con
   };
   validateRelations(relations, context);
   validateSaveCompleteness(relations, context);
+  validateDeveloperProjectBrief(value, context);
 });
 
 const ResolvedPersonaSchema = z.object({
@@ -312,6 +357,8 @@ const ResolvedEvidenceSchema = z.object({
   sha256: Sha256Schema,
   sourceTool: SourceToolSchema.optional(),
   observedAt: IsoDateTimeSchema.optional(),
+  savedAt: IsoDateTimeSchema.optional(),
+  indieStrategyMode: z.enum(["detailed", "not-applicable"]).optional(),
   artifactType: z.enum([
     "experiment-spec",
     "experiment-measurement",
@@ -460,10 +507,14 @@ const RunSealSchema = z.object({
 }).strict();
 
 const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
+  subjectKind: SubjectKindSchema,
+  market: ConsultationTextSchema,
+  language: ConsultationTextSchema,
+  projectBrief: ProjectBriefObjectSchema.optional(),
   mode: SimulationModeSchema,
   selectedDomains: z.array(SimulationDomainSchema).min(1).max(6),
   recipe: z.object({
@@ -481,11 +532,11 @@ const RunRecordCoreSchema = z.object({
   simulationReadiness: SimulationReadinessSchema,
   finalEvaluationRef: ReferenceIdSchema,
   savedAt: IsoDateTimeSchema,
-  coverage: RunCoverageSchema.optional(),
+  coverage: RunCoverageSchema,
 }).strict();
 
 const RunRecordBaseSchema = RunRecordCoreSchema.extend({
-  seal: RunSealSchema.optional(),
+  seal: RunSealSchema,
 }).strict();
 
 export const RunRecordSchema = RunRecordBaseSchema.superRefine((value, context) => {
@@ -494,6 +545,20 @@ export const RunRecordSchema = RunRecordBaseSchema.superRefine((value, context) 
     personaIds: value.personas.map((persona) => persona.id),
     evidenceRefs: value.evidence,
   }, context);
+  validateDeveloperProjectBrief(value, context);
+  const finalEvaluation = value.evidence.find(
+    (item) => item.ref === value.finalEvaluationRef && item.kind === "evaluation",
+  );
+  if (
+    (value.subjectKind === "developer-concept" || value.subjectKind === "developer-project")
+    && finalEvaluation?.indieStrategyMode !== "detailed"
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["finalEvaluationRef"],
+      message: "developer runs require a detailed Indie Survival Strategy",
+    });
+  }
 });
 
 export const RunArtifactMetadataSchema = z.object({
@@ -502,6 +567,9 @@ export const RunArtifactMetadataSchema = z.object({
   id: RunIdSchema,
   runId: RunIdSchema,
   topic: z.string().min(1).max(120),
+  subjectKind: SubjectKindSchema,
+  market: ConsultationTextSchema,
+  language: ConsultationTextSchema,
   mode: SimulationModeSchema,
   selectedDomains: z.array(SimulationDomainSchema).min(1).max(6),
   savedAt: IsoDateTimeSchema,
@@ -524,11 +592,11 @@ const RunIntegrityDependencySchema = z.object({
 }).strict();
 
 export const RunIntegrityReportSchema = z.object({
-  status: z.enum(["verified", "failed", "legacy-unsealed"]),
+  status: z.enum(["verified", "failed"]),
   checkedAt: IsoDateTimeSchema,
   record: z.object({
-    status: z.enum(["verified", "mismatch", "unsealed"]),
-    expectedSha256: Sha256Schema.optional(),
+    status: z.enum(["verified", "mismatch"]),
+    expectedSha256: Sha256Schema,
     actualSha256: Sha256Schema,
   }).strict(),
   dependencies: z.array(RunIntegrityDependencySchema),
@@ -598,7 +666,12 @@ export class RunSchemaError extends Error {
 }
 
 function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if ("code" in current && current.code === code) return true;
+    current = current.cause;
+  }
+  return false;
 }
 
 function hash(bytes: string | Buffer): string {
@@ -775,6 +848,7 @@ async function buildSimulationReadiness(
       scenarios: input.scenarios,
     })
     && Boolean(record.observedAt && Date.parse(record.observedAt) <= Date.parse(savedAt))
+    && Boolean(record.savedAt && Date.parse(record.savedAt) <= Date.parse(savedAt))
     && requiredSpecPhases.every((phase) => input.rounds.some((round) =>
       round.phase === phase && round.evidenceRefs.includes(record.ref))));
   const experimentOutcomes = evidence.filter(
@@ -887,7 +961,10 @@ export function createRunStore(
       if (isNodeError(error, "ELOOP")) {
         throw new Error("symlink run evidence is not allowed", {cause: error});
       }
-      throw error;
+      if (isNodeError(error, "ENOENT")) {
+        throw new Error("run evidence does not exist", {cause: error});
+      }
+      throw new Error("run evidence could not be opened", {cause: error});
     }
     try {
       const stats = await handle.stat();
@@ -973,6 +1050,7 @@ export function createRunStore(
           sha256: hash(bytes),
           sourceTool: record.sourceTool,
           observedAt: record.observedAt,
+          savedAt: record.savedAt,
           ...(artifactType ? {artifactType} : {}),
         }),
         payload: record.payload,
@@ -985,6 +1063,7 @@ export function createRunStore(
         resolved.absolutePath,
         MAX_EVALUATION_BYTES,
       );
+      const indieStrategyMode = assertCanonicalEvaluationMarkdown(bytes.toString("utf8"));
       return {record: ResolvedEvidenceSchema.parse({
         ref: input.ref,
         kind: input.kind,
@@ -992,6 +1071,7 @@ export function createRunStore(
         id: `${parsed.date}-${resolved.topicId}`,
         path: resolved.relativePath,
         sha256: hash(bytes),
+        indieStrategyMode,
       })};
     }
     if (input.kind === "capture") {
@@ -1080,14 +1160,12 @@ export function createRunStore(
   }
 
   async function auditRun(record: RunRecord): Promise<RunIntegrityReport> {
-    const {seal, ...unsealedInput} = record;
-    const core = RunRecordCoreSchema.parse(unsealedInput);
+    const {seal, ...coreInput} = record;
+    const core = RunRecordCoreSchema.parse(coreInput);
     const actualRecordSha256 = canonicalHash(core);
-    const recordStatus = seal === undefined
-      ? "unsealed" as const
-      : seal.canonicalSha256 === actualRecordSha256
-        ? "verified" as const
-        : "mismatch" as const;
+    const recordStatus = seal.canonicalSha256 === actualRecordSha256
+      ? "verified" as const
+      : "mismatch" as const;
 
     const dependencies: Array<z.infer<typeof RunIntegrityDependencySchema>> = [];
     dependencies.push(await auditDependency(
@@ -1140,18 +1218,14 @@ export function createRunStore(
 
     const dependencyIssues = dependencies.filter((item) => item.status !== "verified").length;
     const issueCount = dependencyIssues + (recordStatus === "verified" ? 0 : 1);
-    const status = recordStatus === "unsealed" && dependencyIssues === 0
-      ? "legacy-unsealed" as const
-      : issueCount > 0
-        ? "failed" as const
-        : "verified" as const;
+    const status = issueCount > 0 ? "failed" as const : "verified" as const;
     const checkedAt = IsoDateTimeSchema.parse(clock().toISOString());
     return RunIntegrityReportSchema.parse({
       status,
       checkedAt,
       record: {
         status: recordStatus,
-        ...(seal ? {expectedSha256: seal.canonicalSha256} : {}),
+        expectedSha256: seal.canonicalSha256,
         actualSha256: actualRecordSha256,
       },
       dependencies,
@@ -1209,6 +1283,9 @@ export function createRunStore(
       id: record.runId,
       runId: record.runId,
       topic: record.topic,
+      subjectKind: record.subjectKind,
+      market: record.market,
+      language: record.language,
       mode: record.mode,
       selectedDomains: record.selectedDomains,
       savedAt: record.savedAt,
@@ -1288,12 +1365,27 @@ export function createRunStore(
       chainIssues.push("Current ExperimentSpec must be observed at or after its parent Outcome.");
     }
     if (
+      !outcomeEvidence.record.savedAt
+      || !currentSpecEvidence.record.savedAt
+      || Date.parse(currentSpecEvidence.record.savedAt) < Date.parse(outcomeEvidence.record.savedAt)
+    ) {
+      chainIssues.push("Current ExperimentSpec must be saved at or after its parent Outcome.");
+    }
+    if (
       (outcomeEvidence.record.observedAt
         && Date.parse(outcomeEvidence.record.observedAt) > Date.parse(currentSavedAt))
       || (currentSpecEvidence.record.observedAt
         && Date.parse(currentSpecEvidence.record.observedAt) > Date.parse(currentSavedAt))
     ) {
       chainIssues.push("Current calibration evidence postdates this run.");
+    }
+    if (
+      !outcomeEvidence.record.savedAt
+      || !currentSpecEvidence.record.savedAt
+      || Date.parse(outcomeEvidence.record.savedAt) > Date.parse(currentSavedAt)
+      || Date.parse(currentSpecEvidence.record.savedAt) > Date.parse(currentSavedAt)
+    ) {
+      chainIssues.push("Current calibration evidence was not saved at or before this run.");
     }
 
     let historicalSpecEvidence: ResolvedEvidenceResult | undefined;
@@ -1329,7 +1421,7 @@ export function createRunStore(
       if (
         predictionRun.record.targetId !== outcome.targetId
         || predictionRun.metadata.sha256 !== outcome.predictionRunRef.runArtifactSha256
-        || predictionRun.record.seal?.canonicalSha256
+        || predictionRun.record.seal.canonicalSha256
           !== outcome.predictionRunRef.canonicalRecordSha256
       ) {
         chainIssues.push("Prediction Run target or SHA-256 chain does not match Outcome.");
@@ -1363,11 +1455,24 @@ export function createRunStore(
         chainIssues.push("ExperimentOutcome predates its Prediction Run.");
       }
       if (
+        !outcomeEvidence.record.savedAt
+        || Date.parse(outcomeEvidence.record.savedAt) < Date.parse(predictionRun.record.savedAt)
+      ) {
+        chainIssues.push("ExperimentOutcome was not saved at or after its Prediction Run.");
+      }
+      if (
         historicalSpecEvidence?.record.observedAt
         && Date.parse(historicalSpecEvidence.record.observedAt)
           > Date.parse(predictionRun.record.savedAt)
       ) {
-        chainIssues.push("Historical ExperimentSpec was not observed before the Prediction Run.");
+        chainIssues.push("Historical ExperimentSpec was not observed at or before the Prediction Run.");
+      }
+      if (
+        !historicalSpecEvidence?.record.savedAt
+        || Date.parse(historicalSpecEvidence.record.savedAt)
+          > Date.parse(predictionRun.record.savedAt)
+      ) {
+        chainIssues.push("Historical ExperimentSpec was not saved at or before the Prediction Run.");
       }
     }
 
@@ -1395,6 +1500,11 @@ export function createRunStore(
         || (predictionRun
           && Date.parse(resolved.record.observedAt) < Date.parse(predictionRun.record.savedAt))
         || Date.parse(resolved.record.observedAt) > Date.parse(outcomeEvidence.record.observedAt)
+        || !resolved.record.savedAt
+        || !outcomeEvidence.record.savedAt
+        || (predictionRun
+          && Date.parse(resolved.record.savedAt) < Date.parse(predictionRun.record.savedAt))
+        || Date.parse(resolved.record.savedAt) > Date.parse(outcomeEvidence.record.savedAt)
       ) {
         chainIssues.push(`Measurement evidence ${measurementRef.ref} violates Prediction Run → measurement → Outcome ordering.`);
       }
@@ -1455,11 +1565,26 @@ export function createRunStore(
       resolvedEvidence.push(await resolveEvidence(reference));
     }
     const evidence = resolvedEvidence.map(({record}) => record);
+    const finalEvaluation = evidence.find(
+      (item) => item.ref === parsed.finalEvaluationRef && item.kind === "evaluation",
+    );
+    if (
+      (parsed.subjectKind === "developer-concept" || parsed.subjectKind === "developer-project")
+      && finalEvaluation?.indieStrategyMode !== "detailed"
+    ) {
+      throw new Error(
+        "developer runs require a detailed Indie Survival Strategy in the final evaluation",
+      );
+    }
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 4,
+      schemaVersion: 5,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,
+      subjectKind: parsed.subjectKind,
+      market: parsed.market,
+      language: parsed.language,
+      ...(parsed.projectBrief ? {projectBrief: parsed.projectBrief} : {}),
       mode: parsed.mode,
       selectedDomains: parsed.selectedDomains,
       recipe: await recipeRecord(),
