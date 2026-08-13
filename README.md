@@ -147,7 +147,7 @@ GUI クライアントは terminal の `export` を継承しない場合があ�
 
 `participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptは行動理解、報酬理解、興味を別々に件数集計し、`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示します。意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
 
-再検証では新しい`stimulusId`と一緒に`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`を渡します。診断はprotocol deviation、測定不足、action / rewardの読みにくさ、参加者の混乱を次に調べる候補として返しますが、原因とは断定しません。効果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、複数を変えた結果の因果は`unresolved`として残します。単一変更でも、維持条件は自己申告なので因果証明ではなく比較候補です。
+再検証では新しい`stimulusId`と一緒に`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて渡します。親revisionを指定して比較設計の一部を省略した入力は拒否されます。診断はprotocol deviation、測定不足、action / rewardの読みにくさ、参加者の混乱を次に調べる候補として返しますが、原因とは断定しません。効果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、複数を変えた結果の因果は`unresolved`として残します。単一変更でも、維持条件は自己申告なので因果証明ではなく比較候補です。
 
 インディー戦略の出力では、テーマ固有のplay、theme-system fit、experience → reward、第三者のunaided teach-backを別々に扱う`Core Legibility Gate`、変更と維持条件を追う`Core Revision Ledger`、実際の第一viewport・screenshots・trailerで即離脱リスクを見る`First-contact Asset Readiness`を作ります。「最初の4枚」「30秒」などの固定数は合格条件にせず、現在の表示contextとtarget playerの証拠で判断します。AI生成や自動化は制作速度の補助であり、人間のfunやtaste fitの証明にはしません。
 

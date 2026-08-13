@@ -681,8 +681,8 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain("must not be inferred");
   });
 
-  it("keeps causal attribution unresolved for missing or multi-variable revision designs", () => {
-    const missingDesign = buildRunSimPrompt(recipe, {
+  it("rejects incomplete revision designs and keeps multi-variable causality unresolved", () => {
+    const missingDesign = RunSimPromptArgumentsSchema.safeParse({
       target: "Project Nyx",
       topic: "concept revision",
       conceptTest: JSON.stringify({
@@ -691,8 +691,26 @@ describe("run-sim prompt arguments", () => {
         changeSummary: "Changed the pitch",
       }),
     });
-    expect(missingDesign).toContain('"causalAttributionStatus": "not-assessable"');
-    expect(missingDesign).toContain('"revision-design"');
+    expect(missingDesign.success).toBe(false);
+    if (!missingDesign.success) {
+      expect(JSON.stringify(missingDesign.error)).toContain("changedVariables");
+      expect(JSON.stringify(missingDesign.error)).toContain("invariantsKept");
+    }
+
+    const incompleteFirstContact = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "asset revision",
+      firstContactTest: JSON.stringify({
+        ...firstContactTestFixture(),
+        changedVariables: undefined,
+        invariantsKept: undefined,
+      }),
+    });
+    expect(incompleteFirstContact.success).toBe(false);
+    if (!incompleteFirstContact.success) {
+      expect(JSON.stringify(incompleteFirstContact.error)).toContain("changedVariables");
+      expect(JSON.stringify(incompleteFirstContact.error)).toContain("invariantsKept");
+    }
 
     const multipleChanges = buildRunSimPrompt(recipe, {
       target: "Project Nyx",

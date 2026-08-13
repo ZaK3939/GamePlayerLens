@@ -73,7 +73,7 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 
 ### Core Revision Ledger
 
-`parentStimulusId`と`changeSummary`がない初回はinitialと明記します。`changedVariables`と`invariantsKept`を転記し、複数変数を同時変更した場合は改善原因を一つへ帰属しません。単一変更でもprotocol equivalenceが未確認なら因果は証明済みにしません。
+親revisionがない初回はinitialと明記します。再検証では必須の`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`を転記し、複数変数を同時変更した場合は改善原因を一つへ帰属しません。単一変更でもprotocol equivalenceが未確認なら因果は証明済みにしません。
 
 | Brief / Stimulus / Build revision | Observed issue | Variable changed | Invariants kept | Evidence / Retest | Outcome |
 |---|---|---|---|---|---|

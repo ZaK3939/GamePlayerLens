@@ -118,7 +118,7 @@ Core Experience Mapを埋めただけでは企画のreadinessをpassにしませ
 |---|---|---|---|---|---|
 | ［revision IDs］ | ［理解、操作、reward、assetの問題］ | ［theme / system / experience / reward / presentation］ | ［変えなかった条件］ | ［artifact / cohort / protocol］ | ［resolved / changed / unresolved］ |
 
-concept testの再検証では、新しい`stimulusId`に`parentStimulusId`と`changeSummary`を付け、`changedVariables`と`invariantsKept`を分けます。因果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、一度に変えた変数が複数なら何が効いたかの因果帰属を`unresolved`にします。1変数と維持条件を宣言しても比較候補にすぎず、親testのprotocol equivalenceや因果を証明しません。定期的なexternal feedbackとplaytestは推奨しますが、毎月などの固定cadenceにはしません。team capacity、build cost、decision horizonに合わせて、irreversible commitmentより前に十分な反復機会を置きます。
+concept testの再検証では、新しい`stimulusId`に`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて付けます。不完全な比較設計は受理しません。因果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、一度に変えた変数が複数なら何が効いたかの因果帰属を`unresolved`にします。1変数と維持条件を宣言しても比較候補にすぎず、親testのprotocol equivalenceや因果を証明しません。定期的なexternal feedbackとplaytestは推奨しますが、毎月などの固定cadenceにはしません。team capacity、build cost、decision horizonに合わせて、irreversible commitmentより前に十分な反復機会を置きます。
 
 同じ相手との相互reviewは継続しやすさに役立つ場合がありますが、友人関係やreciprocity biasをdeviationに残します。指摘された数ではなく、次revisionでunaided explanationや同じtaskの行動がどう変わったかを比較します。
 
@@ -139,7 +139,7 @@ visual qualityは装飾量ではなく、target playerがtheme、action、reward
 ## 5. Human validation and playtest
 
 - concept説明テストとgameplay playtestを分ける。説明理解はfunの実測ではありません。
-- `conceptTest`を使う場合は、`stimulusId`、任意の`parentStimulusId`と`changeSummary`、`changedVariables`と`invariantsKept`、`projectBriefRevision`、`promiseShown`、提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰がどのbrief版の何を見て何を聞かれたかを再現可能にする。promptの`conceptTestEvidence.resultHandle`で正規化済み入力をexact-saveし、モデルによる転記を挟まない。
+- `conceptTest`を使う場合は、`stimulusId`、再検証なら必須の`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`、任意の`projectBriefRevision`、`promiseShown`、提示内容・手順、`recruitment`とtarget player定義、`questionsAsked`を保存し、誰がどのbrief版の何を見て何を聞かれたかを再現可能にする。promptの`conceptTestEvidence.resultHandle`で正規化済み入力をexact-saveし、モデルによる転記を挟まない。
 - `projectBriefRevision`と`revisionId`、`promiseShown`と`oneSentencePromise`は完全一致だけをprovenanceとして判定する。mismatched / unlinkedを隠さず、文字列一致から理解、訴求力、品質を採点しない。
 - participantごとの`understoodAction`、`understoodReward`、`interest`を別の観測として扱う。行動を理解したこと、報酬を理解したこと、試したいと答えたことを相互に補完しない。
 - 「面白そうと言った率」などの固定thresholdは採用しない。sample内の件数は記述値であり、母集団のconversionやpass条件に変換しない。`interest`は`purchase`、需要、継続を証明しない。
