@@ -1,4 +1,4 @@
-import {createHash, randomUUID} from "node:crypto";
+import {randomUUID} from "node:crypto";
 import {constants, type Dirent, type Stats} from "node:fs";
 import {
   link as nodeLink,
@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import {basename, dirname, relative, sep} from "node:path";
 import {z} from "zod";
+import {writeTextFileAtomically} from "./atomic-write.js";
 import {
   assertCanonicalEvaluationMarkdown,
   EVALUATION_DOMAINS,
@@ -20,6 +21,7 @@ import {
   SourceToolSchema,
 } from "./artifacts.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
+import {canonicalSha256, sha256} from "./integrity.js";
 import {PersonaSchema} from "./personas.js";
 import {
   ExperimentOutcomeSchema,
@@ -669,31 +671,6 @@ function isNodeError(error: unknown, code: string): boolean {
   return false;
 }
 
-function hash(bytes: string | Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    const serialized = JSON.stringify(value);
-    if (serialized === undefined) throw new Error("run record is not JSON serializable");
-    return serialized;
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
-  }
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .filter((key) => record[key] !== undefined)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-    .join(",")}}`;
-}
-
-function canonicalHash(value: unknown): string {
-  return hash(canonicalJson(value));
-}
-
 function ratio(covered: number, total: number): number {
   return total === 0 ? 1 : covered / total;
 }
@@ -1042,7 +1019,7 @@ export function createRunStore(
           targetId: resolved.targetId,
           id: resolved.artifactId,
           path: resolved.relativePath,
-          sha256: hash(bytes),
+          sha256: sha256(bytes),
           sourceTool: record.sourceTool,
           observedAt: record.observedAt,
           savedAt: record.savedAt,
@@ -1065,7 +1042,7 @@ export function createRunStore(
         targetId: resolved.targetId,
         id: `${parsed.date}-${resolved.topicId}`,
         path: resolved.relativePath,
-        sha256: hash(bytes),
+        sha256: sha256(bytes),
         indieStrategyMode: evaluation.indieStrategyMode,
       }), evaluationDomains: evaluation.selectedDomains};
     }
@@ -1076,7 +1053,7 @@ export function createRunStore(
         kind: input.kind,
         id: resolved.id,
         path: resolved.relativePath,
-        sha256: hash(bytes),
+        sha256: sha256(bytes),
       })};
     }
     const resolved = resolver.resolveUiReferencePath(input.id);
@@ -1090,7 +1067,7 @@ export function createRunStore(
       kind: input.kind,
       id: resolved.id,
       path: resolved.relativePath,
-      sha256: hash(bytes),
+      sha256: sha256(bytes),
     })};
   }
 
@@ -1106,7 +1083,7 @@ export function createRunStore(
       personas.push({
         id: parsed.id,
         path: relative(resolver.root, path).split(sep).join("/"),
-        sha256: hash(bytes),
+        sha256: sha256(bytes),
       });
     }
     return personas;
@@ -1119,7 +1096,7 @@ export function createRunStore(
     if (relativePath !== "skills/run-sim.md") {
       throw new Error("run recipe is outside the configured asset root");
     }
-    return {id: RUN_RECIPE_ID, path: relativePath, sha256: hash(bytes)};
+    return {id: RUN_RECIPE_ID, path: relativePath, sha256: sha256(bytes)};
   }
 
   async function auditDependency(
@@ -1157,7 +1134,7 @@ export function createRunStore(
   async function auditRun(record: RunRecord): Promise<RunIntegrityReport> {
     const {seal, ...coreInput} = record;
     const core = RunRecordCoreSchema.parse(coreInput);
-    const actualRecordSha256 = canonicalHash(core);
+    const actualRecordSha256 = canonicalSha256(core);
     const recordStatus = seal.canonicalSha256 === actualRecordSha256
       ? "verified" as const
       : "mismatch" as const;
@@ -1243,28 +1220,10 @@ export function createRunStore(
     resolved: ResolvedRunPath,
     serialized: string,
   ): Promise<void> {
-    const temporary = `${resolved.absolutePath}.${randomUUID()}.tmp`;
-    let failed = false;
-    try {
-      await ops.writeFile(temporary, serialized, {encoding: "utf8", flag: "wx"});
-      try {
-        await ops.link(temporary, resolved.absolutePath);
-      } catch (error) {
-        if (isNodeError(error, "EEXIST")) {
-          throw new Error(`simulation run already exists: ${resolved.runId}`);
-        }
-        throw error;
-      }
-    } catch (error) {
-      failed = true;
-      throw error;
-    } finally {
-      try {
-        await ops.unlink(temporary);
-      } catch (error) {
-        if (!isNodeError(error, "ENOENT") && !failed) throw error;
-      }
-    }
+    await writeTextFileAtomically(resolved.absolutePath, serialized, {
+      fileOps: ops,
+      alreadyExistsMessage: `simulation run already exists: ${resolved.runId}`,
+    });
   }
 
   function metadata(
@@ -1288,7 +1247,7 @@ export function createRunStore(
       evidenceCount: record.evidence.length,
       simulationReadinessStatus: record.simulationReadiness.status,
       sizeBytes: bytes.length,
-      sha256: hash(bytes),
+      sha256: sha256(bytes),
     });
   }
 
@@ -1624,7 +1583,7 @@ export function createRunStore(
       ...core,
       seal: {
         algorithm: "sha256",
-        canonicalSha256: canonicalHash(core),
+        canonicalSha256: canonicalSha256(core),
       },
     });
     const serialized = `${JSON.stringify(record, null, 2)}\n`;

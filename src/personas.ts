@@ -1,4 +1,3 @@
-import {randomUUID} from "node:crypto";
 import {
   link as nodeLink,
   readFile as nodeReadFile,
@@ -7,8 +6,9 @@ import {
   unlink as nodeUnlink,
   writeFile as nodeWriteFile,
 } from "node:fs/promises";
-import {basename, dirname, join} from "node:path";
+import {dirname} from "node:path";
 import {z} from "zod";
+import {writeTextFileAtomically} from "./atomic-write.js";
 import {resolvePersonaPath, type PathResolver} from "./paths.js";
 import {fetchReviews, type Review, type ReviewOptions} from "./reviews.js";
 import {fetchGame, type GameProfile} from "./steam.js";
@@ -220,10 +220,6 @@ export interface PersonaStore {
   listPersonas(): Promise<Persona[]>;
 }
 
-function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && "code" in error && error.code === code;
-}
-
 export function createPersonaStore(
   resolver: Pick<PathResolver, "resolvePersonaPath">,
   fileOps: Partial<PersonaFileOps> = {},
@@ -236,40 +232,16 @@ export function createPersonaStore(
   ): Promise<Persona> {
     const persona = PersonaSchema.parse(input);
     const destination = resolver.resolvePersonaPath(persona.id);
-    const temporary = join(
-      dirname(destination),
-      `.${basename(destination)}.${randomUUID()}.tmp`,
+    await writeTextFileAtomically(
+      destination,
+      `${JSON.stringify(persona, null, 2)}\n`,
+      {
+        fileOps: ops,
+        alreadyExistsMessage: `persona already exists: ${persona.id}`,
+        overwrite: opts.overwrite,
+      },
     );
-    let operationFailed = false;
-
-    try {
-      await ops.writeFile(temporary, `${JSON.stringify(persona, null, 2)}\n`, {
-        encoding: "utf8",
-        flag: "wx",
-      });
-      if (opts.overwrite === true) {
-        await ops.rename(temporary, destination);
-      } else {
-        try {
-          await ops.link(temporary, destination);
-        } catch (error) {
-          if (isNodeError(error, "EEXIST")) {
-            throw new Error(`persona already exists: ${persona.id}`);
-          }
-          throw error;
-        }
-      }
-      return persona;
-    } catch (error) {
-      operationFailed = true;
-      throw error;
-    } finally {
-      try {
-        await ops.unlink(temporary);
-      } catch (error) {
-        if (!isNodeError(error, "ENOENT") && !operationFailed) throw error;
-      }
-    }
+    return persona;
   }
 
   async function loadPersona(id: string): Promise<Persona> {

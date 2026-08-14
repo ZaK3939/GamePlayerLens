@@ -1,4 +1,3 @@
-import {randomUUID} from "node:crypto";
 import {constants, type Dirent, type Stats} from "node:fs";
 import {
   link as nodeLink,
@@ -11,8 +10,9 @@ import {
   unlink as nodeUnlink,
   writeFile as nodeWriteFile,
 } from "node:fs/promises";
-import {basename, dirname, join} from "node:path";
+import {basename, dirname} from "node:path";
 import {z} from "zod";
+import {writeTextFileAtomically} from "./atomic-write.js";
 import type {JsonValue} from "./http.js";
 import type {
   PathResolver,
@@ -1323,36 +1323,11 @@ export function createArtifactStore(
     overwrite: boolean,
     artifactId: string,
   ): Promise<void> {
-    const temporary = join(
-      dirname(destination),
-      `.${basename(destination)}.${randomUUID()}.tmp`,
-    );
-    let failed = false;
-
-    try {
-      await ops.writeFile(temporary, data, {encoding: "utf8", flag: "wx"});
-      if (overwrite) {
-        await ops.rename(temporary, destination);
-      } else {
-        try {
-          await ops.link(temporary, destination);
-        } catch (error) {
-          if (isNodeError(error, "EEXIST")) {
-            throw new Error(`artifact already exists: ${artifactId}`);
-          }
-          throw error;
-        }
-      }
-    } catch (error) {
-      failed = true;
-      throw error;
-    } finally {
-      try {
-        await ops.unlink(temporary);
-      } catch (error) {
-        if (!isNodeError(error, "ENOENT") && !failed) throw error;
-      }
-    }
+    await writeTextFileAtomically(destination, data, {
+      fileOps: ops,
+      alreadyExistsMessage: `artifact already exists: ${artifactId}`,
+      overwrite,
+    });
   }
 
   async function ensureIntelDestination(
