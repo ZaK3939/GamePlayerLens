@@ -18,10 +18,8 @@ import {
   MAX_INTEL_PAYLOAD_BYTES,
   SourceToolSchema,
 } from "./artifacts.js";
-import {
-  assertCanonicalEvaluationMarkdown,
-  EVALUATION_DOMAINS,
-} from "./evaluation-markdown.js";
+import {EVALUATION_DOMAINS} from "./evaluation-coverage.js";
+import {assertCanonicalEvaluationMarkdown} from "./evaluation-markdown.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {canonicalSha256, sha256} from "./integrity.js";
 import {PersonaSchema} from "./personas.js";
