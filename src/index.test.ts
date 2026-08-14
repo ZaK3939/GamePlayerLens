@@ -454,10 +454,11 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly fifteen tools and four review prompts", async () => {
+  it("exposes exactly sixteen tools and four review prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
+        "coach_history",
         "derive_personas",
         "get_artifact",
         "get_knowledge",
@@ -509,7 +510,7 @@ describe("MCP server contract", () => {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
-          capabilities: {toolCount: 15, promptCount: 4},
+          capabilities: {toolCount: 16, promptCount: 4},
         },
         warnings: [],
       });
@@ -517,6 +518,51 @@ describe("MCP server contract", () => {
       expect(serialized).not.toContain(process.cwd());
       if (process.env.ITAD_API_KEY) expect(serialized).not.toContain(process.env.ITAD_API_KEY);
       if (process.env.OBSCURA_PATH) expect(serialized).not.toContain(process.env.OBSCURA_PATH);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("coaches stored iteration history without inventing a score", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const listed = (await client.listTools()).tools.find(
+        (tool) => tool.name === "coach_history",
+      );
+      expect(listed).toMatchObject({
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        inputSchema: {
+          additionalProperties: false,
+          required: ["target"],
+          properties: {
+            target: {type: "string", minLength: 1, maxLength: 120},
+            limit: {type: "integer", minimum: 2, maximum: 20},
+          },
+        },
+      });
+
+      const result = await client.callTool({
+        name: "coach_history",
+        arguments: {target: "Project Nyx"},
+      });
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        data: {
+          status: "insufficient-history",
+          inspectedRunCount: 0,
+          analyzedRunCount: 0,
+          findings: [],
+          card: {highestPriorityFinding: null},
+        },
+        warnings: [],
+      });
+      expect(JSON.stringify(result.structuredContent)).not.toMatch(/score/i);
     } finally {
       await client.close();
       await server.close();
@@ -1299,7 +1345,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(15);
+      expect(tools).toHaveLength(16);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),

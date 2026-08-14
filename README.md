@@ -72,6 +72,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 | Compare UI quality | Either review prompt with the `ui` domain and a concrete `uiBenchmarkTask` | [Existing games: UI comparison](docs/guides/existing-game.md#ui-comparison) |
 | Record a first-contact observation | `record_first_contact`, then pass its handle to either review prompt | [Developer projects](docs/guides/developer-project.md#first-contact-test) |
 | Record a playtest or revision | Either review prompt with `playtestSession` or `playtestCohort` | [Experiments and playtests](docs/reference/experiments.md) |
+| Detect repeated review without new evidence | `coach_history` after at least two saved developer-project runs | [Developer projects](docs/guides/developer-project.md#coach-the-iteration-history) |
 | Read previous evidence or reviews | `get_artifact` | [Tool reference](docs/reference/tools.md) |
 
 ## What GamePlayerLens does
@@ -86,6 +87,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 | Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Audit | Decide whether a milestone or bounded revision should advance | structured Decision Card, immutable evidence run, prioritized backlog |
+| Coach | Detect review loops that did not add a build, direct stimulus, or human handoff | one deterministic finding card and a stop condition |
 | Research | Collect current Steam, review, update, price, and competitor evidence when the selected decision requires it | `steam_brief`, provenance, supported decisions, gaps |
 
 The four MCP prompts are:
@@ -97,7 +99,7 @@ The four MCP prompts are:
 
 `play-build` never returns GO / HOLD / NO-GO. The two decision prompts lead with a compact Decision Check: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations.
 
-The server currently exposes exactly 15 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
+The server currently exposes exactly 16 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
 
 ## What it does not prove
 
@@ -113,6 +115,7 @@ GamePlayerLens deliberately refuses several shortcuts:
 - A high review percentage alone does not establish a successful or relevant competitor.
 - A prediction run is not an executed experiment.
 - A player lens's predicted feeling or continuation decision is not a human report or population rate.
+- Iteration coaching detects repeated evidence state; it does not grade effort, game quality, fun, or commercial potential.
 
 Missing evidence remains missing. It is never silently converted to zero, success, or an industry average. Read [Evidence and integrity](docs/reference/evidence-and-integrity.md) for the complete interpretation rules.
 
@@ -172,7 +175,7 @@ Evidence collection and review for released Steam games remain the strongest val
 
 - [Developer projects](docs/guides/developer-project.md): Project Briefs, concept tests, first-contact evidence, and moment-to-moment experience reviews.
 - [Existing games](docs/guides/existing-game.md): Steam triage, domains, competitor selection, updates, localization, price, and UI comparison.
-- [Tool reference](docs/reference/tools.md): all 15 tools, result handles, image capture, and immutable artifact semantics.
+- [Tool reference](docs/reference/tools.md): all 16 tools, result handles, image capture, iteration coaching, and immutable artifact semantics.
 - [Evidence and integrity](docs/reference/evidence-and-integrity.md): coverage, provenance, persona boundaries, canonical evaluations, and immutable runs.
 - [Experiments and playtests](docs/reference/experiments.md): sessions, cohorts, retest lineage, prediction runs, measurements, and outcomes.
 - [Dogfood data policy](docs/dogfood/README.md): how private raw research is separated from publishable summaries.

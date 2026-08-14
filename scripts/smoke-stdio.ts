@@ -10,6 +10,7 @@ import {
 } from "./smoke-support.js";
 
 const EXPECTED_TOOLS = [
+  "coach_history",
   "derive_personas",
   "get_artifact",
   "get_knowledge",
@@ -139,10 +140,24 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
-      && statusJson.includes('"toolCount":15')
+      && statusJson.includes('"toolCount":16')
       && statusJson.includes('"promptCount":4')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",
+  );
+
+  const coachedHistory = await client.callTool({
+    name: "coach_history",
+    arguments: {target: "Stdio Empty Coach Fixture", limit: 2},
+  });
+  const coachedHistoryJson = JSON.stringify(coachedHistory.structuredContent);
+  assert(coachedHistory.isError !== true, "coach_history returned a tool error");
+  assert(
+    coachedHistoryJson.includes('"status":"insufficient-history"')
+      && coachedHistoryJson.includes('"analyzedRunCount":0')
+      && coachedHistoryJson.includes('"highestPriorityFinding":null')
+      && !/score/iu.test(coachedHistoryJson),
+    "coach_history did not preserve its empty-history and no-score contract",
   );
 
   const auditProject = listedPrompts.find((prompt) => prompt.name === "audit-project");
@@ -746,6 +761,7 @@ try {
     prompts: prompts.length,
     playtestPromptRoundTrip: true,
     playtestCohortRoundTrip: true,
+    iterationCoachRoundTrip: true,
     liveSearch,
     liveBrief,
     liveBriefBytes,

@@ -73,6 +73,21 @@ This route returns a Repair First Card and blocks build operation, Steam researc
 
 The route is explicit rather than inferred from source code. Do not omit a known blocker merely to force a player simulation.
 
+## Coach the iteration history
+
+After at least two audit or change runs have been saved, use `coach_history` to check whether review work is outrunning playable work:
+
+```json
+{
+  "target": "Project Nyx",
+  "limit": 10
+}
+```
+
+The tool reads verified `developer-project` runs and compares consecutive build identities, cited direct stimuli, cited human evidence, and exact normalized human-validation questions. It can tell you to stop reviewing and produce a new build, operate one direct stimulus, or ask the repeated question in a bounded human session.
+
+This is a retrospective guardrail, not the daily loop. It sees only saved review runs, not an unsaved `play-build` response, local source edits, or a play session that was never preserved. It returns no development score and makes no claim about fun, retention, demand, or team performance. Act on the highest-priority finding, satisfy its stop condition, and then operate the build again.
+
 ## Minimal `audit-project` request
 
 All prompt arguments are strings. `projectBrief` and `auditSnapshotBundle` are JSON objects encoded as strings by the MCP client. An active `developer-project` audit requires both.

@@ -127,12 +127,13 @@ let packageRunRoundTrip = false;
 let playtestPromptRoundTrip = false;
 let playtestCohortRoundTrip = false;
 let experimentLoopRoundTrip = false;
+let iterationCoachRoundTrip = false;
 try {
   await client.connect(transport);
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 15, "packaged CLI did not expose fifteen tools");
+  assert(tools.length === 16, "packaged CLI did not expose sixteen tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
       === JSON.stringify(["audit-project", "play-build", "review-change", "ui-blind-compare"]),
@@ -145,7 +146,7 @@ try {
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
-      && statusJson.includes('"toolCount":15')
+      && statusJson.includes('"toolCount":16')
       && statusJson.includes('"promptCount":4')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
@@ -154,6 +155,21 @@ try {
         && statusJson.includes(process.env.OBSCURA_PATH)),
     "packaged get_status exposed sensitive configuration or returned incomplete readiness metadata",
   );
+
+  const coachedHistory = await client.callTool({
+    name: "coach_history",
+    arguments: {target: "Package Empty Coach Fixture", limit: 2},
+  });
+  const coachedHistoryJson = JSON.stringify(coachedHistory.structuredContent);
+  assert(coachedHistory.isError !== true, "packaged coach_history returned a tool error");
+  assert(
+    coachedHistoryJson.includes('"status":"insufficient-history"')
+      && coachedHistoryJson.includes('"analyzedRunCount":0')
+      && coachedHistoryJson.includes('"highestPriorityFinding":null')
+      && !/score/iu.test(coachedHistoryJson),
+    "packaged coach_history did not preserve its empty-history and no-score contract",
+  );
+  iterationCoachRoundTrip = true;
 
   const repairPrompt = await client.getPrompt({
     name: "play-build",
@@ -1429,6 +1445,7 @@ try {
     playtestCohortRoundTrip,
     packageRunRoundTrip,
     experimentLoopRoundTrip,
+    iterationCoachRoundTrip,
     liveBrief,
     liveUpdates,
     liveExactSave,

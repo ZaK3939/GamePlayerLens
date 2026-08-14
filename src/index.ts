@@ -17,6 +17,7 @@ import {
   jsonEnvelope,
   trackedJsonEnvelope,
 } from "./mcp-responses.js";
+import {buildIterationCoachHistory} from "./iteration-coach.js";
 import {
   GeneratedPersonaSchema,
   MAX_DERIVATION_APPIDS,
@@ -57,7 +58,7 @@ import {
 
 const SERVER_NAME = "game-player-lens";
 const SERVER_VERSION = "0.2.0";
-const TOOL_COUNT = 15;
+const TOOL_COUNT = 16;
 const PROMPT_COUNT = 4;
 
 const AppidSchema = z.number().int().positive();
@@ -95,6 +96,10 @@ const GetArtifactInputSchema = z.object({
   kind: AnyArtifactKindSchema,
   target: z.string().min(1).optional(),
   id: z.string().min(1).optional(),
+}).strict();
+const CoachHistoryInputSchema = z.object({
+  target: z.string().trim().min(1).max(120),
+  limit: z.number().int().min(2).max(20).optional(),
 }).strict();
 
 async function getServerStatus(resolver: PathResolver) {
@@ -393,6 +398,29 @@ export function buildServer(
       data: await getServerStatus(services.resolver),
       warnings: [],
     }),
+  );
+
+  server.registerTool(
+    "coach_history",
+    {
+      title: "Game iteration coach",
+      description: "Read verified stored developer-project runs and detect repeated review without a new build, direct stimulus, or human handoff evidence",
+      inputSchema: CoachHistoryInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) => jsonEnvelope(await buildIterationCoachHistory(
+      {
+        runStore: services.runStore,
+        artifactStore: services.artifactStore,
+      },
+      input,
+    )),
   );
 
   server.registerTool(

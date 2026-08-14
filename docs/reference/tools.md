@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 15 MCP tools and four prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 16 MCP tools and four prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -18,6 +18,7 @@ GamePlayerLens exposes exactly 15 MCP tools and four prompts. All tools return a
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
 | `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
+| `coach_history` | Detect repeated review without a new build, direct stimulus, or human handoff across verified developer-project runs |
 | `steam_discover` | Find SteamSpy tag/genre candidates or intersect up to four values |
 | `save_artifact` | Save intel JSON, canonical evaluation Markdown, or an immutable review run |
 | `get_artifact` | List or read intel, evaluations, runs, captures, and UI references |
@@ -79,6 +80,25 @@ For persona generation, every requested appid needs an explicit `sourceRoles` en
 Allowed match axes are `repeated-action`, `decision-cadence`, `system-response`, `reward-structure`, `player-problem`, `session-shape`, `platform-controls`, and `audience-expectation`.
 
 The result store retains only the most recent 32 handles in the current MCP process. Handles expire when that process ends.
+
+## Iteration coaching
+
+Call `coach_history` only after saving at least two `developer-project` runs for the same target. `target` is the stored target display name or ID. `limit` is optional, defaults to 10, and accepts 2–20 recent runs.
+
+```json
+{
+  "target": "Project Nyx",
+  "limit": 10
+}
+```
+
+The read-only tool uses only runs whose integrity is currently verified. It derives build identity from the bound audit or candidate revision bundle and counts only evidence aliases cited by stored review rounds. It reports three deterministic conditions:
+
+- `fix-now-without-new-build`: a `fix-now` decision was followed by another review of the same Git/build identity;
+- `review-without-new-stimulus`: the same build was reviewed without a new cited capture, UI reference, first-contact result, playtest, or direct experiment measurement;
+- `human-handoff-stall`: the same normalized human validation question appeared in consecutive reviews without new cited human evidence.
+
+The result leads with the highest-priority next action and the evidence condition that resolves it. It does not calculate a composite score, infer fun or demand, inspect unsaved `play-build` responses, or replace the next operation or human session. A finding means the stored iteration history repeated an evidence state; it is not a judgment of developer productivity or game quality.
 
 ## Discovery
 
