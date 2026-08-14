@@ -101,4 +101,44 @@ export const RevisionBundleSchema = z.string().transform((input, context) => {
   return JSON.stringify(result.data);
 });
 
+interface ResolvedRevisionEvidence {
+  record: {
+    ref: string;
+    kind: string;
+    sha256: string;
+    sourceTool?: string;
+  };
+  payload?: unknown;
+}
+
+export function assertRevisionBundleBinding(
+  revisionBundleRef: string | undefined,
+  resolvedEvidence: readonly ResolvedRevisionEvidence[],
+): void {
+  const bundleEvidence = resolvedEvidence.find(
+    ({record}) => record.ref === revisionBundleRef && record.kind === "intel",
+  );
+  if (!bundleEvidence || bundleEvidence.record.sourceTool !== "manual") {
+    throw new Error("change run revision bundle must be exact-saved manual evidence");
+  }
+  const payload = bundleEvidence.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("change run revision bundle payload is invalid");
+  }
+  const bundle = RevisionBundleEnvelopeSchema.parse(payload).data;
+  for (const snapshot of [bundle.current, bundle.candidate]) {
+    for (const binding of snapshot.artifacts) {
+      const evidence = resolvedEvidence.find(
+        ({record}) => record.ref === binding.evidenceRef,
+      )?.record;
+      if (!evidence) {
+        throw new Error(`revision bundle evidence is missing: ${binding.evidenceRef}`);
+      }
+      if (evidence.kind !== binding.kind || evidence.sha256 !== binding.sha256) {
+        throw new Error(`revision bundle evidence binding mismatch: ${binding.evidenceRef}`);
+      }
+    }
+  }
+}
+
 export type RevisionBundle = z.infer<typeof RevisionBundleObjectSchema>;

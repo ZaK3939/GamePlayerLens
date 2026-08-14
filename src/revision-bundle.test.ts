@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vitest";
 import {
+  assertRevisionBundleBinding,
   RevisionBundleObjectSchema,
   RevisionBundleEnvelopeSchema,
   RevisionBundleSchema,
@@ -60,5 +61,51 @@ describe("revision bundle", () => {
         resultHandle: "33333333-3333-4333-8333-333333333333",
       },
     }).success).toBe(false);
+  });
+
+  it("binds every revision artifact to exact saved evidence", () => {
+    const resolvedEvidence = [
+      {
+        record: {
+          ref: "revision-bundle",
+          kind: "intel",
+          sha256: "3".repeat(64),
+          sourceTool: "manual",
+        },
+        payload: {
+          data: bundle(),
+          warnings: [],
+          meta: {
+            observedAt: bundle().observedAt,
+            resultHandle: "33333333-3333-4333-8333-333333333333",
+          },
+        },
+      },
+      {
+        record: {
+          ref: "current-capture",
+          kind: "capture",
+          sha256: "1".repeat(64),
+        },
+      },
+      {
+        record: {
+          ref: "candidate-capture",
+          kind: "capture",
+          sha256: "2".repeat(64),
+        },
+      },
+    ];
+
+    expect(() => assertRevisionBundleBinding(
+      "revision-bundle",
+      resolvedEvidence,
+    )).not.toThrow();
+    expect(() => assertRevisionBundleBinding(
+      "revision-bundle",
+      resolvedEvidence.map((evidence) => evidence.record.ref === "candidate-capture"
+        ? {...evidence, record: {...evidence.record, sha256: "4".repeat(64)}}
+        : evidence),
+    )).toThrow("revision bundle evidence binding mismatch: candidate-capture");
   });
 });

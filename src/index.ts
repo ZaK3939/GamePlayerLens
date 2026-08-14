@@ -15,7 +15,6 @@ import {SteamDeveloperBriefInputSchema} from "./brief.js";
 import {
   imageEnvelope,
   jsonEnvelope,
-  trackManualPromptEvidence,
   trackedJsonEnvelope,
 } from "./mcp-responses.js";
 import {
@@ -32,18 +31,12 @@ import type {PathResolver} from "./paths.js";
 import {
   AuditProjectPromptArgumentsSchema,
   buildAuditProjectPrompt,
-  buildConceptTestEvidenceEnvelope,
-  buildFirstContactTestEvidenceEnvelope,
-  buildPlaytestCohortEvidenceEnvelope,
-  buildPlaytestSessionEvidenceEnvelope,
-  buildRevisionBundleEvidenceEnvelope,
   buildReviewChangePrompt,
   buildUiBlindComparePrompt,
   ReviewChangePromptArgumentsSchema,
-  type GameReviewPromptArguments,
-  type GameReviewPromptContext,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
+import {trackReviewPromptEvidence} from "./review-prompt-evidence.js";
 import {
   ResultEnvelopeSchema,
   ResultHandleSchema,
@@ -477,38 +470,6 @@ export function buildServer(
     },
   );
 
-  function buildReviewPromptContext(
-    arguments_: GameReviewPromptArguments,
-  ): GameReviewPromptContext {
-    const conceptTestEvidence = trackManualPromptEvidence(
-      services.resultStore,
-      buildConceptTestEvidenceEnvelope(arguments_),
-    );
-    const firstContactTestEvidence = trackManualPromptEvidence(
-      services.resultStore,
-      buildFirstContactTestEvidenceEnvelope(arguments_),
-    );
-    const playtestSessionEvidence = trackManualPromptEvidence(
-      services.resultStore,
-      buildPlaytestSessionEvidenceEnvelope(arguments_),
-    );
-    const playtestCohortEvidence = trackManualPromptEvidence(
-      services.resultStore,
-      buildPlaytestCohortEvidenceEnvelope(arguments_),
-    );
-    const revisionBundleEvidence = trackManualPromptEvidence(
-      services.resultStore,
-      buildRevisionBundleEvidenceEnvelope(arguments_),
-    );
-    return {
-      conceptTestEvidence,
-      firstContactTestEvidence,
-      playtestSessionEvidence,
-      playtestCohortEvidence,
-      revisionBundleEvidence,
-    };
-  }
-
   server.registerPrompt(
     "review-change",
     {
@@ -525,7 +486,7 @@ export function buildServer(
             text: buildReviewChangePrompt(
               await services.readSkill("game-review.md"),
               arguments_,
-              buildReviewPromptContext(reviewInput),
+              trackReviewPromptEvidence(services.resultStore, reviewInput),
             ),
           },
         }],
@@ -549,7 +510,7 @@ export function buildServer(
             text: buildAuditProjectPrompt(
               await services.readSkill("game-review.md"),
               arguments_,
-              buildReviewPromptContext(reviewInput),
+              trackReviewPromptEvidence(services.resultStore, reviewInput),
             ),
           },
         }],

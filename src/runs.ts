@@ -27,7 +27,7 @@ import {
 import {createRunIntegrityAuditor} from "./run-integrity.js";
 import {createRunOutcomeChainVerifier} from "./run-outcome-chain.js";
 import {assertPlayerSimulationGrounding} from "./player-simulation.js";
-import {RevisionBundleEnvelopeSchema} from "./revision-bundle.js";
+import {assertRevisionBundleBinding} from "./revision-bundle.js";
 import {
   CanonicalTargetIdSchema,
   IsoDateTimeSchema,
@@ -97,37 +97,6 @@ export interface RunStore {
 
 export class RunSchemaError extends Error {
   override name = "RunSchemaError";
-}
-
-function assertRevisionBundleBinding(
-  input: SaveRunInput,
-  resolvedEvidence: ResolvedEvidenceResult[],
-): void {
-  if (input.mode !== "change") return;
-  const bundleEvidence = resolvedEvidence.find(
-    ({record}) => record.ref === input.revisionBundleRef && record.kind === "intel",
-  );
-  if (!bundleEvidence || bundleEvidence.record.sourceTool !== "manual") {
-    throw new Error("change run revision bundle must be exact-saved manual evidence");
-  }
-  const payload = bundleEvidence.payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    throw new Error("change run revision bundle payload is invalid");
-  }
-  const bundle = RevisionBundleEnvelopeSchema.parse(payload).data;
-  for (const snapshot of [bundle.current, bundle.candidate]) {
-    for (const binding of snapshot.artifacts) {
-      const evidence = resolvedEvidence.find(
-        ({record}) => record.ref === binding.evidenceRef,
-      )?.record;
-      if (!evidence) {
-        throw new Error(`revision bundle evidence is missing: ${binding.evidenceRef}`);
-      }
-      if (evidence.kind !== binding.kind || evidence.sha256 !== binding.sha256) {
-        throw new Error(`revision bundle evidence binding mismatch: ${binding.evidenceRef}`);
-      }
-    }
-  }
 }
 
 function isNodeError(error: unknown, code: string): boolean {
@@ -290,7 +259,9 @@ export function createRunStore(
       resolvedEvidence.push(await resolveEvidence(reference));
     }
     const evidence = resolvedEvidence.map(({record}) => record);
-    assertRevisionBundleBinding(parsed, resolvedEvidence);
+    if (parsed.mode === "change") {
+      assertRevisionBundleBinding(parsed.revisionBundleRef, resolvedEvidence);
+    }
     const finalEvaluationResult = resolvedEvidence.find(
       (item) => item.record.ref === parsed.finalEvaluationRef
         && item.record.kind === "evaluation",

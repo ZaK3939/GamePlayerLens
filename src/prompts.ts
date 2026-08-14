@@ -244,99 +244,19 @@ export type AuditProjectPromptArguments = z.input<
 >;
 export type UiBlindComparePromptArguments = z.input<typeof UiBlindComparePromptArgumentsSchema>;
 
+export interface PromptEvidencePointer {
+  sourceTool: "manual";
+  observedAt: string;
+  resultHandle: string;
+}
+
 export interface GameReviewPromptContext {
   reviewWorkflow?: "change" | "audit";
-  conceptTestEvidence?: {
-    sourceTool: "manual";
-    observedAt: string;
-    resultHandle: string;
-  };
-  firstContactTestEvidence?: {
-    sourceTool: "manual";
-    observedAt: string;
-    resultHandle: string;
-  };
-  playtestSessionEvidence?: {
-    sourceTool: "manual";
-    observedAt: string;
-    resultHandle: string;
-  };
-  playtestCohortEvidence?: {
-    sourceTool: "manual";
-    observedAt: string;
-    resultHandle: string;
-  };
-  revisionBundleEvidence?: {
-    sourceTool: "manual";
-    observedAt: string;
-    resultHandle: string;
-  };
-}
-
-export function buildConceptTestEvidenceEnvelope(input: GameReviewPromptArguments) {
-  const parsed = GameReviewPromptArgumentsSchema.parse(input);
-  if (!parsed.conceptTest) return undefined;
-  const conceptTest = ConceptTestObjectSchema.parse(JSON.parse(parsed.conceptTest));
-  return {
-    data: conceptTest,
-    warnings: [] as string[],
-    meta: {observedAt: conceptTest.testedAt},
-  };
-}
-
-export function buildFirstContactTestEvidenceEnvelope(input: GameReviewPromptArguments) {
-  const parsed = GameReviewPromptArgumentsSchema.parse(input);
-  if (!parsed.firstContactTest) return undefined;
-  const firstContactTest = FirstContactTestObjectSchema.parse(
-    JSON.parse(parsed.firstContactTest),
-  );
-  return {
-    data: firstContactTest,
-    warnings: [] as string[],
-    meta: {observedAt: firstContactTest.testedAt},
-  };
-}
-
-export function buildPlaytestSessionEvidenceEnvelope(input: GameReviewPromptArguments) {
-  const parsed = GameReviewPromptArgumentsSchema.parse(input);
-  if (!parsed.playtestSession) return undefined;
-  const playtestSession = PlaytestSessionObjectSchema.parse(
-    JSON.parse(parsed.playtestSession),
-  );
-  return {
-    data: playtestSession,
-    warnings: [] as string[],
-    meta: {observedAt: playtestSession.startedAt},
-  };
-}
-
-export function buildPlaytestCohortEvidenceEnvelope(input: GameReviewPromptArguments) {
-  const parsed = GameReviewPromptArgumentsSchema.parse(input);
-  if (!parsed.playtestCohort) return undefined;
-  const playtestCohort = PlaytestCohortObjectSchema.parse(
-    JSON.parse(parsed.playtestCohort),
-  );
-  const latestSession = playtestCohort.sessions.reduce((latest, session) =>
-    Date.parse(session.endedAt) > Date.parse(latest.endedAt) ? session : latest
-  );
-  return {
-    data: playtestCohort,
-    warnings: [] as string[],
-    meta: {observedAt: latestSession.endedAt},
-  };
-}
-
-export function buildRevisionBundleEvidenceEnvelope(input: GameReviewPromptArguments) {
-  const parsed = GameReviewPromptArgumentsSchema.parse(input);
-  if (!parsed.revisionBundle) return undefined;
-  const revisionBundle = RevisionBundleObjectSchema.parse(
-    JSON.parse(parsed.revisionBundle),
-  );
-  return {
-    data: revisionBundle,
-    warnings: [] as string[],
-    meta: {observedAt: revisionBundle.observedAt},
-  };
+  conceptTestEvidence?: PromptEvidencePointer;
+  firstContactTestEvidence?: PromptEvidencePointer;
+  playtestSessionEvidence?: PromptEvidencePointer;
+  playtestCohortEvidence?: PromptEvidencePointer;
+  revisionBundleEvidence?: PromptEvidencePointer;
 }
 
 function appendSerializedInput(recipe: string, data: Record<string, unknown>): string {
