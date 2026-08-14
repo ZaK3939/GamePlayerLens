@@ -65,6 +65,7 @@ const EXPECTED_PLAY_BUILD_ARGUMENTS = [
   "controls",
   "startState",
   "endState",
+  "coreClaim",
   "timeLimitMinutes",
   "personaIds",
   "knownBlockers",
@@ -190,6 +191,39 @@ try {
       && repairContent.text.includes('"steam-research"')
       && !repairContent.text.includes("auditSnapshotBundle"),
     "play-build did not short-circuit known blockers",
+  );
+
+  const corePrompt = await client.getPrompt({
+    name: "play-build",
+    arguments: {
+      target: "Stdio Core Fixture",
+      buildUrl: "http://127.0.0.1:4173/play",
+      buildId: "core-001",
+      task: "Complete one delivery and inspect the structural result",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "The arrival result is visible",
+      coreClaim: JSON.stringify({
+        oneSentencePromise: "Brace a courier craft and learn which structural gamble survives",
+        theme: "A fragile courier craft crossing a storm",
+        distinctiveSystem: "Player-placed supports redistribute visible stress",
+        intendedExperience: "Choose, commit, and read the structural consequence",
+        rewardFamily: "discovery",
+        intendedReward: "Understand why one choice survived and revise the next build",
+        proofMoment: "The reinforced joint survives beside a legible failure",
+        amplifier: "Directional deformation and escalating creaks",
+      }),
+    },
+  });
+  const coreContent = corePrompt.messages[0]?.content;
+  assert(coreContent?.type === "text", "play-build core route did not return text");
+  assert(
+    coreContent.type === "text"
+      && coreContent.text.includes('"coreClaim": {')
+      && coreContent.text.includes('"evidenceClass": "declared-design-hypothesis"')
+      && coreContent.text.includes('"feltRewardRequiresHumanReport": true')
+      && !coreContent.text.includes('"coreClaim": "{'),
+    "play-build did not normalize and bound the declared core claim",
   );
 
   const firstContactRecord = await client.callTool({

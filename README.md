@@ -56,6 +56,8 @@ For a playable development build, start with `play-build` rather than a full aud
 }
 ```
 
+When the immediate question is whether the playable core lands, add the optional `coreClaim`. It declares the theme plus distinctive system, intended experience and reward, proof moment, and optional amplifier. `play-build` then returns a Core Delivery Trace alongside the Action → Response Trace. Omit it for neutral operation; GamePlayerLens will not infer the intended core from genre labels, visual resemblance, or the build's appearance.
+
 If known execution blockers already prevent that task, pass one per line as `knownBlockers`. The route returns a short Repair First Card without operating the build, researching Steam, deriving personas, saving artifacts, or running an audit. After a candidate build exists, use `review-change`. Use `audit-project` only at vertical-slice, demo, release, or another milestone boundary.
 
 ## Choose a workflow
@@ -78,6 +80,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 |---|---|---|
 | Route | Stop known blockers before research or audit | Repair First Card and re-entry condition |
 | Play | Operate one bounded task in a playable build | Action → Response Trace |
+| Trace the core | Compare declared theme/system and experience/reward delivery with one operation | Core Delivery Trace and one primary drift |
 | Hypothesize | Replay the same observed stimulus through explicit grounded personas | Player Lens Reactions with confidence and human falsifier |
 | Fix | Choose the smallest change that can alter the next operation | player problem, change, success signal, guardrail |
 | Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
@@ -87,7 +90,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 
 The four MCP prompts are:
 
-- `play-build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card, not a milestone verdict.
+- `play-build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card with Action → Response and optional Core Delivery traces, not a milestone verdict.
 - `review-change`: the daily current-versus-candidate revision review. It fixes `mode=change`, requires a revision bundle, and prioritizes changed findings.
 - `audit-project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
 - `ui-blind-compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.

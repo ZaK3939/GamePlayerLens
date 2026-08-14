@@ -24,14 +24,14 @@ GamePlayerLens exposes exactly 15 MCP tools and four prompts. All tools return a
 
 ## Prompts
 
-- `play-build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. It returns a Player Probe Card and never starts Steam research, persona derivation, a full audit, or mandatory persistence.
+- `play-build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. Its optional `coreClaim` adds a Core Delivery Trace. It returns a Player Probe Card and never starts Steam research, persona derivation, a full audit, or mandatory persistence.
 - `review-change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
 - `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`. Supplying `knownBlockers` short-circuits a premature audit to Repair First without requiring the full intake.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
-`play-build` is intentionally separate from the two decision prompts. It operates one task, distinguishes observed responses from persona hypotheses, proposes one smallest change, and hands one falsifiable question to a person. The decision prompts orchestrate evidence collection, domain review, criticism, evaluation storage, and run storage. They lead with a compact Decision Check before detailed findings.
+`play-build` is intentionally separate from the two decision prompts. It operates one task, distinguishes observed responses from persona hypotheses, traces an optional declared core, proposes one smallest change, and hands one falsifiable question to a person. The decision prompts orchestrate evidence collection, domain review, criticism, evaluation storage, and run storage. They lead with a compact Decision Check before detailed findings.
 
-Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `auditSnapshotBundle`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary. First-contact input goes through `record_first_contact`; pass its result handle as `firstContactResultHandle`.
+Prompt arguments are strings. Structured values such as `coreClaim`, `projectBrief`, `conceptTest`, `auditSnapshotBundle`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary. `coreClaim` declares a one-sentence promise, theme, distinctive system, intended experience, one of the six reward families, intended reward, proof moment, and optional amplifier. First-contact input goes through `record_first_contact`; pass its result handle as `firstContactResultHandle`.
 
 `knownBlockers` is newline-separated. When non-empty, its Repair First route takes precedence over missing build or audit fields. `personaIds` is a comma-separated list of already saved personas; `play-build` never derives personas implicitly.
 

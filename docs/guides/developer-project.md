@@ -35,6 +35,29 @@ The client operates the task once without a persona, then replays the same obser
 
 If the client cannot operate the build, it reports an operation blocker. Loading a page, reading source, or viewing one static frame is not play.
 
+### Trace one core claim
+
+Use the optional `coreClaim` when the question is whether one operation delivers the intended playable core. It is a JSON object encoded as a string at the MCP boundary. Its unencoded shape is:
+
+```json
+{
+  "oneSentencePromise": "Brace a storm-battered courier craft and learn which structural gamble survives the route",
+  "theme": "A fragile courier craft crossing a violent storm",
+  "distinctiveSystem": "Player-placed supports redistribute visible structural stress during travel",
+  "intendedExperience": "Choose where to reinforce, commit, and watch the structure reveal the consequence",
+  "rewardFamily": "discovery",
+  "intendedReward": "Understand why one choice survived and want to revise the next build",
+  "proofMoment": "A surviving reinforced joint makes the cause of the neighboring failure legible",
+  "amplifier": "Directional deformation, escalating creaks, and a clear arrival comparison"
+}
+```
+
+The field is optional, but all fields except `amplifier` are required when it is present. Reward families are `sensory`, `mastery`, `discovery`, `agency`, `attachment`, and `aesthetic-emotion`.
+
+The returned Core Delivery Trace compares declared intent with observed signals for theme/system fit, experience, reward, amplification, and the proof moment. A visible after-state or feedback effect can be a reward signal; enjoyment, satisfaction, and replay intent require a human report. If `coreClaim` is omitted, the client records observations without inferring the intended core from genre, appearance, or a known game's surface.
+
+Visual similarity, matching tags, camera, enemy counts, or an upgrade menu do not establish mechanism transfer. When a known game is used as evidence, preserve its source action → system response → reward and state the meaningful difference in the target build.
+
 ### Repair-first routing
 
 When known execution defects already prevent a useful operation, declare them instead of assembling audit evidence:

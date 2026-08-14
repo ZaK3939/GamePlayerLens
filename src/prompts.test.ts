@@ -45,6 +45,19 @@ const recipe = [
 ].join("\n");
 const playBuildRecipe = "# Play build\n\nFollow the workflow route and return a Player Probe Card.";
 
+function corePlayClaimFixture(): Record<string, string> {
+  return {
+    oneSentencePromise: "Brace a storm-battered courier craft and learn which structural gamble survives the route",
+    theme: "A fragile courier craft crossing a violent storm",
+    distinctiveSystem: "Player-placed structural supports redistribute visible stress during travel",
+    intendedExperience: "Choose where to reinforce, commit to the route, and watch the structure reveal the consequence",
+    rewardFamily: "discovery",
+    intendedReward: "The player understands why one structural choice survived and wants to revise the next build",
+    proofMoment: "After one branch fails, the surviving reinforced joint makes the cause legible",
+    amplifier: "Directional deformation, escalating creaks, and a clear post-arrival stress comparison",
+  };
+}
+
 function rewardMechanismsFixture(): Array<Record<string, string>> {
   return [{
     family: "mastery",
@@ -1948,6 +1961,50 @@ describe("play-build prompt", () => {
     expect(result).toContain('"status": "ready"');
     expect(result).toContain('"personaIds": [\n    "cautious-builder",\n    "risk-taker"\n  ]');
     expect(result).toContain('"testerType": "ai-operated"');
+  });
+
+  it("normalizes a compact core claim for experience-reward delivery tracing", () => {
+    const parsed = PlayBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      buildUrl: "http://127.0.0.1:4173/play",
+      buildId: "build-043",
+      task: "Complete one delivery and inspect the structural result",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "The arrival result is visible",
+      coreClaim: JSON.stringify(corePlayClaimFixture()),
+    });
+    const result = buildPlayBuildPrompt(playBuildRecipe, parsed);
+
+    expect(result).toContain('"coreClaim": {');
+    expect(result).toContain('"rewardFamily": "discovery"');
+    expect(result).toContain('"evidenceClass": "declared-design-hypothesis"');
+    expect(result).toContain('"feltRewardRequiresHumanReport": true');
+    expect(result).not.toContain('"coreClaim": "{');
+  });
+
+  it("rejects incomplete or unsupported core claims without echoing values", () => {
+    const incomplete = PlayBuildPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      coreClaim: JSON.stringify({
+        theme: "private unreleased theme",
+        distinctiveSystem: "stress simulation",
+      }),
+    });
+    expect(incomplete.success).toBe(false);
+    if (!incomplete.success) {
+      const error = JSON.stringify(incomplete.error);
+      expect(error).toContain("coreClaim");
+      expect(error).not.toContain("private unreleased theme");
+    }
+
+    expect(() => PlayBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      coreClaim: JSON.stringify({
+        ...corePlayClaimFixture(),
+        hiddenScore: 99,
+      }),
+    })).toThrow(/coreClaim/i);
   });
 
   it("rejects unsafe build URLs and invalid persona IDs", () => {

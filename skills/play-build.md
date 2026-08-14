@@ -32,6 +32,10 @@ Keep these classes separate:
 - Hypothesis: likely interpretation, friction, next choice, or feeling. Never write it as a human report.
 - Missing: controller feel, hidden state, human enjoyment, demand, retention, or anything this operation cannot observe.
 
+If `coreClaim` is present, it is declared design intent. Trace whether the operated build delivers it; do not treat the declaration as player evidence. If `coreClaim` is undeclared, write `Core claim: undeclared` and do not infer the intended theme, distinctive system, experience, reward, or proof moment from genre labels or appearance.
+
+Reject surface copying. A similar visual, tag, enemy count, camera, or upgrade menu is not a transferred play mechanism. When a grounded memory mentions a known game, keep its source action → system response → reward separate from the target observation and state the meaningful difference or mark it missing.
+
 ## Player Probe Card
 
 Return this compact structure and no full milestone report:
@@ -48,6 +52,22 @@ Return this compact structure and no full milestone report:
 |---|---|---|---|---|---|
 
 Record first visible state, first meaningful action, one resolution, and recovery or stop. Do not invent unavailable timing.
+
+### Core Delivery Trace
+
+When `coreClaim` is supplied, compare declared intent with this operation:
+
+| Layer | Declared | Observed | Delivery status | Gap |
+|---|---|---|---|---|
+| Theme ↔ distinctive system fit | | | `visible`, `partial`, `not-observed`, or `not-assessable` | |
+| Experience | | | | |
+| Reward signal | | | | |
+| Amplifier / dampener | | | | |
+| Proof moment | | | | |
+
+The observed after-state, feedback, and player options can be reward signals. Felt reward requires a human report; never convert an AI-observed signal into enjoyment, satisfaction, or replay intent. Identify at most one primary drift: `core-delivery`, `legibility`, `amplification`, `surface-only`, or `not-assessable`.
+
+When `coreClaim` is absent, keep the heading and write only `Core claim: undeclared; observed responses are reported without an intended-delivery judgment.`
 
 ### Player Lens Reactions
 

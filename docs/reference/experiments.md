@@ -4,6 +4,8 @@ GamePlayerLens separates direct operation, human reports, predictions, measureme
 
 Use `play-build` before this heavier evidence loop when the immediate question is whether one playable task works. Its Player Probe Card is an AI-operated observation and hypothesis handoff, not a stored human session or experiment result. Known execution blockers route to repair before a playtest protocol is assembled.
 
+When `play-build` receives a `coreClaim`, its Core Delivery Trace compares the declared experience, reward, amplifier, and proof moment with signals observed during that operation. The declaration is design intent, not player evidence. An observed response may show that a reward was signaled; only a human report can establish that the reward was felt.
+
 ## A bounded playtest session
 
 Before starting, fix:

@@ -824,4 +824,15 @@ describe("MCP prompt source recipes", () => {
     expect(blind).toContain("正解を明かす前");
     expect(blind).toContain("固定");
   });
+
+  it("traces the playable core as experience, reward, and amplification without inventing feeling", async () => {
+    const content = await read("skills/play-build.md");
+
+    expect(content).toContain("Core Delivery Trace");
+    expect(content).toMatch(/theme[\s\S]*distinctive system[\s\S]*fit/i);
+    expect(content).toMatch(/experience[\s\S]*reward signal[\s\S]*amplifier/i);
+    expect(content).toMatch(/surface[\s\S]*action[\s\S]*system response[\s\S]*reward/i);
+    expect(content).toMatch(/felt reward[\s\S]*human report/i);
+    expect(content).toMatch(/coreClaim[\s\S]*undeclared[\s\S]*infer/i);
+  });
 });

@@ -1,5 +1,10 @@
 import {z} from "zod";
 import {
+  buildCorePlayClaimDiagnostics,
+  CorePlayClaimObjectSchema,
+  CorePlayClaimSchema,
+} from "./core-play-claim.js";
+import {
   AuditSnapshotBundleObjectSchema,
   AuditSnapshotBundleSchema,
 } from "./audit-snapshot.js";
@@ -282,6 +287,9 @@ export const PlayBuildPromptArgumentsSchema = z.object({
   controls: z.string().trim().min(1).max(500).optional(),
   startState: z.string().trim().min(1).max(1_000).optional(),
   endState: z.string().trim().min(1).max(1_000).optional(),
+  coreClaim: CorePlayClaimSchema.optional().describe(
+    "JSON object declaring the theme, distinctive system, intended experience, reward, proof moment, and optional amplifier",
+  ),
   timeLimitMinutes: BuildProbeDurationSchema.optional(),
   personaIds: PersonaIdsSchema.optional(),
   knownBlockers: KnownBlockersTextSchema.optional(),
@@ -567,11 +575,25 @@ export function buildPlayBuildPrompt(
   const missingFields = repairFirst
     ? []
     : requiredOperationFields.filter((field) => !parsed[field]?.trim());
-  const {knownBlockers: _knownBlockers, personaIds, ...promptInput} = parsed;
+  const structuredCoreClaim = parsed.coreClaim
+    ? CorePlayClaimObjectSchema.parse(JSON.parse(parsed.coreClaim))
+    : undefined;
+  const {
+    knownBlockers: _knownBlockers,
+    personaIds,
+    coreClaim: _coreClaim,
+    ...promptInput
+  } = parsed;
   return appendSerializedInput(recipe, {
     ...promptInput,
     knownBlockers: blockerList,
     ...(personaIds ? {personaIds: personaIds.split(",")} : {}),
+    ...(structuredCoreClaim
+      ? {
+          coreClaim: structuredCoreClaim,
+          coreClaimDiagnostics: buildCorePlayClaimDiagnostics(structuredCoreClaim),
+        }
+      : {}),
     testerType: "ai-operated",
     workflowRouting,
     intakeDiagnostics: {

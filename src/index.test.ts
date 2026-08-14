@@ -2889,6 +2889,7 @@ describe("MCP server contract", () => {
         "controls",
         "startState",
         "endState",
+        "coreClaim",
         "timeLimitMinutes",
         "personaIds",
         "knownBlockers",

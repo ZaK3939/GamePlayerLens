@@ -8,7 +8,7 @@ const ConceptOriginSchema = z.enum([
   "holistic-image",
   "imitation",
 ]);
-const RewardFamilySchema = z.enum([
+export const RewardFamilySchema = z.enum([
   "sensory",
   "mastery",
   "discovery",
