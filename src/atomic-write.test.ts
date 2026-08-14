@@ -184,4 +184,27 @@ describe("atomic text writes", () => {
       await rm(directory, {recursive: true, force: true});
     }
   }, 30_000);
+
+  it("creates and overwrites evidence under Unicode macOS-style paths", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ゲーム証拠-é-"));
+    const destination = join(directory, "プレイ結果-é.json");
+    try {
+      await writeTextFileAtomically(destination, "initial", {
+        fileOps: {writeFile, link, unlink},
+        alreadyExistsMessage: "evidence already exists",
+        idFactory: () => "create",
+      });
+      await writeTextFileAtomically(destination, "updated", {
+        fileOps: {writeFile, link, unlink},
+        alreadyExistsMessage: "evidence already exists",
+        overwrite: true,
+      });
+
+      await expect(readFile(destination, "utf8")).resolves.toBe("updated");
+      expect((await readdir(directory)).filter((entry) => entry.endsWith(".tmp")))
+        .toEqual([]);
+    } finally {
+      await rm(directory, {recursive: true, force: true});
+    }
+  });
 });

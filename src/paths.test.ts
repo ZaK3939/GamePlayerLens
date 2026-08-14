@@ -184,6 +184,18 @@ describe("safe paths", () => {
       .toBe("knowledge/intel/hades-ii/価格-snapshot.json");
   });
 
+  it("canonicalizes composed and decomposed Unicode display names identically", () => {
+    const resolver = createPathResolver(root);
+    const target = "ゲーム Café";
+    const artifact = "プレイ証拠 Résumé";
+
+    expect(resolver.resolveIntelArtifactPath(target, artifact))
+      .toEqual(resolver.resolveIntelArtifactPath(
+        target.normalize("NFD"),
+        artifact.normalize("NFD"),
+      ));
+  });
+
   it.each([
     "",
     "   ",

@@ -11,7 +11,7 @@ The server validates inputs, collects and normalizes evidence, stores artifacts,
 
 ## Quick start
 
-Requirements: a supported Node.js LTS release (22 or newer) and pnpm 10 or newer.
+Requirements: a supported Node.js LTS release (22 or newer) and pnpm 10 or newer. CI verifies the complete build, test, stdio, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
 
 ```bash
 pnpm install
@@ -134,6 +134,8 @@ knowledge/ui-references/{referenceId}.png
 ```
 
 Display names are normalized to safe IDs. Arbitrary paths, traversal, symlink escapes, credentials in URLs, and unbounded payloads are rejected. See [Evidence and integrity](docs/reference/evidence-and-integrity.md) for size limits, canonical evaluation rules, and run verification.
+
+Unicode display names are canonicalized before storage, including composed and decomposed forms commonly encountered on macOS. Repository and packaged operation use the same storage contract on Linux, Windows, and macOS.
 
 ## Verification
 

@@ -66,4 +66,15 @@ describe("public documentation", () => {
       }
     }
   });
+
+  it("documents the same desktop platforms enforced by CI", async () => {
+    const readme = await read("README.md");
+    const workflow = await read(".github/workflows/ci.yml");
+
+    expect(readme).toContain("Linux, Windows, and macOS on Apple Silicon");
+    expect(workflow).toContain("os: [ubuntu-latest, windows-latest, macos-26]");
+    expect(workflow).toContain("macos-storage-reliability:");
+    expect(workflow).toContain("macos-26 arm64 / Node.js 24 / storage reliability");
+    expect(workflow.match(/Verify Apple Silicon runner/gu)).toHaveLength(2);
+  });
 });
