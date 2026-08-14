@@ -1,6 +1,6 @@
 {
   "name": "game-player-lens",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Evidence-driven game revision review and player-lens research MCP server",
   "private": false,
   "type": "module",

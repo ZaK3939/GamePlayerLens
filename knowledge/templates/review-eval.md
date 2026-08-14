@@ -15,11 +15,13 @@ Mode、Selected Domains、Decision Card (`Decision Check`)は必ずレポート�
 
 - Verdict: ［`GO` / `HOLD` / `NO-GO`］
 - Decision: ［`fix-now` / `test-next-build` / `investigate` / `defer`］
-- Proven: ［直接支えられる内容とEvidence ID。最大3件］
-- Unproven: ［判断に重要だが未証明の内容。最大3件］
+- Proven: ［直接支えられる内容とEvidence ID。1行1件、最大3行］
+- Unproven: ［`missing` / `unproven` / `未証明` / `根拠不足`を明記。1行1件、最大3行］
 - Highest risk: ［判断を最も変え得る問題または不確実性1件］
 - Player problem: ［誰が、どの状態で、何に阻害されるか］
-- Next validations: ［最大3件。それぞれ最小変更 / test、Success signal、Guardrail / rollback］
+- Next validation: Test: ［最小変更 / test］ | Success signal: ［観測可能な成功条件］ | Guardrail: ［維持条件 / rollback］
+
+Next validations はこの形式を1行1件、最大3行まで繰り返し、必ず`Guardrail / rollback`を明記します。
 - Confidence: ［high / medium / low とblocking missing］
 - Revisit condition: ［何が取得・発生したら判断を更新するか］
 
@@ -362,6 +364,10 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 競合precedentは実装可能性の参考に留め、対象ゲームのplayer problem根拠がなければ`investigate`または`defer`にします。
 
 ## Domain Findings
+
+各findingには次のseverity行を必ず付けます。
+
+- Severity: ［`Blocker` / `Important` / `Suggestion`］
 
 以下の各項目は、`baseline` では現状だけ、`change` では現状 vs 変更案を記入します。Selected Domains の選択外なら、所見を作らず、冒頭と同じ明示的な N/A 理由だけを記録します。
 

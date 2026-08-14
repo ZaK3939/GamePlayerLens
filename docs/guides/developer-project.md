@@ -29,7 +29,7 @@ All prompt arguments are strings. `projectBrief` is a JSON object encoded as a s
 }
 ```
 
-For a proposed revision, call `review-change` with the same audience and scope fields plus `currentState` and `proposal`:
+For a proposed revision, call `review-change` with the same audience and scope fields plus `currentState`, `proposal`, and an exact revision bundle:
 
 ```json
 {
@@ -41,11 +41,51 @@ For a proposed revision, call `review-change` with the same audience and scope f
   "language": "japanese",
   "projectBrief": "<JSON-encoded Project Brief>",
   "currentState": "The route rules are explained before the first decision",
-  "proposal": "The first route teaches one tradeoff through immediate system response"
+  "proposal": "The first route teaches one tradeoff through immediate system response",
+  "revisionBundle": "<JSON-encoded Revision Bundle>"
 }
 ```
 
 Keep one changed decision in each review so findings can be attributed to the revision.
+
+## Revision Bundle
+
+Save the current and candidate artifacts first, then compute the SHA-256 of the stored files. The unencoded `revisionBundle` shape is:
+
+```json
+{
+  "artifactType": "revision-bundle",
+  "observedAt": "2026-08-14T12:00:00+04:00",
+  "current": {
+    "revisionId": "route-onboarding-v1",
+    "gitCommitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "buildId": "nyx-route-current",
+    "artifacts": [
+      {
+        "evidenceRef": "current-playtest",
+        "kind": "intel",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    ]
+  },
+  "candidate": {
+    "revisionId": "route-onboarding-v2",
+    "gitCommitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "buildId": "nyx-route-candidate",
+    "artifacts": [
+      {
+        "evidenceRef": "candidate-playtest",
+        "kind": "intel",
+        "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+      }
+    ]
+  },
+  "changedAreas": ["first-route teaching and immediate result feedback"],
+  "invariantsKept": ["task, seed, controls, viewport, renderer, and target cohort"]
+}
+```
+
+The prompt exposes `revisionBundleEvidence.resultHandle`. Save it immediately as intel and use that evidence alias as the change run's `revisionBundleRef`. The run must also include every artifact alias named inside the bundle. The server rejects reused commits, shared current/candidate evidence refs, missing refs, kind mismatches, and SHA-256 mismatches.
 
 `market` fixes the audience context. `language` uses a Steam language code such as `japanese` or `english`. GamePlayerLens does not silently begin a Japan/Japanese review when either is absent.
 

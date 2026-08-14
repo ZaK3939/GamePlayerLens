@@ -20,6 +20,10 @@ import {
   SubjectKindSchema,
 } from "./project-brief.js";
 import {compileGameReviewRecipe} from "./run-recipe.js";
+import {
+  RevisionBundleObjectSchema,
+  RevisionBundleSchema,
+} from "./revision-bundle.js";
 import type {SimulationDomain} from "./run-schemas.js";
 
 const DOMAIN_ORDER = [
@@ -130,7 +134,7 @@ const PlaytestDurationSchema = z.string().trim().regex(/^\d{1,3}$/).refine(
   "playtestDurationMinutes must be between 1 and 120",
 );
 
-const RunSimPromptArgumentShape = {
+const GameReviewPromptArgumentShape = {
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
   topic: NonEmptyTrimmedStringSchema.describe("Consultation topic"),
   subjectKind: SubjectKindSchema.optional().describe("Whether the subject is an existing game, a developer concept, or an active developer project"),
@@ -159,6 +163,9 @@ const RunSimPromptArgumentShape = {
   playtestBuild: z.string().trim().min(1).max(200).optional(),
   playtestControls: z.string().trim().min(1).max(500).optional(),
   playtestDurationMinutes: PlaytestDurationSchema.optional(),
+  revisionBundle: RevisionBundleSchema.optional().describe(
+    "JSON object binding current and candidate Git commits and build artifacts",
+  ),
   uiUrl: UiUrlSchema.optional(),
   uiBenchmarkTask: z.string().trim().min(1).max(500).optional(),
   uiReferenceUrls: UiReferenceUrlsSchema.optional(),
@@ -173,10 +180,11 @@ const RunSimPromptArgumentShape = {
 const {
   mode: _reviewMode,
   ...ReviewChangePromptArgumentShape
-} = RunSimPromptArgumentShape;
+} = GameReviewPromptArgumentShape;
 const {
   currentState: _auditCurrentState,
   proposal: _auditProposal,
+  revisionBundle: _auditRevisionBundle,
   ...AuditProjectPromptArgumentShape
 } = ReviewChangePromptArgumentShape;
 
@@ -209,7 +217,7 @@ function addSharedPromptIssues(
   }
 }
 
-export const RunSimPromptArgumentsSchema = z.object(RunSimPromptArgumentShape)
+export const GameReviewPromptArgumentsSchema = z.object(GameReviewPromptArgumentShape)
   .superRefine(addSharedPromptIssues);
 
 export const ReviewChangePromptArgumentsSchema = z.object(
@@ -227,7 +235,7 @@ export const UiBlindComparePromptArgumentsSchema = z.object({
   qualityTier: z.string().optional(),
 });
 
-export type RunSimPromptArguments = z.input<typeof RunSimPromptArgumentsSchema>;
+export type GameReviewPromptArguments = z.input<typeof GameReviewPromptArgumentsSchema>;
 export type ReviewChangePromptArguments = z.input<
   typeof ReviewChangePromptArgumentsSchema
 >;
@@ -236,7 +244,7 @@ export type AuditProjectPromptArguments = z.input<
 >;
 export type UiBlindComparePromptArguments = z.input<typeof UiBlindComparePromptArgumentsSchema>;
 
-export interface RunSimPromptContext {
+export interface GameReviewPromptContext {
   reviewWorkflow?: "change" | "audit";
   conceptTestEvidence?: {
     sourceTool: "manual";
@@ -258,10 +266,15 @@ export interface RunSimPromptContext {
     observedAt: string;
     resultHandle: string;
   };
+  revisionBundleEvidence?: {
+    sourceTool: "manual";
+    observedAt: string;
+    resultHandle: string;
+  };
 }
 
-export function buildConceptTestEvidenceEnvelope(input: RunSimPromptArguments) {
-  const parsed = RunSimPromptArgumentsSchema.parse(input);
+export function buildConceptTestEvidenceEnvelope(input: GameReviewPromptArguments) {
+  const parsed = GameReviewPromptArgumentsSchema.parse(input);
   if (!parsed.conceptTest) return undefined;
   const conceptTest = ConceptTestObjectSchema.parse(JSON.parse(parsed.conceptTest));
   return {
@@ -271,8 +284,8 @@ export function buildConceptTestEvidenceEnvelope(input: RunSimPromptArguments) {
   };
 }
 
-export function buildFirstContactTestEvidenceEnvelope(input: RunSimPromptArguments) {
-  const parsed = RunSimPromptArgumentsSchema.parse(input);
+export function buildFirstContactTestEvidenceEnvelope(input: GameReviewPromptArguments) {
+  const parsed = GameReviewPromptArgumentsSchema.parse(input);
   if (!parsed.firstContactTest) return undefined;
   const firstContactTest = FirstContactTestObjectSchema.parse(
     JSON.parse(parsed.firstContactTest),
@@ -284,8 +297,8 @@ export function buildFirstContactTestEvidenceEnvelope(input: RunSimPromptArgumen
   };
 }
 
-export function buildPlaytestSessionEvidenceEnvelope(input: RunSimPromptArguments) {
-  const parsed = RunSimPromptArgumentsSchema.parse(input);
+export function buildPlaytestSessionEvidenceEnvelope(input: GameReviewPromptArguments) {
+  const parsed = GameReviewPromptArgumentsSchema.parse(input);
   if (!parsed.playtestSession) return undefined;
   const playtestSession = PlaytestSessionObjectSchema.parse(
     JSON.parse(parsed.playtestSession),
@@ -297,8 +310,8 @@ export function buildPlaytestSessionEvidenceEnvelope(input: RunSimPromptArgument
   };
 }
 
-export function buildPlaytestCohortEvidenceEnvelope(input: RunSimPromptArguments) {
-  const parsed = RunSimPromptArgumentsSchema.parse(input);
+export function buildPlaytestCohortEvidenceEnvelope(input: GameReviewPromptArguments) {
+  const parsed = GameReviewPromptArgumentsSchema.parse(input);
   if (!parsed.playtestCohort) return undefined;
   const playtestCohort = PlaytestCohortObjectSchema.parse(
     JSON.parse(parsed.playtestCohort),
@@ -310,6 +323,19 @@ export function buildPlaytestCohortEvidenceEnvelope(input: RunSimPromptArguments
     data: playtestCohort,
     warnings: [] as string[],
     meta: {observedAt: latestSession.endedAt},
+  };
+}
+
+export function buildRevisionBundleEvidenceEnvelope(input: GameReviewPromptArguments) {
+  const parsed = GameReviewPromptArgumentsSchema.parse(input);
+  if (!parsed.revisionBundle) return undefined;
+  const revisionBundle = RevisionBundleObjectSchema.parse(
+    JSON.parse(parsed.revisionBundle),
+  );
+  return {
+    data: revisionBundle,
+    warnings: [] as string[],
+    meta: {observedAt: revisionBundle.observedAt},
   };
 }
 
@@ -325,18 +351,19 @@ function appendSerializedInput(recipe: string, data: Record<string, unknown>): s
   ].join("\n");
 }
 
-export function buildRunSimPrompt(
+export function buildGameReviewPrompt(
   recipe: string,
-  input: RunSimPromptArguments,
-  context: RunSimPromptContext = {},
+  input: GameReviewPromptArguments,
+  context: GameReviewPromptContext = {},
 ): string {
-  const parsed = RunSimPromptArgumentsSchema.parse(input);
+  const parsed = GameReviewPromptArgumentsSchema.parse(input);
   const {
     conceptTest,
     firstContactTest,
     playtestCohort,
     playtestSession,
     projectBrief,
+    revisionBundle,
     uiReferenceUrls,
     ...promptInput
   } = parsed;
@@ -350,7 +377,8 @@ export function buildRunSimPrompt(
     ? parsed.domains.split(",") as SimulationDomain[]
     : [];
   const missingChangeInputs = parsed.mode === "change"
-    ? (["currentState", "proposal"] as const).filter((field) => !parsed[field]?.trim())
+    ? (["currentState", "proposal", "revisionBundle"] as const)
+        .filter((field) => !parsed[field]?.trim())
     : undefined;
   const requiresDeveloperBrief = parsed.subjectKind === "developer-concept"
     || parsed.subjectKind === "developer-project";
@@ -393,6 +421,9 @@ export function buildRunSimPrompt(
   const structuredPlaytestCohort = playtestCohort
     ? PlaytestCohortObjectSchema.parse(JSON.parse(playtestCohort))
     : undefined;
+  const structuredRevisionBundle = revisionBundle
+    ? RevisionBundleObjectSchema.parse(JSON.parse(revisionBundle))
+    : undefined;
 
   const compiledRecipe = compileGameReviewRecipe(recipe, {
     subjectKind: parsed.subjectKind,
@@ -404,6 +435,19 @@ export function buildRunSimPrompt(
       ? {
           projectBrief: structuredProjectBrief,
           projectBriefDiagnostics,
+        }
+      : {}),
+    ...(structuredRevisionBundle
+      ? {
+          revisionBundle: structuredRevisionBundle,
+          ...(context.revisionBundleEvidence
+            ? {
+                revisionBundleEvidence: {
+                  ...context.revisionBundleEvidence,
+                  exactSaveRequired: true,
+                },
+              }
+            : {}),
         }
       : {}),
     ...(structuredFirstContactTest
@@ -491,10 +535,10 @@ export function buildRunSimPrompt(
 export function buildReviewChangePrompt(
   recipe: string,
   input: ReviewChangePromptArguments,
-  context: RunSimPromptContext = {},
+  context: GameReviewPromptContext = {},
 ): string {
   const parsed = ReviewChangePromptArgumentsSchema.parse(input);
-  return buildRunSimPrompt(recipe, {...parsed, mode: "change"}, {
+  return buildGameReviewPrompt(recipe, {...parsed, mode: "change"}, {
     ...context,
     reviewWorkflow: "change",
   });
@@ -503,10 +547,10 @@ export function buildReviewChangePrompt(
 export function buildAuditProjectPrompt(
   recipe: string,
   input: AuditProjectPromptArguments,
-  context: RunSimPromptContext = {},
+  context: GameReviewPromptContext = {},
 ): string {
   const parsed = AuditProjectPromptArgumentsSchema.parse(input);
-  return buildRunSimPrompt(recipe, {...parsed, mode: "baseline"}, {
+  return buildGameReviewPrompt(recipe, {...parsed, mode: "baseline"}, {
     ...context,
     reviewWorkflow: "audit",
   });

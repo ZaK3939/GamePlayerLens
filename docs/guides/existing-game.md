@@ -26,7 +26,7 @@ Use this workflow for a released game, an Early Access title, or a public store 
 }
 ```
 
-Use `review-change` with both `currentState` and `proposal` for a proposed revision. `domains` is a required comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
+Use `review-change` with `currentState`, `proposal`, and the exact `revisionBundle` described in the [developer-project guide](developer-project.md#revision-bundle). `domains` is a required comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
 
 ## Domain boundaries
 

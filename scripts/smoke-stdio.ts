@@ -42,6 +42,7 @@ const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
   "playtestBuild",
   "playtestControls",
   "playtestDurationMinutes",
+  "revisionBundle",
   "uiUrl",
   "uiBenchmarkTask",
   "uiReferenceUrls",
@@ -53,7 +54,7 @@ const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
   "qualityTier",
 ];
 const EXPECTED_AUDIT_PROJECT_ARGUMENTS = EXPECTED_REVIEW_CHANGE_ARGUMENTS.filter(
-  (name) => name !== "currentState" && name !== "proposal",
+  (name) => name !== "currentState" && name !== "proposal" && name !== "revisionBundle",
 );
 
 async function repositoryArtifactEntries(root: string): Promise<string[]> {

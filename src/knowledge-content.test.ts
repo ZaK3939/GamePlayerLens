@@ -694,6 +694,7 @@ describe("MCP prompt source recipes", () => {
 
   it("seals replay inputs, exact rounds, and calibration claims as a run artifact", async () => {
     const content = await read("skills/game-review.md");
+    const experiment = await read("knowledge/rubrics/experiment.md");
 
     expect(content).toContain("kind=`run`");
     expect(content).toContain("scenario");
@@ -710,31 +711,32 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("simulationReadiness");
     expect(content).toContain("simulationReadinessStatus");
     expect(content).toContain("status=rehearsal");
-    expect(content).toContain("calibration.serverVerified=true");
-    expect(content).toContain("outcomeChecks");
-    expect(content).toContain("forecastComparisons");
-    expect(content).toContain("experimentDecisions");
-    expect(content).toContain("recommendedAction");
-    expect(content).toContain("reportedVerdictsMatch=false");
+    expect(experiment).toContain("calibration.serverVerified=true");
+    expect(experiment).toContain("forecastComparisons");
+    expect(experiment).toContain("experimentDecisions");
+    expect(experiment).toContain("recommendedAction");
+    expect(experiment).toContain("reportedVerdictsMatch");
     expect(content).toContain("population rate");
     expect(content).toContain("causal lift");
   });
 
   it("runs prospective experiments as spec, prediction, outcome, and learning artifacts", async () => {
     const content = await read("skills/game-review.md");
+    const experiment = await read("knowledge/rubrics/experiment.md");
 
     expect(content).toContain("experiment.md");
-    expect(content).toContain("ExperimentSpec");
-    expect(content).toContain("Prediction Run");
-    expect(content).toContain("ExperimentOutcome");
-    expect(content).toMatch(/結果を見る前[\s\S]*ExperimentSpec[\s\S]*保存/);
-    expect(content).toMatch(/ExperimentSpec[\s\S]*evidence[\s\S]*SHA-256/);
-    expect(content).toMatch(/missing[\s\S]*unresolved[\s\S]*保存/);
-    expect(content).toMatch(/次[\s\S]*ExperimentSpec[\s\S]*parentOutcomeRef/);
-    expect(content).toContain("simulationReadiness.status=validation-ready");
-    expect(content).toContain("heldOutValidation.status=planned");
-    expect(content).toContain("artifactType=experiment-measurement");
-    expect(content).toContain("calibration.serverVerified=true");
+    expect(content).toMatch(/topic[\s\S]*明示[\s\S]*通常review[\s\S]*展開しません/);
+    expect(experiment).toContain("ExperimentSpec");
+    expect(experiment).toContain("Prediction Run");
+    expect(experiment).toContain("ExperimentOutcome");
+    expect(experiment).toMatch(/結果を見る前[\s\S]*ExperimentSpec[\s\S]*保存/);
+    expect(experiment).toMatch(/ExperimentSpec[\s\S]*evidence[\s\S]*SHA-256/);
+    expect(experiment).toMatch(/missing[\s\S]*unresolved[\s\S]*保存/);
+    expect(experiment).toMatch(/次[\s\S]*ExperimentSpec[\s\S]*parentOutcomeRef/);
+    expect(experiment).toContain("simulationReadiness.status=validation-ready");
+    expect(experiment).toContain("heldOutValidation.status=planned");
+    expect(experiment).toMatch(/artifactType["`:\s]+experiment-measurement/);
+    expect(experiment).toContain("calibration.serverVerified=true");
   });
 
   it("applies the indie survival strategy to concept, launch, and marketing consultations", async () => {

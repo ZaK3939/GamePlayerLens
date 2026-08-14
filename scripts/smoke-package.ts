@@ -16,13 +16,22 @@ function evaluationMarkdown(detail: string): string {
     "# Package run evaluation",
     "- Mode: baseline",
     "- Selected Domains: gameplay",
-    "## Decision Card", detail,
+    "## Decision Card",
+    "- Verdict: HOLD",
+    "- Decision: investigate",
+    `- Proven: E-001 — ${detail}`,
+    "- Unproven: missing — Player response is not measured.",
+    "- Highest risk: Package evidence could be mistaken for player evidence.",
+    "- Player problem: The target player and observed friction are unknown.",
+    "- Next validation: Test: read back the package run | Success signal: all hashes match | Guardrail: make no player claim",
+    "- Confidence: low because player evidence is missing.",
+    "- Revisit condition: Direct player evidence is saved.",
     "## Detailed Scope", "Packaged MCP transport fixture.",
     "## Indie Survival Strategy", "適用外: This fixture tests package wiring only.",
     "## Overall Assessment", "Synthetic assessment.",
     "## Who Plays and Why — Flow Analysis", "Synthetic player flow.",
     "## Flow Summary", "Synthetic flow summary.",
-    "## Domain Findings", "Synthetic domain finding.",
+    "## Domain Findings", "Synthetic domain finding.", "- Severity: Important",
     "## Data Semantics", "Synthetic data semantics.",
     "## Data Coverage Matrix",
     [
@@ -831,7 +840,7 @@ try {
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 8
+      && runRecord.schemaVersion === 9
       && runRecord.subjectKind === "existing-game"
       && runRecord.market === "United States"
       && runRecord.language === "english"

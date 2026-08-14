@@ -119,7 +119,16 @@ function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: str
     "# Evaluation",
     "- Mode: baseline",
     "- Selected Domains: gameplay, UI, competition",
-    ...section("Decision Card"),
+    "## Decision Card",
+    "- Verdict: HOLD",
+    "- Decision: investigate",
+    "- Proven: E-001 — The synthetic fixture is persisted.",
+    "- Unproven: missing — Player response is not measured.",
+    "- Highest risk: The fixture could be mistaken for player evidence.",
+    "- Player problem: The target player and observed friction are unknown.",
+    "- Next validation: Test: run one bounded evidence readback | Success signal: the stored SHA matches | Guardrail: make no player claim",
+    "- Confidence: low; all player-facing dimensions are missing.",
+    "- Revisit condition: Direct player evidence is saved.",
     ...section("Detailed Scope"),
     "## Indie Survival Strategy",
     ...indieBody,
@@ -127,6 +136,7 @@ function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: str
     ...section("Who Plays and Why — Flow Analysis"),
     ...section("Flow Summary"),
     ...section("Domain Findings"),
+    "- Severity: Important",
     ...competitionLedger,
     ...section("Data Semantics"),
     "## Data Coverage Matrix",
@@ -509,6 +519,48 @@ describe("evaluation artifact store", () => {
       topic: "Existing Game",
       content: evaluationMarkdown({indieNotApplicable: true}),
     })).resolves.toMatchObject({topicId: "existing-game"});
+  });
+
+  it("rejects incomplete or ungrounded Decision Cards and findings without severity", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const base = evaluationMarkdown({indieNotApplicable: true});
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Bad Verdict",
+      content: base.replace("- Verdict: HOLD", "- Verdict: MAYBE"),
+    })).rejects.toThrow(/Verdict/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Too Many Proven",
+      content: base.replace(
+        "- Proven: E-001 — The synthetic fixture is persisted.",
+        [
+          "- Proven: E-001 — one",
+          "- Proven: E-001 — two",
+          "- Proven: E-001 — three",
+          "- Proven: E-001 — four",
+        ].join("\n"),
+      ),
+    })).rejects.toThrow(/Proven/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Ungrounded Proven",
+      content: base.replace("E-001 — The synthetic fixture", "E-999 — The synthetic fixture"),
+    })).rejects.toThrow(/Evidence Index ID/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Bad Validation",
+      content: base.replace(
+        /- Next validation: .+/,
+        "- Next validation: Run something later",
+      ),
+    })).rejects.toThrow(/Success signal/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "No Severity",
+      content: base.replace("\n\n- Severity: Important", ""),
+    })).rejects.toThrow(/severity/i);
   });
 
   it("requires every detailed indie strategy subsection", async () => {

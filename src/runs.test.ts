@@ -110,13 +110,22 @@ function evaluationMarkdown(detail: string, detailedIndie = false): string {
     "# Evaluation",
     "- Mode: change",
     "- Selected Domains: storefront, UI",
-    "## Decision Card", detail,
+    "## Decision Card",
+    "- Verdict: HOLD",
+    "- Decision: investigate",
+    `- Proven: E-001 — ${detail}`,
+    "- Unproven: missing — Player response is not measured.",
+    "- Highest risk: Synthetic evidence could be mistaken for player evidence.",
+    "- Player problem: The target player and observed friction are unknown.",
+    "- Next validation: Test: read back the saved run | Success signal: all hashes match | Guardrail: make no player claim",
+    "- Confidence: low because player evidence is missing.",
+    "- Revisit condition: Direct player evidence is saved.",
     "## Detailed Scope", "Run-store integration fixture.",
     "## Indie Survival Strategy", ...indieBody,
     "## Overall Assessment", "Synthetic assessment.",
     "## Who Plays and Why — Flow Analysis", "Synthetic player flow.",
     "## Flow Summary", "Synthetic flow summary.",
-    "## Domain Findings", "Synthetic domain finding.",
+    "## Domain Findings", "Synthetic domain finding.", "- Severity: Important",
     "## Data Semantics", "Synthetic data semantics.",
     "## Data Coverage Matrix",
     [
@@ -374,6 +383,43 @@ async function harness(
     resolver.resolveCaptureReadPath("Store Hero").absolutePath,
     PNG_BYTES,
   );
+  const profileSha = sha256(await readFile(
+    resolver.resolveIntelArtifactPath("Hades II", "Profile").absolutePath,
+  ));
+  const heroSha = sha256(await readFile(
+    resolver.resolveCaptureReadPath("Store Hero").absolutePath,
+  ));
+  await artifacts.saveIntel({
+    target: "Hades II",
+    id: "Revision Bundle",
+    sourceTool: "manual",
+    observedAt: "2026-08-11T10:05:00.000Z",
+    payload: {
+      data: {
+        artifactType: "revision-bundle",
+        observedAt: "2026-08-11T10:05:00.000Z",
+        current: {
+          revisionId: "store-current-v1",
+          gitCommitSha: "a".repeat(40),
+          buildId: "store-current-build",
+          artifacts: [{evidenceRef: "profile", kind: "intel", sha256: profileSha}],
+        },
+        candidate: {
+          revisionId: "store-proposal-v2",
+          gitCommitSha: "b".repeat(40),
+          buildId: "store-proposal-build",
+          artifacts: [{evidenceRef: "hero", kind: "capture", sha256: heroSha}],
+        },
+        changedAreas: ["capsule and store promise"],
+        invariantsKept: ["market, language, target cohort, and store layout"],
+      },
+      warnings: [],
+      meta: {
+        observedAt: "2026-08-11T10:05:00.000Z",
+        resultHandle: "33333333-3333-4333-8333-333333333333",
+      },
+    },
+  });
   const store = createRunStore(resolver, {
     clock,
     idFactory: () => RUN_ID,
@@ -405,6 +451,7 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
       {id: "proposal", label: "Proposal", specification: "New capsule and copy"},
     ],
     personaIds: ["jp-skeptic"],
+    revisionBundleRef: "revision-bundle",
     evidence: [
       {ref: "derivation", kind: "intel", target: "Hades II", id: "Persona Derivation"},
       {ref: "profile", kind: "intel", target: "Hades II", id: "Profile"},
@@ -415,6 +462,7 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         id: "2026-08-11-store-page",
       },
       {ref: "hero", kind: "capture", id: "Store Hero"},
+      {ref: "revision-bundle", kind: "intel", target: "Hades II", id: "Revision Bundle"},
     ],
     rounds: [
       {
@@ -486,7 +534,7 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         phase: "synthesis",
         actor: "lead-synthesizer",
         output: "Test the proposal before making a conversion claim.",
-        evidenceRefs: ["profile", "hero"],
+        evidenceRefs: ["profile", "hero", "revision-bundle"],
       },
     ],
     warnings: ["No observed post-change telemetry"],
@@ -855,6 +903,7 @@ describe("run input schema", () => {
   it("accepts one scenario for baseline and rejects extra scenario claims", () => {
     const baseline = runInput({
       mode: "baseline",
+      revisionBundleRef: undefined,
       scenarios: [{id: "current", label: "Current", specification: "Current state"}],
       rounds: runInput().rounds.map((round) => ({...round, scenarioId: "current"})),
     });
@@ -936,6 +985,21 @@ describe("run store", () => {
     );
   });
 
+  it("rejects a change run when revision-bound evidence bytes no longer match", async () => {
+    const {artifacts, store} = await harness();
+    await artifacts.saveIntel({
+      target: "Hades II",
+      id: "Profile",
+      sourceTool: "steam_fetch",
+      observedAt: "2026-08-11T10:10:00.000Z",
+      payload: {appid: 1145350, changedAfterBundle: true},
+    }, {overwrite: true});
+
+    await expect(store.saveRun(runInput())).rejects.toThrow(
+      /revision bundle evidence binding mismatch: profile/i,
+    );
+  });
+
   it("seals and revalidates the exact subject/domain-compiled recipe", async () => {
     const source = await readFile(new URL("../skills/game-review.md", import.meta.url), "utf8");
     const {resolver, store} = await harness(() => NOW, source);
@@ -978,13 +1042,13 @@ describe("run store", () => {
       selectedDomains: ["storefront", "ui"],
       savedAt: NOW.toISOString(),
       roundCount: 8,
-      evidenceCount: 4,
+      evidenceCount: 5,
       simulationReadinessStatus: "rehearsal",
       sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 8,
+      schemaVersion: 9,
       runId: RUN_ID,
       targetId: "hades-ii",
       subjectKind: "existing-game",
@@ -1031,11 +1095,18 @@ describe("run store", () => {
           path: "knowledge/intel/captures/store-hero.png",
           sha256: sha256(PNG_BYTES),
         }),
+        expect.objectContaining({
+          ref: "revision-bundle",
+          kind: "intel",
+          sourceTool: "manual",
+          path: "knowledge/intel/hades-ii/revision-bundle.json",
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
       ],
       coverage: {
         scenarioDomain: {covered: 4, total: 4, ratio: 1, missing: []},
         personaScenario: {covered: 2, total: 2, ratio: 1, missing: []},
-        analysisEvidence: {referenced: 3, total: 3, ratio: 1, unusedRefs: []},
+        analysisEvidence: {referenced: 4, total: 4, ratio: 1, unusedRefs: []},
         domains: [
           expect.objectContaining({
             domain: "storefront",
@@ -1166,7 +1237,7 @@ describe("run store", () => {
     await expect(store.saveRun(developerRun)).resolves.toMatchObject({id: RUN_ID});
     await expect(store.readRun("Hades II", RUN_ID)).resolves.toMatchObject({
       record: {
-        schemaVersion: 8,
+        schemaVersion: 9,
         subjectKind: "developer-project",
         projectBrief: {
           revisionId: "brief-v1",
@@ -1327,7 +1398,7 @@ describe("run store", () => {
   it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
     const read = await calibrationHarness("verified");
 
-    expect(read.record.schemaVersion).toBe(8);
+    expect(read.record.schemaVersion).toBe(9);
     expect(read.record.simulationReadiness).toMatchObject({
       status: "validation-ready",
       heldOutValidation: {

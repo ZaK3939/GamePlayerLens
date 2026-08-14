@@ -362,6 +362,7 @@ export const SaveRunInputBaseSchema = z.object({
   scenarios: z.array(ScenarioSchema).min(1).max(8),
   personaIds: z.array(ReferenceIdSchema).min(1).max(12),
   evidence: z.array(EvidenceReferenceInputSchema).min(1).max(100),
+  revisionBundleRef: ReferenceIdSchema.optional(),
   rounds: z.array(SimulationRoundSchema).min(1).max(100),
   warnings: z.array(z.string().max(2_000)).max(100),
   confidence: ConfidenceInputSchema,
@@ -410,6 +411,32 @@ export const SaveRunInputSchema = SaveRunInputBaseSchema.superRefine((value, con
   validateRelations(relations, context);
   validateSaveCompleteness(relations, context);
   validateDeveloperProjectBrief(value, context);
+  if (value.mode === "change") {
+    if (!value.revisionBundleRef) {
+      context.addIssue({
+        code: "custom",
+        path: ["revisionBundleRef"],
+        message: "change runs require an exact-saved revision bundle",
+      });
+    } else {
+      const revisionEvidence = value.evidence.find(
+        (evidence) => evidence.ref === value.revisionBundleRef,
+      );
+      if (revisionEvidence?.kind !== "intel") {
+        context.addIssue({
+          code: "custom",
+          path: ["revisionBundleRef"],
+          message: "revisionBundleRef must reference intel evidence",
+        });
+      }
+    }
+  } else if (value.revisionBundleRef) {
+    context.addIssue({
+      code: "custom",
+      path: ["revisionBundleRef"],
+      message: "baseline runs cannot contain a current-versus-candidate revision bundle",
+    });
+  }
 });
 
 export const ResolvedPersonaSchema = z.object({
@@ -577,7 +604,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 export const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(8),
+  schemaVersion: z.literal(9),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
@@ -596,6 +623,7 @@ export const RunRecordCoreSchema = z.object({
   scenarios: z.array(ScenarioSchema).min(1).max(8),
   personas: z.array(ResolvedPersonaSchema).min(1).max(12),
   evidence: z.array(ResolvedEvidenceSchema).min(1).max(100),
+  revisionBundleRef: ReferenceIdSchema.optional(),
   rounds: z.array(SimulationRoundSchema).min(1).max(100),
   warnings: z.array(z.string().max(2_000)).max(100),
   confidence: ConfidenceInputSchema.extend({reportedByClient: z.literal(true)}).strict(),
@@ -627,6 +655,24 @@ export const RunRecordSchema = RunRecordBaseSchema.superRefine((value, context) 
       code: "custom",
       path: ["finalEvaluationRef"],
       message: "developer runs require a detailed Indie Survival Strategy",
+    });
+  }
+  if (value.mode === "change") {
+    const revisionEvidence = value.evidence.find(
+      (item) => item.ref === value.revisionBundleRef,
+    );
+    if (!value.revisionBundleRef || revisionEvidence?.kind !== "intel" || revisionEvidence.sourceTool !== "manual") {
+      context.addIssue({
+        code: "custom",
+        path: ["revisionBundleRef"],
+        message: "stored change runs require manual revision-bundle evidence",
+      });
+    }
+  } else if (value.revisionBundleRef) {
+    context.addIssue({
+      code: "custom",
+      path: ["revisionBundleRef"],
+      message: "stored baseline runs cannot contain a revision bundle",
     });
   }
 });

@@ -27,7 +27,7 @@ The evaluation's Selected Domains must exactly match the run's `selectedDomains`
 
 ## Canonical evaluation
 
-`save_artifact(kind=evaluation)` validates the canonical report rather than accepting arbitrary prose. It checks required sections, ordering, non-empty content, data coverage, Evidence Index structure, and detailed indie-strategy sections when applicable. Unfilled template markers and token completion text are rejected.
+`save_artifact(kind=evaluation)` validates the canonical report rather than accepting arbitrary prose. It checks required sections, ordering, non-empty content, data coverage, Evidence Index structure, and detailed indie-strategy sections when applicable. The Decision Card must contain one valid verdict and decision, one to three evidence-linked Proven entries, one to three explicitly missing Unproven entries, one highest risk, one player problem, one to three structured next validations, confidence, and a revisit condition. Domain findings require a `Blocker`, `Important`, or `Suggestion` severity. Unfilled template markers and token completion text are rejected.
 
 When competition is selected, the evaluation also requires:
 
@@ -94,6 +94,8 @@ A run seals:
 - the exact subject/domain-compiled game-review recipe bytes and canonical record seal.
 
 Every scenario-domain pair and every persona-scenario pair must be represented by at least one round. Every non-final evidence item must be used by a round. The final evaluation is produced after synthesis and cannot be used as an earlier round's evidence.
+
+A change run additionally requires `revisionBundleRef`. The referenced exact-saved manual artifact records different current and candidate Git commit SHAs, build IDs, changed areas, invariants, and at least one artifact binding for each revision. Run creation resolves every bound evidence ref and rejects a kind or SHA-256 mismatch.
 
 `get_artifact(kind=run)` re-reads the recipe, personas, evidence, and record. `integrity.status=verified` means every required dependency still matches. `failed` identifies missing, mismatched, unreadable, or structurally invalid dependencies. This seal detects drift; it is not a cryptographic signature or external attestation.
 

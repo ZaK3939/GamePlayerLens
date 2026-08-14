@@ -1,5 +1,5 @@
 import {basename, join} from "node:path";
-import {mkdtemp, mkdir, readdir, rm, symlink, writeFile} from "node:fs/promises";
+import {mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {Client, InMemoryTransport} from "@modelcontextprotocol/client";
 import {afterEach, describe, expect, it, vi} from "vitest";
@@ -8,6 +8,7 @@ import {MAX_INLINE_IMAGE_BYTES, createImageService} from "./images.js";
 import {buildServer} from "./index.js";
 import {createKnowledgeReader} from "./knowledge.js";
 import {createPathResolver} from "./paths.js";
+import {sha256} from "./integrity.js";
 import type {GeneratedPersona} from "./persona-schemas.js";
 import {createPersonaStore} from "./persona-store.js";
 
@@ -42,13 +43,22 @@ function evaluationMarkdown(detail: string): string {
     "# Evaluation",
     "- Mode: baseline",
     "- Selected Domains: storefront",
-    "## Decision Card", detail,
+    "## Decision Card",
+    "- Verdict: HOLD",
+    "- Decision: investigate",
+    `- Proven: E-001 — ${detail}`,
+    "- Unproven: missing — Player response is not measured.",
+    "- Highest risk: Transport evidence could be mistaken for product evidence.",
+    "- Player problem: The target player and observed friction are unknown.",
+    "- Next validation: Test: read back one saved artifact | Success signal: its SHA matches | Guardrail: make no player claim",
+    "- Confidence: low because player evidence is missing.",
+    "- Revisit condition: Direct player evidence is saved.",
     "## Detailed Scope", "MCP integration fixture.",
     "## Indie Survival Strategy", "適用外: This fixture tests MCP transport only.",
     "## Overall Assessment", "Synthetic assessment.",
     "## Who Plays and Why — Flow Analysis", "Synthetic player flow.",
     "## Flow Summary", "Synthetic flow summary.",
-    "## Domain Findings", "Synthetic domain finding.",
+    "## Domain Findings", "Synthetic domain finding.", "- Severity: Important",
     "## Data Semantics", "Synthetic data semantics.",
     "## Data Coverage Matrix",
     [
@@ -432,7 +442,7 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.1.0"},
+          server: {name: "game-player-lens", version: "0.2.0"},
           storage: {location: "repository-root", writable: true},
           integrations: {
             itadPriceHistory: {configured: expect.any(Boolean)},
@@ -1156,6 +1166,7 @@ describe("MCP server contract", () => {
             "scenarios",
             "personaIds",
             "evidence",
+            "revisionBundleRef",
             "rounds",
             "warnings",
             "confidence",
@@ -1489,7 +1500,7 @@ describe("MCP server contract", () => {
   });
 
   it("seals and replays a simulation run through save_artifact and get_artifact", async () => {
-    const {artifactStore, client, server} = await createHarness();
+    const {artifactStore, client, resolver, server} = await createHarness();
     try {
       const derivationResultHandle = await derivePersonaHandle(client);
       await client.callTool({
@@ -1514,6 +1525,62 @@ describe("MCP server contract", () => {
           sourceTool: "steam_fetch",
           observedAt: "2026-08-11T08:00:00.000Z",
           payload: {appid: 1145350, price: {jp: 3400, us: 29.99}},
+        },
+      });
+      await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Hades II",
+          id: "Candidate Store Profile",
+          sourceTool: "manual",
+          observedAt: "2026-08-11T08:30:00.000Z",
+          payload: {copy: "Sharper combat promise", buildId: "store-candidate-build"},
+        },
+      });
+      const currentProfileSha = sha256(await readFile(
+        resolver.resolveIntelArtifactPath("Hades II", "Store Profile").absolutePath,
+      ));
+      const candidateProfileSha = sha256(await readFile(
+        resolver.resolveIntelArtifactPath("Hades II", "Candidate Store Profile").absolutePath,
+      ));
+      await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Hades II",
+          id: "Revision Bundle",
+          sourceTool: "manual",
+          observedAt: "2026-08-11T08:35:00.000Z",
+          payload: {
+            data: {
+              artifactType: "revision-bundle",
+              observedAt: "2026-08-11T08:35:00.000Z",
+              current: {
+                revisionId: "store-current-v1",
+                gitCommitSha: "a".repeat(40),
+                buildId: "store-current-build",
+                artifacts: [{evidenceRef: "profile", kind: "intel", sha256: currentProfileSha}],
+              },
+              candidate: {
+                revisionId: "store-candidate-v2",
+                gitCommitSha: "b".repeat(40),
+                buildId: "store-candidate-build",
+                artifacts: [{
+                  evidenceRef: "candidate-profile",
+                  kind: "intel",
+                  sha256: candidateProfileSha,
+                }],
+              },
+              changedAreas: ["store promise"],
+              invariantsKept: ["market, language, price, layout, and target cohort"],
+            },
+            warnings: [],
+            meta: {
+              observedAt: "2026-08-11T08:35:00.000Z",
+              resultHandle: "33333333-3333-4333-8333-333333333333",
+            },
+          },
         },
       });
       await client.callTool({
@@ -1544,6 +1611,7 @@ describe("MCP server contract", () => {
             {id: "proposal", label: "Proposal", specification: "Sharper combat promise"},
           ],
           personaIds: ["mcp-round-trip"],
+          revisionBundleRef: "revision-bundle",
           evidence: [
             {
               ref: "derivation",
@@ -1552,6 +1620,18 @@ describe("MCP server contract", () => {
               id: "Persona Derivation",
             },
             {ref: "profile", kind: "intel", target: "Hades II", id: "Store Profile"},
+            {
+              ref: "candidate-profile",
+              kind: "intel",
+              target: "Hades II",
+              id: "Candidate Store Profile",
+            },
+            {
+              ref: "revision-bundle",
+              kind: "intel",
+              target: "Hades II",
+              id: "Revision Bundle",
+            },
             {
               ref: "evaluation",
               kind: "evaluation",
@@ -1578,7 +1658,7 @@ describe("MCP server contract", () => {
               scenarioId: "proposal",
               playerSimulation: playerSimulation("mcp-1"),
               output: "The proposal gives me a clearer reason to try it.",
-              evidenceRefs: ["derivation", "profile"],
+              evidenceRefs: ["derivation", "candidate-profile", "revision-bundle"],
             },
             {
               sequence: 3,
@@ -1596,7 +1676,7 @@ describe("MCP server contract", () => {
               domain: "storefront",
               scenarioId: "proposal",
               output: "The value proposition is more differentiated.",
-              evidenceRefs: ["profile"],
+              evidenceRefs: ["candidate-profile", "revision-bundle"],
             },
             {
               sequence: 5,
@@ -1610,7 +1690,7 @@ describe("MCP server contract", () => {
               phase: "synthesis",
               actor: "lead-synthesizer",
               output: "Run the proposed store promise as a measured experiment.",
-              evidenceRefs: ["profile"],
+              evidenceRefs: ["profile", "candidate-profile", "revision-bundle"],
             },
           ],
           warnings: ["No observed post-change telemetry"],
@@ -1629,7 +1709,7 @@ describe("MCP server contract", () => {
           id: expect.stringMatching(/^[0-9a-f-]{36}$/),
           mode: "change",
           roundCount: 6,
-          evidenceCount: 3,
+          evidenceCount: 5,
           simulationReadinessStatus: "rehearsal",
           sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         },
@@ -1648,7 +1728,7 @@ describe("MCP server contract", () => {
         arguments: {kind: "run", target: "Hades II"},
       });
       expect(listed.structuredContent).toMatchObject({
-        data: [{id: runId, roundCount: 6, evidenceCount: 3}],
+        data: [{id: runId, roundCount: 6, evidenceCount: 5}],
         warnings: [],
       });
       expect(JSON.stringify(listed.structuredContent)).not.toContain(
@@ -1664,7 +1744,7 @@ describe("MCP server contract", () => {
         data: {
           metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
           record: {
-            schemaVersion: 8,
+            schemaVersion: 9,
             subjectKind: "existing-game",
             market: "Japan",
             language: "japanese",
@@ -1708,17 +1788,19 @@ describe("MCP server contract", () => {
                 sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
               }),
               expect.objectContaining({ref: "profile", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
+              expect.objectContaining({ref: "candidate-profile", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
+              expect.objectContaining({ref: "revision-bundle", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
               expect.objectContaining({ref: "evaluation", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
             ],
             coverage: {
               scenarioDomain: {covered: 2, total: 2, ratio: 1, missing: []},
               personaScenario: {covered: 2, total: 2, ratio: 1, missing: []},
-              analysisEvidence: {referenced: 2, total: 2, ratio: 1, unusedRefs: []},
+              analysisEvidence: {referenced: 4, total: 4, ratio: 1, unusedRefs: []},
               domains: [expect.objectContaining({
                 domain: "storefront",
                 scenarioIds: ["current", "proposal"],
-                evidenceRefs: ["profile"],
-                sourceTools: ["steam_fetch"],
+                evidenceRefs: ["profile", "candidate-profile", "revision-bundle"],
+                sourceTools: ["steam_fetch", "manual"],
               })],
             },
             seal: {
@@ -2750,6 +2832,7 @@ describe("MCP server contract", () => {
         "playtestBuild",
         "playtestControls",
         "playtestDurationMinutes",
+        "revisionBundle",
         "uiUrl",
         "uiBenchmarkTask",
         "uiReferenceUrls",

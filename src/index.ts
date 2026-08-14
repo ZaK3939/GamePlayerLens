@@ -36,11 +36,12 @@ import {
   buildFirstContactTestEvidenceEnvelope,
   buildPlaytestCohortEvidenceEnvelope,
   buildPlaytestSessionEvidenceEnvelope,
+  buildRevisionBundleEvidenceEnvelope,
   buildReviewChangePrompt,
   buildUiBlindComparePrompt,
   ReviewChangePromptArgumentsSchema,
-  type RunSimPromptArguments,
-  type RunSimPromptContext,
+  type GameReviewPromptArguments,
+  type GameReviewPromptContext,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
 import {
@@ -54,7 +55,7 @@ import {
 } from "./server-services.js";
 
 const SERVER_NAME = "game-player-lens";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.2.0";
 const TOOL_COUNT = 14;
 const PROMPT_COUNT = 3;
 
@@ -477,8 +478,8 @@ export function buildServer(
   );
 
   function buildReviewPromptContext(
-    arguments_: RunSimPromptArguments,
-  ): RunSimPromptContext {
+    arguments_: GameReviewPromptArguments,
+  ): GameReviewPromptContext {
     const conceptTestEvidence = trackManualPromptEvidence(
       services.resultStore,
       buildConceptTestEvidenceEnvelope(arguments_),
@@ -495,11 +496,16 @@ export function buildServer(
       services.resultStore,
       buildPlaytestCohortEvidenceEnvelope(arguments_),
     );
+    const revisionBundleEvidence = trackManualPromptEvidence(
+      services.resultStore,
+      buildRevisionBundleEvidenceEnvelope(arguments_),
+    );
     return {
       conceptTestEvidence,
       firstContactTestEvidence,
       playtestSessionEvidence,
       playtestCohortEvidence,
+      revisionBundleEvidence,
     };
   }
 

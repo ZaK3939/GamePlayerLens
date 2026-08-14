@@ -25,7 +25,7 @@ To use the packaged CLI instead:
 
 ```bash
 pnpm pack
-npm install --global ./game-player-lens-0.1.0.tgz
+npm install --global ./game-player-lens-0.2.0.tgz
 game-player-lens
 ```
 
@@ -41,30 +41,26 @@ game-player-lens
 
 After connecting, call `get_status` with no arguments. It reports whether the data directory is writable and whether the optional ITAD and Obscura integrations are configured, without returning secrets or absolute paths.
 
-For everyday development, run `review-change`. It fixes the workflow to a current-versus-proposed revision, so there is no mode switch to configure. All prompt arguments are strings.
+For a copy-runnable first review, call `audit-project` with a released game and one bounded decision:
 
 ```json
 {
-  "target": "Slot & Ember",
-  "topic": "First combat onboarding revision",
-  "subjectKind": "developer-project",
-  "domains": "gameplay,ui",
+  "target": "Hades",
+  "topic": "Current Japanese store promise and competitive position",
+  "subjectKind": "existing-game",
+  "domains": "storefront,competition",
   "market": "Japan",
-  "language": "japanese",
-  "projectBrief": "<JSON-encoded Project Brief>",
-  "uiBenchmarkTask": "Stop the first reel and explain the target, action, and result",
-  "currentState": "A text explanation appears before the first reel stop",
-  "proposal": "The first reel stop teaches the control through immediate combat response"
+  "language": "japanese"
 }
 ```
 
-Use `audit-project` at vertical-slice, demo, release, or other milestone boundaries. Both prompts either return one consolidated intake question or guide the client through evidence collection, independent player-lens and domain passes, criticism, evaluation storage, and immutable run storage.
+For everyday development, use `review-change`. It fixes the workflow to a current-versus-candidate revision and requires a `revisionBundle` that binds both Git commits and build IDs to saved artifact SHA-256 values. This prevents screenshots, receipts, or test results from another build entering the change run. The [developer-project guide](docs/guides/developer-project.md) defines the bundle. Use `audit-project` at vertical-slice, demo, release, or other milestone boundaries.
 
 ## Choose a workflow
 
 | Goal | Start here | Guide |
 |---|---|---|
-| Review one proposed revision | `review-change` with `currentState` and `proposal` | [Developer projects](docs/guides/developer-project.md) |
+| Review one proposed revision | `review-change` with `currentState`, `proposal`, and `revisionBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a concept, prototype, vertical slice, or milestone | `audit-project` with `subjectKind=developer-concept` or `developer-project` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a released Steam game | `steam_search` → `steam_brief`, then `audit-project` | [Existing games](docs/guides/existing-game.md) |
 | Compare UI quality | Either review prompt with the `ui` domain and a concrete `uiBenchmarkTask` | [Existing games: UI comparison](docs/guides/existing-game.md#ui-comparison) |
@@ -85,7 +81,7 @@ Use `audit-project` at vertical-slice, demo, release, or other milestone boundar
 
 The three MCP prompts are:
 
-- `review-change`: the daily current-versus-proposed revision review. It fixes `mode=change` internally and prioritizes changed findings.
+- `review-change`: the daily current-versus-candidate revision review. It fixes `mode=change`, requires a revision bundle, and prioritizes changed findings.
 - `audit-project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
 - `ui-blind-compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.
 

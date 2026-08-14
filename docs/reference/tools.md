@@ -23,7 +23,7 @@ GamePlayerLens exposes exactly 14 MCP tools and three prompts. All tools return 
 
 ## Prompts
 
-- `review-change` reviews one current-to-proposed revision and fixes `mode=change` internally.
+- `review-change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
 - `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
