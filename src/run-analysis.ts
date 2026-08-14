@@ -4,6 +4,7 @@ import {
   type VerifiedExperimentDecision,
   type VerifiedForecastComparison,
 } from "./experiments.js";
+import type {ResolvedEvidenceResult} from "./run-evidence.js";
 import {
   ResolvedEvidenceSchema,
   RunCoverageSchema,
@@ -11,12 +12,6 @@ import {
   SimulationReadinessSchema,
   type SaveRunInput,
 } from "./run-schemas.js";
-
-export interface ResolvedEvidenceResult {
-  record: z.infer<typeof ResolvedEvidenceSchema>;
-  payload?: unknown;
-  evaluationDomains?: string[];
-}
 
 function ratio(covered: number, total: number): number {
   return total === 0 ? 1 : covered / total;
@@ -221,4 +216,3 @@ export async function buildSimulationReadiness(
     reasons,
   });
 }
-
