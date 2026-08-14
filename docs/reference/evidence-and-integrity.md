@@ -61,9 +61,9 @@ When a fetch tool returns `meta.resultHandle`, use exact-save. Model-reconstruct
 
 Review balance does not reveal population sentiment. Use separate aggregate review evidence for overall positive share, and never convert persona counts into affected-player share.
 
-## Virtual player rounds
+## Player-lens hypothesis rounds
 
-New simulation runs accept only grounded v2 personas. Every persona-scenario round contains a structured `playerSimulation` with an exact-saved `memory.derivationEvidenceRef`, review-memory references, explicit `stimulusEvidenceRefs`, perception, decision, predicted response, reflection, uncertainty, and a human falsification signal. The server verifies the derivation artifact hash and content against the saved persona before accepting a recommendation ID.
+New review runs accept only grounded v2 personas. Every persona-scenario round contains a structured `playerSimulation` hypothesis with an exact-saved `memory.derivationEvidenceRef`, review-memory references, explicit `stimulusEvidenceRefs`, perception, decision, predicted response, reflection, uncertainty, and a human falsification signal. The server verifies the derivation artifact hash and content against the saved persona before accepting a recommendation ID.
 
 If UI is selected, persona rounds must name a saved capture or UI reference inside `stimulusEvidenceRefs` and cannot use `scenario-only` exposure. If competition is selected, each round must cite a voice from a persona source assigned the `competitor` role. `visual-evidence` exposure requires an explicitly named image, `ai-operated` requires an explicitly named AI-operated playtest session, and `scenario-only` requires an empty stimulus list. This ensures that UI, competitor, and execution inputs affect the player simulation rather than appearing only in the final reviewer narrative.
 
@@ -91,7 +91,7 @@ A run seals:
 - every independent analysis round, including structured persona-scenario responses;
 - warnings, client-reported model and confidence;
 - the final evaluation reference;
-- the exact subject/domain-compiled `run-sim` recipe bytes and canonical record seal.
+- the exact subject/domain-compiled game-review recipe bytes and canonical record seal.
 
 Every scenario-domain pair and every persona-scenario pair must be represented by at least one round. Every non-final evidence item must be used by a round. The final evaluation is produced after synthesis and cannot be used as an earlier round's evidence.
 

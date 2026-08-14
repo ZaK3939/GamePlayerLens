@@ -76,7 +76,7 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 
 ## 6. Structured session evidence
 
-`run-sim`の`playtestSession`は1回のbounded sessionを時系列の原本として受け取ります。各観測は`step`と`elapsedSeconds`を連続・非減少にし、Player intent、Input / Action、system response、friction severity、`rewardSignal`、Evidence IDを別fieldで記録します。つまり、Action、response、rewardSignalを一つの「面白かった」に統合しません。
+game reviewの`playtestSession`は1回のbounded sessionを時系列の原本として受け取ります。各観測は`step`と`elapsedSeconds`を連続・非減少にし、Player intent、Input / Action、system response、friction severity、`rewardSignal`、Evidence IDを別fieldで記録します。つまり、Action、response、rewardSignalを一つの「面白かった」に統合しません。
 
 - `platform`自由記述は使わず、strictな`executionEnvironment`にOS、device、runtime、renderer backend / implementation、graphics acceleration、viewport / DPRを記録する。
 - human participantでは仮名の`participantId`とtarget fitを必須にし、任意の`humanReport`でfelt reward、repeat intent、confusionを操作logと分離する。

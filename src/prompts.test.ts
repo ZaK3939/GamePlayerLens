@@ -8,8 +8,12 @@ import {
   PlaytestSessionObjectSchema,
 } from "./playtest-evidence.js";
 import {
+  AuditProjectPromptArgumentsSchema,
+  buildAuditProjectPrompt,
+  buildReviewChangePrompt,
   buildRunSimPrompt,
   buildUiBlindComparePrompt,
+  ReviewChangePromptArgumentsSchema,
   RunSimPromptArgumentsSchema,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
@@ -239,7 +243,7 @@ async function skill(name: string): Promise<string> {
   return readFile(join(process.cwd(), "skills", name), "utf8");
 }
 
-describe("run-sim prompt arguments", () => {
+describe("game review prompt argument normalization", () => {
   it("applies defaults and canonicalizes deduplicated explicit domains", () => {
     expect(RunSimPromptArgumentsSchema.parse({
       target: "Example Game",
@@ -1868,6 +1872,56 @@ describe("run-sim prompt arguments", () => {
   });
 });
 
+describe("public game review prompts", () => {
+  it("fixes change and audit modes instead of exposing a mode switch", () => {
+    const change = ReviewChangePromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "onboarding revision",
+      domains: "ui,gameplay",
+      currentState: "Text-only tutorial",
+      proposal: "Interactive first action",
+    });
+    const audit = AuditProjectPromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "vertical-slice milestone",
+      domains: "gameplay,ui",
+    });
+
+    expect(change).not.toHaveProperty("mode");
+    expect(audit).not.toHaveProperty("mode");
+    expect(() => ReviewChangePromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "onboarding revision",
+      mode: "baseline",
+    } as never)).toThrow(/unrecognized key/i);
+    expect(() => AuditProjectPromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "vertical-slice milestone",
+      proposal: "A hidden change does not belong in an audit",
+    } as never)).toThrow(/unrecognized key/i);
+  });
+
+  it("serializes an explicit review workflow and fixed evidence mode", () => {
+    const change = buildReviewChangePrompt(recipe, {
+      target: "Example Game",
+      topic: "onboarding revision",
+      domains: "gameplay",
+      currentState: "Tooltip before control",
+      proposal: "Immediate guided input",
+    });
+    const audit = buildAuditProjectPrompt(recipe, {
+      target: "Example Game",
+      topic: "vertical-slice milestone",
+      domains: "gameplay",
+    });
+
+    expect(change).toContain('"reviewWorkflow": "change"');
+    expect(change).toContain('"mode": "change"');
+    expect(audit).toContain('"reviewWorkflow": "audit"');
+    expect(audit).toContain('"mode": "baseline"');
+  });
+});
+
 describe("ui-blind-compare prompt arguments", () => {
   it("normalizes and deduplicates non-empty reference image IDs", () => {
     expect(UiBlindComparePromptArgumentsSchema.parse({
@@ -1901,7 +1955,7 @@ describe("ui-blind-compare prompt arguments", () => {
 
 describe("repository prompt recipes", () => {
   it("injects only the requested subject and domain recipe sections", async () => {
-    const source = await skill("run-sim.md");
+    const source = await skill("game-review.md");
     const result = buildRunSimPrompt(source, {
       target: "Slot & Ember",
       topic: "vertical slice repair decision",
@@ -1924,8 +1978,8 @@ describe("repository prompt recipes", () => {
     expect(Buffer.byteLength(compiled, "utf8")).toBeLessThan(16_000);
   });
 
-  it("scopes run-sim before evaluation and handles non-UI and UI paths", async () => {
-    const content = await skill("run-sim.md");
+  it("scopes game review before evaluation and handles non-UI and UI paths", async () => {
+    const content = await skill("game-review.md");
 
     expect(content).toMatch(/domains[\s\S]*最低1領域[\s\S]*Selected Domains[\s\S]*選択理由/);
     expect(content).toMatch(/change[\s\S]*currentState[\s\S]*proposal[\s\S]*評価開始前[\s\S]*質問/);

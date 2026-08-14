@@ -9,7 +9,7 @@ import {assertCanonicalEvaluationMarkdown} from "./evaluation-markdown.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {sha256} from "./integrity.js";
 import type {SubjectKind} from "./project-brief.js";
-import {compileRunSimRecipe} from "./run-recipe.js";
+import {compileGameReviewRecipe} from "./run-recipe.js";
 import {PersonaSchema, type Persona} from "./persona-schemas.js";
 import {
   EvidenceReferenceInputSchema,
@@ -225,10 +225,10 @@ export function createRunEvidenceResolver(
     const path = resolver.resolveSkillPath(RUN_RECIPE_ID);
     const {bytes} = await readRegularBytes(path, MAX_RECIPE_BYTES);
     const relativePath = relativeAssetPath(resolver, path);
-    if (relativePath !== "skills/run-sim.md") {
+    if (relativePath !== "skills/game-review.md") {
       throw new Error("run recipe is outside the configured asset root");
     }
-    const compiled = compileRunSimRecipe(bytes.toString("utf8"), {
+    const compiled = compileGameReviewRecipe(bytes.toString("utf8"), {
       subjectKind,
       selectedDomains,
     });

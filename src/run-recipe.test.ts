@@ -1,11 +1,11 @@
 import {readFile} from "node:fs/promises";
 import {describe, expect, it} from "vitest";
-import {compileRunSimRecipe} from "./run-recipe.js";
+import {compileGameReviewRecipe} from "./run-recipe.js";
 
-describe("run-sim recipe compiler", () => {
+describe("game review recipe compiler", () => {
   it("selects only the requested subject and domains in canonical order", async () => {
-    const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
-    const compiled = compileRunSimRecipe(source, {
+    const source = await readFile(new URL("../skills/game-review.md", import.meta.url), "utf8");
+    const compiled = compileGameReviewRecipe(source, {
       subjectKind: "developer-project",
       selectedDomains: ["competition", "gameplay", "ui"],
     });
@@ -15,7 +15,7 @@ describe("run-sim recipe compiler", () => {
     expect(compiled).toContain("Gameplay domain contract");
     expect(compiled).toContain("UI domain contract");
     expect(compiled).toContain("Competition domain contract");
-    expect(compiled).toContain("Virtual player loop");
+    expect(compiled).toContain("Evidence-grounded player-lens review");
     expect(compiled).toMatch(
       /memory\.derivationEvidenceRef[\s\S]*memory\.voiceEvidence[\s\S]*stimulusEvidenceRefs[\s\S]*perception[\s\S]*decision[\s\S]*response[\s\S]*reflection/,
     );
@@ -29,8 +29,8 @@ describe("run-sim recipe compiler", () => {
   });
 
   it("includes every domain when every domain is explicitly selected", async () => {
-    const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
-    const compiled = compileRunSimRecipe(source, {
+    const source = await readFile(new URL("../skills/game-review.md", import.meta.url), "utf8");
+    const compiled = compileGameReviewRecipe(source, {
       subjectKind: "existing-game",
       selectedDomains: [
         "gameplay",
@@ -57,8 +57,8 @@ describe("run-sim recipe compiler", () => {
   });
 
   it("does not silently add domains when intake has no explicit selection", async () => {
-    const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
-    const compiled = compileRunSimRecipe(source, {
+    const source = await readFile(new URL("../skills/game-review.md", import.meta.url), "utf8");
+    const compiled = compileGameReviewRecipe(source, {
       subjectKind: "existing-game",
       selectedDomains: [],
     });
@@ -69,7 +69,7 @@ describe("run-sim recipe compiler", () => {
   });
 
   it("rejects an unsectioned recipe instead of silently disabling scoping", () => {
-    expect(() => compileRunSimRecipe("# Test recipe\n", {
+    expect(() => compileGameReviewRecipe("# Test recipe\n", {
       subjectKind: "existing-game",
       selectedDomains: ["ui"],
     })).toThrow(/no declared sections/i);

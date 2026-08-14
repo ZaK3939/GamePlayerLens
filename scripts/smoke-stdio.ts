@@ -25,12 +25,11 @@ const EXPECTED_TOOLS = [
   "steam_updates",
   "ui_capture",
 ];
-const EXPECTED_PROMPTS = ["run-sim", "ui-blind-compare"];
-const EXPECTED_RUN_SIM_ARGUMENTS = [
+const EXPECTED_PROMPTS = ["audit-project", "review-change", "ui-blind-compare"];
+const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
   "target",
   "topic",
   "subjectKind",
-  "mode",
   "domains",
   "specification",
   "projectBrief",
@@ -53,6 +52,9 @@ const EXPECTED_RUN_SIM_ARGUMENTS = [
   "language",
   "qualityTier",
 ];
+const EXPECTED_AUDIT_PROJECT_ARGUMENTS = EXPECTED_REVIEW_CHANGE_ARGUMENTS.filter(
+  (name) => name !== "currentState" && name !== "proposal",
+);
 
 async function repositoryArtifactEntries(root: string): Promise<string[]> {
   const artifactRoots = [
@@ -127,29 +129,35 @@ try {
     "get_status did not return safe repository readiness metadata",
   );
 
-  const runSim = listedPrompts.find((prompt) => prompt.name === "run-sim");
-  assert(runSim !== undefined, "run-sim prompt is missing");
+  const auditProject = listedPrompts.find((prompt) => prompt.name === "audit-project");
+  assert(auditProject !== undefined, "audit-project prompt is missing");
   assert(
-    JSON.stringify(runSim.arguments?.map((argument) => argument.name))
-      === JSON.stringify(EXPECTED_RUN_SIM_ARGUMENTS),
-    "unexpected run-sim prompt argument schema",
+    JSON.stringify(auditProject.arguments?.map((argument) => argument.name))
+      === JSON.stringify(EXPECTED_AUDIT_PROJECT_ARGUMENTS),
+    "unexpected audit-project prompt argument schema",
   );
   assert(
     JSON.stringify(
-      runSim.arguments
+      auditProject.arguments
         ?.filter((argument) => argument.required)
         .map((argument) => argument.name),
     ) === JSON.stringify(["target", "topic"]),
-    "run-sim must require exactly target and topic",
+    "audit-project must require exactly target and topic",
+  );
+  const reviewChange = listedPrompts.find((prompt) => prompt.name === "review-change");
+  assert(reviewChange !== undefined, "review-change prompt is missing");
+  assert(
+    JSON.stringify(reviewChange.arguments?.map((argument) => argument.name))
+      === JSON.stringify(EXPECTED_REVIEW_CHANGE_ARGUMENTS),
+    "unexpected review-change prompt argument schema",
   );
 
   const expandedPrompt = await client.getPrompt({
-    name: "run-sim",
+    name: "audit-project",
     arguments: {
       target: "Hades II",
       topic: "Japan launch price",
       subjectKind: "existing-game",
-      mode: "baseline",
       domains: "competition,price",
       specification: "Evaluate the current launch price without a proposed change.",
       projectBrief: JSON.stringify({
@@ -223,17 +231,18 @@ try {
       qualityTier: "premium indie",
     },
   });
-  assert(expandedPrompt.messages.length === 1, "run-sim must return one prompt message");
+  assert(expandedPrompt.messages.length === 1, "audit-project must return one prompt message");
   const promptContent = expandedPrompt.messages[0]?.content;
-  assert(promptContent?.type === "text", "run-sim must return text content");
+  assert(promptContent?.type === "text", "audit-project must return text content");
   assert(
     promptContent.text.includes("--- END REPOSITORY RECIPE ---")
       && promptContent.text.includes("--- BEGIN INPUT DATA (JSON) ---"),
-    "run-sim did not separate its recipe from argument data",
+    "audit-project did not separate its recipe from argument data",
   );
   assert(
     promptContent.text.includes('"target": "Hades II"')
       && promptContent.text.includes('"mode": "baseline"')
+      && promptContent.text.includes('"reviewWorkflow": "audit"')
       && promptContent.text.includes('"projectBrief": {')
       && promptContent.text.includes('"projectBriefDiagnostics": {')
       && promptContent.text.includes('"status": "inventory-only"')
@@ -259,16 +268,32 @@ try {
       && promptContent.text.includes('"runwayMonths": 12')
       && promptContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && promptContent.text.includes('"selectedDomains": [\n    "price",\n    "competition"\n  ]'),
-    "run-sim did not normalize the supplied arguments",
+    "audit-project did not normalize the supplied arguments",
+  );
+
+  const changePrompt = await client.getPrompt({
+    name: "review-change",
+    arguments: {
+      target: "Hades II",
+      topic: "Onboarding revision",
+      currentState: "Explanation precedes the first action",
+      proposal: "The first action teaches the control in context",
+    },
+  });
+  const changeContent = changePrompt.messages[0]?.content;
+  assert(
+    changeContent?.type === "text"
+      && changeContent.text.includes('"mode": "change"')
+      && changeContent.text.includes('"reviewWorkflow": "change"'),
+    "review-change did not fix the change workflow",
   );
 
   const playtestPrompt = await client.getPrompt({
-    name: "run-sim",
+    name: "audit-project",
     arguments: {
       target: "Protocol Fixture Game",
       topic: "First-session playtest wiring",
       subjectKind: "existing-game",
-      mode: "baseline",
       domains: "gameplay,ui",
       playtestUrl: "http://127.0.0.1:4173/play#new-game",
       playtestTask: "Start a new run and reach the tutorial checkpoint",
@@ -328,7 +353,7 @@ try {
     },
   });
   const playtestContent = playtestPrompt.messages[0]?.content;
-  assert(playtestContent?.type === "text", "run-sim playtest prompt must return text content");
+  assert(playtestContent?.type === "text", "audit-project playtest prompt must return text content");
   assert(
     playtestContent.text.includes('"playtestUrl": "http://127.0.0.1:4173/play#new-game"')
       && playtestContent.text.includes('"playtestTask": "Start a new run and reach the tutorial checkpoint"')
@@ -345,22 +370,21 @@ try {
       && playtestContent.text.includes('"causalAttributionStatus": "comparison-candidate-only"')
       && playtestContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && playtestContent.text.includes('"selectedDomains": [\n    "gameplay",\n    "ui"\n  ]'),
-    "run-sim did not round-trip the supplied playtest protocol",
+    "audit-project did not round-trip the supplied playtest protocol",
   );
 
   const cohortPrompt = await client.getPrompt({
-    name: "run-sim",
+    name: "audit-project",
     arguments: {
       target: "Cohort Fixture Game",
       topic: "Bounded playtest cohort wiring",
       subjectKind: "existing-game",
-      mode: "baseline",
       domains: "gameplay",
       playtestCohort: JSON.stringify(playtestCohortFixture("stdio")),
     },
   });
   const cohortContent = cohortPrompt.messages[0]?.content;
-  assert(cohortContent?.type === "text", "run-sim cohort prompt must return text content");
+  assert(cohortContent?.type === "text", "audit-project cohort prompt must return text content");
   assert(
     cohortContent.text.includes('"playtestCohort": {')
       && cohortContent.text.includes('"playtestCohortDiagnostics": {')
@@ -374,12 +398,12 @@ try {
       && cohortContent.text.includes('"participantExposure": "ai-operated-pair"')
       && cohortContent.text.includes('"evidenceTransition": {')
       && !cohortContent.text.includes('"completionRate"'),
-    "run-sim did not preserve bounded cohort evidence separation",
+    "audit-project did not preserve bounded cohort evidence separation",
   );
 
   const knowledge = await client.callTool({
     name: "get_knowledge",
-    arguments: {kind: "templates", id: "adoption-eval.md"},
+    arguments: {kind: "templates", id: "review-eval.md"},
   });
   assert(knowledge.isError !== true, "get_knowledge returned a tool error");
   assert(

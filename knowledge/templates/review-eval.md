@@ -1,26 +1,26 @@
-# ゲーム採用可能性評価テンプレート
+# ゲーム変更・マイルストーン評価テンプレート
 
 このテンプレートは、プレイヤーが対象ゲームを知り、購入し、遊び続けるまでの流れを、実データに接地して評価するためのものです。主張ごとに Evidence ID を付け、末尾の Evidence Index で保存済み artifact へ追跡できるようにしてください。裏付けがない主張は断定せず、必ず「根拠不足」と記します。
 
 Mode の規則を混同しないでください。`baseline` は現状だけを報告し、未提案の変更案を仮定しません。`change` だけが各評価を「現状 vs 変更案」で報告します。
 
-Mode、Selected Domains、Decision Cardは必ずレポートの最初に記録し、詳細ledgerを読まなくても次の判断が分かるようにします。
+Mode、Selected Domains、Decision Card (`Decision Check`)は必ずレポートの最初に記録し、詳細ledgerを読まなくても次の判断が分かるようにします。
 
 - Mode: ［`baseline` | `change`］
 - Selected Domains: ［`gameplay` / `storefront` / `ui` / `price` / `localization` / `competition` から選択］
 
 ## Decision Card
 
-長文所見の前に、現時点の意思決定を1画面で固定します。根拠不足なら無理に`fix-now`を選ばず、`investigate`または`defer`にします。
+長文所見の前に、現時点の意思決定を1画面で固定します。根拠不足は自動的なNO-GOではなく、次工程の不可逆性とblocking evidenceで判定します。
 
+- Verdict: ［`GO` / `HOLD` / `NO-GO`］
 - Decision: ［`fix-now` / `test-next-build` / `investigate` / `defer`］
+- Proven: ［直接支えられる内容とEvidence ID。最大3件］
+- Unproven: ［判断に重要だが未証明の内容。最大3件］
+- Highest risk: ［判断を最も変え得る問題または不確実性1件］
 - Player problem: ［誰が、どの状態で、何に阻害されるか］
-- Affected persona / Flow: ［persona ID。市場構成比ではない］
-- Smallest next update: ［独立して検証できる最小変更。baselineで変更を提案しない場合はN/A］
-- Evidence status: ［observed / inferred / unknown とEvidence ID］
+- Next validations: ［最大3件。それぞれ最小変更 / test、Success signal、Guardrail / rollback］
 - Confidence: ［high / medium / low とblocking missing］
-- Success signal: ［build、cohort、期間、行動指標］
-- Guardrail / rollback: ［悪化を止める指標と戻せる単位］
 - Revisit condition: ［何が取得・発生したら判断を更新するか］
 
 ## Detailed Scope

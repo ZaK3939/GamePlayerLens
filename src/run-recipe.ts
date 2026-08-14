@@ -26,30 +26,30 @@ function parseSections(source: string): Map<string, string> {
   const sections = new Map<string, string>();
   const matches = [...source.matchAll(SECTION_PATTERN)];
   if (matches.length === 0) {
-    throw new Error("run-sim recipe contains no declared sections");
+    throw new Error("game review recipe contains no declared sections");
   }
 
   const outside = source.replace(SECTION_PATTERN, "").trim();
-  if (outside) throw new Error("run-sim recipe contains content outside declared sections");
+  if (outside) throw new Error("game review recipe contains content outside declared sections");
   for (const match of matches) {
     const id = match[1]!;
     const content = match[2]!.trim();
-    if (!SECTION_IDS.has(id)) throw new Error(`unknown run-sim recipe section: ${id}`);
-    if (sections.has(id)) throw new Error(`duplicate run-sim recipe section: ${id}`);
-    if (!content) throw new Error(`empty run-sim recipe section: ${id}`);
+    if (!SECTION_IDS.has(id)) throw new Error(`unknown game review recipe section: ${id}`);
+    if (sections.has(id)) throw new Error(`duplicate game review recipe section: ${id}`);
+    if (!content) throw new Error(`empty game review recipe section: ${id}`);
     sections.set(id, content);
   }
-  if (!sections.has("core")) throw new Error("run-sim recipe is missing its core section");
+  if (!sections.has("core")) throw new Error("game review recipe is missing its core section");
   return sections;
 }
 
 function requiredSection(sections: Map<string, string>, id: string): string {
   const content = sections.get(id);
-  if (!content?.trim()) throw new Error(`run-sim recipe is missing section: ${id}`);
+  if (!content?.trim()) throw new Error(`game review recipe is missing section: ${id}`);
   return content;
 }
 
-export function compileRunSimRecipe(
+export function compileGameReviewRecipe(
   source: string,
   selection: RunRecipeSelection,
 ): string {

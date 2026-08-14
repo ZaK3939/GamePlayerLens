@@ -15,7 +15,7 @@ import {canonicalSha256} from "./integrity.js";
 import type {Persona} from "./persona-schemas.js";
 import {createPersonaStore} from "./persona-store.js";
 import {createPathResolver} from "./paths.js";
-import {compileRunSimRecipe} from "./run-recipe.js";
+import {compileGameReviewRecipe} from "./run-recipe.js";
 import {
   MAX_RUN_BYTES,
   SaveRunInputSchema,
@@ -313,7 +313,7 @@ function playerSimulation(recommendationId = "rec-1") {
 function runRecipeFixture(): string {
   return [
     "<!-- GPL:section core -->",
-    "# run-sim\n\nEvidence-grounded simulation recipe.",
+    "# game review\n\nEvidence-grounded review recipe.",
     "<!-- GPL:end -->",
     "<!-- GPL:section subject:existing-game -->",
     "Existing-game test contract.",
@@ -346,7 +346,7 @@ async function harness(
     "skills",
     "workspaces",
   ].map((directory) => mkdir(join(root, directory), {recursive: true})));
-  await writeFile(join(root, "skills", "run-sim.md"), recipe);
+  await writeFile(join(root, "skills", "game-review.md"), recipe);
   const resolver = createPathResolver(root);
   const artifacts = createArtifactStore(resolver, {clock});
   await artifacts.saveIntel({
@@ -380,7 +380,7 @@ async function harness(
   });
   return {
     artifacts,
-    recipe: compileRunSimRecipe(recipe, {
+    recipe: compileGameReviewRecipe(recipe, {
       subjectKind: "existing-game",
       selectedDomains: ["storefront", "ui"],
     }),
@@ -937,12 +937,12 @@ describe("run store", () => {
   });
 
   it("seals and revalidates the exact subject/domain-compiled recipe", async () => {
-    const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
+    const source = await readFile(new URL("../skills/game-review.md", import.meta.url), "utf8");
     const {resolver, store} = await harness(() => NOW, source);
 
     await store.saveRun(runInput());
     const initial = await store.readRun("Hades II", RUN_ID);
-    const compiled = compileRunSimRecipe(source, {
+    const compiled = compileGameReviewRecipe(source, {
       subjectKind: "existing-game",
       selectedDomains: ["storefront", "ui"],
     });
@@ -950,7 +950,7 @@ describe("run store", () => {
     expect(initial.integrity.status).toBe("verified");
 
     await writeFile(
-      resolver.resolveSkillPath("run-sim.md"),
+      resolver.resolveSkillPath("game-review.md"),
       source.replace("UI domain contract", "Changed UI domain contract"),
     );
     const drifted = await store.readRun("Hades II", RUN_ID);
@@ -991,8 +991,8 @@ describe("run store", () => {
       market: "Japan",
       language: "japanese",
       recipe: {
-        id: "run-sim.md",
-        path: "skills/run-sim.md",
+        id: "game-review.md",
+        path: "skills/game-review.md",
         sha256: sha256(recipe),
       },
       model: {

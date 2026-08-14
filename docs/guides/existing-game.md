@@ -12,14 +12,13 @@ Use this workflow for a released game, an Early Access title, or a public store 
 
 `steam_brief` is a bounded first pass. It preserves source-specific provenance and partial success; it is not a replacement for every specialized tool and it does not operate the game build.
 
-## Full `run-sim` request
+## Full `audit-project` request
 
 ```json
 {
   "target": "Hades",
   "topic": "Current Japan positioning and closest competitors",
   "subjectKind": "existing-game",
-  "mode": "baseline",
   "domains": "storefront,price,localization,competition",
   "market": "Japan",
   "language": "japanese",
@@ -27,7 +26,7 @@ Use this workflow for a released game, an Early Access title, or a public store 
 }
 ```
 
-Use `mode=change` only with both `currentState` and `proposal`. `domains` is a required comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
+Use `review-change` with both `currentState` and `proposal` for a proposed revision. `domains` is a required comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
 
 ## Domain boundaries
 

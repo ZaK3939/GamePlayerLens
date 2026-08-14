@@ -74,10 +74,10 @@ describe("safe paths", () => {
 
   it("resolves only basename markdown skill files", () => {
     const resolver = createPathResolver(root);
-    expect(resolver.resolveSkillPath("run-sim.md"))
-      .toMatch(/skills[/\\]run-sim\.md$/);
-    expect(() => resolver.resolveSkillPath("../run-sim.md")).toThrow();
-    expect(() => resolver.resolveSkillPath("run-sim.txt")).toThrow();
+    expect(resolver.resolveSkillPath("game-review.md"))
+      .toMatch(/skills[/\\]game-review\.md$/);
+    expect(() => resolver.resolveSkillPath("../game-review.md")).toThrow();
+    expect(() => resolver.resolveSkillPath("game-review.txt")).toThrow();
   });
 
   it("rejects existing symlinks that escape the knowledge root", () => {
@@ -316,9 +316,9 @@ describe("packaged startup", () => {
     for (const relative of ["knowledge/templates", "knowledge/rubrics", "skills"]) {
       mkdirSync(join(assetRoot, relative), {recursive: true});
     }
-    writeFileSync(join(assetRoot, "knowledge/templates/adoption-eval.md"), "template");
+    writeFileSync(join(assetRoot, "knowledge/templates/review-eval.md"), "template");
     writeFileSync(join(assetRoot, "knowledge/rubrics/harsh-critic.md"), "rubric");
-    writeFileSync(join(assetRoot, "skills/run-sim.md"), "recipe");
+    writeFileSync(join(assetRoot, "skills/game-review.md"), "recipe");
 
     try {
       const resolver = initializePackagedPaths(assetRoot, dataRoot);
@@ -327,12 +327,12 @@ describe("packaged startup", () => {
 
       expect(resolver.assetRoot).toBe(realAssetRoot);
       expect(resolver.root).toBe(realDataRoot);
-      expect(resolver.resolveKnowledgePath("templates", "adoption-eval.md"))
-        .toBe(join(realAssetRoot, "knowledge/templates/adoption-eval.md"));
+      expect(resolver.resolveKnowledgePath("templates", "review-eval.md"))
+        .toBe(join(realAssetRoot, "knowledge/templates/review-eval.md"));
       expect(resolver.resolveKnowledgePath("rubrics", "harsh-critic.md"))
         .toBe(join(realAssetRoot, "knowledge/rubrics/harsh-critic.md"));
-      expect(resolver.resolveSkillPath("run-sim.md"))
-        .toBe(join(realAssetRoot, "skills/run-sim.md"));
+      expect(resolver.resolveSkillPath("game-review.md"))
+        .toBe(join(realAssetRoot, "skills/game-review.md"));
       expect(resolver.resolvePersonaPath("tester"))
         .toBe(join(realDataRoot, "knowledge/personas/tester.json"));
       expect(resolver.resolveIntelArtifactPath("Hades II", "Snapshot"))

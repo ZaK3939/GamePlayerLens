@@ -19,7 +19,7 @@ import {
   ProjectBriefSchema,
   SubjectKindSchema,
 } from "./project-brief.js";
-import {compileRunSimRecipe} from "./run-recipe.js";
+import {compileGameReviewRecipe} from "./run-recipe.js";
 import type {SimulationDomain} from "./run-schemas.js";
 
 const DOMAIN_ORDER = [
@@ -130,7 +130,7 @@ const PlaytestDurationSchema = z.string().trim().regex(/^\d{1,3}$/).refine(
   "playtestDurationMinutes must be between 1 and 120",
 );
 
-export const RunSimPromptArgumentsSchema = z.object({
+const RunSimPromptArgumentShape = {
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
   topic: NonEmptyTrimmedStringSchema.describe("Consultation topic"),
   subjectKind: SubjectKindSchema.optional().describe("Whether the subject is an existing game, a developer concept, or an active developer project"),
@@ -168,7 +168,31 @@ export const RunSimPromptArgumentsSchema = z.object({
   market: z.string().optional(),
   language: z.string().optional(),
   qualityTier: z.string().optional(),
-}).superRefine((value, context) => {
+};
+
+const {
+  mode: _reviewMode,
+  ...ReviewChangePromptArgumentShape
+} = RunSimPromptArgumentShape;
+const {
+  currentState: _auditCurrentState,
+  proposal: _auditProposal,
+  ...AuditProjectPromptArgumentShape
+} = ReviewChangePromptArgumentShape;
+
+function addSharedPromptIssues(
+  value: {
+    playtestUrl?: string;
+    playtestTask?: string;
+    playtestSession?: string;
+    playtestCohort?: string;
+  },
+  context: {addIssue: (issue: {
+    code: "custom";
+    path: string[];
+    message: string;
+  }) => void},
+): void {
   if (value.playtestUrl && !value.playtestTask) {
     context.addIssue({
       code: "custom",
@@ -183,7 +207,18 @@ export const RunSimPromptArgumentsSchema = z.object({
       message: "playtestSession and playtestCohort must not be supplied together",
     });
   }
-});
+}
+
+export const RunSimPromptArgumentsSchema = z.object(RunSimPromptArgumentShape)
+  .superRefine(addSharedPromptIssues);
+
+export const ReviewChangePromptArgumentsSchema = z.object(
+  ReviewChangePromptArgumentShape,
+).strict().superRefine(addSharedPromptIssues);
+
+export const AuditProjectPromptArgumentsSchema = z.object(
+  AuditProjectPromptArgumentShape,
+).strict().superRefine(addSharedPromptIssues);
 
 export const UiBlindComparePromptArgumentsSchema = z.object({
   targetImageId: NonEmptyTrimmedStringSchema,
@@ -193,9 +228,16 @@ export const UiBlindComparePromptArgumentsSchema = z.object({
 });
 
 export type RunSimPromptArguments = z.input<typeof RunSimPromptArgumentsSchema>;
+export type ReviewChangePromptArguments = z.input<
+  typeof ReviewChangePromptArgumentsSchema
+>;
+export type AuditProjectPromptArguments = z.input<
+  typeof AuditProjectPromptArgumentsSchema
+>;
 export type UiBlindComparePromptArguments = z.input<typeof UiBlindComparePromptArgumentsSchema>;
 
 export interface RunSimPromptContext {
+  reviewWorkflow?: "change" | "audit";
   conceptTestEvidence?: {
     sourceTool: "manual";
     observedAt: string;
@@ -352,7 +394,7 @@ export function buildRunSimPrompt(
     ? PlaytestCohortObjectSchema.parse(JSON.parse(playtestCohort))
     : undefined;
 
-  const compiledRecipe = compileRunSimRecipe(recipe, {
+  const compiledRecipe = compileGameReviewRecipe(recipe, {
     subjectKind: parsed.subjectKind,
     selectedDomains,
   });
@@ -437,9 +479,36 @@ export function buildRunSimPrompt(
     ...(uiReferenceUrls
       ? {uiReferenceUrls: uiReferenceUrls.split("\n")}
       : {}),
+    ...(context.reviewWorkflow
+      ? {reviewWorkflow: context.reviewWorkflow}
+      : {}),
     selectedDomains,
     missingChangeInputs,
     intakeDiagnostics,
+  });
+}
+
+export function buildReviewChangePrompt(
+  recipe: string,
+  input: ReviewChangePromptArguments,
+  context: RunSimPromptContext = {},
+): string {
+  const parsed = ReviewChangePromptArgumentsSchema.parse(input);
+  return buildRunSimPrompt(recipe, {...parsed, mode: "change"}, {
+    ...context,
+    reviewWorkflow: "change",
+  });
+}
+
+export function buildAuditProjectPrompt(
+  recipe: string,
+  input: AuditProjectPromptArguments,
+  context: RunSimPromptContext = {},
+): string {
+  const parsed = AuditProjectPromptArgumentsSchema.parse(input);
+  return buildRunSimPrompt(recipe, {...parsed, mode: "baseline"}, {
+    ...context,
+    reviewWorkflow: "audit",
   });
 }
 

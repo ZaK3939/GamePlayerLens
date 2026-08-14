@@ -109,7 +109,7 @@ Prediction Run保存時、serverは上記shapeと参照整合性に加え、spec
 
 ## 3. Prediction Run
 
-通常の`run-sim.md`に従ってsimulationを行いますが、outcome measurementより前の根拠だけを使います。
+通常の`game-review.md`に従ってreview runを作りますが、outcome measurementより前の根拠だけを使います。
 
 - ExperimentSpecをrunのintel evidenceに含め、少なくともpersona、domain、critic、synthesisの判断で引用する。
 - 次loopではparent ExperimentOutcomeもevidenceに含め、どのlearningを採用したかroundへ記録する。

@@ -18,7 +18,7 @@ topicがconcept、prototype、vertical slice、pitch、storefront、trailer、de
 - `nextIrreversibleCommitment`: 公開、外注、event登録、release date、launchなど戻しにくい判断
 - `blockingEvidence`: その判断の前に必要なmissing evidence
 
-`run-sim`の`projectBrief`にある値は、開発者が宣言した`declared design intent`としてCore Experience Mapへ配置します。保存済み仕様として追跡できますが、player evidence、市場需要、実装済み体験の観測には数えません。briefの各claimを、store asset、third-party理解test、build moment、human playtest、telemetryのどれで確認したかを別に記録します。未入力fieldを推測で埋めず、current gateをblockingするmissingを優先します。
+game reviewの`projectBrief`にある値は、開発者が宣言した`declared design intent`としてCore Experience Mapへ配置します。保存済み仕様として追跡できますが、player evidence、市場需要、実装済み体験の観測には数えません。briefの各claimを、store asset、third-party理解test、build moment、human playtest、telemetryのどれで確認したかを別に記録します。未入力fieldを推測で埋めず、current gateをblockingするmissingを優先します。
 
 `projectBriefDiagnostics`はCore Experience、Differentiation、Decision Contextごとの入力inventoryです。開発中対象のroute readinessには、対象player、企画入口に応じたtheme / system / reward、`oneSentencePromise`、`coreProofMoment`が必要です。`coreProofMoment`はtheme、action、system response、rewardが最短で観測できるはずのscene / state / interactionという宣言であり、実装済み・伝達成功・funの証拠ではありません。`mechanismTransfer`はimitation / Known Frameで`sourceAction`、`sourceSystemResponse`、`sourceReward`、`meaningfulDifference`の欠落を示します。field presenceは内容の質、fun、market fit、milestone readiness、参照作品の内部設計を証明しません。missing一覧は確認質問と次の検証を絞るためだけに使います。`revisionId`は後続testが見たbrief版を特定するprovenanceであり、新しい版や大きい番号を高品質とみなしません。
 

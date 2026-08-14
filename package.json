@@ -1,7 +1,7 @@
 {
   "name": "game-player-lens",
   "version": "0.1.0",
-  "description": "Evidence-grounded Steam player research and simulation MCP server",
+  "description": "Evidence-driven game revision review and player-lens research MCP server",
   "private": false,
   "type": "module",
   "bin": {

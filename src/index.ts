@@ -30,13 +30,17 @@ import {
 } from "./personas.js";
 import type {PathResolver} from "./paths.js";
 import {
+  AuditProjectPromptArgumentsSchema,
+  buildAuditProjectPrompt,
   buildConceptTestEvidenceEnvelope,
   buildFirstContactTestEvidenceEnvelope,
   buildPlaytestCohortEvidenceEnvelope,
   buildPlaytestSessionEvidenceEnvelope,
-  buildRunSimPrompt,
+  buildReviewChangePrompt,
   buildUiBlindComparePrompt,
-  RunSimPromptArgumentsSchema,
+  ReviewChangePromptArgumentsSchema,
+  type RunSimPromptArguments,
+  type RunSimPromptContext,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
 import {
@@ -52,7 +56,7 @@ import {
 const SERVER_NAME = "game-player-lens";
 const SERVER_VERSION = "0.1.0";
 const TOOL_COUNT = 14;
-const PROMPT_COUNT = 2;
+const PROMPT_COUNT = 3;
 
 const AppidSchema = z.number().int().positive();
 const ReviewTypeSchema = z.enum(["all", "positive", "negative"]);
@@ -376,7 +380,7 @@ export function buildServer(
   server.registerTool(
     "save_artifact",
     {
-      description: "Atomically save intel from an exact ephemeral resultHandle (preferred) or a caller-provided payload, save evaluation Markdown, or seal an immutable simulation run with hashed evidence",
+      description: "Atomically save intel from an exact ephemeral resultHandle (preferred) or a caller-provided payload, save evaluation Markdown, or seal an immutable review run with hashed evidence",
       inputSchema: SaveArtifactInputSchema,
       outputSchema: ResultEnvelopeSchema,
     },
@@ -472,43 +476,74 @@ export function buildServer(
     },
   );
 
+  function buildReviewPromptContext(
+    arguments_: RunSimPromptArguments,
+  ): RunSimPromptContext {
+    const conceptTestEvidence = trackManualPromptEvidence(
+      services.resultStore,
+      buildConceptTestEvidenceEnvelope(arguments_),
+    );
+    const firstContactTestEvidence = trackManualPromptEvidence(
+      services.resultStore,
+      buildFirstContactTestEvidenceEnvelope(arguments_),
+    );
+    const playtestSessionEvidence = trackManualPromptEvidence(
+      services.resultStore,
+      buildPlaytestSessionEvidenceEnvelope(arguments_),
+    );
+    const playtestCohortEvidence = trackManualPromptEvidence(
+      services.resultStore,
+      buildPlaytestCohortEvidenceEnvelope(arguments_),
+    );
+    return {
+      conceptTestEvidence,
+      firstContactTestEvidence,
+      playtestSessionEvidence,
+      playtestCohortEvidence,
+    };
+  }
+
   server.registerPrompt(
-    "run-sim",
+    "review-change",
     {
-      description: "Run an evidence-grounded adoption simulation",
-      argsSchema: RunSimPromptArgumentsSchema,
+      description: "Review one current-to-proposed game revision through evidence-grounded player lenses",
+      argsSchema: ReviewChangePromptArgumentsSchema,
     },
     async (arguments_) => {
-      const conceptTestEvidence = trackManualPromptEvidence(
-        services.resultStore,
-        buildConceptTestEvidenceEnvelope(arguments_),
-      );
-      const firstContactTestEvidence = trackManualPromptEvidence(
-        services.resultStore,
-        buildFirstContactTestEvidenceEnvelope(arguments_),
-      );
-      const playtestSessionEvidence = trackManualPromptEvidence(
-        services.resultStore,
-        buildPlaytestSessionEvidenceEnvelope(arguments_),
-      );
-      const playtestCohortEvidence = trackManualPromptEvidence(
-        services.resultStore,
-        buildPlaytestCohortEvidenceEnvelope(arguments_),
-      );
+      const reviewInput = {...arguments_, mode: "change" as const};
       return {
         messages: [{
           role: "user" as const,
           content: {
             type: "text" as const,
-            text: buildRunSimPrompt(
-              await services.readSkill("run-sim.md"),
+            text: buildReviewChangePrompt(
+              await services.readSkill("game-review.md"),
               arguments_,
-              {
-                conceptTestEvidence,
-                firstContactTestEvidence,
-                playtestSessionEvidence,
-                playtestCohortEvidence,
-              },
+              buildReviewPromptContext(reviewInput),
+            ),
+          },
+        }],
+      };
+    },
+  );
+
+  server.registerPrompt(
+    "audit-project",
+    {
+      description: "Audit a game project or released game at a milestone using evidence-grounded player lenses",
+      argsSchema: AuditProjectPromptArgumentsSchema,
+    },
+    async (arguments_) => {
+      const reviewInput = {...arguments_, mode: "baseline" as const};
+      return {
+        messages: [{
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: buildAuditProjectPrompt(
+              await services.readSkill("game-review.md"),
+              arguments_,
+              buildReviewPromptContext(reviewInput),
             ),
           },
         }],

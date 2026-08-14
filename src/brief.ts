@@ -386,7 +386,7 @@ function nextActions(items: BriefDimension[], language: string): string[] {
     actions.push(`Provide the actual ${language} store copy or capture for localization review.`);
   }
   actions.push("Use derive_personas for a full traceable persona cohort; brief review excerpts are triage evidence only.");
-  actions.push("Use run-sim with a playable build, recording, or session log before making gameplay-quality claims.");
+  actions.push("Use audit-project with a playable build, recording, or session log before making gameplay-quality claims.");
   return actions;
 }
 

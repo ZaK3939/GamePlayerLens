@@ -8,7 +8,7 @@ import {
 } from "./project-brief.js";
 
 export const MAX_RUN_BYTES = 2 * 1024 * 1024;
-export const RUN_RECIPE_ID = "run-sim.md";
+export const RUN_RECIPE_ID = "game-review.md";
 
 export const RunIdSchema = z.uuid();
 export const SimulationModeSchema = z.enum(["baseline", "change"]);
@@ -589,7 +589,7 @@ export const RunRecordCoreSchema = z.object({
   selectedDomains: z.array(SimulationDomainSchema).min(1).max(6),
   recipe: z.object({
     id: z.literal(RUN_RECIPE_ID),
-    path: z.literal("skills/run-sim.md"),
+    path: z.literal("skills/game-review.md"),
     sha256: Sha256Schema,
   }).strict(),
   model: ModelInputSchema.extend({reportedByClient: z.literal(true)}).strict(),

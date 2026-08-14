@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 14 MCP tools and two prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 14 MCP tools and three prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -18,13 +18,16 @@ GamePlayerLens exposes exactly 14 MCP tools and two prompts. All tools return a 
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
 | `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
 | `steam_discover` | Find SteamSpy tag/genre candidates or intersect up to four values |
-| `save_artifact` | Save intel JSON, canonical evaluation Markdown, or an immutable simulation run |
+| `save_artifact` | Save intel JSON, canonical evaluation Markdown, or an immutable review run |
 | `get_artifact` | List or read intel, evaluations, runs, captures, and UI references |
 
 ## Prompts
 
-- `run-sim` orchestrates intake, evidence collection, review-grounded virtual-player rounds, domain review, criticism, evaluation storage, and run storage. `domains` must explicitly name at least one domain; omission returns `needs-input`, and a ready prompt receives only the named domain recipe sections.
+- `review-change` reviews one current-to-proposed revision and fixes `mode=change` internally.
+- `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
+
+The two main review prompts orchestrate intake, evidence collection, review-grounded player-lens rounds, domain review, criticism, evaluation storage, and run storage. `domains` must explicitly name at least one domain; omission returns `needs-input`, and a ready prompt receives only the named domain recipe sections. Both lead with a compact Decision Check before detailed severity-ranked findings.
 
 Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `firstContactTest`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary.
 

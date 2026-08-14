@@ -1,13 +1,13 @@
 # GamePlayerLens
 
-GamePlayerLens is an MCP server for evidence-grounded virtual players and game development reviews. It combines current Steam data, review-derived player memories, matched competitor evidence, UI stimuli, structured project briefs, playtest observations, and immutable run artifacts so an AI client can answer four questions clearly:
+GamePlayerLens is an evidence-driven review agent for game teams. It reviews each playable revision through grounded player lenses and tells an AI client whether the project has enough evidence to advance. It combines current Steam data, review-derived player memories, matched competitors, UI stimuli, project briefs, playtest observations, and immutable review runs to answer four questions:
 
-- How would distinct review-grounded players respond to this scenario, and why?
+- Should this change or milestone advance now?
 - What is supported by evidence?
 - What is still unknown?
-- What is the smallest useful validation to run next?
+- What are the smallest useful validations to run next?
 
-The server validates inputs, collects and normalizes evidence, stores artifacts, and checks coverage and integrity. The AI model in your MCP client writes the actual review; GamePlayerLens does not run a server-side LLM.
+Review-derived personas remain part of the process, but they are evidence-grounded lenses for generating questions and response hypotheses—not substitutes for people who played the game. The server validates inputs, collects and normalizes evidence, stores artifacts, and checks coverage and integrity. The AI model in your MCP client writes the review; GamePlayerLens does not run a server-side LLM.
 
 ## Quick start
 
@@ -41,30 +41,34 @@ game-player-lens
 
 After connecting, call `get_status` with no arguments. It reports whether the data directory is writable and whether the optional ITAD and Obscura integrations are configured, without returning secrets or absolute paths.
 
-Then run the `run-sim` prompt. All prompt arguments are strings. A minimal existing-game review looks like this:
+For everyday development, run `review-change`. It fixes the workflow to a current-versus-proposed revision, so there is no mode switch to configure. All prompt arguments are strings.
 
 ```json
 {
-  "target": "Hades",
-  "topic": "Current Japan positioning and closest competitors",
-  "subjectKind": "existing-game",
-  "mode": "baseline",
-  "domains": "storefront,competition",
+  "target": "Slot & Ember",
+  "topic": "First combat onboarding revision",
+  "subjectKind": "developer-project",
+  "domains": "gameplay,ui",
   "market": "Japan",
-  "language": "japanese"
+  "language": "japanese",
+  "projectBrief": "<JSON-encoded Project Brief>",
+  "uiBenchmarkTask": "Stop the first reel and explain the target, action, and result",
+  "currentState": "A text explanation appears before the first reel stop",
+  "proposal": "The first reel stop teaches the control through immediate combat response"
 }
 ```
 
-GamePlayerLens will either return an intake question or guide the client through evidence collection, independent review passes, criticism, evaluation storage, and immutable run storage.
+Use `audit-project` at vertical-slice, demo, release, or other milestone boundaries. Both prompts either return one consolidated intake question or guide the client through evidence collection, independent player-lens and domain passes, criticism, evaluation storage, and immutable run storage.
 
 ## Choose a workflow
 
 | Goal | Start here | Guide |
 |---|---|---|
-| Review a concept, prototype, vertical slice, or planned change | `run-sim` with `subjectKind=developer-concept` or `developer-project` | [Developer projects](docs/guides/developer-project.md) |
-| Review a released Steam game | `steam_search` → `steam_brief`, then `run-sim` | [Existing games](docs/guides/existing-game.md) |
-| Compare UI quality | `run-sim` with the `ui` domain and a concrete `uiBenchmarkTask` | [Existing games: UI comparison](docs/guides/existing-game.md#ui-comparison) |
-| Record a playtest or revision | `run-sim` with `playtestSession` or `playtestCohort` | [Experiments and playtests](docs/reference/experiments.md) |
+| Review one proposed revision | `review-change` with `currentState` and `proposal` | [Developer projects](docs/guides/developer-project.md) |
+| Audit a concept, prototype, vertical slice, or milestone | `audit-project` with `subjectKind=developer-concept` or `developer-project` | [Developer projects](docs/guides/developer-project.md) |
+| Audit a released Steam game | `steam_search` → `steam_brief`, then `audit-project` | [Existing games](docs/guides/existing-game.md) |
+| Compare UI quality | Either review prompt with the `ui` domain and a concrete `uiBenchmarkTask` | [Existing games: UI comparison](docs/guides/existing-game.md#ui-comparison) |
+| Record a playtest or revision | Either review prompt with `playtestSession` or `playtestCohort` | [Experiments and playtests](docs/reference/experiments.md) |
 | Read previous evidence or reviews | `get_artifact` | [Tool reference](docs/reference/tools.md) |
 
 ## What GamePlayerLens does
@@ -73,16 +77,19 @@ GamePlayerLens will either return an intake question or guide the client through
 |---|---|---|
 | Understand | Collect store data, regional prices, reviews, updates, current snapshots, and candidate competitors | `steam_brief`, provenance, supported decisions, gaps |
 | Structure | Turn developer intent into a strict Project Brief | Core Experience Map, intake diagnostics |
-| Simulate | Expose the same server-grounded v2 personas to current and proposed scenarios | exact derivation memory, explicit stimulus, perceived signals, action, predicted response, uncertainty, human falsifier |
+| Review through player lenses | Expose the same server-grounded v2 personas to current and proposed scenarios | exact derivation memory, explicit stimulus, perceived signals, action, predicted response, uncertainty, human falsifier |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Observe | Preserve concept tests, first-contact tests, playtest sessions, and cohorts | chronological action-response traces and bounded participant reports |
-| Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | Decision Card and prioritized backlog |
+| Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | one-screen Decision Check, severity-ranked findings, and prioritized backlog |
 | Learn | Save source envelopes, personas, evaluations, runs, and experiment outcomes | exact-save artifacts, integrity reports, verified experiment decisions |
 
-The two MCP prompts are:
+The three MCP prompts are:
 
-- `run-sim`: the primary workflow for evidence collection, review, criticism, and artifact storage. Its recipe is compiled from only the explicitly requested subject and domains.
+- `review-change`: the daily current-versus-proposed revision review. It fixes `mode=change` internally and prioritizes changed findings.
+- `audit-project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
 - `ui-blind-compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.
+
+Both main review prompts lead with a compact `Decision Check`: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations. Detailed findings follow with `Blocker`, `Important`, or `Suggestion` severity and evidence links.
 
 The server currently exposes exactly 14 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
 
@@ -99,7 +106,7 @@ GamePlayerLens deliberately refuses several shortcuts:
 - Wishlists alone do not prove fun, sales, or algorithmic visibility.
 - A high review percentage alone does not establish a successful or relevant competitor.
 - A prediction run is not an executed experiment.
-- A virtual player's predicted feeling or continuation decision is not a human report or population rate.
+- A player lens's predicted feeling or continuation decision is not a human report or population rate.
 
 Missing evidence remains missing. It is never silently converted to zero, success, or an industry average. Read [Evidence and integrity](docs/reference/evidence-and-integrity.md) for the complete interpretation rules.
 

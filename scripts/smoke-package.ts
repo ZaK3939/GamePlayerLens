@@ -74,14 +74,14 @@ assert(
 );
 for (const runtimePath of [
   cliPath,
-  join(repositoryRoot, "knowledge", "templates", "adoption-eval.md"),
+  join(repositoryRoot, "knowledge", "templates", "review-eval.md"),
   join(repositoryRoot, "knowledge", "rubrics", "harsh-critic.md"),
   join(repositoryRoot, "knowledge", "rubrics", "evidence-coverage.md"),
   join(repositoryRoot, "knowledge", "rubrics", "playtest.md"),
   join(repositoryRoot, "knowledge", "rubrics", "update-strategy.md"),
   join(repositoryRoot, "knowledge", "rubrics", "experiment.md"),
   join(repositoryRoot, "knowledge", "rubrics", "indie-survival-strategy.md"),
-  join(repositoryRoot, "skills", "run-sim.md"),
+  join(repositoryRoot, "skills", "game-review.md"),
 ]) {
   await access(runtimePath);
 }
@@ -124,7 +124,11 @@ try {
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
   assert(tools.length === 14, "packaged CLI did not expose fourteen tools");
-  assert(prompts.length === 2, "packaged CLI did not expose two prompts");
+  assert(
+    JSON.stringify(prompts.map((prompt) => prompt.name).sort())
+      === JSON.stringify(["audit-project", "review-change", "ui-blind-compare"]),
+    "packaged CLI did not expose the review prompt surface",
+  );
 
   const status = await client.callTool({name: "get_status", arguments: {}});
   const statusJson = JSON.stringify(status.structuredContent);
@@ -143,7 +147,7 @@ try {
 
   const knowledge = await client.callTool({
     name: "get_knowledge",
-    arguments: {kind: "templates", id: "adoption-eval.md"},
+    arguments: {kind: "templates", id: "review-eval.md"},
   });
   assert(knowledge.isError !== true, "packaged CLI could not read canonical knowledge");
   assert(
@@ -214,12 +218,11 @@ try {
   );
 
   const playtestPrompt = await client.getPrompt({
-    name: "run-sim",
+    name: "audit-project",
     arguments: {
       target: "Package Smoke Game",
       topic: "Playtest protocol wiring",
       subjectKind: "developer-project",
-      mode: "baseline",
       domains: "gameplay",
       projectBrief: JSON.stringify({
         revisionId: "brief-v1",
@@ -362,7 +365,7 @@ try {
     },
   });
   const playtestContent = playtestPrompt.messages[0]?.content;
-  assert(playtestContent?.type === "text", "packaged run-sim did not return text");
+  assert(playtestContent?.type === "text", "packaged audit-project did not return text");
   assert(
     playtestContent.text.includes('"playtestUrl": "http://127.0.0.1:4173/play#package-smoke"')
       && playtestContent.text.includes('"projectBrief": {')
@@ -403,23 +406,22 @@ try {
       && playtestContent.text.includes('"causalAttributionStatus": "comparison-candidate-only"')
       && playtestContent.text.includes('"intakeDiagnostics": {\n    "status": "ready"')
       && playtestContent.text.includes('"selectedDomains": [\n    "gameplay"\n  ]'),
-    "packaged run-sim did not round-trip the playtest protocol",
+    "packaged audit-project did not round-trip the playtest protocol",
   );
   playtestPromptRoundTrip = true;
 
   const cohortPrompt = await client.getPrompt({
-    name: "run-sim",
+    name: "audit-project",
     arguments: {
       target: "Package Cohort Fixture Game",
       topic: "Bounded playtest cohort wiring",
       subjectKind: "existing-game",
-      mode: "baseline",
       domains: "gameplay",
       playtestCohort: JSON.stringify(playtestCohortFixture("package")),
     },
   });
   const cohortContent = cohortPrompt.messages[0]?.content;
-  assert(cohortContent?.type === "text", "packaged run-sim cohort prompt did not return text");
+  assert(cohortContent?.type === "text", "packaged audit-project cohort prompt did not return text");
   assert(
     cohortContent.text.includes('"playtestCohort": {')
       && cohortContent.text.includes('"playtestCohortDiagnostics": {')
@@ -433,7 +435,7 @@ try {
       && cohortContent.text.includes('"participantExposure": "ai-operated-pair"')
       && cohortContent.text.includes('"evidenceTransition": {')
       && !cohortContent.text.includes('"completionRate"'),
-    "packaged run-sim did not preserve bounded cohort evidence separation",
+    "packaged audit-project did not preserve bounded cohort evidence separation",
   );
   playtestCohortRoundTrip = true;
 

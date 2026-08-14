@@ -11,9 +11,9 @@ Do not ask for a general verdict on the whole game. Choose the next decision tha
 - Should the team build the next content wave or repair the current slice?
 - Does a proposed UI change improve one concrete player task?
 
-Use `mode=baseline` for the current state. Use `mode=change` only when both `currentState` and `proposal` are supplied.
+Use `review-change` for one explicit current-to-proposed revision. Use `audit-project` for the current milestone as a whole. The prompt name fixes the evidence mode; callers do not pass a `mode` argument.
 
-## Minimal `run-sim` request
+## Minimal `audit-project` request
 
 All prompt arguments are strings. `projectBrief` is a JSON object encoded as a string by the MCP client.
 
@@ -22,13 +22,30 @@ All prompt arguments are strings. `projectBrief` is a JSON object encoded as a s
   "target": "Project Nyx",
   "topic": "Prototype core and next milestone",
   "subjectKind": "developer-project",
-  "mode": "baseline",
   "domains": "gameplay,storefront,competition",
   "market": "Japan",
   "language": "japanese",
   "projectBrief": "<JSON-encoded Project Brief>"
 }
 ```
+
+For a proposed revision, call `review-change` with the same audience and scope fields plus `currentState` and `proposal`:
+
+```json
+{
+  "target": "Project Nyx",
+  "topic": "First-route onboarding revision",
+  "subjectKind": "developer-project",
+  "domains": "gameplay",
+  "market": "Japan",
+  "language": "japanese",
+  "projectBrief": "<JSON-encoded Project Brief>",
+  "currentState": "The route rules are explained before the first decision",
+  "proposal": "The first route teaches one tradeoff through immediate system response"
+}
+```
+
+Keep one changed decision in each review so findings can be attributed to the revision.
 
 `market` fixes the audience context. `language` uses a Steam language code such as `japanese` or `english`. GamePlayerLens does not silently begin a Japan/Japanese review when either is absent.
 
@@ -82,11 +99,11 @@ For imitation or a Known Frame, describe the source action, response, and reward
 
 Everything in the Project Brief is declared design intent. It remains separate from implementation evidence, human response, market demand, and commercial readiness.
 
-## Run review-grounded virtual players
+## Run evidence-grounded player-lens rounds
 
-The virtual player is built from saved v2 personas whose voice, observed patterns, decision triggers, and limitations trace back to real Steam recommendation IDs. Use target-game reviews for current expectations and competitor or reference-game reviews for genre conventions, alternatives, and dealbreakers. UI screenshots and builds are scenario stimuli; they do not become personality traits.
+Each player lens uses a saved v2 persona whose voice, observed patterns, decision triggers, and limitations trace back to real Steam recommendation IDs. It generates review questions and falsifiable response hypotheses; it is not a person who played the build. Use target-game reviews for current expectations and competitor or reference-game reviews for genre conventions, alternatives, and dealbreakers. UI screenshots and builds are scenario stimuli; they do not become personality traits.
 
-Each saved persona runs through every current or proposed scenario. A Player Simulation Card records:
+Each saved persona reviews every current or proposed scenario. The stored Player Simulation Card records:
 
 - the exact saved derivation pack that grounded the persona;
 - the exact review memories retrieved;
@@ -146,7 +163,7 @@ Use a structured `playtestSession` or `playtestCohort` to preserve the evidence.
 
 A complete developer-project evaluation separates:
 
-- each virtual player's response from the reviewer synthesis;
+- each player lens's response hypothesis from the reviewer synthesis;
 - the Appeal Promise before purchase from the Delivered Experience after play starts;
 - the Core Experience Map from player evidence;
 - reward mechanisms from their visual or audio amplifiers;

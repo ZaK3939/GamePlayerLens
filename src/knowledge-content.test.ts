@@ -10,7 +10,7 @@ async function read(path: string): Promise<string> {
 
 describe("canonical adoption evaluation template", () => {
   it("contains the five required report sections and overall fields", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
     for (const heading of [
       "Overall Assessment",
       "Decision Card",
@@ -39,7 +39,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("requires evidence or an explicit evidence gap in every domain", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
     for (const domain of ["ゲームプレイ", "ストア訴求", "UI", "価格", "ローカライズ", "競合"]) {
       expect(content).toMatch(new RegExp(`### ${domain}[\\s\\S]*?根拠:`));
     }
@@ -55,7 +55,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("requires a role-separated, freshness-aware competitor selection ledger", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
 
     expect(content).toContain("Competitor freshness window");
     expect(content).toContain("Competitor must-match axes");
@@ -69,7 +69,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("starts with mode, selected domains, and explicit N/A reasons", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
     const reportStart = content.slice(0, content.indexOf("## Overall Assessment"));
 
     expect(reportStart).toContain("Mode");
@@ -84,7 +84,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("qualifies flow size and separates zero, missing, and estimates", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
 
     expect(content).toContain("reviewStats");
     expect(content).toMatch(/owners[\s\S]*推定[\s\S]*売上本数ではない/);
@@ -97,7 +97,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("requires an evidence index and an actionable final recommendation", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
 
     expect(content).toContain("## Evidence Index");
     expect(content).toContain("artifact repository-relative path");
@@ -108,7 +108,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("separates substantive data coverage from direct observation and integrity", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
 
     expect(content).toContain("## Data Coverage Matrix");
     expect(content).toContain("Coverage rate");
@@ -117,7 +117,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("reports matched UI benchmark provenance and axis-level quality gaps", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
 
     expect(content).toContain("Benchmark task");
     expect(content).toContain("Reference provenance");
@@ -129,10 +129,14 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("turns findings into a bounded update decision and persona impact backlog", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
 
+    expect(content).toContain("Verdict");
     expect(content).toContain("fix-now");
-    expect(content).toContain("Smallest next update");
+    expect(content).toContain("Proven");
+    expect(content).toContain("Unproven");
+    expect(content).toContain("Highest risk");
+    expect(content).toContain("Next validations");
     expect(content).toContain("Success signal");
     expect(content).toContain("Guardrail / rollback");
     expect(content).toContain("Update inventory");
@@ -141,7 +145,7 @@ describe("canonical adoption evaluation template", () => {
   });
 
   it("adds a conditional indie survival strategy with traceable core and funnel outputs", async () => {
-    const content = await read("knowledge/templates/adoption-eval.md");
+    const content = await read("knowledge/templates/review-eval.md");
 
     expect(content).toContain("## Indie Survival Strategy");
     expect(content).toContain("Core Experience Map");
@@ -425,7 +429,7 @@ describe("evidence coverage rubric", () => {
 describe("competitor selection rubric", () => {
   it("separates fit, success, freshness, controls, and structural code evidence", async () => {
     const rubric = await read("knowledge/rubrics/competitor-selection.md");
-    const recipe = await read("skills/run-sim.md");
+    const recipe = await read("skills/game-review.md");
     const critic = await read("knowledge/rubrics/harsh-critic.md");
 
     for (const role of [
@@ -479,7 +483,7 @@ describe("playtest rubric", () => {
 
   it("requires exact-saved session evidence and separates operation from human reward reports", async () => {
     const rubric = await read("knowledge/rubrics/playtest.md");
-    const recipe = await read("skills/run-sim.md");
+    const recipe = await read("skills/game-review.md");
 
     expect(rubric).toMatch(/playtestSessionEvidence\.resultHandle[\s\S]*exact-save/);
     expect(rubric).toMatch(/Action[\s\S]*response[\s\S]*rewardSignal/);
@@ -490,7 +494,7 @@ describe("playtest rubric", () => {
 
   it("connects ordinary retests through explicit revision lineage", async () => {
     const rubric = await read("knowledge/rubrics/playtest.md");
-    const recipe = await read("skills/run-sim.md");
+    const recipe = await read("skills/game-review.md");
 
     expect(rubric).toMatch(/parentSessionId[\s\S]*changeSummary[\s\S]*changedVariables[\s\S]*invariantsKept/);
     expect(rubric).toMatch(/複数[\s\S]*(因果|causal)[\s\S]*(unresolved|未解決)/);
@@ -500,8 +504,8 @@ describe("playtest rubric", () => {
 
   it("aggregates bounded cohorts without inventing population rates", async () => {
     const rubric = await read("knowledge/rubrics/playtest.md");
-    const recipe = await read("skills/run-sim.md");
-    const template = await read("knowledge/templates/adoption-eval.md");
+    const recipe = await read("skills/game-review.md");
+    const template = await read("knowledge/templates/review-eval.md");
 
     expect(rubric).toMatch(/playtestCohortEvidence\.resultHandle[\s\S]*exact-save/);
     expect(rubric).toMatch(/sessionCount[\s\S]*uniqueHumanParticipantCount[\s\S]*repeatHumanParticipantCount/);
@@ -641,8 +645,17 @@ describe("UI quality gap rubric", () => {
 });
 
 describe("MCP prompt source recipes", () => {
-  it("run-sim references every workflow tool and saves derived personas in order", async () => {
-    const content = await read("skills/run-sim.md");
+  it("leads game reviews with a compact evidence-linked decision check", async () => {
+    const content = await read("skills/game-review.md");
+
+    expect(content).toMatch(/Decision Check[\s\S]*Verdict[\s\S]*Proven[\s\S]*Unproven[\s\S]*Highest risk[\s\S]*Next validations/);
+    expect(content).toMatch(/Blocker[\s\S]*Important[\s\S]*Suggestion/);
+    expect(content).toMatch(/reviewWorkflow=change[\s\S]*current\/proposal[\s\S]*audit[\s\S]*milestone readiness/);
+    expect(content).toMatch(/persona[\s\S]*人間参加者の代替ではなく[\s\S]*review lens/);
+  });
+
+  it("game review references every workflow tool and saves derived personas in order", async () => {
+    const content = await read("skills/game-review.md");
     for (const tool of [
       "steam_search",
       "steam_discover",
@@ -670,7 +683,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("requires the saved evaluation relative path for completion", async () => {
-    const content = await read("skills/run-sim.md");
+    const content = await read("skills/game-review.md");
     const completion = content.slice(content.indexOf("## 完了条件"));
 
     expect(completion).toContain("evaluation");
@@ -680,7 +693,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("seals replay inputs, exact rounds, and calibration claims as a run artifact", async () => {
-    const content = await read("skills/run-sim.md");
+    const content = await read("skills/game-review.md");
 
     expect(content).toContain("kind=`run`");
     expect(content).toContain("scenario");
@@ -708,7 +721,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("runs prospective experiments as spec, prediction, outcome, and learning artifacts", async () => {
-    const content = await read("skills/run-sim.md");
+    const content = await read("skills/game-review.md");
 
     expect(content).toContain("experiment.md");
     expect(content).toContain("ExperimentSpec");
@@ -725,7 +738,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("applies the indie survival strategy to concept, launch, and marketing consultations", async () => {
-    const content = await read("skills/run-sim.md");
+    const content = await read("skills/game-review.md");
 
     expect(content).toContain("indie-survival-strategy.md");
     expect(content).toContain("Core Experience Map");
@@ -737,7 +750,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("keeps the developer project brief separate from player evidence", async () => {
-    const recipeContent = await read("skills/run-sim.md");
+    const recipeContent = await read("skills/game-review.md");
     const criticContent = await read("knowledge/rubrics/harsh-critic.md");
 
     expect(recipeContent).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
@@ -752,7 +765,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("saves and interprets concept tests without turning sample counts into demand", async () => {
-    const recipeContent = await read("skills/run-sim.md");
+    const recipeContent = await read("skills/game-review.md");
     const criticContent = await read("knowledge/rubrics/harsh-critic.md");
 
     expect(recipeContent).toMatch(/conceptTest[\s\S]*save_artifact[\s\S]*manual/);
@@ -763,7 +776,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("saves and interprets first-contact tests as bounded observations", async () => {
-    const content = await read("skills/run-sim.md");
+    const content = await read("skills/game-review.md");
 
     expect(content).toMatch(/firstContactTestEvidence\.resultHandle[\s\S]*save_artifact/);
     expect(content).toMatch(/theme[\s\S]*action[\s\S]*reward[\s\S]*immediateReject/);
@@ -771,7 +784,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {
-    const content = await read("skills/run-sim.md");
+    const content = await read("skills/game-review.md");
 
     expect(content).toMatch(
       /steam_fetch\.screenshots[\s\S]*steamstatic\.com[\s\S]*sourceType[\s\S]*steam-image/,
@@ -780,7 +793,7 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("uses UI reference catalogs without treating popularity or scraping as evidence", async () => {
-    const content = await read("skills/run-sim.md");
+    const content = await read("skills/game-review.md");
 
     expect(content).toContain("Game UI Database");
     expect(content).toContain("Interface In Game");
@@ -792,9 +805,9 @@ describe("MCP prompt source recipes", () => {
   });
 
   it("keeps both prompt files non-empty and freezes blind results before reveal", async () => {
-    const runSim = await read("skills/run-sim.md");
+    const gameReview = await read("skills/game-review.md");
     const blind = await read("skills/ui-blind-compare.md");
-    expect(runSim.trim().length).toBeGreaterThan(100);
+    expect(gameReview.trim().length).toBeGreaterThan(100);
     expect(blind.trim().length).toBeGreaterThan(100);
     expect(blind).toContain("匿名化");
     expect(blind).toContain("正解を明かす前");
