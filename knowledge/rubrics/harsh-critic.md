@@ -24,6 +24,8 @@
 - 更新施策を勧告する場合は`update-strategy.md`を読み、Decision Card、Update inventory、Persona Update Impact Matrix、Prioritized Update Backlogを要求する。`steam_updates`の`patchnotes` tagとheuristic分類を混同した場合、取得windowやunderfilled warningを落とした場合は差し戻す。
 - 更新頻度、最終announcement日、競合precedentから、品質、開発速度、放置、売上、retention効果を断定した場合は差し戻す。対象ゲームのplayer problem根拠と、update後に観測するsuccess signal / guardrailがなければ`fix-now`にしない。
 - persona v2の`update_reaction`がreviewで直接観測されたのか、dealbreaker等から推論したのか、unknownなのかを区別しない場合は差し戻す。polarity-balanced persona件数をaffected player shareに変換しない。
+- competition選択時に`competitor-selection.md`を読まず、Competitor Selection Ledger、freshness window、3件以上のmust-match axes、2件以上のcandidate routesがなければ差し戻す。直接競合、system / visual reference、市場successを同じroleへ統合した場合も差し戻す。
+- Competitor Selection Ledgerにincludeされたdirect / adjacent、recent-success / breakout-anchor、comparison-control / rejected-candidateが揃わない場合は差し戻す。高評価率だけで成功作とした場合、Review signalとScale / momentum signalを分けない場合、demo / early access / released / upcomingまたはcurrent / historicalを混同した場合も差し戻す。
 
 ## 3. ゲームプレイ・ストア訴求・ローカライズ品質ゲート
 

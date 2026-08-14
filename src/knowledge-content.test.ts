@@ -47,6 +47,20 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("現状 vs 変更案");
   });
 
+  it("requires a role-separated, freshness-aware competitor selection ledger", async () => {
+    const content = await read("knowledge/templates/adoption-eval.md");
+
+    expect(content).toContain("Competitor freshness window");
+    expect(content).toContain("Competitor must-match axes");
+    expect(content).toContain("Competitor candidate routes");
+    expect(content).toContain("Core-loop / purchase-reason evidence");
+    expect(content).toContain("Review signal");
+    expect(content).toContain("Scale / momentum signal");
+    expect(content).toContain("direct-competitor");
+    expect(content).toContain("recent-success");
+    expect(content).toContain("comparison-control");
+  });
+
   it("starts with mode, selected domains, and explicit N/A reasons", async () => {
     const content = await read("knowledge/templates/adoption-eval.md");
     const reportStart = content.slice(0, content.indexOf("## Overall Assessment"));
@@ -379,6 +393,33 @@ describe("evidence coverage rubric", () => {
     expect(content).toContain("missing");
     expect(content).toContain("N/A");
     expect(content).toMatch(/blocking[\s\S]*confidence[\s\S]*high/);
+  });
+});
+
+describe("competitor selection rubric", () => {
+  it("separates fit, success, freshness, controls, and structural code evidence", async () => {
+    const rubric = await read("knowledge/rubrics/competitor-selection.md");
+    const recipe = await read("skills/run-sim.md");
+    const critic = await read("knowledge/rubrics/harsh-critic.md");
+
+    for (const role of [
+      "direct-competitor",
+      "adjacent-competitor",
+      "system-reference",
+      "visual-reference",
+      "rejected-candidate",
+      "recent-success",
+      "breakout-anchor",
+      "comparison-control",
+    ]) {
+      expect(rubric).toContain(role);
+    }
+    expect(rubric).toMatch(/高評価率[\s\S]*(十分|成功).*ではない/);
+    expect(rubric).toMatch(/Review signal[\s\S]*Scale \/ momentum signal/);
+    expect(rubric).toMatch(/freshness window[\s\S]*current-window/);
+    expect(rubric).toMatch(/code-review-graph[\s\S]*(候補|補助)[\s\S]*(source|test|runtime)/i);
+    expect(recipe).toMatch(/competitor-selection\.md[\s\S]*Competitor Selection Ledger/);
+    expect(critic).toMatch(/Competitor Selection Ledger[\s\S]*高評価率/);
   });
 });
 

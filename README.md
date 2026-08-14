@@ -302,13 +302,13 @@ UI の change 相談:
 | `ui` | matched cohortに対するtask clarity、階層、可読性、密度、状態、入力feedback、accessibility、production finishの軸別gap | static画像だけでmotion・latency・controller feel・未表示stateを断定しない |
 | `price` | US/JP/DE現在価格、値引き、任意のITAD履歴、購入タイミング | 現在価格から過去傾向を推測しない |
 | `localization` | 対応言語、localized store copy、対象言語レビュー、ゲーム内capture | 対応言語一覧だけで翻訳品質・文化適合・フォント品質を断定しない |
-| `competition` | tag交差、同一項目のstorefront/gameplay proxy/価格/review比較 | tag一致だけを最終的な類似性としない |
+| `competition` | must-match axes、候補経路、Fit role、Market role、freshness、reviewとscale / momentumを分けた比較 | tag一致、高評価率、古い大ヒットのいずれか1つだけを競合・成功判定にしない |
 
 ### Data coverage と分析精度
 
 Selected Domainごとに固定dimensionを持つData Coverage Matrixを作り、`observed`、`reported-zero`、`estimated`、`missing`、`N/A`を区別します。`Coverage rate`は推定を含む取得充足率、`Direct observation rate`は直接観測と明示的な0だけの比率で、いずれも小数1桁の%表記です。どちらも成功確率ではなく、blocking dimensionがmissingなら平均値が高くてもconfidenceをhighにしません。固定dimensionと計算規則は`get_knowledge(kind=rubrics, id=evidence-coverage.md)`で取得できます。
 
-evaluation保存時には、冒頭`Selected Domains`、固定dimension全行、標準status、domain別とoverallのCoverage Summary再計算、Evidence ID参照、repository-relative path、offset付き`observedAt`、sourceを機械検証します。run保存時にはevaluationのSelected Domainsとrunの`selectedDomains`が完全一致しなければ拒否します。これにより、たとえばUI referenceだけを調べたのに`competition`を選択して市場signalや履歴を欠落させるscope混同を保存前に検出します。
+evaluation保存時には、冒頭`Selected Domains`、固定dimension全行、標準status、domain別とoverallのCoverage Summary再計算、Evidence ID参照、repository-relative path、offset付き`observedAt`、sourceを機械検証します。competition選択時は加えて、3〜8行の`Competitor Selection Ledger`、1〜60か月のfreshness window、3件以上のmust-match axes、2件以上のcandidate routesを要求します。ledgerには直接または隣接競合、recent successまたはbreakout anchor、comparison controlまたは除外候補が必要で、success roleはReview signalとScale / momentum signalの両方がなければ保存を拒否します。run保存時にはevaluationのSelected Domainsとrunの`selectedDomains`が完全一致しなければ拒否します。これにより、UI referenceを直接競合へ混ぜる、高評価率だけで成功作にする、古い作品をrecent扱いする、といったscope混同を保存前に検出します。
 
 change runは全`scenario × Selected Domain`と全`persona × scenario`のroundを要求します。final evaluation以外の全evidenceは少なくとも1 roundで使用し、synthesis後に作る`finalEvaluationRef`をroundから参照する循環は拒否します。これにより「変更案だけ評価した」「保存したが判断に使わなかった」データをmachine gateで検出します。
 

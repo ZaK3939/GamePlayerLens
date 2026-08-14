@@ -64,7 +64,7 @@ Steam description、tags、categoriesだけの場合はplayer perceptionのproxy
 ### competition
 
 1. candidate discovery: tag/genre交差、既知競合、player needなど候補生成軸を保存。
-2. candidate validation: 3〜5本を個別fetchし、loop、tags、categories、copy、price、reviewsで包含・除外理由を記録。
+2. candidate validation: `competitor-selection.md`に従い3〜8本を個別fetchし、Fit roleとMarket role、freshness、loop / purchase reason、包含・除外理由をCompetitor Selection Ledgerへ記録。
 3. current market signal: 観測時点のreviewStats、CCU、owners推定等をsource semantics付きで確認。
 4. historical context: 価格または勢いの履歴を確認。現在値からtrendを作らない。
 

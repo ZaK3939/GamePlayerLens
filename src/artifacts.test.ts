@@ -50,6 +50,18 @@ const REQUIRED_INDIE_SECTIONS = [
 
 function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: string} = {}): string {
   const section = (heading: string) => [`## ${heading}`, `${heading} evidence.`];
+  const competitionLedger = [
+    "- Competitor freshness window: 24 months from 2026-08-11",
+    "- Competitor must-match axes: reel input; unit summon; one-screen combat",
+    "- Competitor candidate routes: steam-discover; known-name",
+    [
+      "| Appid | Game | Fit role | Market role | Release stage | Released at | Freshness | Core-loop / purchase-reason evidence | Review signal | Scale / momentum signal | Evidence IDs | Decision |",
+      "|---|---|---|---|---|---|---|---|---|---|---|---|",
+      "| 1001 | Reel Defense | direct-competitor | unproven | demo | 2026-07-10 | current-window | Reel input summons units into one-screen defense | 318 reviews and 79% positive | recent demo review activity observed | E-001 | include |",
+      "| 1002 | Dungeon Success | adjacent-competitor | recent-success | released | 2025-09-26 | current-window | Short run-based combat shares the purchase reason | 24000 reviews and 90% positive | owner estimate and recent review activity observed | E-001 | include |",
+      "| 1003 | Famous Cards | rejected-candidate | comparison-control | released | 2024-02-20 | historical | Card combinations only; no reel or summoned combat | 190000 reviews and 98% positive | breakout scale observed | E-001 | exclude |",
+    ].join("\n"),
+  ];
   const detailedIndieSection = (heading: string) => {
     if (heading === "Capability Reinvestment Gate") {
       return [
@@ -114,6 +126,7 @@ function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: str
     ...section("Who Plays and Why — Flow Analysis"),
     ...section("Flow Summary"),
     ...section("Domain Findings"),
+    ...competitionLedger,
     ...section("Data Semantics"),
     "## Data Coverage Matrix",
     [
@@ -530,6 +543,90 @@ describe("evaluation artifact store", () => {
         "| overall | 12 | 0 | 0 | 0 | 12 | 0.0% | 0.0% |",
       ),
     })).rejects.toThrow(/overall|coverage summary/i);
+  });
+
+  it("requires a role-separated competitor ledger for competition evaluations", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const withoutLedger = evaluationMarkdown().replace(
+      /\n\n- Competitor freshness window:[\s\S]*?\| 1003 \| Famous Cards[^\n]+/,
+      "",
+    );
+    const withoutDirectFit = evaluationMarkdown().replace(
+      "| 1001 | Reel Defense | direct-competitor |",
+      "| 1001 | Reel Defense | system-reference |",
+    ).replace(
+      "| 1002 | Dungeon Success | adjacent-competitor |",
+      "| 1002 | Dungeon Success | system-reference |",
+    );
+    const ratingOnlySuccess = evaluationMarkdown().replace(
+      "| owner estimate and recent review activity observed | E-001 | include |",
+      "| missing | E-001 | include |",
+    );
+    const withoutControl = evaluationMarkdown().replace(
+      "| 1003 | Famous Cards | rejected-candidate | comparison-control |",
+      "| 1003 | Famous Cards | visual-reference | unproven |",
+    ).replace(
+      "| E-001 | exclude |",
+      "| E-001 | include |",
+    );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Missing Competitor Ledger", content: withoutLedger,
+    })).rejects.toThrow(/Competitor Selection Ledger|competitor/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "No Direct Fit", content: withoutDirectFit,
+    })).rejects.toThrow(/direct-competitor|adjacent-competitor/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Rating Only Success", content: ratingOnlySuccess,
+    })).rejects.toThrow(/Scale \/ momentum signal|success/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "No Comparison Control", content: withoutControl,
+    })).rejects.toThrow(/comparison-control|rejected-candidate/i);
+  });
+
+  it("validates competitor freshness, evidence references, and candidate routes", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Stale Recent Success",
+      content: evaluationMarkdown().replace(
+        "| 2025-09-26 | current-window |",
+        "| 2023-09-26 | current-window |",
+      ),
+    })).rejects.toThrow(/freshness|current-window/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Unknown Competitor Evidence",
+      content: evaluationMarkdown().replace(
+        "| recent demo review activity observed | E-001 | include |",
+        "| recent demo review activity observed | E-999 | include |",
+      ),
+    })).rejects.toThrow(/Evidence Index|Evidence IDs/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "One Candidate Route",
+      content: evaluationMarkdown().replace(
+        "- Competitor candidate routes: steam-discover; known-name",
+        "- Competitor candidate routes: steam-discover",
+      ),
+    })).rejects.toThrow(/candidate routes/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Invalid Competitor Decision",
+      content: evaluationMarkdown().replace(
+        "| recent demo review activity observed | E-001 | include |",
+        "| recent demo review activity observed | E-001 | maybe |",
+      ),
+    })).rejects.toThrow(/Decision|include|exclude/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Upcoming Breakout Anchor",
+      content: evaluationMarkdown().replace(
+        "| 1002 | Dungeon Success | adjacent-competitor | recent-success | released | 2025-09-26 | current-window |",
+        "| 1002 | Dungeon Success | adjacent-competitor | breakout-anchor | upcoming | upcoming | upcoming |",
+      ),
+    })).rejects.toThrow(/breakout-anchor|released market evidence/i);
   });
 
   it("rejects duplicate Coverage Summary scopes even when the last row is correct", async () => {

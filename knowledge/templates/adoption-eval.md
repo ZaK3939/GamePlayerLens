@@ -397,6 +397,20 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 - 模倣禁止点: ［競合の表層を移植すると対象の強みを損なう点］
 - 根拠: ［`steam_brief` / `steam_search` / `steam_fetch` / `steam_timeline` / `steam_reviews` の Evidence ID。なければ「根拠不足」］
 
+competitionがSelectedの場合だけ`competitor-selection.md`に従い、次の3 metadata lineと3〜8行のcanonical tableを残します。未選択ならledgerを作らず、StatusのN/A理由だけを記録します。must-match axesとcandidate routesはsemicolonで区切ります。
+
+- Competitor freshness window: ［24 months from YYYY-MM-DD］
+- Competitor must-match axes: ［core input; repeated action; purchase reason］
+- Competitor candidate routes: ［steam-discover; known-name］
+
+#### Competitor Selection Ledger
+
+| Appid | Game | Fit role | Market role | Release stage | Released at | Freshness | Core-loop / purchase-reason evidence | Review signal | Scale / momentum signal | Evidence IDs | Decision |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| ［appid］ | ［game］ | ［direct-competitor / adjacent-competitor / system-reference / visual-reference / rejected-candidate］ | ［recent-success / breakout-anchor / comparison-control / unproven / not-assessed］ | ［demo / early-access / released / upcoming / unknown］ | ［YYYY-MM-DD / upcoming / unknown］ | ［current-window / historical / upcoming / unknown］ | ［対象と重なるloopまたはpurchase reason。tag一致だけにしない］ | ［件数、positive率、window / missing］ | ［CCU、recent activity、owners推定等とsource semantics / missing］ | ［E-###］ | ［include / exclude］ |
+
+includeにはdirect / adjacentを1件以上、recent-success / breakout-anchorを1件以上含め、comparison-controlまたはrejected-candidateも1件以上残します。高評価率だけを成功判定にせず、成功roleではReview signalとScale / momentum signalの両方を要求します。古い大ヒットはrecent-successではなくbreakout-anchorとして扱います。
+
 ## Change Delta
 
 `change` のみ記入します。`baseline` では本セクションを出力せず、変更案の比較を行いません。
