@@ -54,7 +54,8 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 | Field | Current hypothesis | Evidence | Status |
 |---|---|---|---|
 | targetPlayer / themeWorld | ［誰に、どんな世界か］ | ［projectBrief / Evidence ID］ | ［declared / observed / inferred / missing］ |
-| distinctiveSystem / repeatedAction | ［固有systemと反復行動］ | ［Evidence ID］ | ［status］ |
+| distinctiveSystem / primaryIntendedFeeling | ［固有systemと、その最短loopで最も強く動かしたい感情を1つ］ | ［projectBrief / Evidence ID］ | ［status］ |
+| shortestRepeatableLoop | ［開始状態 → action / decision → response → reward → 次の開始状態となる最短1周］ | ［build / playtest Evidence ID］ | ［declared / implemented / observed / contradicted / missing］ |
 | playerDecision / systemResponse | ［判断と応答］ | ［Evidence ID］ | ［status］ |
 | rewardMechanisms | ［family / form / before → action → response → after / perceived reward / amplifier］ | ［Evidence ID］ | ［declared / observed / contradicted / missing］ |
 | oneSentencePromise | ［1文で理解できる約束］ | ［理解test Evidence ID］ | ［status］ |
@@ -76,6 +77,33 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 | ［sensory / mastery / discovery / agency / attachment / aesthetic-emotion］ | ［`inherent / transition / mixed`］ | ［開始状態・感情］ | ［action / decision］ | ［feedback・状態変化］ | ［結果状態とreward仮説］ | ［音、animation、timing等］ | ［declared / observed / contradicted / missing］ |
 
 effect、coin、level-up UIはresponse / amplifierとして記録し、それだけでplayerが報酬を感じた証拠にしません。
+
+### Moment-to-Moment Experience Loop
+
+feature数ではなく、`primaryIntendedFeeling`が`shortestRepeatableLoop`の中でどう動くかを時系列で記録します。各beatを埋めただけでfunをobservedにせず、build観測とhuman reportを分離します。
+
+- Primary intended feeling: ［最も強く残したい感情を1つ。複数なら優先順位を決める］
+- Shortest loop boundary: ［開始状態、終了 / reset状態、想定時間。macro progressionではなく最短反復］
+- First-glance protocol: ［実表示条件と露出時間。3-second testを使う場合も宣言した条件であり、普遍的な合格秒数ではない］
+
+| Beat | Player state / intended feeling | Observable cue | Action / decision | System response | Reward / emotional change | Build / human evidence and status |
+|---|---|---|---|---|---|---|
+| anticipation | ［次の脅威・機会を読み、緊張や期待が生まれる状態］ | ［説明なしで読めるcue / missing］ | ［何を見て迷うか］ | ［まだ確定前の予告］ | ［期待する感情］ | ［declared / observed / contradicted / missing + Evidence ID］ |
+| commit | ［選択を引き受ける状態］ | ［affordance / resource / risk］ | ［温存か使用か等のmeaningful decision］ | ［入力受理と即時feedback］ | ［agency / tension］ | ［status / Evidence ID］ |
+| resolution | ［結果を読む状態］ | ［target、cause、impact］ | ［結果の確認または追加入力］ | ［成功・失敗、音・光・motion等のamplifier］ | ［爽快、達成、理解、落胆等］ | ［status / human felt reward］ |
+| recovery / reset | ［次の一手へ戻る状態］ | ［変化した盤面、次目標、retry cue］ | ［再挑戦、build変更、次の選択］ | ［failure recoveryまたはloop reset］ | ［納得、学習、もう一回の期待］ | ［status / wouldRepeat reason］ |
+
+| Pacing check | Design hypothesis | Build observation | Human evidence | Status / next test |
+|---|---|---|---|---|
+| first-glance action | ［説明なしで最初の意味ある入力が読めるか］ | ［time to first meaningful action / help参照］ | ［unaided summary / confusion］ | ［status］ |
+| decision tension | ［作業ではなく何を迷うか］ | ［resource、risk、timingのtradeoff］ | ［選択理由］ | ［status］ |
+| difficulty ramp | ［少しずつ増える新しい要求］ | ［enemy / speed / combinationと到達順］ | ［overwhelmed / bored / near-failure］ | ［status］ |
+| fair failure | ［失敗前のtelegraph、利用可能なcounterplay、結果後の原因］ | ［failure → retry log］ | ［self-attributed / unfair / unclearと理由］ | ［status］ |
+| success amplification | ［成功を何で明瞭に褒めるか］ | ［sound / light / motion / state change］ | ［felt reward］ | ［status］ |
+| novelty cadence | ［coreを壊さず、いつ何が新しくなるか］ | ［新敵、rule、combo、contextの投入順］ | ［surprise / fatigue / confusion］ | ［status］ |
+| replay pull | ［終了時に何をもう一度試したくなるか］ | ［未完の目標、next build、自己ベスト等］ | ［wouldRepeatとparticipant自身の理由］ | ［status］ |
+| subtraction candidate | ［primary feelingと最短loopに寄与しない要素］ | ［削除しても成立するfeature / presentation］ | ［理解・rewardへの影響］ | ［keep / simplify / remove / test］ |
+| creator self-play boundary | ［作者が感じた引っかかり］ | ［再現step / maker friction log］ | ［別のhuman player evidence / missing］ | ［作者の感触をtarget playerの唯一の正解にしない］ |
 
 ### Mechanism Transfer Map
 

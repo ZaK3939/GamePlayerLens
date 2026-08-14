@@ -141,6 +141,7 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("coreProofMoment");
     expect(content).toContain("Concept Origin Route");
     expect(content).toContain("Reward Mechanism Trace");
+    expect(content).toContain("Moment-to-Moment Experience Loop");
     expect(content).toContain("Mechanism Transfer Map");
     expect(content).toContain("Concept Test Trace");
     expect(content).toContain("Promise-Delivery Trace");
@@ -172,6 +173,18 @@ describe("harsh critic rubric", () => {
     expect(content).toContain("recommendation_id");
     expect(content).toContain("同一指摘");
     expect(content).toContain("根拠不足として停止");
+  });
+
+  it("rejects incomplete or overclaimed moment-to-moment experience evidence", async () => {
+    const content = await read("knowledge/rubrics/harsh-critic.md");
+
+    expect(content).toContain("Moment-to-Moment Experience Loop");
+    expect(content).toMatch(/primaryIntendedFeeling[\s\S]*優先/);
+    expect(content).toMatch(/anticipation[\s\S]*commit[\s\S]*resolution[\s\S]*recovery/);
+    expect(content).toMatch(/telegraph[\s\S]*counterplay[\s\S]*failure attribution/);
+    expect(content).toMatch(/amplifier[\s\S]*felt reward/);
+    expect(content).toMatch(/creator self-play[\s\S]*human player evidence/);
+    expect(content).toMatch(/3秒[\s\S]*固定/);
   });
 
   it("conditions UI review on scope and compares against the requested tier", async () => {
@@ -263,7 +276,8 @@ describe("indie survival strategy rubric", () => {
       "targetPlayer",
       "themeWorld",
       "distinctiveSystem",
-      "repeatedAction",
+      "primaryIntendedFeeling",
+      "shortestRepeatableLoop",
       "playerDecision",
       "systemResponse",
       "rewardMechanisms",
@@ -280,6 +294,11 @@ describe("indie survival strategy rubric", () => {
     expect(content).toContain("Concept Origin Route");
     expect(content).toMatch(/theme-first[\s\S]*system-first[\s\S]*holistic-image[\s\S]*imitation/);
     expect(content).toContain("Reward Mechanism Trace");
+    expect(content).toContain("Moment-to-Moment Experience Loop");
+    expect(content).toMatch(/anticipation[\s\S]*commit[\s\S]*resolution[\s\S]*recovery/);
+    expect(content).toMatch(/fair failure[\s\S]*telegraph[\s\S]*counterplay/i);
+    expect(content).toMatch(/novelty cadence[\s\S]*replay pull/i);
+    expect(content).toMatch(/creator self-play[\s\S]*human player evidence/i);
     expect(content).toContain("projectBriefDiagnostics.rewardMechanism");
     expect(content).toMatch(/inherent[\s\S]*transition/);
     expect(content).toMatch(/Before state[\s\S]*After state/);
@@ -438,6 +457,17 @@ describe("playtest rubric", () => {
     expect(content).toContain("playtest provenance");
     expect(content).toContain("executionEnvironment");
     expect(content).toMatch(/software[\s\S]*hardware[\s\S]*(一般化|generaliz)/i);
+  });
+
+  it("observes the shortest emotional loop without turning creator judgment into player evidence", async () => {
+    const content = await read("knowledge/rubrics/playtest.md");
+
+    expect(content).toMatch(/first-glance[\s\S]*meaningful action/i);
+    expect(content).toMatch(/decision tension[\s\S]*choice reason/i);
+    expect(content).toMatch(/difficulty ramp[\s\S]*novelty cadence[\s\S]*replay pull/i);
+    expect(content).toMatch(/fair failure[\s\S]*telegraph[\s\S]*counterplay[\s\S]*failure attribution/i);
+    expect(content).toMatch(/success amplifier[\s\S]*felt reward/i);
+    expect(content).toMatch(/creator self-play[\s\S]*human player evidence/i);
   });
 
   it("requires exact-saved session evidence and separates operation from human reward reports", async () => {

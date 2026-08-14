@@ -249,7 +249,8 @@ describe("run-sim prompt arguments", () => {
         targetPlayer: "  players who enjoy readable tactical tradeoffs  ",
         themeWorld: "A storm-bound courier guild",
         distinctiveSystem: "Draw and revise routes against a changing forecast",
-        repeatedAction: "Read, route, commit, recover",
+        primaryIntendedFeeling: "Tense anticipation turning into earned relief",
+        shortestRepeatableLoop: "Read one forecast, choose one route, commit, and read the result",
         playerDecision: "Trade safety for delivery value",
         systemResponse: "Wind, fuel, and cargo condition change immediately",
         rewardMechanisms: rewardMechanismsFixture(),
@@ -265,9 +266,17 @@ describe("run-sim prompt arguments", () => {
       developmentStage: "prototype",
       conceptOrigin: "theme-first",
       targetPlayer: "players who enjoy readable tactical tradeoffs",
+      primaryIntendedFeeling: "Tense anticipation turning into earned relief",
+      shortestRepeatableLoop: "Read one forecast, choose one route, commit, and read the result",
       rewardMechanisms: [{family: "mastery", form: "mixed"}],
       runwayMonths: 14,
     });
+
+    expect(() => RunSimPromptArgumentsSchema.parse({
+      target: "Example Game",
+      topic: "obsolete core field",
+      projectBrief: JSON.stringify({repeatedAction: "read, route, commit, recover"}),
+    })).toThrow(/unsupported field/i);
 
     const parsedConceptTest = RunSimPromptArgumentsSchema.parse({
       target: "Example Game",
@@ -581,7 +590,8 @@ describe("run-sim prompt arguments", () => {
       }),
     });
     expect(incompleteBrief).toContain('"projectBrief.distinctiveSystem"');
-    expect(incompleteBrief).toContain('"projectBrief.repeatedAction"');
+    expect(incompleteBrief).toContain('"projectBrief.primaryIntendedFeeling"');
+    expect(incompleteBrief).toContain('"projectBrief.shortestRepeatableLoop"');
     expect(incompleteBrief).toContain('"projectBrief.systemResponse"');
     expect(incompleteBrief).toContain('"projectBrief.rewardMechanisms"');
     expect(incompleteBrief).toContain('"projectBrief.targetPlayer"');
@@ -599,7 +609,8 @@ describe("run-sim prompt arguments", () => {
         targetPlayer: "players who enjoy readable tactical planning",
         themeWorld: "storm courier guild",
         distinctiveSystem: "redraw routes against a changing forecast",
-        repeatedAction: "read, route, commit, recover",
+        primaryIntendedFeeling: "tense anticipation turning into earned relief",
+        shortestRepeatableLoop: "read one forecast, choose one route, commit, and read the result",
         systemResponse: "wind and cargo condition react",
         rewardMechanisms: rewardMechanismsFixture(),
         oneSentencePromise: "Outread the storm to keep a courier network alive",
@@ -1218,7 +1229,8 @@ describe("run-sim prompt arguments", () => {
         targetPlayer: "deliberate route-planning players",
         themeWorld: "storm courier guild",
         distinctiveSystem: "redraw routes as the forecast changes",
-        repeatedAction: "read, route, commit, recover",
+        primaryIntendedFeeling: "tense anticipation turning into earned relief",
+        shortestRepeatableLoop: "read one forecast, choose one route, commit, and read the result",
         playerDecision: "trade safety for delivery value",
         systemResponse: "wind and cargo condition react",
         rewardMechanisms: rewardMechanismsFixture(),
@@ -1237,9 +1249,11 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"conceptRoute": {');
     expect(result).toContain('"origin": "theme-first"');
     expect(result).toContain('"status": "declared-route-ready-for-validation"');
+    expect(result).toContain('"primaryIntendedFeeling": "tense anticipation turning into earned relief"');
+    expect(result).toContain('"shortestRepeatableLoop": "read one forecast, choose one route, commit, and read the result"');
     expect(result).toContain('"coreProofMoment": "The player redraws one route around a storm and the delivery state reacts immediately"');
-    expect(result).toContain('"declaredCount": 9');
-    expect(result).toContain('"totalFields": 9');
+    expect(result).toContain('"declaredCount": 10');
+    expect(result).toContain('"totalFields": 10');
     expect(result).toContain('"rewardMechanism": {');
     expect(result).toContain('"status": "declared-mechanisms-ready-for-validation"');
     expect(result).toContain('"mechanismCount": 1');
@@ -1265,7 +1279,7 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"origin": "imitation"');
     expect(result).toContain('"status": "needs-counterpart"');
     expect(result).toMatch(
-      /"missingFields": \[[\s\S]*"targetPlayer"[\s\S]*"themeWorld"[\s\S]*"sourceAction"[\s\S]*"sourceSystemResponse"[\s\S]*"sourceReward"[\s\S]*"meaningfulDifference"[\s\S]*"distinctiveSystem"[\s\S]*"repeatedAction"[\s\S]*"systemResponse"[\s\S]*"rewardMechanisms"[\s\S]*"oneSentencePromise"[\s\S]*"coreProofMoment"/,
+      /"missingFields": \[[\s\S]*"targetPlayer"[\s\S]*"themeWorld"[\s\S]*"sourceAction"[\s\S]*"sourceSystemResponse"[\s\S]*"sourceReward"[\s\S]*"meaningfulDifference"[\s\S]*"distinctiveSystem"[\s\S]*"primaryIntendedFeeling"[\s\S]*"shortestRepeatableLoop"[\s\S]*"systemResponse"[\s\S]*"rewardMechanisms"[\s\S]*"oneSentencePromise"[\s\S]*"coreProofMoment"/,
     );
     expect(result).toContain('"status": "reward-mechanism-missing"');
     expect(result).toContain('"mechanismTransfer": {');
@@ -1287,7 +1301,8 @@ describe("run-sim prompt arguments", () => {
         sourceReward: "surviving pressure converts into visible power growth",
         meaningfulDifference: "route choices redirect the storm rather than only avoiding enemies",
         distinctiveSystem: "draw and revise routes against a changing forecast",
-        repeatedAction: "read, route, commit, recover",
+        primaryIntendedFeeling: "tense anticipation turning into earned relief",
+        shortestRepeatableLoop: "read one forecast, choose one route, commit, and read the result",
         systemResponse: "wind and cargo condition react",
         rewardMechanisms: rewardMechanismsFixture(),
       }),

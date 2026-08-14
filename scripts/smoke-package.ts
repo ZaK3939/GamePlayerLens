@@ -300,7 +300,8 @@ try {
         targetPlayer: "players learning a new action loop",
         themeWorld: "a compact checkpoint trial",
         distinctiveSystem: "read a signal and choose the matching action",
-        repeatedAction: "read, act, recover",
+        primaryIntendedFeeling: "tension resolving into earned relief",
+        shortestRepeatableLoop: "read one state, choose one action, resolve it, and return to the next choice",
         systemResponse: "the checkpoint reacts immediately to the chosen action",
         rewardMechanisms: [{
           family: "mastery",

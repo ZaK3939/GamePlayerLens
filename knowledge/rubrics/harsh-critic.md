@@ -41,7 +41,7 @@
 
 ## 4. Indie survival strategyゲート
 
-- concept、prototype、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`を読む。Indie Strategy Card、Core Experience Map、Concept Origin Route、Reward Mechanism Trace、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Capability Reinvestment Gate、Repair Backlog、Experiment Queue、Survival Scenariosがなければ差し戻す。imitation / Known Frame / competition分析ではMechanism Transfer Mapも要求し、適用外ならtopicに対応したN/A理由を要求する。
+- concept、prototype、store公開、demo、Next Fest、launch、post-launch、studio survivalを扱う場合は`indie-survival-strategy.md`を読む。Indie Strategy Card、Core Experience Map、Concept Origin Route、Reward Mechanism Trace、Moment-to-Moment Experience Loop、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Capability Reinvestment Gate、Repair Backlog、Experiment Queue、Survival Scenariosがなければ差し戻す。imitation / Known Frame / competition分析ではMechanism Transfer Mapも要求し、適用外ならtopicに対応したN/A理由を要求する。
 - crash、capture failure、receipt不整合、liveness failure、instrumentation欠損をplayer / market仮説のExperiment Queueへ混ぜた場合は差し戻す。既知failureの修復はEvidence ID、success gate、維持contractを持つRepair Backlogへ分離する。Experiment Queueが3件を超える場合、sourceがない場合、または修復成功をfun・需要・品質改善のOutcomeにした場合も差し戻す。
 - `Appeal Promise`と`Delivered Experience`を分離し、購入前のasset evidenceと購入後のbuild / playtest evidenceを別にする。購入前と購入後を単一score、掛け算、平均で相殺した場合は差し戻す。
 - wishlistを面白さ、販売本数、algorithmic visibilityの単独原因または証明とした場合は差し戻す。impression、store visit、cohort、window、asset、price expectationを確認する。
@@ -50,9 +50,15 @@
 - AI playtestをhuman playtestのfun、需要、completion、retentionの代表にしない。操作可能性や再現できるfrictionの観測と、人間participantのresponseを分ける。
 - `projectBrief`のdeclared design intentを、そのままplayer evidence、市場需要、体験実装済みの証明にした場合は差し戻す。promise、build moment、third-party responseのprovenanceを分ける。
 - `projectBriefDiagnostics`のfield数やmissing数をquality score、面白さ、readiness passへ変換した場合は差し戻す。これは入力inventoryであり、fieldの中身や外部検証の質を採点しない。
-- 開発中対象の入力を`ready`とする前に、`targetPlayer`、route固有のtheme / system / reward、`oneSentencePromise`、`coreProofMoment`が揃っているか確認する。`coreProofMoment`を宣言しただけで実装済み、assetで可視、第三者に理解済みのいずれかへ昇格した場合は差し戻す。
+- 開発中対象の入力を`ready`とする前に、`targetPlayer`、route固有のtheme / system / reward、`primaryIntendedFeeling`、`shortestRepeatableLoop`、`oneSentencePromise`、`coreProofMoment`が揃っているか確認する。`coreProofMoment`を宣言しただけで実装済み、assetで可視、第三者に理解済みのいずれかへ昇格した場合は差し戻す。
 - `conceptOrigin`を内容から推測した場合、またはConcept Origin Routeで起点に対する不足counterpartを示さず実装・asset制作へ進めた場合は差し戻す。`theme-first / system-first / holistic-image / imitation`は優劣やmaturityのscoreではない。
 - Reward Mechanism Traceでreward名や派手なeffectだけを示し、`inherent / transition`、before state、player action、system response、after state、amplifier、観測statusを分けない場合は差し戻す。responseやamplifierをplayerがrewardを感じた直接証拠にしない。
+- `primaryIntendedFeeling`を複数並べて優先する1つを決めない場合、または最短loopのどの状態変化で生じるかを示さない場合は差し戻す。
+- Moment-to-Moment Experience Loopに`anticipation → commit → resolution → recovery / reset`が揃わない場合、最短loopが次の開始状態へ戻らない場合、またはmacroな機能列を最短loopと呼んだ場合は差し戻す。
+- fair failureを主張するのに`telegraph → counterplay → failure attribution`を分けず、participant本人の`self-attributed / unfair / unclear`がない場合は差し戻す。実装上の回避手段だけを納得感の証拠にしない。
+- `amplifier → felt reward`を同一視し、音・光・振動・slow motionがあるだけで快感を観測済みにした場合は差し戻す。
+- `creator self-play`を`human player evidence`へ昇格し、初見理解、公平感、楽しさ、replay intentを作者の感触だけでpassにした場合は差し戻す。
+- 3秒をあらゆる画面の固定合格条件にした場合、novelty cadenceを一定秒数へ普遍化した場合、または人間の理由なしにreplay pullやretentionを推定した場合は差し戻す。
 - imitation / Known Frame / competition分析で表層featureだけを列挙し、sourceのaction → response → reward、transferable mechanism、target adaptation、proof momentをMechanism Transfer Mapへ分けない場合は差し戻す。sourceを直接確認していないproxyから内部loopを断定した場合も差し戻す。
 - imitation / Known Frameの`projectBrief`で`sourceAction`、`sourceSystemResponse`、`sourceReward`の欠落を表層featureやgenre知識から補完した場合は差し戻す。3 fieldはdeclared hypothesisであり、すべて入力済みでもsource evidenceやplayer rewardの観測済み証拠へ昇格させない。
 - `conceptTest`のparticipant countや`interest`から固定thresholdを作り、milestone pass、conversion、purchase、需要を断定した場合は差し戻す。`understoodTheme`、`themeSystemFit`、`understoodAction`、`understoodReward`、`interest`を別々に示し、stimulus、募集、質問、deviation、bounded sampleの限界を要求する。theme認識とaction理解からtheme-system fitを推測した場合、または`no / unclear`の理由をparticipant以外の回答から補完した場合も差し戻す。

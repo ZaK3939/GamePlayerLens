@@ -63,7 +63,8 @@ storefront copyやtrailerはAppeal Promiseのevidence、build操作やplaytest�
   "targetPlayer": "new keyboard-and-mouse tactics players",
   "themeWorld": "天候を読む小さな飛行船郵便局",
   "distinctiveSystem": "天候図へ航路を描き、配達順とriskを同時に決める",
-  "repeatedAction": "forecastを読み、routeを描き、飛行を調整する",
+  "primaryIntendedFeeling": "嵐へ踏み込む緊張が、予測成功の安堵と手応えへ変わる",
+  "shortestRepeatableLoop": "forecastを1つ読み、routeを1つ選び、commitし、風・燃料・荷傷みの結果を読んで次のforecastへ戻る",
   "playerDecision": "安全、時間、積荷価値のどれを優先するか",
   "systemResponse": "風向、燃料、荷傷み、到着時刻が即時に変化する",
   "rewardMechanisms": [{
@@ -84,6 +85,8 @@ storefront copyやtrailerはAppeal Promiseのevidence、build操作やplaytest�
 ```
 
 reward familyは`sensory / mastery / discovery / agency / attachment / aesthetic-emotion`を候補にします。網羅表でも重み付きscoreでもありません。体験そのものが報酬になる場合と、緊張→安堵、弱い→強いなど体験の変化が報酬になる場合を分けます。
+
+`primaryIntendedFeeling`は最短loopで最も強く残したい感情を1つに絞ります。感情語を並べるだけでなく、`shortestRepeatableLoop`のどのbefore → action → response → afterで動くかを対応付けます。macroな行動列ではなく、次の開始状態へ戻れる最短1周を記述します。
 
 `projectBriefDiagnostics.rewardMechanism`は宣言件数、family / form件数、amplifier件数を返します。これは入力inventoryであり、playerが実際に報酬を感じた件数やfun scoreではありません。
 
@@ -110,11 +113,35 @@ reward名だけで「面白い」と判定せず、どの状態と反応から�
 
 `inherent`は操作、鑑賞、関係など体験そのものが報酬になる仮説、`transition`は緊張→安堵、失敗→上達、弱い→強いなどbefore / afterの変化が報酬になる仮説です。派手なeffect、coin、level-up UIはsystem responseまたはamplifierであり、それだけでperceived rewardを観測したことにはしません。
 
+### Moment-to-Moment Experience Loop
+
+ゲームの面白さをfeature listではなく、最短1周の感情変化として監査します。`primaryIntendedFeeling`と`shortestRepeatableLoop`を次の4 beatへ分け、`anticipation → commit → resolution → recovery / reset`を同じsessionで追跡します。
+
+| Beat | Player state / intended feeling | Cue | Action / decision | System response | Reward / emotional change | Evidence boundary |
+|---|---|---|---|---|---|---|
+| anticipation | 脅威、機会、次の目標を読む | 画面・音・motionで説明なしに読める予告 | 何を検討し始めるか | commit前の予告 | 緊張、期待、好奇心 | declared / build / human reportを分離 |
+| commit | riskとresourceを引き受ける | affordance、cost、target | 温存 / 使用、速度 / 安全などの迷い | 入力受理と即時feedback | agency、覚悟 | input logと選択理由を分離 |
+| resolution | 原因と結果を読む | target、impact、after-state | 結果を確認する | 成功 / 失敗とamplifier | 達成、爽快、理解、安堵等 | effectをfelt rewardへ昇格しない |
+| recovery / reset | 次の一手または再挑戦へ戻る | 次目標、retry、変化した盤面 | 再挑戦、build変更、次のcommit | resetと持越し | 納得、学習、もう一回の期待 | wouldRepeatと理由をhumanから取得 |
+
+次のpacing checkを合計scoreにせず、別々の仮説と証拠で評価します。
+
+- first-glance action: 実表示を短時間だけ見せ、説明なしで最初の意味あるactionを想像できるか。3-second testを使う場合もexposure conditionを記録し、全genre共通の合格秒数にしない。
+- decision tension: resource、risk、timing、targetのどれを迷うか。選択肢が多いことではなく、選択理由が変わることを確認する。
+- difficulty ramp: 新しい要求を一度に全部出さず、既知skillへ1つずつ重ねる。固定の「負けそうで負けない」難度を推測せず、bored / overwhelmed / near-failureをplaytestで観測する。
+- fair failure: failure前のtelegraph、実行可能なcounterplay、結果後のcause、retry costを分ける。作者が想定した原因ではなく、human participantがself-attributed / unfair / unclearのどれと説明したかを保存する。
+- success amplification: sound、light、motion、hit-stop、state changeはamplifier。過剰演出だけでrewardが生まれたとは判定しない。
+- novelty cadence: 新敵、rule、context、comboを投入した時点と、core loopを学習済みかを追う。一定間隔を普遍ルールにしない。
+- replay pull: 終了時に次のrunで試したいdecision、未完の目標、自己ベスト等をhuman participant自身の`wouldRepeat`理由へ接続する。
+- subtraction candidate: primary feeling、shortest loop、legibility、rewardのいずれにも寄与しない要素はkeepではなくsimplify / remove / test候補にする。
+
+creator self-playは再現可能なmaker friction logとして価値がありますが、作者はruleと意図を既知です。作者の「なんか引っかかる」を無視せず再現stepへ落とす一方、作者の感触をhuman player evidenceやtarget-playerの唯一の正解へ変換しません。unknown playerによるfirst-read、failure attribution、felt reward、wouldRepeatを別に取得します。
+
 ### Theme-system fit
 
 - `themeWorld`だからこそ`distinctiveSystem`が自然に理解できるか。
 - `distinctiveSystem`が最も生きるtheme / worldか。
-- `repeatedAction → systemResponse → reward`を一文で説明できるか。
+- `shortestRepeatableLoop → systemResponse → reward`を一文で説明できるか。
 - strange / shockingな設定だけで、触りたくなるplayer actionが欠けていないか。
 - third-partyが理解できなかった箇所を、好みの否定と説明失敗に分けたか。
 
@@ -302,21 +329,22 @@ platform fee、refund、taxを固定値で一律計算しません。法域、�
 適用時はevaluationに次を含めます。
 
 1. Indie Strategy Card: stage、decision horizon、runway、irreversible commitment、blocking evidence。
-2. Core Experience Map: required fields、reward family、theme-system fit、oneSentencePromise、coreProofMoment。
+2. Core Experience Map: targetPlayer、themeWorld、distinctiveSystem、primaryIntendedFeeling、shortestRepeatableLoop、reward family、theme-system fit、oneSentencePromise、coreProofMoment。
 3. Concept Origin Route: 宣言した起点、不足counterpart、次の具体化質問。
 4. Reward Mechanism Trace: reward form、before / after state、action、response、amplifier、evidence。
-5. Mechanism Transfer Map: imitation / competition適用時のsurfaceとsource mechanism、target adaptation、proof。適用外はN/A理由。
-6. Core Legibility Gate: theme-specific play、theme-system fit、experience → reward、unaided teach-back、core proof moment。
-7. Core Revision Ledger: revision lineage、変えた変数、維持条件、retest、未解決の因果境界。
-8. First-contact Asset Readiness: 実表示context、visual quality、theme legibility / appeal、action / rewardのlegibility、try intent、immediate reject risk。
-9. Concept Test Trace: stimulus、protocol、sample、action理解、reward理解、interest、confusion、deviation、解釈限界。
-10. Promise-Delivery Trace: promiseとbuild momentの対応。
-11. Funnel Health: exposureからretained playまでのstatusと欠損。
-12. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
-13. Capability Reinvestment Gate: bottleneck、Evidence ID、capacity / runway、reversible next step、expansion trigger。
-14. Repair Backlog: blocking failure、Evidence ID、owner surface、復旧gate、維持contract。Experimentと分離する。
-15. Experiment Queue: 最大3件、primary metric、source、guardrail付き。
-16. Survival Scenarios: conservative / base / upsideとassumption boundary。
+5. Moment-to-Moment Experience Loop: anticipation → commit → resolution → recovery、first-glance、迷い、difficulty、fair failure、amplifier、novelty、replay、subtraction、creator / human boundary。
+6. Mechanism Transfer Map: imitation / competition適用時のsurfaceとsource mechanism、target adaptation、proof。適用外はN/A理由。
+7. Core Legibility Gate: theme-specific play、theme-system fit、experience → reward、unaided teach-back、core proof moment。
+8. Core Revision Ledger: revision lineage、変えた変数、維持条件、retest、未解決の因果境界。
+9. First-contact Asset Readiness: 実表示context、visual quality、theme legibility / appeal、action / rewardのlegibility、try intent、immediate reject risk。
+10. Concept Test Trace: stimulus、protocol、sample、action理解、reward理解、interest、confusion、deviation、解釈限界。
+11. Promise-Delivery Trace: promiseとbuild momentの対応。
+12. Funnel Health: exposureからretained playまでのstatusと欠損。
+13. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
+14. Capability Reinvestment Gate: bottleneck、Evidence ID、capacity / runway、reversible next step、expansion trigger。
+15. Repair Backlog: blocking failure、Evidence ID、owner surface、復旧gate、維持contract。Experimentと分離する。
+16. Experiment Queue: 最大3件、primary metric、source、guardrail付き。
+17. Survival Scenarios: conservative / base / upsideとassumption boundary。
 
 数字がない場合は架空の販売本数やconversionを作らずmissingとし、次に取得するreport、build、participant、期間を指定します。
 

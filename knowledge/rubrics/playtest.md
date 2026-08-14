@@ -45,6 +45,18 @@ software renderer（例: SwiftShader）で観測したliveness、stall、frame c
 - reward、progress、次の目標が認識できた時点
 - frame drop、loading、crashなど観測できた技術的摩擦。ただし原因コードは推測しない
 
+### Moment-to-moment experience observations
+
+最短loopを`anticipation → commit → resolution → recovery / reset`へ分け、各beatでプレイヤーが見た手掛かり、行った入力、system response、認識した結果を時系列logへ残します。設計者が意図した`primaryIntendedFeeling`は仮説であり、観測した行動やparticipant本人の言葉へ置き換えません。
+
+- `first-glance → time to first meaningful action`: 未説明の状態で、最初に何を操作対象だと思ったか、helpを見たか、meaningful actionへ到達した時点を記録する。3秒は刺激物ごとに宣言できる条件であって普遍的な合格秒数にしない。
+- `decision tension → choice reason`: 少なくとも2つの実質的な選択肢を認識したか、何を温存・消費・優先したか、そのchoice reasonをhuman participant本人の言葉で記録する。迷った秒数だけを駆け引きの証明にしない。
+- `difficulty ramp → novelty cadence → replay pull`: boredom、overwhelm、near-failureがどこで生じたか、新しい敵・rule・組合せをいつ認識したか、終了後にもう一度行う意思と理由があるかを分ける。一定間隔やrepeat intentをretentionの固定条件にしない。
+- `fair failure → telegraph → counterplay → failure attribution`: 危険の事前手掛かり、回避可能だった入力または判断、失敗後の本人説明を記録し、`self-attributed / unfair / unclear`へ分類する。コード上counterplayが存在するだけでは納得できる失敗を証明しない。
+- `success amplifier → felt reward`: 音、光、振動、slow motion、数値、state changeをamplifierとして観測し、human participantが報告したfelt rewardとは別fieldにする。演出の存在だけを快感の証拠にしない。
+- `subtraction candidate`: loopの感情変化、選択、結果理解に寄与しない待ち時間、表示、ruleを候補として残す。1sessionの躓きだけで削除せず、再現性と対象playerへの役割を確認する。
+- `creator self-play → human player evidence`: creator self-playは実装上の引っ掛かりと仮説発見に使い、初見理解、felt reward、公平感、もう一回の理由は別のhuman player evidenceで検証する。
+
 ## 4. Test passes
 
 1. First-read pass: 攻略情報を見ず、画面とfeedbackだけで進める。

@@ -42,6 +42,7 @@ export const REQUIRED_INDIE_STRATEGY_SECTIONS = [
   "Core Experience Map",
   "Concept Origin Route",
   "Reward Mechanism Trace",
+  "Moment-to-Moment Experience Loop",
   "Mechanism Transfer Map",
   "Core Legibility Gate",
   "Core Revision Ledger",

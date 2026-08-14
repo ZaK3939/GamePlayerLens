@@ -31,6 +31,7 @@ const REQUIRED_INDIE_SECTIONS = [
   "Core Experience Map",
   "Concept Origin Route",
   "Reward Mechanism Trace",
+  "Moment-to-Moment Experience Loop",
   "Mechanism Transfer Map",
   "Core Legibility Gate",
   "Core Revision Ledger",
@@ -154,7 +155,8 @@ function projectBriefFixture() {
     targetPlayer: "players who enjoy readable tactical planning",
     themeWorld: "a storm-bound courier guild",
     distinctiveSystem: "redraw routes against a changing forecast",
-    repeatedAction: "read, route, commit, recover",
+    primaryIntendedFeeling: "tense anticipation turning into earned relief",
+    shortestRepeatableLoop: "read one forecast, choose one route, commit, and read the result",
     systemResponse: "wind and cargo state react to the committed route",
     rewardMechanisms: [{
       family: "mastery" as const,
@@ -735,6 +737,17 @@ describe("run input schema", () => {
       subjectKind: "developer-project",
       projectBrief: projectBriefFixture(),
     }))).not.toThrow();
+
+    const {primaryIntendedFeeling: _primaryIntendedFeeling, ...withoutPrimaryFeeling} = projectBriefFixture();
+    const developerWithoutFeeling = SaveRunInputSchema.safeParse(runInput({
+      subjectKind: "developer-project",
+      projectBrief: withoutPrimaryFeeling,
+    }));
+    expect(developerWithoutFeeling.success).toBe(false);
+    if (!developerWithoutFeeling.success) {
+      expect(developerWithoutFeeling.error.issues.map((issue) => issue.path.join(".")).join(" "))
+        .toContain("projectBrief.primaryIntendedFeeling");
+    }
   });
 });
 
