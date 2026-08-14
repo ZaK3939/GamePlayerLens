@@ -40,6 +40,33 @@ function persona(): Persona {
     })),
     dealbreakers: [],
     price_sensitivity: "セール待ち",
+    schema_version: 2,
+    target_context: {
+      market: "Japan",
+      language: "japanese",
+      source_roles: [{appid: 1145360, role: "target"}],
+    },
+    decision_profile: {
+      adoption_trigger: "価格と価値の対応が明確",
+      retention_trigger: "継続して価値を感じる更新がある",
+      churn_trigger: "価格に対して価値が不明確",
+      update_reaction: "価値が明確になる更新後に再評価する",
+    },
+    evidence_basis: {
+      observed_patterns: [
+        {
+          claim: "価格を採用判断に使う",
+          evidence: [{source_appid: 1145360, recommendation_id: "rec-0"}],
+        },
+        {
+          claim: "価値の明確さを重視する",
+          evidence: [{source_appid: 1145360, recommendation_id: "rec-1"}],
+        },
+      ],
+      inferred_traits: [],
+      limitations: ["fixture personaで市場構成比を表さない"],
+      overall_confidence: "medium",
+    },
   };
 }
 

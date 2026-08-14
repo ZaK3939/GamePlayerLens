@@ -1,7 +1,8 @@
 # GamePlayerLens
 
-GamePlayerLens is an MCP server for evidence-grounded game development reviews. It combines current Steam data, traceable player evidence, structured project briefs, UI references, playtest observations, and immutable review artifacts so an AI client can answer three questions clearly:
+GamePlayerLens is an MCP server for evidence-grounded virtual players and game development reviews. It combines current Steam data, review-derived player memories, matched competitor evidence, UI stimuli, structured project briefs, playtest observations, and immutable run artifacts so an AI client can answer four questions clearly:
 
+- How would distinct review-grounded players respond to this scenario, and why?
 - What is supported by evidence?
 - What is still unknown?
 - What is the smallest useful validation to run next?
@@ -72,6 +73,7 @@ GamePlayerLens will either return an intake question or guide the client through
 |---|---|---|
 | Understand | Collect store data, regional prices, reviews, updates, current snapshots, and candidate competitors | `steam_brief`, provenance, supported decisions, gaps |
 | Structure | Turn developer intent into a strict Project Brief | Core Experience Map, intake diagnostics |
+| Simulate | Expose the same saved v2 personas to current and proposed scenarios | review memory, perceived signals, action, predicted response, uncertainty, human falsifier |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Observe | Preserve concept tests, first-contact tests, playtest sessions, and cohorts | chronological action-response traces and bounded participant reports |
 | Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | Decision Card and prioritized backlog |
@@ -97,6 +99,7 @@ GamePlayerLens deliberately refuses several shortcuts:
 - Wishlists alone do not prove fun, sales, or algorithmic visibility.
 - A high review percentage alone does not establish a successful or relevant competitor.
 - A prediction run is not an executed experiment.
+- A virtual player's predicted feeling or continuation decision is not a human report or population rate.
 
 Missing evidence remains missing. It is never silently converted to zero, success, or an industry average. Read [Evidence and integrity](docs/reference/evidence-and-integrity.md) for the complete interpretation rules.
 
@@ -146,7 +149,7 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 Live tests use Hades (`1145360`) for Steam data, Hades II (`1145350`) for Steam image capture, and `Action Roguelike` for SteamSpy discovery. Optional integrations are tested when configured and otherwise must return explicit warnings.
 
-The strongest validated workflow today is evidence collection and review for released Steam games. Developer-project intake, user-supplied concept, first-contact, and playtest evidence, immutable runs, and prospective experiment wiring are implemented and package-tested; continued end-to-end dogfooding with real playable builds remains the highest-value validation area.
+Evidence collection and review for released Steam games remain the strongest validated workflow. Structured virtual-player rounds now require v2 personas, exact Steam review voice references, UI evidence when UI is selected, competitor voice evidence when competition is selected, and a human falsification plan. This contract is package-tested; calibration against repeated real-player responses and continued end-to-end dogfooding with playable builds remain the highest-value validation work.
 
 ## Documentation
 

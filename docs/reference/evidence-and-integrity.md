@@ -60,6 +60,14 @@ When a fetch tool returns `meta.resultHandle`, use exact-save. Model-reconstruct
 
 Review balance does not reveal population sentiment. Use separate aggregate review evidence for overall positive share, and never convert persona counts into affected-player share.
 
+## Virtual player rounds
+
+New simulation runs accept only v2 personas. Every persona-scenario round contains a structured `playerSimulation` with review-memory references, perception, decision, predicted response, reflection, uncertainty, and a human falsification signal. The server verifies that cited recommendation IDs are present in the exact saved persona.
+
+If UI is selected, persona rounds must cite a saved capture or UI reference and cannot use `scenario-only` exposure. If competition is selected, each round must cite a voice from a persona source assigned the `competitor` role. `visual-evidence` exposure requires cited image evidence, and `ai-operated` exposure requires a cited AI-operated playtest session. This ensures that UI, competitor, and execution inputs affect the player simulation rather than appearing only in the final reviewer narrative.
+
+The stored response remains a model-generated hypothesis. `exposure=ai-operated` means an AI client operated the recorded task; it does not mean the persona felt a human emotion. Predicted feelings, continuation choices, and agreement across personas are never human reports, population rates, demand, or retention.
+
 ## External-data interpretation
 
 - SteamSpy owners are estimate ranges, not sales.
@@ -79,7 +87,7 @@ A run seals:
 - the normalized Project Brief for developer subjects;
 - scenarios and persona IDs;
 - saved evidence and its SHA-256;
-- every independent analysis round;
+- every independent analysis round, including structured persona-scenario responses;
 - warnings, client-reported model and confidence;
 - the final evaluation reference;
 - the exact subject/domain-compiled `run-sim` recipe bytes and canonical record seal.

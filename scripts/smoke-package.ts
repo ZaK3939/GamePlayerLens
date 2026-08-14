@@ -454,6 +454,33 @@ try {
         })),
         dealbreakers: ["unclear value proposition"],
         price_sensitivity: "medium",
+        schema_version: 2,
+        target_context: {
+          market: "United States",
+          language: "english",
+          source_roles: [{appid: 1145360, role: "target"}],
+        },
+        decision_profile: {
+          adoption_trigger: "The first meaningful action is clear",
+          retention_trigger: "The action continues to create readable outcomes",
+          churn_trigger: "The value proposition or action becomes unclear",
+          update_reaction: "Reassess after the changed experience is demonstrated",
+        },
+        evidence_basis: {
+          observed_patterns: [
+            {
+              claim: "A clear promise affects adoption",
+              evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-1"}],
+            },
+            {
+              claim: "Unclear value is a dealbreaker",
+              evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-3"}],
+            },
+          ],
+          inferred_traits: [],
+          limitations: ["Synthetic package fixture does not represent a population"],
+          overall_confidence: "low",
+        },
       },
     },
   });
@@ -602,6 +629,37 @@ try {
           actor: "package-smoke-player",
           personaId: "package-smoke-player",
           scenarioId: "current",
+          playerSimulation: {
+            exposure: "scenario-only",
+            memory: {
+              voiceEvidence: [{sourceAppid: 1145360, recommendationId: "package-smoke-1"}],
+            },
+            perception: {
+              expectation: "The fixture should expose a readable gameplay promise.",
+              noticedSignals: ["The protocol describes one checkpoint task."],
+              unclearSignals: ["No gameplay response was observed."],
+            },
+            decision: {
+              action: "Wait for a playable proof before judging the loop.",
+              reason: "The persona needs a clear value proposition.",
+            },
+            response: {
+              predictedFeeling: {
+                before: "Uncertain about the fixture's gameplay promise.",
+                after: "Still uncertain because the fixture contains no observed play.",
+              },
+              frictions: ["The core action is not demonstrated."],
+              rewardSignals: [],
+              continuation: "uncertain",
+              continuationReason: "The protocol alone cannot establish player response.",
+            },
+            reflection: {
+              confidence: "low",
+              uncertainties: ["No human or AI-operated session was completed."],
+              humanValidationQuestion: "What do you expect to do at the checkpoint?",
+              observableSignal: "A participant identifies the action without prompting.",
+            },
+          },
           output: "The fixture proves protocol transport only and contains no observed play.",
           evidenceRefs: ["experiment-spec", "playtest-protocol"],
         },
@@ -682,11 +740,18 @@ try {
   const runIntegrity = (runRead.structuredContent?.data as {
     integrity?: {status?: unknown; issueCount?: unknown};
   } | undefined)?.integrity;
+  const packagePlayerSimulation = (runRecord?.rounds?.[0] as {
+    playerSimulation?: {
+      memory?: {voiceEvidence?: unknown[]};
+      response?: {predictedFeeling?: {before?: unknown; after?: unknown}};
+      reflection?: {humanValidationQuestion?: unknown; observableSignal?: unknown};
+    };
+  } | undefined)?.playerSimulation;
   assert(runRead.isError !== true, "packaged CLI could not read a simulation run");
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 6
+      && runRecord.schemaVersion === 7
       && runRecord.subjectKind === "existing-game"
       && runRecord.market === "United States"
       && runRecord.language === "english"
@@ -703,7 +768,12 @@ try {
       && runRecord.simulationReadiness.allowedClaims?.includes("preregistered-prediction")
       && runRecord.simulationReadiness.blockedClaims?.includes("causal-lift")
       && typeof runRecord.seal?.canonicalSha256 === "string"
-      && runRecord.rounds?.length === 4,
+      && runRecord.rounds?.length === 4
+      && packagePlayerSimulation?.memory?.voiceEvidence?.length === 1
+      && typeof packagePlayerSimulation.response?.predictedFeeling?.before === "string"
+      && typeof packagePlayerSimulation.response.predictedFeeling.after === "string"
+      && typeof packagePlayerSimulation.reflection?.humanValidationQuestion === "string"
+      && typeof packagePlayerSimulation.reflection.observableSignal === "string",
     "packaged CLI run record is incomplete",
   );
   const experimentSpecEvidence = runRecord.evidence?.find(
@@ -898,6 +968,37 @@ try {
           actor: "package-smoke-player",
           personaId: "package-smoke-player",
           scenarioId: "current",
+          playerSimulation: {
+            exposure: "scenario-only",
+            memory: {
+              voiceEvidence: [{sourceAppid: 1145360, recommendationId: "package-smoke-2"}],
+            },
+            perception: {
+              expectation: "The prior outcome should clarify whether the prediction held.",
+              noticedSignals: ["The prior outcome is unresolved."],
+              unclearSignals: ["No raw measurement explains player behavior."],
+            },
+            decision: {
+              action: "Request a new playable measurement before changing the game.",
+              reason: "An unresolved outcome cannot update the persona's expectation.",
+            },
+            response: {
+              predictedFeeling: {
+                before: "Interested in whether the prior prediction held.",
+                after: "Cautious because the claimed outcome lacks observation.",
+              },
+              frictions: ["The evidence chain has no behavioral result."],
+              rewardSignals: [],
+              continuation: "uncertain",
+              continuationReason: "A completed session is required.",
+            },
+            reflection: {
+              confidence: "low",
+              uncertainties: ["The held-out player response remains unknown."],
+              humanValidationQuestion: "Did the changed experience alter your next action?",
+              observableSignal: "A recorded action differs under the preregistered protocol.",
+            },
+          },
           output: "The prior outcome is unresolved and cannot calibrate the forecast.",
           evidenceRefs: ["next-experiment-spec", "prior-experiment-outcome", "playtest-protocol"],
         },

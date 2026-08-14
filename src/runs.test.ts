@@ -195,6 +195,67 @@ function persona(id = "jp-skeptic"): Persona {
     })),
     dealbreakers: ["unreadable text"],
     price_sensitivity: "medium",
+    schema_version: 2,
+    target_context: {
+      market: "Japan",
+      language: "japanese",
+      source_roles: [{appid: 1145350, role: "target"}],
+    },
+    decision_profile: {
+      adoption_trigger: "The first combat decision and result are readable",
+      retention_trigger: "Combat choices continue to create distinct outcomes",
+      churn_trigger: "The action or result becomes visually ambiguous",
+      update_reaction: "Reassess after a readability update is demonstrated",
+    },
+    evidence_basis: {
+      observed_patterns: [
+        {
+          claim: "Combat readability affects adoption",
+          evidence: [{source_appid: 1145350, recommendation_id: "rec-1"}],
+        },
+        {
+          claim: "Unreadable feedback is a dealbreaker",
+          evidence: [{source_appid: 1145350, recommendation_id: "rec-3"}],
+        },
+      ],
+      inferred_traits: [],
+      limitations: ["The review-grounded persona does not establish population share"],
+      overall_confidence: "medium",
+    },
+  };
+}
+
+function playerSimulation(recommendationId = "rec-1") {
+  return {
+    exposure: "visual-evidence" as const,
+    memory: {
+      voiceEvidence: [{sourceAppid: 1145350, recommendationId}],
+    },
+    perception: {
+      expectation: "Combat readability should be visible before purchase.",
+      noticedSignals: ["The capsule presents a combat-focused promise."],
+      unclearSignals: ["The exact input-to-impact loop is not visible."],
+    },
+    decision: {
+      action: "Inspect the combat frame before deciding whether to try the game.",
+      reason: "Readable combat is this persona's highest-priority adoption signal.",
+    },
+    response: {
+      predictedFeeling: {
+        before: "Cautious because the combat promise is still abstract.",
+        after: "Interested but still waiting for a legible combat result.",
+      },
+      frictions: ["The core interaction remains implicit."],
+      rewardSignals: ["The combat hierarchy looks deliberate."],
+      continuation: "uncertain" as const,
+      continuationReason: "A playable proof moment is still missing.",
+    },
+    reflection: {
+      confidence: "medium" as const,
+      uncertainties: ["No human response to this exact capsule was observed."],
+      humanValidationQuestion: "What do you expect to do in the first combat encounter?",
+      observableSignal: "An unaided participant identifies the action and expected result.",
+    },
   };
 }
 
@@ -303,8 +364,9 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         actor: "jp-skeptic",
         personaId: "jp-skeptic",
         scenarioId: "current",
+        playerSimulation: playerSimulation(),
         output: "The current promise is readable but generic.",
-        evidenceRefs: ["profile"],
+        evidenceRefs: ["profile", "hero"],
       },
       {
         sequence: 2,
@@ -312,8 +374,9 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         actor: "jp-skeptic",
         personaId: "jp-skeptic",
         scenarioId: "proposal",
+        playerSimulation: playerSimulation("rec-2"),
         output: "The proposal is clearer but still needs validation.",
-        evidenceRefs: ["profile"],
+        evidenceRefs: ["profile", "hero"],
       },
       {
         sequence: 3,
@@ -786,6 +849,34 @@ describe("run input schema", () => {
 });
 
 describe("run store", () => {
+  it("requires a structured player simulation for every persona round", () => {
+    const input = runInput() as unknown as {rounds: Array<Record<string, unknown>>};
+    delete input.rounds[0]?.playerSimulation;
+
+    const parsed = SaveRunInputSchema.safeParse(input);
+
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues.map((issue) => issue.message).join(" "))
+        .toMatch(/persona rounds require a structured player simulation/i);
+    }
+  });
+
+  it("rejects player simulations that cite voice evidence outside the persona", async () => {
+    const {store} = await harness();
+    const input = runInput();
+    const simulation = input.rounds[0]?.playerSimulation;
+    if (!simulation) throw new Error("fixture player simulation is missing");
+    simulation.memory.voiceEvidence = [{
+      sourceAppid: 1145350,
+      recommendationId: "not-in-persona",
+    }];
+
+    await expect(store.saveRun(input)).rejects.toThrow(
+      /voice evidence is not present in persona/i,
+    );
+  });
+
   it("seals and revalidates the exact subject/domain-compiled recipe", async () => {
     const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
     const {resolver, store} = await harness(() => NOW, source);
@@ -834,7 +925,7 @@ describe("run store", () => {
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       runId: RUN_ID,
       targetId: "hades-ii",
       subjectKind: "existing-game",
@@ -938,6 +1029,17 @@ describe("run store", () => {
         ]),
       },
     });
+    expect(read.record.rounds[0]?.playerSimulation).toMatchObject({
+      exposure: "visual-evidence",
+      memory: {
+        voiceEvidence: [{sourceAppid: 1145350, recommendationId: "rec-1"}],
+      },
+      decision: {
+        action: "Inspect the combat frame before deciding whether to try the game.",
+      },
+      response: {continuation: "uncertain"},
+      reflection: {confidence: "medium"},
+    });
     expect(read.integrity).toMatchObject({
       status: "verified",
       record: {status: "verified"},
@@ -996,7 +1098,7 @@ describe("run store", () => {
     await expect(store.saveRun(developerRun)).resolves.toMatchObject({id: RUN_ID});
     await expect(store.readRun("Hades II", RUN_ID)).resolves.toMatchObject({
       record: {
-        schemaVersion: 6,
+        schemaVersion: 7,
         subjectKind: "developer-project",
         projectBrief: {
           revisionId: "brief-v1",
@@ -1157,7 +1259,7 @@ describe("run store", () => {
   it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
     const read = await calibrationHarness("verified");
 
-    expect(read.record.schemaVersion).toBe(6);
+    expect(read.record.schemaVersion).toBe(7);
     expect(read.record.simulationReadiness).toMatchObject({
       status: "validation-ready",
       heldOutValidation: {

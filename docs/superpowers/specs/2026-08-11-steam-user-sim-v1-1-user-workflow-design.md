@@ -89,6 +89,7 @@ run:
 - baselineは1件、changeは2件以上のscenarios
 - personaIds、保存済みartifactを指すevidence refs
 - 1から連続するpersona/domain/critic/synthesis rounds
+- persona roundごとのreview-grounded `playerSimulation`。memory、perception、decision、response、reflectionを分け、UI選択時はvisual evidence、competition選択時はcompetitor roleのreview voiceを必須にする
 - warnings、confidence、calibrationStatus、finalEvaluationRef
 
 サーバーは各scenario × Selected Domain、各persona × scenario、final evaluation以外の全evidence利用を完全性ゲートにする。synthesis後に作るfinalEvaluationRefをroundが参照する循環はrejectする。

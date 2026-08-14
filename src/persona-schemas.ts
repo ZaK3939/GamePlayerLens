@@ -77,10 +77,8 @@ interface PersonaIssue {
 function personaIssues(value: {
   source_appids: number[];
   voice: Array<{source_appid: number; recommendation_id: string}>;
-  schema_version?: 2;
-  target_context?: z.infer<typeof TargetContextSchema>;
-  decision_profile?: z.infer<typeof DecisionProfileSchema>;
-  evidence_basis?: z.infer<typeof EvidenceBasisSchema>;
+  target_context: z.infer<typeof TargetContextSchema>;
+  evidence_basis: z.infer<typeof EvidenceBasisSchema>;
 }): PersonaIssue[] {
   const issues: PersonaIssue[] = [];
   const sourceAppids = new Set(value.source_appids);
@@ -105,43 +103,28 @@ function personaIssues(value: {
     voiceKeys.add(key);
   }
 
-  const hasV2 = value.schema_version !== undefined
-    || value.target_context !== undefined
-    || value.decision_profile !== undefined
-    || value.evidence_basis !== undefined;
-  if (!hasV2) return issues;
-  if (value.schema_version !== 2) {
-    issues.push({path: ["schema_version"], message: "v2 persona requires schema_version 2"});
+  const roleAppids = value.target_context.source_roles.map((source) => source.appid);
+  if (new Set(roleAppids).size !== roleAppids.length) {
+    issues.push({
+      path: ["target_context", "source_roles"],
+      message: "source role appids must be unique",
+    });
   }
-  for (const field of ["target_context", "decision_profile", "evidence_basis"] as const) {
-    if (value[field] === undefined) {
-      issues.push({path: [field], message: `v2 persona requires ${field}`});
-    }
+  const sameAppids = roleAppids.length === sourceAppids.size
+    && roleAppids.every((appid) => sourceAppids.has(appid));
+  if (!sameAppids) {
+    issues.push({
+      path: ["target_context", "source_roles"],
+      message: "source roles must cover exactly source_appids",
+    });
   }
-  if (value.target_context) {
-    const roleAppids = value.target_context.source_roles.map((source) => source.appid);
-    if (new Set(roleAppids).size !== roleAppids.length) {
-      issues.push({
-        path: ["target_context", "source_roles"],
-        message: "source role appids must be unique",
-      });
-    }
-    const sameAppids = roleAppids.length === sourceAppids.size
-      && roleAppids.every((appid) => sourceAppids.has(appid));
-    if (!sameAppids) {
-      issues.push({
-        path: ["target_context", "source_roles"],
-        message: "source roles must cover exactly source_appids",
-      });
-    }
-    if (value.target_context.source_roles.filter((source) => source.role === "target").length > 1) {
-      issues.push({
-        path: ["target_context", "source_roles"],
-        message: "at most one source appid may be the target",
-      });
-    }
+  if (value.target_context.source_roles.filter((source) => source.role === "target").length > 1) {
+    issues.push({
+      path: ["target_context", "source_roles"],
+      message: "at most one source appid may be the target",
+    });
   }
-  for (const [patternIndex, pattern] of (value.evidence_basis?.observed_patterns ?? []).entries()) {
+  for (const [patternIndex, pattern] of value.evidence_basis.observed_patterns.entries()) {
     for (const [evidenceIndex, evidence] of pattern.evidence.entries()) {
       if (!voiceKeys.has(`${evidence.source_appid}:${evidence.recommendation_id}`)) {
         issues.push({
@@ -163,21 +146,14 @@ function addPersonaIssues(
 
 export const PersonaSchema = z.object({
   ...PersonaBaseShape,
-  schema_version: z.literal(2).optional(),
-  target_context: TargetContextSchema.optional(),
-  decision_profile: DecisionProfileSchema.optional(),
-  evidence_basis: EvidenceBasisSchema.optional(),
-}).strict().superRefine(addPersonaIssues);
-
-export const GeneratedPersonaSchema = z.object({
-  ...PersonaBaseShape,
   schema_version: z.literal(2),
   target_context: TargetContextSchema,
   decision_profile: DecisionProfileSchema,
   evidence_basis: EvidenceBasisSchema,
 }).strict().superRefine(addPersonaIssues);
 
+export const GeneratedPersonaSchema = PersonaSchema;
+
 export type Persona = z.infer<typeof PersonaSchema>;
 
 export type PersonaFocus = typeof PERSONA_FOCUS_VALUES[number];
-

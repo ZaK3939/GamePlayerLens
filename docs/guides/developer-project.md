@@ -82,6 +82,22 @@ For imitation or a Known Frame, describe the source action, response, and reward
 
 Everything in the Project Brief is declared design intent. It remains separate from implementation evidence, human response, market demand, and commercial readiness.
 
+## Run review-grounded virtual players
+
+The virtual player is built from saved v2 personas whose voice, observed patterns, decision triggers, and limitations trace back to real Steam recommendation IDs. Use target-game reviews for current expectations and competitor or reference-game reviews for genre conventions, alternatives, and dealbreakers. UI screenshots and builds are scenario stimuli; they do not become personality traits.
+
+Each saved persona runs through every current or proposed scenario. A Player Simulation Card records:
+
+- the exact review memories retrieved;
+- what the player expected, noticed, and could not read;
+- the next action and decision reason;
+- predicted friction, reward signals, feeling, and continuation choice;
+- confidence, unknowns, and the human question and observable signal that could falsify the prediction.
+
+When UI is selected, each persona round must cite a captured target or reference image. When competition is selected, it must cite a review voice from a game assigned the `competitor` role. Use the same personas and evidence class across `current` and `proposal`; otherwise the delta is confounded.
+
+These cards are evidence-grounded behavioral hypotheses. They are useful for finding differentiated reactions and choosing a test. They do not prove fun, purchase intent, retention, or segment size until compared with human observations.
+
 ## Review the shortest emotional loop
 
 The developer-project review includes a `Moment-to-Moment Experience Loop`:
@@ -128,6 +144,7 @@ Use a structured `playtestSession` or `playtestCohort` to preserve the evidence.
 
 A complete developer-project evaluation separates:
 
+- each virtual player's response from the reviewer synthesis;
 - the Appeal Promise before purchase from the Delivered Experience after play starts;
 - the Core Experience Map from player evidence;
 - reward mechanisms from their visual or audio amplifiers;

@@ -325,6 +325,16 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 優先順位は Current size だけで決めず、阻害の重大度、変更可能性、根拠の確度を併記します。
 
+## Player Simulation Cards
+
+保存済みの同一v2 personaを各scenarioへ通し、review-grounded memoryと今回のstimulusを混同せずに記録します。AIが予測した感情や継続判断はhuman reportではなく、反証可能な仮説です。
+
+| Persona | Scenario | Exposure | Review memory | Perception | Decision / reason | Predicted response | Continue? | Confidence / unknown | Human falsifier | Evidence |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ［persona ID］ | ［current / proposal］ | ［scenario-only / visual-evidence / ai-operated］ | ［source_appid / recommendation_id］ | ［期待、気づいた信号、不明な信号］ | ［次の行動 / 理由］ | ［before → after予測感情、摩擦、報酬信号］ | ［continue / stop / uncertain と理由］ | ［高/中/低、未観測事項］ | ［人間への無誘導質問 / 観測signal］ | ［UI capture、競合review、playtest等のID］ |
+
+`change`ではpersona、task、evidence classをcurrent / proposal間で固定します。persona間の一致数を市場構成比にせず、競合reviewの反応と対象UIへの今回の反応を別々に追跡します。
+
 ## Update Strategy
 
 更新やroadmapを扱う場合は`update-strategy.md`に従います。扱わない場合は、topicとSelected Domainsに基づくN/A理由を1文で記します。

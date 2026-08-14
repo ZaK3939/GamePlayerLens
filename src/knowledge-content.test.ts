@@ -17,6 +17,7 @@ describe("canonical adoption evaluation template", () => {
       "Who Plays and Why — Flow Analysis",
       "Flow Summary",
       "Update Strategy",
+      "Player Simulation Cards",
       "Domain Findings",
       "Change Delta",
     ]) {
@@ -45,6 +46,8 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("knowledge/intel/");
     expect(content).toContain("根拠不足");
     expect(content).toContain("現状 vs 変更案");
+    expect(content).toMatch(/Review memory[\s\S]*Perception[\s\S]*Decision \/ reason/);
+    expect(content).toContain("Human falsifier");
   });
 
   it("requires a role-separated, freshness-aware competitor selection ledger", async () => {

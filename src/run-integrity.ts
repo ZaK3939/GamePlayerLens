@@ -101,7 +101,7 @@ export function createRunIntegrityAuditor(
         async () => {
           const [current] = await resolvePersonas([persona.id]);
           if (!current) throw new Error("persona evidence does not exist");
-          return {path: current.path, sha256: current.sha256};
+          return {path: current.record.path, sha256: current.record.sha256};
         },
       ));
     }

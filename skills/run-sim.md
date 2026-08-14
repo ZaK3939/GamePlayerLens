@@ -21,10 +21,16 @@
 - `derive_personas`には対象と比較appid、明示的な`market`、`language`、focus、全appidを一度ずつ覆うsourceRolesを渡します。対象はtarget、直接競合はcompetitor、仕組み/UI参照はreferenceです。返されたresultHandleを`save_artifact`してEvidence Indexへ入れた後、`generationReadiness`を読みます。`generationAllowed=false`なら生成しません。partial / readyでも`generationReadiness.supportedCount`を超えず、同じreview voiceをpersona間で再利用しません。その後だけv2 personaを`save_persona`します。
 - 各領域はsubagentで独立評価し、利用できないclientでは領域を混ぜないsequential independent passにします。全主張をEvidence IDまたはvoiceのsource_appid / recommendation_idへ接続します。
 
+## Virtual player loop
+
+レビュー所見より先に、実Steam review voiceから作った保存済みv2 personaを各scenarioへ通します。UI/captureは人物属性でなくstimulusです。`change`では同じpersona、task、evidence classをcurrent / proposalで固定します。
+
+各`persona × scenario` roundは`playerSimulation`を保存します。`memory.voiceEvidence`の実review ID → `perception`の期待・信号・不明点 → `decision`の行動・理由 → `response`のbefore / after予測感情・摩擦・報酬・継続 → `reflection`のconfidence・unknown・人間での反証条件、の順で分離します。UIはcaptureを、competitionはcompetitor roleのreview voiceを引用します。`output`は短い一人称要約にし、予測をhuman reportや市場比率へ変換しません。全cardの一致、不一致、反証条件をsynthesisし、人間結果との差を後続calibrationへ使います。
+
 ## Evaluation and immutable run
 
 1. baselineは現状単独、changeは現状と変更案を同じ条件で比較します。事実、reported-zero、estimated、missing、N/Aを分離し、missingを0へ変換しません。
-2. `knowledge/templates/adoption-eval.md`を埋め、Decision Card、Detailed Scope、Overall Assessment、Flow、Domain Findings、Data Semantics、Data Coverage Matrix、Coverage Summary、Evidence Index、Final Recommendationを一貫させます。`evidence-coverage.md`の固定dimensionをSelected Domainごとに使い、Coverage rateとDirect observation rateを再計算します。blocking missingがconfidenceと判断に与える影響を明示します。
+2. `knowledge/templates/adoption-eval.md`を埋め、Decision Card、Detailed Scope、Player Simulation Cards、Overall Assessment、Flow、Domain Findings、Data Semantics、Data Coverage Matrix、Coverage Summary、Evidence Index、Final Recommendationを一貫させます。`evidence-coverage.md`の固定dimensionをSelected Domainごとに使い、Coverage rateとDirect observation rateを再計算します。blocking missingがconfidenceと判断に与える影響を明示します。
 3. harsh-criticで選択領域だけを審査します。同じ根拠欠損が反復したら停止条件に従い、証拠を捏造してpassさせません。
 4. 完成Markdownを`save_artifact(kind=evaluation)`で保存し、`workspaces/<target>/<date>-<topic>.md`をEvidenceとして保持します。
 5. 続けて`save_artifact`をkind=`run`で呼び、promptと同じsubjectKind、market、language、mode、selectedDomains、model、scenarios、personaIds、evidence、rounds、warnings、confidence、`finalEvaluationRef`を渡します。全`scenario × Selected Domain`、全`persona × scenario`、final evaluation以外の全evidenceをroundで使用します。`finalEvaluationRef`はroundの`evidenceRefs`に含めません。

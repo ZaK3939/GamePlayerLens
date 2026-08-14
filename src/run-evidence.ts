@@ -10,7 +10,7 @@ import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {sha256} from "./integrity.js";
 import type {SubjectKind} from "./project-brief.js";
 import {compileRunSimRecipe} from "./run-recipe.js";
-import {PersonaSchema} from "./persona-schemas.js";
+import {PersonaSchema, type Persona} from "./persona-schemas.js";
 import {
   EvidenceReferenceInputSchema,
   ResolvedEvidenceSchema,
@@ -33,13 +33,18 @@ export interface ResolvedEvidenceResult {
   evaluationDomains?: string[];
 }
 
+export interface ResolvedPersonaResult {
+  record: z.infer<typeof ResolvedPersonaSchema>;
+  persona: Persona;
+}
+
 export interface RunEvidenceResolver {
   resolveEvidence(
     input: z.infer<typeof EvidenceReferenceInputSchema>,
   ): Promise<ResolvedEvidenceResult>;
   resolvePersonas(
     ids: string[],
-  ): Promise<Array<z.infer<typeof ResolvedPersonaSchema>>>;
+  ): Promise<ResolvedPersonaResult[]>;
   resolveRecipe(
     subjectKind: SubjectKind,
     selectedDomains: readonly SimulationDomain[],
@@ -194,19 +199,20 @@ export function createRunEvidenceResolver(
     })};
   }
 
-  async function resolvePersonas(ids: string[]): Promise<Array<z.infer<
-    typeof ResolvedPersonaSchema
-  >>> {
-    const personas: Array<z.infer<typeof ResolvedPersonaSchema>> = [];
+  async function resolvePersonas(ids: string[]): Promise<ResolvedPersonaResult[]> {
+    const personas: ResolvedPersonaResult[] = [];
     for (const id of ids) {
       const path = resolver.resolvePersonaPath(id);
       const {bytes} = await readRegularBytes(path, MAX_PERSONA_BYTES);
       const parsed = PersonaSchema.parse(JSON.parse(bytes.toString("utf8")) as unknown);
       if (parsed.id !== id) throw new Error("persona evidence does not match its path");
       personas.push({
-        id: parsed.id,
-        path: relative(resolver.root, path).split(sep).join("/"),
-        sha256: sha256(bytes),
+        record: ResolvedPersonaSchema.parse({
+          id: parsed.id,
+          path: relative(resolver.root, path).split(sep).join("/"),
+          sha256: sha256(bytes),
+        }),
+        persona: parsed,
       });
     }
     return personas;

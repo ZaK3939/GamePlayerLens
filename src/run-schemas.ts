@@ -35,6 +35,58 @@ const ScenarioSchema = z.object({
   specification: z.string().min(1).max(50_000),
 }).strict();
 
+const PlayerSimulationTextSchema = z.string().trim().min(1).max(4_000);
+
+const PersonaVoiceEvidenceReferenceSchema = z.object({
+  sourceAppid: z.number().int().positive(),
+  recommendationId: z.string().trim().min(1).max(200),
+}).strict();
+
+export const PlayerSimulationSchema = z.object({
+  exposure: z.enum(["scenario-only", "visual-evidence", "ai-operated"]),
+  memory: z.object({
+    voiceEvidence: z.array(PersonaVoiceEvidenceReferenceSchema).min(1).max(5),
+  }).strict(),
+  perception: z.object({
+    expectation: PlayerSimulationTextSchema,
+    noticedSignals: z.array(PlayerSimulationTextSchema).min(1).max(8),
+    unclearSignals: z.array(PlayerSimulationTextSchema).max(8),
+  }).strict(),
+  decision: z.object({
+    action: PlayerSimulationTextSchema,
+    reason: PlayerSimulationTextSchema,
+  }).strict(),
+  response: z.object({
+    predictedFeeling: z.object({
+      before: PlayerSimulationTextSchema,
+      after: PlayerSimulationTextSchema,
+    }).strict(),
+    frictions: z.array(PlayerSimulationTextSchema).max(8),
+    rewardSignals: z.array(PlayerSimulationTextSchema).max(8),
+    continuation: z.enum(["continue", "stop", "uncertain"]),
+    continuationReason: PlayerSimulationTextSchema,
+  }).strict(),
+  reflection: z.object({
+    confidence: z.enum(["low", "medium", "high"]),
+    uncertainties: z.array(PlayerSimulationTextSchema).min(1).max(8),
+    humanValidationQuestion: PlayerSimulationTextSchema,
+    observableSignal: PlayerSimulationTextSchema,
+  }).strict(),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  value.memory.voiceEvidence.forEach((reference, index) => {
+    const key = `${reference.sourceAppid}:${reference.recommendationId}`;
+    if (seen.has(key)) {
+      context.addIssue({
+        code: "custom",
+        path: ["memory", "voiceEvidence", index],
+        message: "player simulation voice evidence must be unique",
+      });
+    }
+    seen.add(key);
+  });
+});
+
 export const EvidenceReferenceInputSchema = z.discriminatedUnion("kind", [
   z.object({
     ref: ReferenceIdSchema,
@@ -67,9 +119,25 @@ const SimulationRoundSchema = z.object({
   scenarioId: ReferenceIdSchema.optional(),
   domain: SimulationDomainSchema.optional(),
   personaId: ReferenceIdSchema.optional(),
+  playerSimulation: PlayerSimulationSchema.optional(),
   output: z.string().min(1).max(100_000),
   evidenceRefs: z.array(ReferenceIdSchema).min(1).max(50),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.phase === "persona" && !value.playerSimulation) {
+    context.addIssue({
+      code: "custom",
+      path: ["playerSimulation"],
+      message: "persona rounds require a structured player simulation",
+    });
+  }
+  if (value.phase !== "persona" && value.playerSimulation) {
+    context.addIssue({
+      code: "custom",
+      path: ["playerSimulation"],
+      message: "only persona rounds may contain a player simulation",
+    });
+  }
+});
 
 const ConfidenceInputSchema = z.object({
   level: z.enum(["low", "medium", "high"]),
@@ -464,7 +532,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 export const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(6),
+  schemaVersion: z.literal(7),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),

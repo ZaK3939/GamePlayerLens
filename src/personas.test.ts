@@ -46,6 +46,33 @@ function persona(overrides: Partial<Persona> = {}): Persona {
     })),
     dealbreakers: ["機械翻訳調の台詞"],
     price_sensitivity: "完成度が高ければ定価でも購入",
+    schema_version: 2,
+    target_context: {
+      market: "Japan",
+      language: "japanese",
+      source_roles: [{appid: 1145360, role: "target"}],
+    },
+    decision_profile: {
+      adoption_trigger: "日本語品質と操作感を確認できる",
+      retention_trigger: "周回ごとの物語変化が続く",
+      churn_trigger: "訳文または入力反応が期待を下回る",
+      update_reaction: "既知の不満に対応するpatch noteを確認して再評価する",
+    },
+    evidence_basis: {
+      observed_patterns: [
+        {
+          claim: "日本語品質を評価軸にする",
+          evidence: [{source_appid: 1145360, recommendation_id: "rec-0"}],
+        },
+        {
+          claim: "操作感を評価軸にする",
+          evidence: [{source_appid: 1145360, recommendation_id: "rec-1"}],
+        },
+      ],
+      inferred_traits: [],
+      limitations: ["polarity-balanced sampleで市場構成比を表さない"],
+      overall_confidence: "medium",
+    },
     ...overrides,
   };
 }
@@ -112,10 +139,17 @@ describe("PersonaSchema", () => {
     expect(PersonaSchema.safeParse(missingSource).success).toBe(false);
   });
 
-  it("keeps legacy reads but requires a traceable decision profile for generated v2 personas", () => {
+  it("requires the traceable v2 decision profile for every persona", () => {
     expect(PersonaSchema.safeParse(persona()).success).toBe(true);
-    expect(GeneratedPersonaSchema.safeParse(persona()).success).toBe(false);
+    expect(GeneratedPersonaSchema.safeParse(persona()).success).toBe(true);
     expect(GeneratedPersonaSchema.safeParse(personaV2()).success).toBe(true);
+
+    const legacy = structuredClone(persona()) as Record<string, unknown>;
+    delete legacy.schema_version;
+    delete legacy.target_context;
+    delete legacy.decision_profile;
+    delete legacy.evidence_basis;
+    expect(PersonaSchema.safeParse(legacy).success).toBe(false);
 
     const missingDecisionProfile = personaV2();
     delete missingDecisionProfile.decision_profile;

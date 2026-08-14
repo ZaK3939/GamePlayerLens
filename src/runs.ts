@@ -26,6 +26,7 @@ import {
 } from "./run-evidence.js";
 import {createRunIntegrityAuditor} from "./run-integrity.js";
 import {createRunOutcomeChainVerifier} from "./run-outcome-chain.js";
+import {assertPlayerSimulationGrounding} from "./player-simulation.js";
 import {
   CanonicalTargetIdSchema,
   IsoDateTimeSchema,
@@ -281,8 +282,10 @@ export function createRunStore(
         "run selectedDomains must exactly match the final evaluation Selected Domains",
       );
     }
+    const resolvedPersonas = await resolvePersonas(parsed.personaIds);
+    assertPlayerSimulationGrounding(parsed, resolvedPersonas, resolvedEvidence);
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 6,
+      schemaVersion: 7,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,
@@ -295,7 +298,7 @@ export function createRunStore(
       recipe: await resolveRecipe(parsed.subjectKind, parsed.selectedDomains),
       model: {...parsed.model, reportedByClient: true},
       scenarios: parsed.scenarios,
-      personas: await resolvePersonas(parsed.personaIds),
+      personas: resolvedPersonas.map(({record}) => record),
       evidence,
       rounds: parsed.rounds,
       warnings: parsed.warnings,

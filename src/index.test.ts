@@ -238,6 +238,67 @@ function persona(): Persona {
     })),
     dealbreakers: [],
     price_sensitivity: "中程度",
+    schema_version: 2,
+    target_context: {
+      market: "Japan",
+      language: "japanese",
+      source_roles: [{appid: 1145360, role: "target"}],
+    },
+    decision_profile: {
+      adoption_trigger: "操作と結果が明確に見える",
+      retention_trigger: "操作判断が継続して異なる結果を生む",
+      churn_trigger: "入力と結果の因果が読めない",
+      update_reaction: "操作性改善の実演後に再評価する",
+    },
+    evidence_basis: {
+      observed_patterns: [
+        {
+          claim: "操作性を採用判断に使う",
+          evidence: [{source_appid: 1145360, recommendation_id: "mcp-0"}],
+        },
+        {
+          claim: "操作結果の明確さを重視する",
+          evidence: [{source_appid: 1145360, recommendation_id: "mcp-1"}],
+        },
+      ],
+      inferred_traits: [],
+      limitations: ["MCP transport fixtureで市場構成比を表さない"],
+      overall_confidence: "medium",
+    },
+  };
+}
+
+function playerSimulation(recommendationId: string) {
+  return {
+    exposure: "scenario-only",
+    memory: {
+      voiceEvidence: [{sourceAppid: 1145360, recommendationId}],
+    },
+    perception: {
+      expectation: "The store promise should make the first meaningful action clear.",
+      noticedSignals: ["The proposal names a more specific combat promise."],
+      unclearSignals: ["No playable response is present in this fixture."],
+    },
+    decision: {
+      action: "Look for a concrete combat example before trying the game.",
+      reason: "The persona prioritizes control clarity.",
+    },
+    response: {
+      predictedFeeling: {
+        before: "Unsure what differentiates the game.",
+        after: "More curious, but not yet convinced.",
+      },
+      frictions: ["The input and result remain unobserved."],
+      rewardSignals: ["The proposed promise is more specific."],
+      continuation: "uncertain",
+      continuationReason: "A build or recording is required.",
+    },
+    reflection: {
+      confidence: "low",
+      uncertainties: ["No human participant evaluated this scenario."],
+      humanValidationQuestion: "What action and result do you expect from this game?",
+      observableSignal: "The participant states both without prompting.",
+    },
   };
 }
 
@@ -687,6 +748,10 @@ describe("MCP server contract", () => {
               "voice",
               "dealbreakers",
               "price_sensitivity",
+              "schema_version",
+              "target_context",
+              "decision_profile",
+              "evidence_basis",
             ],
             "required": [
               "persona",
@@ -1400,6 +1465,7 @@ describe("MCP server contract", () => {
               actor: "mcp-round-trip",
               personaId: "mcp-round-trip",
               scenarioId: "current",
+              playerSimulation: playerSimulation("mcp-0"),
               output: "The current promise is understandable but generic.",
               evidenceRefs: ["profile"],
             },
@@ -1409,6 +1475,7 @@ describe("MCP server contract", () => {
               actor: "mcp-round-trip",
               personaId: "mcp-round-trip",
               scenarioId: "proposal",
+              playerSimulation: playerSimulation("mcp-1"),
               output: "The proposal gives me a clearer reason to try it.",
               evidenceRefs: ["profile"],
             },
@@ -1496,7 +1563,7 @@ describe("MCP server contract", () => {
         data: {
           metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
           record: {
-            schemaVersion: 6,
+            schemaVersion: 7,
             subjectKind: "existing-game",
             market: "Japan",
             language: "japanese",

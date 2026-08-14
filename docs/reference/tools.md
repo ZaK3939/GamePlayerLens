@@ -23,7 +23,7 @@ GamePlayerLens exposes exactly 14 MCP tools and two prompts. All tools return a 
 
 ## Prompts
 
-- `run-sim` orchestrates intake, evidence collection, persona work, domain review, criticism, evaluation storage, and run storage. `domains` must explicitly name at least one domain; omission returns `needs-input`, and a ready prompt receives only the named domain recipe sections.
+- `run-sim` orchestrates intake, evidence collection, review-grounded virtual-player rounds, domain review, criticism, evaluation storage, and run storage. `domains` must explicitly name at least one domain; omission returns `needs-input`, and a ready prompt receives only the named domain recipe sections.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
 Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `firstContactTest`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary.
@@ -74,7 +74,7 @@ Direct image fetches are limited to `steamstatic.com` and its subdomains. Creden
 
 - `kind=intel`: exact-save a result handle or directly save a validated JSON envelope.
 - `kind=evaluation`: save Markdown that passes the canonical report structure and evidence checks.
-- `kind=run`: seal the review context, dependencies, rounds, warnings, confidence, and final evaluation in an immutable run record.
+- `kind=run`: seal the review context, dependencies, structured virtual-player and reviewer rounds, warnings, confidence, and final evaluation in an immutable run record.
 
 Intel and evaluation writes default to `overwrite=false`. Experiment specs, measurements, and outcomes are immutable and must not use overwrite. Run IDs are always immutable.
 
