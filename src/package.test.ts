@@ -10,6 +10,7 @@ describe("npm package contract", () => {
       name?: string;
       private?: boolean;
       bin?: Record<string, string>;
+      engines?: Record<string, string>;
       files?: string[];
       scripts?: Record<string, string>;
     };
@@ -20,6 +21,7 @@ describe("npm package contract", () => {
     expect(manifest.name).toBe("game-player-lens");
     expect(manifest.private).toBe(false);
     expect(manifest.bin).toEqual({"game-player-lens": "dist/cli.js"});
+    expect(manifest.engines?.node).toBe(">=22");
     expect(manifest.files).toEqual([
       "dist",
       "knowledge/rubrics",

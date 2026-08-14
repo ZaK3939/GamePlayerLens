@@ -10,7 +10,7 @@ The server validates inputs, collects and normalizes evidence, stores artifacts,
 
 ## Quick start
 
-Requirements: Node.js 20 or newer and pnpm 10 or newer.
+Requirements: a supported Node.js LTS release (22 or newer) and pnpm 10 or newer.
 
 ```bash
 pnpm install
