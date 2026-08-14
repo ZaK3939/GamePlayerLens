@@ -4,6 +4,7 @@ import {describe, expect, it} from "vitest";
 import {
   buildPlaytestCohortDiagnostics,
   buildPlaytestSessionDiagnostics,
+  FirstContactTestObjectSchema,
   PlaytestCohortObjectSchema,
   PlaytestSessionObjectSchema,
 } from "./playtest-evidence.js";
@@ -77,6 +78,21 @@ function revisionBundleFixture(): Record<string, unknown> {
     },
     changedAreas: ["onboarding action feedback"],
     invariantsKept: ["viewport, controls, seed, and test task"],
+  };
+}
+
+function auditSnapshotBundleFixture(): Record<string, unknown> {
+  return {
+    artifactType: "audit-snapshot-bundle",
+    observedAt: "2026-08-14T12:00:00+04:00",
+    snapshotId: "build-042",
+    gitCommitSha: "c".repeat(40),
+    buildId: "build-042",
+    artifacts: [{
+      evidenceRef: "build-capture",
+      kind: "capture",
+      sha256: "3".repeat(64),
+    }],
   };
 }
 
@@ -672,6 +688,7 @@ describe("game review prompt argument normalization", () => {
         oneSentencePromise: "Outread the storm to keep a courier network alive",
         coreProofMoment: "A route is redrawn around a storm and the delivery state reacts immediately",
       }),
+      auditSnapshotBundle: JSON.stringify(auditSnapshotBundleFixture()),
     });
     expect(readyBrief).toContain('"subjectKind": "developer-project"');
     expect(readyBrief).toContain('"intakeDiagnostics": {\n    "status": "ready"');
@@ -1597,10 +1614,10 @@ describe("game review prompt argument normalization", () => {
     const result = buildGameReviewPrompt(recipe, {
       target: "Project Nyx",
       topic: "store reveal readiness",
-      firstContactTest: JSON.stringify(firstContactTestFixture()),
     }, {
+      firstContactTest: FirstContactTestObjectSchema.parse(firstContactTestFixture()),
       firstContactTestEvidence: {
-        sourceTool: "manual",
+        sourceTool: "record_first_contact",
         observedAt: "2026-08-12T11:00:00+04:00",
         resultHandle: "123e4567-e89b-42d3-a456-426614174001",
       },
@@ -1633,7 +1650,8 @@ describe("game review prompt argument normalization", () => {
     const result = buildGameReviewPrompt(recipe, {
       target: "Project Nyx",
       topic: "first-contact appeal boundary",
-      firstContactTest: JSON.stringify(firstContactTestFixture()),
+    }, {
+      firstContactTest: FirstContactTestObjectSchema.parse(firstContactTestFixture()),
     });
 
     expect(result).toContain('"themeLegibilityCounts": {\n      "yes": 1');
@@ -1644,13 +1662,9 @@ describe("game review prompt argument normalization", () => {
   });
 
   it("rejects unsafe first-contact lineage and duplicate participant IDs", () => {
-    const selfLinked = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "store reveal readiness",
-      firstContactTest: JSON.stringify({
-        ...firstContactTestFixture(),
-        parentAssetId: "store-viewport-v2",
-      }),
+    const selfLinked = FirstContactTestObjectSchema.safeParse({
+      ...firstContactTestFixture(),
+      parentAssetId: "store-viewport-v2",
     });
     expect(selfLinked.success).toBe(false);
     if (!selfLinked.success) {
@@ -1661,24 +1675,16 @@ describe("game review prompt argument normalization", () => {
       ...firstContactTestFixture().participants as Array<Record<string, unknown>>,
       ...firstContactTestFixture().participants as Array<Record<string, unknown>>,
     ]);
-    const duplicate = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "store reveal readiness",
-      firstContactTest: JSON.stringify(duplicateParticipants),
-    });
+    const duplicate = FirstContactTestObjectSchema.safeParse(duplicateParticipants);
     expect(duplicate.success).toBe(false);
     if (!duplicate.success) {
       expect(JSON.stringify(duplicate.error)).toContain("participantId");
     }
 
     const privateValue = "private-person@example.com";
-    const personalData = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "store reveal readiness",
-      firstContactTest: JSON.stringify({
-        ...firstContactTestFixture(),
-        recruitment: `Contact ${privateValue} for participant details`,
-      }),
+    const personalData = FirstContactTestObjectSchema.safeParse({
+      ...firstContactTestFixture(),
+      recruitment: `Contact ${privateValue} for participant details`,
     });
     expect(personalData.success).toBe(false);
     if (!personalData.success) {
@@ -1691,11 +1697,9 @@ describe("game review prompt argument normalization", () => {
       ...(firstContactTestFixture().participants as Array<Record<string, unknown>>)[0],
     };
     delete missingVisualQuality.visualQuality;
-    const missing = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "store reveal readiness",
-      firstContactTest: JSON.stringify(firstContactTestFixture([missingVisualQuality])),
-    });
+    const missing = FirstContactTestObjectSchema.safeParse(
+      firstContactTestFixture([missingVisualQuality]),
+    );
     expect(missing.success).toBe(false);
     if (!missing.success) {
       expect(JSON.stringify(missing.error)).toContain("visualQuality");
@@ -1705,11 +1709,9 @@ describe("game review prompt argument normalization", () => {
       ...(firstContactTestFixture().participants as Array<Record<string, unknown>>)[0],
     };
     delete unexplainedConcern.visualQualityReason;
-    const unexplained = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "store reveal readiness",
-      firstContactTest: JSON.stringify(firstContactTestFixture([unexplainedConcern])),
-    });
+    const unexplained = FirstContactTestObjectSchema.safeParse(
+      firstContactTestFixture([unexplainedConcern]),
+    );
     expect(unexplained.success).toBe(false);
     if (!unexplained.success) {
       expect(JSON.stringify(unexplained.error)).toContain("visualQualityReason");
@@ -1722,11 +1724,9 @@ describe("game review prompt argument normalization", () => {
     };
     const missingAppeal = {...base};
     delete missingAppeal.themeAppeal;
-    const missing = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "store reveal readiness",
-      firstContactTest: JSON.stringify(firstContactTestFixture([missingAppeal])),
-    });
+    const missing = FirstContactTestObjectSchema.safeParse(
+      firstContactTestFixture([missingAppeal]),
+    );
     expect(missing.success).toBe(false);
     if (!missing.success) {
       expect(JSON.stringify(missing.error)).toContain("themeAppeal");
@@ -1734,11 +1734,9 @@ describe("game review prompt argument normalization", () => {
 
     const unexplainedTryIntent = {...base};
     delete unexplainedTryIntent.tryIntentReason;
-    const unexplained = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "store reveal readiness",
-      firstContactTest: JSON.stringify(firstContactTestFixture([unexplainedTryIntent])),
-    });
+    const unexplained = FirstContactTestObjectSchema.safeParse(
+      firstContactTestFixture([unexplainedTryIntent]),
+    );
     expect(unexplained.success).toBe(false);
     if (!unexplained.success) {
       expect(JSON.stringify(unexplained.error)).toContain("tryIntentReason");
@@ -1753,7 +1751,10 @@ describe("game review prompt argument normalization", () => {
     const result = buildGameReviewPrompt(recipe, {
       target: "Project Nyx",
       topic: "store reveal readiness",
-      firstContactTest: JSON.stringify(firstContactTestFixture([participant])),
+    }, {
+      firstContactTest: FirstContactTestObjectSchema.parse(
+        firstContactTestFixture([participant]),
+      ),
     });
 
     expect(result).toContain('"unexplainedImmediateRejectCount": 1');
@@ -1777,14 +1778,10 @@ describe("game review prompt argument normalization", () => {
       expect(JSON.stringify(missingDesign.error)).toContain("invariantsKept");
     }
 
-    const incompleteFirstContact = GameReviewPromptArgumentsSchema.safeParse({
-      target: "Project Nyx",
-      topic: "asset revision",
-      firstContactTest: JSON.stringify({
-        ...firstContactTestFixture(),
-        changedVariables: undefined,
-        invariantsKept: undefined,
-      }),
+    const incompleteFirstContact = FirstContactTestObjectSchema.safeParse({
+      ...firstContactTestFixture(),
+      changedVariables: undefined,
+      invariantsKept: undefined,
     });
     expect(incompleteFirstContact.success).toBe(false);
     if (!incompleteFirstContact.success) {

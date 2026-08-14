@@ -1,7 +1,32 @@
 import {
   type EvaluationHeading,
+  evaluationHeadings,
   sectionLines,
 } from "./evaluation-markdown-structure.js";
+
+export interface StructuredDecisionCard {
+  verdict: "GO" | "HOLD" | "NO-GO";
+  decision: "fix-now" | "test-next-build" | "investigate" | "defer";
+  proven: string[];
+  unproven: string[];
+  highestRisk: string;
+  playerProblem: string;
+  nextValidations: Array<{
+    test: string;
+    successSignal: string;
+    guardrail: string;
+  }>;
+  confidence: string;
+  revisitCondition: string;
+}
+
+export interface DeveloperDecisionSummary {
+  verdict: StructuredDecisionCard["verdict"];
+  decision: StructuredDecisionCard["decision"];
+  highestRisk: string;
+  nextAction: string;
+  successSignal: string;
+}
 
 function fieldValues(lines: string[], label: string): string[] {
   const prefix = `- ${label}:`;
@@ -25,21 +50,77 @@ function requireCount(
   }
 }
 
+function decisionCardValues(
+  lines: string[],
+  headings: EvaluationHeading[],
+) {
+  const decisionLines = sectionLines(lines, headings, "Decision Card", 2);
+  return {
+    verdicts: fieldValues(decisionLines, "Verdict"),
+    decisions: fieldValues(decisionLines, "Decision"),
+    proven: fieldValues(decisionLines, "Proven"),
+    unproven: fieldValues(decisionLines, "Unproven"),
+    risks: fieldValues(decisionLines, "Highest risk"),
+    playerProblems: fieldValues(decisionLines, "Player problem"),
+    validations: fieldValues(decisionLines, "Next validation"),
+    confidence: fieldValues(decisionLines, "Confidence"),
+    revisit: fieldValues(decisionLines, "Revisit condition"),
+  };
+}
+
+function parseNextValidation(value: string): StructuredDecisionCard["nextValidations"][number] {
+  const match = /^Test:\s*(\S[\s\S]*?)\s*\|\s*Success signal:\s*(\S[\s\S]*?)\s*\|\s*Guardrail:\s*(\S[\s\S]*)$/iu.exec(value);
+  if (!match) {
+    throw new Error("evaluation Markdown is not canonical: every Next validation requires Test, Success signal, and Guardrail");
+  }
+  return {test: match[1]!, successSignal: match[2]!, guardrail: match[3]!};
+}
+
+export function extractDecisionCard(content: string): StructuredDecisionCard {
+  const lines = content.split(/\r?\n/u);
+  const values = decisionCardValues(lines, evaluationHeadings(lines));
+  return {
+    verdict: values.verdicts[0] as StructuredDecisionCard["verdict"],
+    decision: values.decisions[0] as StructuredDecisionCard["decision"],
+    proven: values.proven,
+    unproven: values.unproven,
+    highestRisk: values.risks[0]!,
+    playerProblem: values.playerProblems[0]!,
+    nextValidations: values.validations.map(parseNextValidation),
+    confidence: values.confidence[0]!,
+    revisitCondition: values.revisit[0]!,
+  };
+}
+
+export function buildDeveloperDecisionSummary(
+  decisionCard: StructuredDecisionCard,
+): DeveloperDecisionSummary {
+  const next = decisionCard.nextValidations[0]!;
+  return {
+    verdict: decisionCard.verdict,
+    decision: decisionCard.decision,
+    highestRisk: decisionCard.highestRisk,
+    nextAction: next.test,
+    successSignal: next.successSignal,
+  };
+}
+
 export function validateDecisionCard(
   lines: string[],
   headings: EvaluationHeading[],
   evidenceIds: ReadonlySet<string>,
 ): void {
-  const decisionLines = sectionLines(lines, headings, "Decision Card", 2);
-  const verdicts = fieldValues(decisionLines, "Verdict");
-  const decisions = fieldValues(decisionLines, "Decision");
-  const proven = fieldValues(decisionLines, "Proven");
-  const unproven = fieldValues(decisionLines, "Unproven");
-  const risks = fieldValues(decisionLines, "Highest risk");
-  const playerProblems = fieldValues(decisionLines, "Player problem");
-  const validations = fieldValues(decisionLines, "Next validation");
-  const confidence = fieldValues(decisionLines, "Confidence");
-  const revisit = fieldValues(decisionLines, "Revisit condition");
+  const {
+    verdicts,
+    decisions,
+    proven,
+    unproven,
+    risks,
+    playerProblems,
+    validations,
+    confidence,
+    revisit,
+  } = decisionCardValues(lines, headings);
 
   for (const [label, values] of [
     ["Verdict", verdicts],
@@ -73,9 +154,7 @@ export function validateDecisionCard(
   if (unproven.some((claim) => !/(?:missing|unproven|未証明|根拠不足)/iu.test(claim))) {
     throw new Error("evaluation Markdown is not canonical: every Decision Card Unproven entry must state its missing-evidence status");
   }
-  if (validations.some((item) => !/^Test:\s*\S[\s\S]*\|\s*Success signal:\s*\S[\s\S]*\|\s*Guardrail:\s*\S/iu.test(item))) {
-    throw new Error("evaluation Markdown is not canonical: every Next validation requires Test, Success signal, and Guardrail");
-  }
+  validations.forEach(parseNextValidation);
 }
 
 export function validateDomainFindingSeverities(

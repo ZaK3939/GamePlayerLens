@@ -192,6 +192,7 @@ function sha256(value: string | Buffer): string {
 const PERSONA_RESEARCH_QUESTIONS = [{
   id: "combat-readability",
   question: "Which signals make the first combat decision and result readable?",
+  evidenceSignals: ["voice"],
 }] as const;
 
 function personaTargetSource() {
@@ -235,6 +236,8 @@ function derivationPayload() {
         review: `voice ${index}`,
         votedUp: index !== 3,
         language: "japanese",
+        matchedResearchQuestionIds: ["combat-readability"],
+        matchedEvidenceSignals: ["voice"],
         playtimeHours: 100,
         timestamp: 1_700_000_000,
       })),
@@ -942,6 +945,39 @@ describe("run input schema", () => {
     })).toThrow();
   });
 
+  it("requires an audit snapshot bundle for developer-project baselines only", () => {
+    const baseline = runInput({
+      subjectKind: "developer-project",
+      projectBrief: projectBriefFixture(),
+      mode: "baseline",
+      revisionBundleRef: undefined,
+      scenarios: [{id: "current", label: "Current", specification: "Current build"}],
+      rounds: runInput().rounds.map((round, index) => ({
+        ...round,
+        sequence: index + 1,
+        scenarioId: "current",
+        evidenceRefs: index === runInput().rounds.length - 1
+          ? [...round.evidenceRefs.filter((ref) => ref !== "revision-bundle"), "audit-snapshot"]
+          : round.evidenceRefs,
+      })),
+      evidence: [
+        ...runInput().evidence.filter((evidence) => evidence.ref !== "revision-bundle"),
+        {ref: "audit-snapshot", kind: "intel", target: "Hades II", id: "Audit Snapshot"},
+      ],
+      auditSnapshotBundleRef: "audit-snapshot",
+    });
+
+    expect(SaveRunInputSchema.safeParse({
+      ...baseline,
+      auditSnapshotBundleRef: undefined,
+    }).success).toBe(false);
+    expect(SaveRunInputSchema.parse(baseline).auditSnapshotBundleRef)
+      .toBe("audit-snapshot");
+    expect(SaveRunInputSchema.safeParse(runInput({
+      auditSnapshotBundleRef: "revision-bundle",
+    })).success).toBe(false);
+  });
+
   it("requires consultation context and a route-complete brief for developer subjects", () => {
     const {subjectKind: _subjectKind, ...withoutSubjectKind} = runInput();
     expect(SaveRunInputSchema.safeParse(withoutSubjectKind).success).toBe(false);
@@ -1014,14 +1050,13 @@ describe("run store", () => {
   });
 
   it("rejects a change run when revision-bound evidence bytes no longer match", async () => {
-    const {artifacts, store} = await harness();
-    await artifacts.saveIntel({
-      target: "Hades II",
-      id: "Profile",
-      sourceTool: "steam_fetch",
-      observedAt: "2026-08-11T10:10:00.000Z",
-      payload: {appid: 1145350, changedAfterBundle: true},
-    }, {overwrite: true});
+    const {resolver, store} = await harness();
+    const profilePath = resolver.resolveIntelArtifactPath("Hades II", "Profile").absolutePath;
+    const profile = JSON.parse(await readFile(profilePath, "utf8")) as {
+      payload: Record<string, unknown>;
+    };
+    profile.payload.changedAfterBundle = true;
+    await writeFile(profilePath, `${JSON.stringify(profile, null, 2)}\n`);
 
     await expect(store.saveRun(runInput())).rejects.toThrow(
       /revision bundle evidence binding mismatch: profile/i,
@@ -1076,7 +1111,7 @@ describe("run store", () => {
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 9,
+      schemaVersion: 10,
       runId: RUN_ID,
       targetId: "hades-ii",
       subjectKind: "existing-game",
@@ -1237,12 +1272,18 @@ describe("run store", () => {
       );
     await artifacts.saveEvaluation({
       target: "Hades II",
-      topic: "Store Page",
+      topic: "Store Page Mismatch",
       date: "2026-08-11",
       content: storefrontOnly,
-    }, true);
+    });
 
-    await expect(store.saveRun(runInput())).rejects.toThrow(
+    const input = runInput({
+      evidence: runInput().evidence.map((evidence) => evidence.ref === "evaluation"
+        ? {...evidence, id: "2026-08-11-store-page-mismatch"}
+        : evidence),
+    });
+
+    await expect(store.saveRun(input)).rejects.toThrow(
       /selectedDomains.*final evaluation/i,
     );
   });
@@ -1258,14 +1299,20 @@ describe("run store", () => {
 
     await artifacts.saveEvaluation({
       target: "Hades II",
-      topic: "Store Page",
+      topic: "Store Page Developer",
       date: "2026-08-11",
       content: evaluationMarkdown("Current versus proposal.", true),
-    }, true);
-    await expect(store.saveRun(developerRun)).resolves.toMatchObject({id: RUN_ID});
+    });
+    const groundedDeveloperRun = {
+      ...developerRun,
+      evidence: developerRun.evidence.map((evidence) => evidence.ref === "evaluation"
+        ? {...evidence, id: "2026-08-11-store-page-developer"}
+        : evidence),
+    };
+    await expect(store.saveRun(groundedDeveloperRun)).resolves.toMatchObject({id: RUN_ID});
     await expect(store.readRun("Hades II", RUN_ID)).resolves.toMatchObject({
       record: {
-        schemaVersion: 9,
+        schemaVersion: 10,
         subjectKind: "developer-project",
         projectBrief: {
           revisionId: "brief-v1",
@@ -1426,7 +1473,7 @@ describe("run store", () => {
   it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
     const read = await calibrationHarness("verified");
 
-    expect(read.record.schemaVersion).toBe(9);
+    expect(read.record.schemaVersion).toBe(10);
     expect(read.record.simulationReadiness).toMatchObject({
       status: "validation-ready",
       heldOutValidation: {
@@ -1665,16 +1712,15 @@ describe("run store", () => {
   });
 
   it("reports valid-schema run edits and dependency drift on read", async () => {
-    const {artifacts, resolver, store} = await harness();
+    const {resolver, store} = await harness();
     await store.saveRun(runInput());
 
-    await artifacts.saveIntel({
-      target: "Hades II",
-      id: "Profile",
-      sourceTool: "steam_fetch",
-      observedAt: "2026-08-11T11:00:00.000Z",
-      payload: {appid: 1145350, changed: true},
-    }, {overwrite: true});
+    const profilePath = resolver.resolveIntelArtifactPath("Hades II", "Profile").absolutePath;
+    const profile = JSON.parse(await readFile(profilePath, "utf8")) as {
+      payload: Record<string, unknown>;
+    };
+    profile.payload.changed = true;
+    await writeFile(profilePath, `${JSON.stringify(profile, null, 2)}\n`);
 
     const path = resolver.resolveRunPath("Hades II", RUN_ID).absolutePath;
     const record = JSON.parse(await readFile(path, "utf8")) as {

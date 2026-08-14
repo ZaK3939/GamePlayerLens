@@ -132,7 +132,7 @@ try {
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 14, "packaged CLI did not expose fourteen tools");
+  assert(tools.length === 15, "packaged CLI did not expose fifteen tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
       === JSON.stringify(["audit-project", "review-change", "ui-blind-compare"]),
@@ -145,7 +145,7 @@ try {
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
-      && statusJson.includes('"toolCount":14')
+      && statusJson.includes('"toolCount":15')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
         && statusJson.includes(process.env.ITAD_API_KEY))
@@ -226,6 +226,46 @@ try {
     "packaged CLI returned the wrong indie survival strategy rubric",
   );
 
+  const firstContactRecord = await client.callTool({
+    name: "record_first_contact",
+    arguments: {
+      testedAt: "2026-08-12T11:00:00+04:00",
+      assetId: "package-viewport-v1",
+      assetType: "store-viewport",
+      assetDescription: "First visible store viewport",
+      exposure: {
+        device: "desktop",
+        viewport: "1440x900",
+        durationSeconds: 20,
+        sound: "not-applicable",
+      },
+      recruitment: "External action-game players",
+      targetPlayerDefinition: "Players learning a new action loop",
+      participants: [{
+        participantId: "p-02",
+        targetFit: "medium",
+        visualQuality: "rough",
+        visualQualityReason: "The checkpoint action does not yet read as production-ready",
+        understoodTheme: "yes",
+        themeAppeal: "unclear",
+        themeAppealReason: "The theme is legible but this asset does not show enough to judge taste fit",
+        understoodAction: "unclear",
+        understoodReward: "no",
+        tryIntent: "no",
+        tryIntentReason: "The repeated action and reward are not visible",
+        immediateReject: "yes",
+        unaidedSummary: "A checkpoint game with an unclear action",
+        rejectionReason: "The repeated action is not visible",
+        confusions: ["What I control"],
+      }],
+    },
+  });
+  assert(firstContactRecord.isError !== true, "packaged record_first_contact failed");
+  const firstContactResultHandle = (
+    firstContactRecord.structuredContent?.meta as {resultHandle?: string} | undefined
+  )?.resultHandle;
+  assert(firstContactResultHandle !== undefined, "packaged first-contact handle is missing");
+
   const playtestPrompt = await client.getPrompt({
     name: "audit-project",
     arguments: {
@@ -257,6 +297,18 @@ try {
         coreProofMoment: "The player reads one signal, acts, and receives an immediate checkpoint response",
         runwayMonths: 6,
       }),
+      auditSnapshotBundle: JSON.stringify({
+        artifactType: "audit-snapshot-bundle",
+        observedAt: "2026-08-12T12:05:00+04:00",
+        snapshotId: "package-smoke-build",
+        gitCommitSha: "a".repeat(40),
+        buildId: "package-smoke-fixture-1",
+        artifacts: [{
+          evidenceRef: "package-capture",
+          kind: "capture",
+          sha256: "1".repeat(64),
+        }],
+      }),
       conceptTest: JSON.stringify({
         testedAt: "2026-08-12T10:00:00+04:00",
         stimulusId: "package-pitch-v1",
@@ -284,39 +336,7 @@ try {
           confusions: ["The checkpoint reward was unclear"],
         }],
       }),
-      firstContactTest: JSON.stringify({
-        testedAt: "2026-08-12T11:00:00+04:00",
-        assetId: "package-viewport-v1",
-        assetType: "store-viewport",
-        assetDescription: "First visible store viewport",
-        exposureContext: {
-          device: "desktop",
-          viewport: "1440x900",
-          durationSeconds: 20,
-          sound: "not-applicable",
-          orderDescription: "Natural store order without scrolling",
-        },
-        recruitment: "External action-game players",
-        targetPlayerDefinition: "Players learning a new action loop",
-        questionsAsked: ["What would you do?", "Would you leave immediately?"],
-        participants: [{
-          participantId: "p-02",
-          targetFit: "medium",
-          visualQuality: "rough",
-          visualQualityReason: "The checkpoint action does not yet read as production-ready",
-          understoodTheme: "yes",
-          themeAppeal: "unclear",
-          themeAppealReason: "The theme is legible but this asset does not show enough to judge taste fit",
-          understoodAction: "unclear",
-          understoodReward: "no",
-          tryIntent: "no",
-          tryIntentReason: "The repeated action and reward are not visible",
-          immediateReject: "yes",
-          unaidedSummary: "A checkpoint game with an unclear action",
-          rejectionReason: "The repeated action is not visible",
-          confusions: ["What I control"],
-        }],
-      }),
+      firstContactResultHandle,
       playtestUrl: "http://127.0.0.1:4173/play#package-smoke",
       playtestTask: "Reach the first checkpoint",
       playtestBuild: "package-smoke-fixture-1",
@@ -451,6 +471,7 @@ try {
   const packageResearchQuestions = [{
     id: "promise-readability",
     question: "Which signals make the first meaningful action and result readable?",
+    evidenceSignals: ["package smoke voice"],
   }] as const;
   const packageTargetSource = {
     appid: 1145360,
@@ -554,6 +575,8 @@ try {
         review: voice.text,
         votedUp: voice.voted_up,
         language: voice.language,
+        matchedResearchQuestionIds: ["promise-readability"],
+        matchedEvidenceSignals: ["package smoke voice"],
         playtimeHours: 1,
         timestamp: "2026-08-10T00:00:00.000Z",
       })),
@@ -864,7 +887,7 @@ try {
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 9
+      && runRecord.schemaVersion === 10
       && runRecord.subjectKind === "existing-game"
       && runRecord.market === "United States"
       && runRecord.language === "english"

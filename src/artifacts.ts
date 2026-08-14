@@ -11,12 +11,15 @@ import {
 } from "node:fs/promises";
 import {basename, dirname} from "node:path";
 import {z} from "zod";
-import {
-  type AtomicReplaceFile,
-  writeTextFileAtomically,
-} from "./atomic-write.js";
+import {writeTextFileAtomically} from "./atomic-write.js";
 import {isActualCalendarDate} from "./calendar-date.js";
 import {assertCanonicalEvaluationMarkdown} from "./evaluation-markdown.js";
+import {
+  buildDeveloperDecisionSummary,
+  type DeveloperDecisionSummary,
+  extractDecisionCard,
+  type StructuredDecisionCard,
+} from "./evaluation-decision.js";
 import {
   type FileAccessCoordinator,
   withFileAccess as coordinateFileAccess,
@@ -48,6 +51,7 @@ export const SourceToolSchema = z.enum([
   "steam_timeline",
   "steam_updates",
   "derive_personas",
+  "record_first_contact",
   "ui_capture",
   "manual",
 ]);
@@ -197,6 +201,8 @@ export type ArtifactMetadata = z.infer<typeof ArtifactMetadataSchema>;
 
 export interface EvaluationArtifact {
   metadata: EvaluationArtifactMetadata;
+  decisionCard: StructuredDecisionCard;
+  developerSummary: DeveloperDecisionSummary;
   content: string;
 }
 
@@ -205,7 +211,7 @@ export interface ArtifactFileOps {
   writeFile(
     path: string,
     data: string,
-    options: {encoding: "utf8"; flag: "wx"},
+    options: {encoding: "utf8"; flag: "wx"; flush: true},
   ): Promise<void>;
   link(existingPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
@@ -233,21 +239,12 @@ const nodeFileOps: ArtifactFileOps = {
 export interface ArtifactStoreDependencies {
   clock?: () => Date;
   fileOps?: Partial<ArtifactFileOps>;
-  replaceFile?: AtomicReplaceFile;
   withFileAccess?: FileAccessCoordinator;
 }
 
-export type OverwriteOption = boolean | {overwrite?: boolean};
-
 export interface ArtifactStore {
-  saveIntel(
-    input: SaveIntelInput,
-    overwrite?: OverwriteOption,
-  ): Promise<IntelArtifactMetadata>;
-  saveEvaluation(
-    input: SaveEvaluationInput,
-    overwrite?: OverwriteOption,
-  ): Promise<EvaluationArtifactMetadata>;
+  saveIntel(input: SaveIntelInput): Promise<IntelArtifactMetadata>;
+  saveEvaluation(input: SaveEvaluationInput): Promise<EvaluationArtifactMetadata>;
   listTargets(kind: ArtifactKind): Promise<string[]>;
   listArtifacts(kind: "intel", target: string): Promise<IntelArtifactMetadata[]>;
   listArtifacts(
@@ -265,10 +262,6 @@ export class ArtifactSchemaError extends Error {
 
 function isNodeError(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && error.code === code;
-}
-
-function overwriteEnabled(option: OverwriteOption | undefined): boolean {
-  return option === true || (typeof option === "object" && option.overwrite === true);
 }
 
 function payloadSize(payload: JsonValue): number {
@@ -351,26 +344,22 @@ export function createArtifactStore(
   async function writeUnlocked(
     destination: string,
     data: string,
-    overwrite: boolean,
     artifactId: string,
   ): Promise<void> {
     await writeTextFileAtomically(destination, data, {
       fileOps: ops,
       alreadyExistsMessage: `artifact already exists: ${artifactId}`,
-      overwrite,
-      replaceFile: dependencies.replaceFile,
     });
   }
 
   async function atomicWrite(
     destination: string,
     data: string,
-    overwrite: boolean,
     artifactId: string,
   ): Promise<void> {
     await withFileAccess(
       destination,
-      () => writeUnlocked(destination, data, overwrite, artifactId),
+      () => writeUnlocked(destination, data, artifactId),
     );
   }
 
@@ -483,15 +472,18 @@ export function createArtifactStore(
     if (sizeBytes < 1 || sizeBytes > MAX_EVALUATION_BYTES || stats.size !== sizeBytes) {
       throw new ArtifactSchemaError(`invalid evaluation artifact at ${resolved.relativePath}`);
     }
+    assertCanonicalEvaluationMarkdown(raw);
+    const decisionCard = extractDecisionCard(raw);
     return {
       metadata: evaluationMetadata(resolved, parsedId.date, stats),
+      decisionCard,
+      developerSummary: buildDeveloperDecisionSummary(decisionCard),
       content: raw,
     };
   }
 
   async function saveIntel(
     input: SaveIntelInput,
-    overwrite?: OverwriteOption,
   ): Promise<IntelArtifactMetadata> {
     const parsed = SaveIntelInputSchema.parse(input);
     const serializedPayloadBytes = payloadSize(parsed.payload);
@@ -515,7 +507,6 @@ export function createArtifactStore(
     await atomicWrite(
       resolved.absolutePath,
       serialized,
-      overwriteEnabled(overwrite),
       resolved.artifactId,
     );
     return intelMetadata(
@@ -527,7 +518,6 @@ export function createArtifactStore(
 
   async function saveEvaluation(
     input: SaveEvaluationInput,
-    overwrite?: OverwriteOption,
   ): Promise<EvaluationArtifactMetadata> {
     const parsed = SaveEvaluationInputSchema.parse(input);
     const sizeBytes = Buffer.byteLength(parsed.content, "utf8");
@@ -546,7 +536,6 @@ export function createArtifactStore(
       await writeUnlocked(
         resolved.absolutePath,
         parsed.content,
-        overwriteEnabled(overwrite),
         `${date}-${resolved.topicId}`,
       );
       const savedStats = await ops.lstat(resolved.absolutePath);

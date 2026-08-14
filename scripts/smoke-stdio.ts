@@ -14,6 +14,7 @@ const EXPECTED_TOOLS = [
   "get_artifact",
   "get_knowledge",
   "get_status",
+  "record_first_contact",
   "save_artifact",
   "save_persona",
   "steam_brief",
@@ -34,7 +35,7 @@ const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
   "specification",
   "projectBrief",
   "conceptTest",
-  "firstContactTest",
+  "firstContactResultHandle",
   "playtestSession",
   "playtestCohort",
   "playtestUrl",
@@ -55,7 +56,7 @@ const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
 ];
 const EXPECTED_AUDIT_PROJECT_ARGUMENTS = EXPECTED_REVIEW_CHANGE_ARGUMENTS.filter(
   (name) => name !== "currentState" && name !== "proposal" && name !== "revisionBundle",
-);
+).toSpliced(15, 0, "auditSnapshotBundle");
 
 async function repositoryArtifactEntries(root: string): Promise<string[]> {
   const artifactRoots = [
@@ -125,7 +126,7 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
-      && statusJson.includes('"toolCount":14')
+      && statusJson.includes('"toolCount":15')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",
   );
@@ -152,6 +153,44 @@ try {
       === JSON.stringify(EXPECTED_REVIEW_CHANGE_ARGUMENTS),
     "unexpected review-change prompt argument schema",
   );
+
+  const firstContactRecord = await client.callTool({
+    name: "record_first_contact",
+    arguments: {
+      testedAt: "2026-08-12T11:00:00+04:00",
+      assetId: "stdio-viewport-v1",
+      assetType: "store-viewport",
+      assetDescription: "First visible Steam viewport",
+      exposure: {
+        device: "desktop",
+        viewport: "1440x900",
+        durationSeconds: 20,
+        sound: "not-applicable",
+      },
+      recruitment: "External genre players",
+      targetPlayerDefinition: "Premium roguelike players",
+      participants: [{
+        participantId: "p-02",
+        targetFit: "high",
+        visualQuality: "credible",
+        understoodTheme: "yes",
+        themeAppeal: "yes",
+        understoodAction: "unclear",
+        understoodReward: "no",
+        tryIntent: "maybe",
+        tryIntentReason: "The world appeals to me, but the action and reward are unclear",
+        immediateReject: "yes",
+        unaidedSummary: "A reactive underworld journey with unclear action",
+        rejectionReason: "The action is not visible",
+        confusions: ["What I control"],
+      }],
+    },
+  });
+  assert(firstContactRecord.isError !== true, "record_first_contact failed");
+  const firstContactResultHandle = (
+    firstContactRecord.structuredContent?.meta as {resultHandle?: string} | undefined
+  )?.resultHandle;
+  assert(firstContactResultHandle !== undefined, "record_first_contact returned no result handle");
 
   const expandedPrompt = await client.getPrompt({
     name: "audit-project",
@@ -195,37 +234,7 @@ try {
           confusions: ["The lasting reward was unclear"],
         }],
       }),
-      firstContactTest: JSON.stringify({
-        testedAt: "2026-08-12T11:00:00+04:00",
-        assetId: "stdio-viewport-v1",
-        assetType: "store-viewport",
-        assetDescription: "First visible Steam viewport",
-        exposureContext: {
-          device: "desktop",
-          viewport: "1440x900",
-          durationSeconds: 20,
-          sound: "not-applicable",
-          orderDescription: "Natural store order without scrolling",
-        },
-        recruitment: "External genre players",
-        targetPlayerDefinition: "Premium roguelike players",
-        questionsAsked: ["What would you do?", "Would you leave immediately?"],
-        participants: [{
-          participantId: "p-02",
-          targetFit: "high",
-          visualQuality: "credible",
-          understoodTheme: "yes",
-          themeAppeal: "yes",
-          understoodAction: "unclear",
-          understoodReward: "no",
-          tryIntent: "maybe",
-          tryIntentReason: "The world appeals to me, but the action and reward are unclear",
-          immediateReject: "yes",
-          unaidedSummary: "A reactive underworld journey with unclear action",
-          rejectionReason: "The action is not visible",
-          confusions: ["What I control"],
-        }],
-      }),
+      firstContactResultHandle,
       competitors: "Hades, Dead Cells",
       market: "Japan",
       language: "japanese",
@@ -567,6 +576,7 @@ try {
         researchQuestions: [{
           id: "combat-readability",
           question: "Which combat signals support adoption and continued play?",
+          evidenceSignals: ["戦闘", "アクション", "操作", "combat"],
         }],
         sourceRoles: [{
           appid: 1145360,

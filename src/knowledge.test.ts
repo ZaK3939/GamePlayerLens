@@ -47,6 +47,7 @@ function persona(): Persona {
       research_questions: [{
         id: "value-clarity",
         question: "Which signals make the offered value clear?",
+        evidenceSignals: ["value"],
       }],
       source_roles: [{
         appid: 1145360,

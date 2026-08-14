@@ -268,7 +268,7 @@ describe("intel artifact store", () => {
     expect(listed.every((item) => !("payload" in item))).toBe(true);
   });
 
-  it("atomically rejects racing no-overwrite saves without replacing the winner", async () => {
+  it("atomically rejects racing create-only saves without replacing the winner", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
     const outcomes = await Promise.allSettled([
       store.saveIntel(intel({payload: {winner: "first"}})),
@@ -283,7 +283,7 @@ describe("intel artifact store", () => {
     );
   });
 
-  it("atomically replaces an existing intel file only when overwrite is true", async () => {
+  it("keeps intel immutable and requires a new artifact ID for a revision", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
     await store.saveIntel(intel({payload: {version: 1}}));
 
@@ -293,8 +293,8 @@ describe("intel artifact store", () => {
     expect((await store.readIntel("Hades II", "価格 Snapshot")).payload)
       .toEqual({version: 1});
 
-    await store.saveIntel(intel({payload: {version: 2}}), true);
-    expect((await store.readIntel("Hades II", "価格 Snapshot")).payload)
+    await store.saveIntel(intel({id: "価格-snapshot-v2", payload: {version: 2}}));
+    expect((await store.readIntel("Hades II", "価格 Snapshot V2")).payload)
       .toEqual({version: 2});
   });
 
@@ -310,20 +310,6 @@ describe("intel artifact store", () => {
     const store = createArtifactStore(resolver, {clock: () => now, fileOps});
 
     await expect(store.saveIntel(intel())).rejects.toThrow("link failed");
-    expect(await readdir(targetDirectory)).toEqual([".keep.tmp"]);
-  });
-
-  it("delegates overwrite cleanup to the resilient replacement boundary", async () => {
-    const resolver = await tempResolver();
-    const targetDirectory = join(resolver.root, "knowledge", "intel", "hades-ii");
-    await mkdir(targetDirectory);
-    await writeFile(join(targetDirectory, ".keep.tmp"), "keep");
-    const replaceFile = vi.fn(async () => {
-      throw new Error("replace failed");
-    });
-    const store = createArtifactStore(resolver, {clock: () => now, replaceFile});
-
-    await expect(store.saveIntel(intel(), true)).rejects.toThrow("replace failed");
     expect(await readdir(targetDirectory)).toEqual([".keep.tmp"]);
   });
 
@@ -440,6 +426,28 @@ describe("evaluation artifact store", () => {
     await expect(store.listArtifacts("evaluation", "Hades II")).resolves.toEqual([saved]);
     await expect(store.readEvaluation("Hades II", saved.id)).resolves.toEqual({
       metadata: saved,
+      decisionCard: {
+        verdict: "HOLD",
+        decision: "investigate",
+        proven: ["E-001 — The synthetic fixture is persisted."],
+        unproven: ["missing — Player response is not measured."],
+        highestRisk: "The fixture could be mistaken for player evidence.",
+        playerProblem: "The target player and observed friction are unknown.",
+        nextValidations: [{
+          test: "run one bounded evidence readback",
+          successSignal: "the stored SHA matches",
+          guardrail: "make no player claim",
+        }],
+        confidence: "low; all player-facing dimensions are missing.",
+        revisitCondition: "Direct player evidence is saved.",
+      },
+      developerSummary: {
+        verdict: "HOLD",
+        decision: "investigate",
+        highestRisk: "The fixture could be mistaken for player evidence.",
+        nextAction: "run one bounded evidence readback",
+        successSignal: "the stored SHA matches",
+      },
       content,
     });
   });
@@ -816,7 +824,7 @@ describe("evaluation artifact store", () => {
       .resolves.toMatchObject({sizeBytes: MAX_EVALUATION_BYTES});
   });
 
-  it("supports atomic evaluation replacement and default no-overwrite", async () => {
+  it("keeps evaluations immutable and requires a new topic or date", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
     const input = {
       target: "Hades II",
@@ -834,8 +842,12 @@ describe("evaluation artifact store", () => {
     expect((await store.readEvaluation("Hades II", "2026-08-11-test")).content)
       .toBe(evaluationMarkdown({detail: "one"}));
 
-    await store.saveEvaluation({...input, content: evaluationMarkdown({detail: "two"})}, true);
-    expect((await store.readEvaluation("Hades II", "2026-08-11-test")).content)
+    await store.saveEvaluation({
+      ...input,
+      topic: "Test v2",
+      content: evaluationMarkdown({detail: "two"}),
+    });
+    expect((await store.readEvaluation("Hades II", "2026-08-11-test-v2")).content)
       .toBe(evaluationMarkdown({detail: "two"}));
   });
 });

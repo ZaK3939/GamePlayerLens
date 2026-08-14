@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import {basename, dirname} from "node:path";
 import {writeTextFileAtomically} from "./atomic-write.js";
+import {assertAuditSnapshotBundleBinding} from "./audit-snapshot.js";
 import {
   type FileAccessCoordinator,
   withFileAccess as coordinateFileAccess,
@@ -262,6 +263,12 @@ export function createRunStore(
     if (parsed.mode === "change") {
       assertRevisionBundleBinding(parsed.revisionBundleRef, resolvedEvidence);
     }
+    if (parsed.mode === "baseline" && parsed.subjectKind === "developer-project") {
+      assertAuditSnapshotBundleBinding(
+        parsed.auditSnapshotBundleRef,
+        resolvedEvidence,
+      );
+    }
     const finalEvaluationResult = resolvedEvidence.find(
       (item) => item.record.ref === parsed.finalEvaluationRef
         && item.record.kind === "evaluation",
@@ -289,7 +296,7 @@ export function createRunStore(
     const resolvedPersonas = await resolvePersonas(parsed.personaIds);
     assertPlayerSimulationGrounding(parsed, resolvedPersonas, resolvedEvidence);
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 9,
+      schemaVersion: 10,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,
@@ -306,6 +313,9 @@ export function createRunStore(
       evidence,
       ...(parsed.revisionBundleRef
         ? {revisionBundleRef: parsed.revisionBundleRef}
+        : {}),
+      ...(parsed.auditSnapshotBundleRef
+        ? {auditSnapshotBundleRef: parsed.auditSnapshotBundleRef}
         : {}),
       rounds: parsed.rounds,
       warnings: parsed.warnings,

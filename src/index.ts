@@ -26,6 +26,10 @@ import {
 } from "./persona-schemas.js";
 import {groundPersonaFromResult} from "./persona-grounding.js";
 import {
+  buildFirstContactTestRecord,
+  FirstContactRecordInputSchema,
+} from "./playtest-evidence.js";
+import {
   MAX_REVIEWS_PER_POLARITY,
   MIN_REVIEWS_PER_POLARITY,
 } from "./personas.js";
@@ -51,7 +55,7 @@ import {
 
 const SERVER_NAME = "game-player-lens";
 const SERVER_VERSION = "0.2.0";
-const TOOL_COUNT = 14;
+const TOOL_COUNT = 15;
 const PROMPT_COUNT = 3;
 
 const AppidSchema = z.number().int().positive();
@@ -69,19 +73,16 @@ const SaveArtifactInputSchema = z.union([
     kind: z.literal("intel"),
     ...SaveIntelInputSchema.shape,
     payload: JsonValueSchema,
-    overwrite: z.boolean().optional(),
   }).strict(),
   z.object({
     kind: z.literal("intel"),
     target: z.string().min(1),
     id: z.string().min(1),
     resultHandle: ResultHandleSchema,
-    overwrite: z.boolean().optional(),
   }).strict(),
   z.object({
     kind: z.literal("evaluation"),
     ...SaveEvaluationInputSchema.shape,
-    overwrite: z.boolean().optional(),
   }).strict(),
   z.object({
     kind: z.literal("run"),
@@ -301,17 +302,37 @@ export function buildServer(
       inputSchema: z.object({
         persona: GeneratedPersonaSchema,
         derivationResultHandle: ResultHandleSchema,
-        overwrite: z.boolean().optional(),
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({persona, derivationResultHandle, overwrite}) => {
+    async ({persona, derivationResultHandle}) => {
       const derivation = services.resultStore.get(derivationResultHandle);
       const grounded = groundPersonaFromResult(persona, derivation);
       return jsonEnvelope({
-        data: await services.savePersona(grounded, {overwrite}),
+        data: await services.savePersona(grounded),
         warnings: [],
       });
+    },
+  );
+
+  server.registerTool(
+    "record_first_contact",
+    {
+      description: "Record a compact, pseudonymous first-contact test with a canonical unaided question protocol",
+      inputSchema: FirstContactRecordInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async (input) => {
+      const record = buildFirstContactTestRecord(input);
+      return trackedJsonEnvelope(
+        services.resultStore,
+        "record_first_contact",
+        {
+          data: record,
+          warnings: [],
+          meta: {observedAt: record.testedAt},
+        },
+      );
     },
   );
 
@@ -382,7 +403,7 @@ export function buildServer(
     async (input) => {
       if (input.kind === "intel") {
         if ("resultHandle" in input) {
-          const {target, id, resultHandle, overwrite} = input;
+          const {target, id, resultHandle} = input;
           const cached = services.resultStore.get(resultHandle);
           return jsonEnvelope({
             data: await services.artifactStore.saveIntel({
@@ -391,20 +412,29 @@ export function buildServer(
               sourceTool: cached.sourceTool,
               observedAt: cached.observedAt,
               payload: cached.payload,
-            }, {overwrite}),
+            }),
             warnings: [],
           });
         }
-        const {kind: _kind, overwrite, ...artifact} = input;
+        const {kind: _kind, ...artifact} = input;
         return jsonEnvelope({
-          data: await services.artifactStore.saveIntel(artifact, {overwrite}),
+          data: await services.artifactStore.saveIntel(artifact),
           warnings: [],
         });
       }
       if (input.kind === "evaluation") {
-        const {kind: _kind, overwrite, ...artifact} = input;
+        const {kind: _kind, ...artifact} = input;
+        const metadata = await services.artifactStore.saveEvaluation(artifact);
+        const saved = await services.artifactStore.readEvaluation(
+          artifact.target,
+          metadata.id,
+        );
         return jsonEnvelope({
-          data: await services.artifactStore.saveEvaluation(artifact, {overwrite}),
+          data: {
+            metadata,
+            decisionCard: saved.decisionCard,
+            developerSummary: saved.developerSummary,
+          },
           warnings: [],
         });
       }

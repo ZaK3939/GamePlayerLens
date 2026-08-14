@@ -81,7 +81,7 @@ Use this sequence when a proposal needs a predefined success criterion and guard
 4. `ExperimentOutcome`: reference the spec, prediction run, and raw measurement hashes; record resolved, failed, or missing criteria without changing the registered rule.
 5. Next `ExperimentSpec`: reference the accepted parent outcome and state what was learned or rejected.
 
-Specs, measurements, and outcomes use `save_artifact(kind=intel, sourceTool=manual)` without overwrite.
+Specs, measurements, and outcomes use `save_artifact(kind=intel, sourceTool=manual)`. Every stage uses a new immutable artifact ID.
 
 ## Missing outcomes
 

@@ -17,6 +17,8 @@ const DerivationReviewSchema = z.object({
   review: z.string().min(1),
   votedUp: z.boolean(),
   language: z.string().min(1),
+  matchedResearchQuestionIds: z.array(z.string().min(1)).min(1),
+  matchedEvidenceSignals: z.array(z.string().min(1)).min(1),
 }).passthrough();
 
 const DerivationPayloadSchema = z.object({
@@ -89,6 +91,16 @@ function assertPersonaMatchesPayload(
       throw new Error(
         `persona voice does not exactly match derivation review: ${voiceKey(voice)}`,
       );
+    }
+  }
+  for (const pattern of persona.evidence_basis.observed_patterns) {
+    for (const evidence of pattern.evidence) {
+      const review = reviews.get(voiceKey(evidence));
+      if (!review?.matchedResearchQuestionIds.includes(pattern.research_question_id)) {
+        throw new Error(
+          `persona pattern cites a review unrelated to its research question: ${voiceKey(evidence)}`,
+        );
+      }
     }
   }
 }

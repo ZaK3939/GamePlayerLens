@@ -1,29 +1,25 @@
 import {randomUUID} from "node:crypto";
 import {basename, dirname, join} from "node:path";
-import {writeFile as replaceFileAtomically} from "atomically";
 
 export interface AtomicTextFileOps {
   writeFile(
     path: string,
     data: string,
-    options: {encoding: "utf8"; flag: "wx"},
+    options: {encoding: "utf8"; flag: "wx"; flush: true},
   ): Promise<void>;
   link(existingPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
 }
 
-export type AtomicReplaceFile = (path: string, data: string) => Promise<void>;
-
 interface AtomicTextWriteOptions {
   fileOps: AtomicTextFileOps;
   alreadyExistsMessage: string;
-  overwrite?: boolean;
   idFactory?: () => string;
-  replaceFile?: AtomicReplaceFile;
+  publishRetryTimeoutMs?: number;
   cleanupRetryTimeoutMs?: number;
 }
 
-const CLEANUP_RETRY_CODES = new Set([
+const TRANSIENT_FILESYSTEM_CODES = new Set([
   "EACCES",
   "EBUSY",
   "EMFILE",
@@ -31,6 +27,7 @@ const CLEANUP_RETRY_CODES = new Set([
   "EPERM",
 ]);
 const DEFAULT_CLEANUP_RETRY_TIMEOUT_MS = 7_500;
+const DEFAULT_PUBLISH_RETRY_TIMEOUT_MS = 7_500;
 
 export class AtomicPublishCleanupError extends Error {
   override name = "AtomicPublishCleanupError";
@@ -42,14 +39,6 @@ export class AtomicPublishCleanupError extends Error {
       {cause},
     );
   }
-}
-
-export async function replaceTextFileAtomically(path: string, data: string): Promise<void> {
-  await replaceFileAtomically(path, data, {
-    encoding: "utf8",
-    fsync: true,
-    timeout: 7_500,
-  });
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -74,7 +63,33 @@ async function unlinkTemporaryWithRetry(
       return;
     } catch (error) {
       if (hasErrorCode(error, "ENOENT")) return;
-      const retryable = [...CLEANUP_RETRY_CODES].some(
+      const retryable = [...TRANSIENT_FILESYSTEM_CODES].some(
+        (code) => hasErrorCode(error, code),
+      );
+      const remainingMs = deadline - Date.now();
+      if (!retryable || remainingMs <= 0) throw error;
+      const waitMs = Math.min(delayMs, remainingMs);
+      await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+      delayMs = Math.min(delayMs * 2, 250);
+    }
+  }
+}
+
+async function linkTemporaryWithRetry(
+  link: AtomicTextFileOps["link"],
+  temporary: string,
+  destination: string,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let delayMs = 10;
+  while (true) {
+    try {
+      await link(temporary, destination);
+      return;
+    } catch (error) {
+      if (hasErrorCode(error, "EEXIST")) throw error;
+      const retryable = [...TRANSIENT_FILESYSTEM_CODES].some(
         (code) => hasErrorCode(error, code),
       );
       const remainingMs = deadline - Date.now();
@@ -91,11 +106,6 @@ export async function writeTextFileAtomically(
   data: string,
   options: AtomicTextWriteOptions,
 ): Promise<void> {
-  if (options.overwrite === true) {
-    await (options.replaceFile ?? replaceTextFileAtomically)(destination, data);
-    return;
-  }
-
   const temporary = join(
     dirname(destination),
     `.${basename(destination)}.${(options.idFactory ?? randomUUID)()}.tmp`,
@@ -107,10 +117,16 @@ export async function writeTextFileAtomically(
     await options.fileOps.writeFile(temporary, data, {
       encoding: "utf8",
       flag: "wx",
+      flush: true,
     });
     temporaryCreated = true;
     try {
-      await options.fileOps.link(temporary, destination);
+      await linkTemporaryWithRetry(
+        options.fileOps.link,
+        temporary,
+        destination,
+        options.publishRetryTimeoutMs ?? DEFAULT_PUBLISH_RETRY_TIMEOUT_MS,
+      );
     } catch (error) {
       if (hasErrorCode(error, "EEXIST")) {
         throw new Error(options.alreadyExistsMessage, {cause: error});

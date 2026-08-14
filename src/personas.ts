@@ -5,6 +5,7 @@ import {
   MAX_DERIVATION_APPIDS,
   MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA,
   PERSONA_FOCUS_VALUES,
+  normalizeEvidenceText,
   PersonaResearchQuestionSchema,
   PersonaSourceSelectionSchema,
   type PersonaFocus,
@@ -20,6 +21,8 @@ export const DEFAULT_REVIEWS_PER_POLARITY = MAX_REVIEWS_PER_POLARITY;
 export interface DerivationReview extends Review {
   sourceAppid: number;
   sourceRole: "target" | "competitor" | "reference";
+  matchedResearchQuestionIds: string[];
+  matchedEvidenceSignals: string[];
 }
 
 export interface PersonaDerivationOptions {
@@ -192,7 +195,7 @@ function personaGenerationInstruction(
     generationDirective,
     "voice の各項目は reviews の本文・sourceAppid・recommendationId・language・votedUp に直接対応させ、同じreview voiceをpersona間で再利用しないでください。",
     "schema_version=3 とし、target_context、decision_profile、evidence_basisを省略しないでください。",
-    "各observed_patternはresearch_question_idを1件選び、すべてのvoiceを少なくとも1つのpatternから参照し、引用ごとのrelevanceに本文がそのclaimを支える理由を書いてください。関連性を説明できないreviewはvoiceへ採用しないでください。",
+    "各observed_patternはresearch_question_idを1件選び、そのIDがreviewのmatchedResearchQuestionIdsにあるvoiceだけを参照してください。すべてのvoiceを少なくとも1つのpatternから参照し、引用ごとのrelevanceに本文がclaimを支える理由を書いてください。",
     "target、direct / adjacent competitor、system referenceのfitRoleを混同せず、市場成功や視覚品質だけを理由にpersona voiceへ転用しないでください。",
     "observed_patternsはvoiceを参照し、inferred_traitsとlimitationsを分離してください。更新反応の根拠がなければupdate_reactionをunknownとして不足根拠を記録してください。",
     "The polarity-balanced review sample is not representative of population shares.",
@@ -230,7 +233,7 @@ function personaMeta(
       sourceRoles: options.sourceRoles,
     },
     methodology: {
-      strategy: "requested-language-first-recent-polarity-balanced",
+      strategy: "requested-language-first-signal-filtered-polarity-balanced",
       ordering: "round-robin-appid-polarity",
       representative: false,
       requestedLanguage: options.language,
@@ -338,6 +341,27 @@ function sourceRole(
   const source = sourceRoles.find((candidate) => candidate.appid === appid);
   if (!source) throw new TypeError(`source role missing for appid ${appid}`);
   return source.role;
+}
+
+function reviewResearchMatches(
+  appid: number,
+  reviewText: string,
+  options: NormalizedPersonaDerivationOptions,
+): {questionIds: string[]; signals: string[]} {
+  const selected = options.sourceRoles.find((source) => source.appid === appid);
+  if (!selected) throw new TypeError(`source role missing for appid ${appid}`);
+  const normalizedReview = normalizeEvidenceText(reviewText);
+  const questionIds: string[] = [];
+  const signals = new Set<string>();
+  for (const question of options.researchQuestions) {
+    if (!selected.researchQuestionIds.includes(question.id)) continue;
+    const matched = question.evidenceSignals.filter((signal) =>
+      normalizedReview.includes(normalizeEvidenceText(signal)));
+    if (matched.length === 0) continue;
+    questionIds.push(question.id);
+    matched.forEach((signal) => signals.add(signal));
+  }
+  return {questionIds, signals: [...signals]};
 }
 
 function sampleCoverage(reviews: DerivationReview[]): JsonValue {
@@ -473,11 +497,15 @@ export function createPersonaDeriver(
           const review = evidence[polarity].reviews[index];
           if (!review) continue;
           if (globalReviewIds.has(review.recommendationId)) continue;
+          const matches = reviewResearchMatches(evidence.appid, review.review, options);
+          if (matches.questionIds.length === 0) continue;
           globalReviewIds.add(review.recommendationId);
           reviews.push({
             ...review,
             sourceAppid: evidence.appid,
             sourceRole: sourceRole(evidence.appid, options.sourceRoles),
+            matchedResearchQuestionIds: matches.questionIds,
+            matchedEvidenceSignals: matches.signals,
           });
           const actualSelection = actualSelectionByAppid.get(evidence.appid);
           if (!actualSelection) continue;
@@ -496,6 +524,11 @@ export function createPersonaDeriver(
       if (!actualSelection) continue;
       const population = game.data?.reviewStats ?? null;
       const selectedReviews = reviews.filter((review) => review.sourceAppid === appid);
+      if (selectedReviews.length < MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA) {
+        warnings.push(
+          `appid ${appid} relevance evidence shortage: ${selectedReviews.length} reviews matched declared evidenceSignals`,
+        );
+      }
       sampling.push({
         appid,
         role: sourceRole(appid, options.sourceRoles),

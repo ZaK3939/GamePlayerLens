@@ -13,11 +13,11 @@ function accessKey(path: string): string {
 }
 
 /**
- * Serializes open file handles and atomic replacement for one path.
+ * Serializes reads and create-only publication for one path.
  *
- * Windows does not reliably allow a rename-based replacement while another
- * operation in this process still has the destination open. Different paths
- * remain independent so unrelated artifact work can continue in parallel.
+ * This prevents a read from observing a path while the same process is
+ * publishing it. Different paths remain independent so unrelated artifact
+ * work can continue in parallel.
  */
 export async function withFileAccess<T>(
   path: string,

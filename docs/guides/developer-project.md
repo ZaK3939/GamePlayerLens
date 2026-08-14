@@ -15,7 +15,7 @@ Use `review-change` for one explicit current-to-proposed revision. Use `audit-pr
 
 ## Minimal `audit-project` request
 
-All prompt arguments are strings. `projectBrief` is a JSON object encoded as a string by the MCP client.
+All prompt arguments are strings. `projectBrief` and `auditSnapshotBundle` are JSON objects encoded as strings by the MCP client. An active `developer-project` audit requires both.
 
 ```json
 {
@@ -25,7 +25,8 @@ All prompt arguments are strings. `projectBrief` is a JSON object encoded as a s
   "domains": "gameplay,storefront,competition",
   "market": "Japan",
   "language": "japanese",
-  "projectBrief": "<JSON-encoded Project Brief>"
+  "projectBrief": "<JSON-encoded Project Brief>",
+  "auditSnapshotBundle": "<JSON-encoded Audit Snapshot Bundle>"
 }
 ```
 
@@ -47,6 +48,31 @@ For a proposed revision, call `review-change` with the same audience and scope f
 ```
 
 Keep one changed decision in each review so findings can be attributed to the revision.
+
+## Audit Snapshot Bundle
+
+Save the current build, capture, receipt, and test-result evidence under new immutable artifact IDs. Use the SHA-256 values returned by `get_artifact` to construct one baseline bundle:
+
+```json
+{
+  "artifactType": "audit-snapshot-bundle",
+  "observedAt": "2026-08-14T12:00:00+04:00",
+  "snapshotId": "nyx-prototype-2026-08-14",
+  "gitCommitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "buildId": "nyx-prototype-webgl2",
+  "artifacts": [
+    {
+      "evidenceRef": "prototype-capture-2026-08-14",
+      "kind": "capture",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ]
+}
+```
+
+The prompt exposes `auditSnapshotBundleEvidence.resultHandle`. Exact-save it as intel, include that alias as the run's `auditSnapshotBundleRef`, and include every bound artifact in run evidence. The server rejects missing refs and kind or hash mismatches.
+
+This proves that the audit run used the declared immutable bundle and artifact bytes. It does not independently prove that the declared Git commit produced those files; a build pipeline must emit or attest that provenance before submission.
 
 ## Revision Bundle
 
@@ -141,7 +167,7 @@ Everything in the Project Brief is declared design intent. It remains separate f
 
 ## Run evidence-grounded player-lens rounds
 
-Each player lens uses a saved v3 persona whose voice, observed patterns, decision triggers, and limitations trace back to real Steam recommendation IDs and explicit research questions. It generates falsifiable response hypotheses; it is not a person who played the build. Every source game must state why its reviews answer a named question. Direct and adjacent competitors need three matching axes; system references may support a narrower mechanism question. Market-success anchors and visual references stay outside persona voice. UI screenshots and builds are scenario stimuli; they do not become personality traits.
+Each player lens uses a saved v3 persona whose voice, observed patterns, decision triggers, and limitations trace back to real Steam recommendation IDs and explicit research questions. Each question includes concrete `evidenceSignals` expected in relevant review text; the server removes reviews that match none and rechecks the match when saving a persona. It generates falsifiable response hypotheses; it is not a person who played the build. Every source game must state why its reviews answer a named question. Direct and adjacent competitors need three matching axes; system references may support a narrower mechanism question. Market-success anchors and visual references stay outside persona voice. UI screenshots and builds are scenario stimuli; they do not become personality traits.
 
 Each saved persona reviews every current or proposed scenario. The stored Player Simulation Card records:
 
@@ -189,7 +215,9 @@ For a revision, supply all of `parentStimulusId`, `changeSummary`, `changedVaria
 
 ### First-contact test
 
-Use `firstContactTest` for a real first viewport, store surface, screenshot sequence, trailer, or demo entry. Record device, viewport, exposure duration, sound, order, visual-quality response, theme comprehension, theme appeal, action and reward comprehension, try intent, and immediate rejection reasons separately.
+Call `record_first_contact` for a real first viewport, store surface, screenshot sequence, trailer, or demo entry. It accepts the asset and exposure conditions plus pseudonymous participant observations, and fixes four unaided questions and the presentation order server-side. Pass the returned `meta.resultHandle` as `firstContactResultHandle` to `audit-project` or `review-change`; the prompt exposes it for immediate exact-save.
+
+Record visual-quality response, theme comprehension, theme appeal, action and reward comprehension, try intent, and immediate rejection separately. The helper reduces intake work, but it does not turn a small cohort into representative evidence.
 
 Understanding a theme does not mean liking it. Try intent does not equal purchase or conversion.
 
@@ -200,6 +228,8 @@ If the client can control an HTTP(S) build, provide `playtestUrl`, a concrete `p
 Use a structured `playtestSession` or `playtestCohort` to preserve the evidence. See [Experiments and playtests](../reference/experiments.md).
 
 ## Expected output
+
+Saving a canonical evaluation returns both the complete artifact metadata and two structured views: `decisionCard` and `developerSummary`. The short summary contains the verdict, decision, highest risk, next action, and success signal, so daily work does not require parsing the full review Markdown.
 
 A complete developer-project evaluation separates:
 

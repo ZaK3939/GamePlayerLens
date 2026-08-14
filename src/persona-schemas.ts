@@ -22,10 +22,19 @@ export const PERSONA_MATCH_AXIS_VALUES = [
 ] as const;
 
 const ResearchQuestionIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i);
+const EvidenceSignalSchema = z.string().trim().min(2).max(80);
+
+export function normalizeEvidenceText(value: string): string {
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/gu, " ").trim();
+}
 
 export const PersonaResearchQuestionSchema = z.object({
   id: ResearchQuestionIdSchema,
   question: z.string().trim().min(1).max(500),
+  evidenceSignals: z.array(EvidenceSignalSchema).min(1).max(12).refine(
+    (signals) => new Set(signals.map(normalizeEvidenceText)).size === signals.length,
+    "evidenceSignals must be unique after normalization",
+  ),
 }).strict();
 
 export const VoiceEvidenceSchema = z.object({

@@ -46,44 +46,10 @@ describe("atomic text writes", () => {
     expect(ops.writeFile).toHaveBeenCalledWith(temporary, "payload", {
       encoding: "utf8",
       flag: "wx",
+      flush: true,
     });
     expect(ops.link).toHaveBeenCalledWith(temporary, DESTINATION);
     expect(ops.unlink).toHaveBeenCalledWith(temporary);
-  });
-
-  it("delegates an allowed overwrite to the resilient replacement boundary", async () => {
-    const ops = fileOps();
-    const replaceFile = vi.fn(async () => undefined);
-
-    await writeTextFileAtomically(DESTINATION, "replacement", {
-      fileOps: ops,
-      alreadyExistsMessage: "item already exists",
-      overwrite: true,
-      idFactory: () => "fixed-id",
-      replaceFile,
-    });
-
-    expect(replaceFile).toHaveBeenCalledWith(DESTINATION, "replacement");
-    expect(ops.writeFile).not.toHaveBeenCalled();
-    expect(ops.link).not.toHaveBeenCalled();
-    expect(ops.unlink).not.toHaveBeenCalled();
-  });
-
-  it("surfaces replacement failures without touching create-only operations", async () => {
-    const ops = fileOps();
-    const replaceFile = vi.fn(async () => {
-      throw nodeError("EPERM");
-    });
-
-    await expect(writeTextFileAtomically(DESTINATION, "replacement", {
-      fileOps: ops,
-      alreadyExistsMessage: "item already exists",
-      overwrite: true,
-      idFactory: () => "fixed-id",
-      replaceFile,
-    })).rejects.toThrow("EPERM");
-    expect(ops.writeFile).not.toHaveBeenCalled();
-    expect(ops.unlink).not.toHaveBeenCalled();
   });
 
   it("maps destination collisions to the caller's domain message", async () => {
@@ -96,6 +62,33 @@ describe("atomic text writes", () => {
       idFactory: () => "fixed-id",
     })).rejects.toThrow("persona already exists: player-one");
     expect(ops.unlink).toHaveBeenCalledWith(TEMPORARY);
+  });
+
+  it("retries transient Windows publication locks without replacing a destination", async () => {
+    const ops = fileOps();
+    ops.link
+      .mockRejectedValueOnce(nodeError("EPERM"))
+      .mockRejectedValueOnce(nodeError("EBUSY"));
+
+    await expect(writeTextFileAtomically(DESTINATION, "payload", {
+      fileOps: ops,
+      alreadyExistsMessage: "item already exists",
+      idFactory: () => "fixed-id",
+    })).resolves.toBeUndefined();
+    expect(ops.link).toHaveBeenCalledTimes(3);
+    expect(ops.link).toHaveBeenLastCalledWith(TEMPORARY, DESTINATION);
+  });
+
+  it("does not retry a destination collision", async () => {
+    const ops = fileOps();
+    ops.link.mockRejectedValue(nodeError("EEXIST"));
+
+    await expect(writeTextFileAtomically(DESTINATION, "payload", {
+      fileOps: ops,
+      alreadyExistsMessage: "item already exists",
+      idFactory: () => "fixed-id",
+    })).rejects.toThrow("item already exists");
+    expect(ops.link).toHaveBeenCalledTimes(1);
   });
 
   it("does not replace the primary failure with a cleanup failure", async () => {
@@ -162,30 +155,27 @@ describe("atomic text writes", () => {
     })).resolves.toBeUndefined();
   });
 
-  // Keep this above atomically's 7.5 s operation timeout so a real retry
-  // failure surfaces instead of being masked by Vitest during busy Windows CI.
-  it("repeatedly overwrites a real file without leaving temporary files", async () => {
+  it("publishes many immutable files without rename or temporary-file residue", async () => {
     const directory = await mkdtemp(join(tmpdir(), "game-player-lens-atomic-"));
-    const destination = join(directory, "item.json");
     try {
-      await writeFile(destination, "initial", "utf8");
       for (let iteration = 0; iteration < 100; iteration += 1) {
+        const destination = join(directory, `item-${iteration}.json`);
         await writeTextFileAtomically(destination, `payload-${iteration}`, {
           fileOps: {writeFile, link, unlink},
           alreadyExistsMessage: "item already exists",
-          overwrite: true,
           idFactory: () => `iteration-${iteration}`,
         });
+        await expect(readFile(destination, "utf8")).resolves.toBe(`payload-${iteration}`);
       }
 
-      await expect(readFile(destination, "utf8")).resolves.toBe("payload-99");
-      await expect(readdir(directory)).resolves.toEqual(["item.json"]);
+      expect((await readdir(directory)).filter((entry) => entry.endsWith(".tmp")))
+        .toEqual([]);
     } finally {
       await rm(directory, {recursive: true, force: true});
     }
   }, 30_000);
 
-  it("creates and overwrites evidence under Unicode macOS-style paths", async () => {
+  it("creates Unicode evidence once and rejects replacement", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ゲーム証拠-é-"));
     const destination = join(directory, "プレイ結果-é.json");
     try {
@@ -194,13 +184,12 @@ describe("atomic text writes", () => {
         alreadyExistsMessage: "evidence already exists",
         idFactory: () => "create",
       });
-      await writeTextFileAtomically(destination, "updated", {
+      await expect(writeTextFileAtomically(destination, "updated", {
         fileOps: {writeFile, link, unlink},
         alreadyExistsMessage: "evidence already exists",
-        overwrite: true,
-      });
+      })).rejects.toThrow("evidence already exists");
 
-      await expect(readFile(destination, "utf8")).resolves.toBe("updated");
+      await expect(readFile(destination, "utf8")).resolves.toBe("initial");
       expect((await readdir(directory)).filter((entry) => entry.endsWith(".tmp")))
         .toEqual([]);
     } finally {

@@ -25,7 +25,7 @@ describe("game review recipe compiler", () => {
     expect(compiled.indexOf("Gameplay domain contract")).toBeLessThan(
       compiled.indexOf("UI domain contract"),
     );
-    expect(compiled.length).toBeLessThan(12_000);
+    expect(compiled.length).toBeLessThan(9_500);
   });
 
   it("includes every domain when every domain is explicitly selected", async () => {

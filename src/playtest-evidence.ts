@@ -180,7 +180,7 @@ export const ConceptTestSchema = createJsonStringSchema(
   CONCEPT_TEST_SAFE_FIELDS,
 );
 
-const FirstContactAssetTypeSchema = z.enum([
+export const FirstContactAssetTypeSchema = z.enum([
   "capsule", "key-visual", "store-viewport", "screenshots", "trailer",
   "microtrailer", "demo-entry", "other",
 ]);
@@ -203,7 +203,7 @@ const VisualQualitySchema = z.enum([
 const ThemeAppealSchema = z.enum(["yes", "no", "unclear", "not-assessed"]);
 const TryIntentSchema = z.enum(["yes", "maybe", "no", "not-asked"]);
 
-const FirstContactParticipantSchema = z.object({
+export const FirstContactParticipantSchema = z.object({
   participantId: PseudonymousParticipantIdSchema,
   targetFit: TargetFitSchema,
   visualQuality: VisualQualitySchema,
@@ -277,6 +277,45 @@ export const FirstContactTestObjectSchema = z.object({
 });
 
 export type FirstContactTest = z.infer<typeof FirstContactTestObjectSchema>;
+
+export const FirstContactRecordInputSchema = z.object({
+  testedAt: z.iso.datetime({offset: true}),
+  assetId: RevisionIdSchema,
+  parentAssetId: RevisionIdSchema.optional(),
+  ...RevisionDesignShape,
+  assetType: FirstContactAssetTypeSchema,
+  assetDescription: ManualTestTextSchema,
+  exposure: z.object({
+    device: ManualTestTextSchema,
+    viewport: ManualTestTextSchema.optional(),
+    durationSeconds: z.number().finite().positive().max(3_600).optional(),
+    sound: z.enum(["on", "off", "not-applicable", "unknown"]),
+  }).strict(),
+  recruitment: ManualTestTextSchema,
+  targetPlayerDefinition: ManualTestTextSchema,
+  participants: z.array(FirstContactParticipantSchema).min(1).max(50),
+  deviations: z.array(ManualTestTextSchema).max(20).optional(),
+}).strict();
+
+export function buildFirstContactTestRecord(
+  input: z.input<typeof FirstContactRecordInputSchema>,
+): FirstContactTest {
+  const parsed = FirstContactRecordInputSchema.parse(input);
+  const {exposure, ...record} = parsed;
+  return FirstContactTestObjectSchema.parse({
+    ...record,
+    exposureContext: {
+      ...exposure,
+      orderDescription: "Asset shown once without explanation before questions.",
+    },
+    questionsAsked: [
+      "What do you think this game is about?",
+      "What would you do first?",
+      "What result or reward do you expect?",
+      "Would you try it, and why?",
+    ],
+  });
+}
 
 const FIRST_CONTACT_TEST_SAFE_FIELDS = new Set<string>([
   "testedAt", "assetId", "parentAssetId", "changeSummary", "changedVariables",

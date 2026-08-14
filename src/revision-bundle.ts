@@ -4,7 +4,7 @@ const ReferenceIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 const GitCommitShaSchema = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
 
-export const RevisionArtifactBindingSchema = z.object({
+export const SnapshotArtifactBindingSchema = z.object({
   evidenceRef: ReferenceIdSchema,
   kind: z.enum(["intel", "capture", "ui-reference"]),
   sha256: Sha256Schema,
@@ -14,7 +14,7 @@ const RevisionSnapshotSchema = z.object({
   revisionId: z.string().trim().min(1).max(200),
   gitCommitSha: GitCommitShaSchema,
   buildId: z.string().trim().min(1).max(200),
-  artifacts: z.array(RevisionArtifactBindingSchema).min(1).max(20),
+  artifacts: z.array(SnapshotArtifactBindingSchema).min(1).max(20),
 }).strict().superRefine((value, context) => {
   const refs = value.artifacts.map((artifact) => artifact.evidenceRef);
   if (new Set(refs).size !== refs.length) {

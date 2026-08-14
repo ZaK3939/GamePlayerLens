@@ -19,6 +19,7 @@ const roots: string[] = [];
 const PERSONA_RESEARCH_QUESTIONS = [{
   id: "choice-readability",
   question: "Which signals make the next action and result readable?",
+  evidenceSignals: ["voice", "review"],
 }] as const;
 
 function targetPersonaSource(appid: number) {
@@ -365,6 +366,8 @@ function derivationResult(generated: GeneratedPersona) {
         review: voice.text,
         votedUp: voice.voted_up,
         language: voice.language,
+        matchedResearchQuestionIds: ["choice-readability"],
+        matchedEvidenceSignals: ["voice"],
         playtimeHours: 10,
         timestamp: 1_700_000_000,
       })),
@@ -399,7 +402,6 @@ async function derivePersonaHandle(client: Client): Promise<string> {
 async function savePersonaThroughMcp(
   client: Client,
   generated: GeneratedPersona = persona(),
-  overwrite?: boolean,
 ) {
   const derivationResultHandle = await derivePersonaHandle(client);
   return client.callTool({
@@ -407,7 +409,6 @@ async function savePersonaThroughMcp(
     arguments: {
       persona: generated,
       derivationResultHandle,
-      ...(overwrite === undefined ? {} : {overwrite}),
     },
   });
 }
@@ -449,7 +450,7 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly fourteen tools and three review prompts", async () => {
+  it("exposes exactly fifteen tools and three review prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -457,6 +458,7 @@ describe("MCP server contract", () => {
         "get_artifact",
         "get_knowledge",
         "get_status",
+        "record_first_contact",
         "save_artifact",
         "save_persona",
         "steam_brief",
@@ -502,7 +504,7 @@ describe("MCP server contract", () => {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
-          capabilities: {toolCount: 14, promptCount: 3},
+          capabilities: {toolCount: 15, promptCount: 3},
         },
         warnings: [],
       });
@@ -747,7 +749,6 @@ describe("MCP server contract", () => {
           voice: pickSchema(voice, ["type", "minItems", "maxItems"]),
           voiceFields: Object.keys(voiceItem.properties as object),
           voiceRequired: voiceItem.required,
-          overwrite: pickSchema(schemaProperty(save, "overwrite"), ["type"]),
         },
         steam_fetch: {
           fields: Object.keys((tools.steam_fetch as Record<string, unknown>).properties as object),
@@ -900,11 +901,7 @@ describe("MCP server contract", () => {
             "fields": [
               "persona",
               "derivationResultHandle",
-              "overwrite",
             ],
-            "overwrite": {
-              "type": "boolean",
-            },
             "personaFields": [
               "id",
               "source_appids",
@@ -1227,17 +1224,17 @@ describe("MCP server contract", () => {
       })).toEqual([
         {
           kind: "intel",
-          fields: ["kind", "target", "id", "sourceTool", "observedAt", "payload", "overwrite"],
+          fields: ["kind", "target", "id", "sourceTool", "observedAt", "payload"],
           required: ["kind", "target", "id", "sourceTool", "payload"],
         },
         {
           kind: "intel",
-          fields: ["kind", "target", "id", "resultHandle", "overwrite"],
+          fields: ["kind", "target", "id", "resultHandle"],
           required: ["kind", "target", "id", "resultHandle"],
         },
         {
           kind: "evaluation",
-          fields: ["kind", "target", "topic", "date", "content", "overwrite"],
+          fields: ["kind", "target", "topic", "date", "content"],
           required: ["kind", "target", "topic", "content"],
         },
         {
@@ -1257,6 +1254,7 @@ describe("MCP server contract", () => {
             "personaIds",
             "evidence",
             "revisionBundleRef",
+            "auditSnapshotBundleRef",
             "rounds",
             "warnings",
             "confidence",
@@ -1296,7 +1294,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(14);
+      expect(tools).toHaveLength(15);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),
@@ -1504,6 +1502,24 @@ describe("MCP server contract", () => {
         },
       });
       expect(evaluation.isError).not.toBe(true);
+      expect(evaluation.structuredContent).toMatchObject({
+        data: {
+          metadata: {id: "2026-08-11-store-page"},
+          decisionCard: {
+            verdict: "HOLD",
+            decision: "investigate",
+            nextValidations: [{
+              test: "read back one saved artifact",
+              successSignal: "its SHA matches",
+              guardrail: "make no player claim",
+            }],
+          },
+          developerSummary: {
+            verdict: "HOLD",
+            nextAction: "read back one saved artifact",
+          },
+        },
+      });
 
       for (const kind of ["intel", "evaluation"] as const) {
         const targets = await client.callTool({name: "get_artifact", arguments: {kind}});
@@ -1834,7 +1850,7 @@ describe("MCP server contract", () => {
         data: {
           metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
           record: {
-            schemaVersion: 9,
+            schemaVersion: 10,
             subjectKind: "existing-game",
             market: "Japan",
             language: "japanese",
@@ -1916,13 +1932,15 @@ describe("MCP server contract", () => {
         },
       });
 
-      await artifactStore.saveIntel({
-        target: "Hades II",
-        id: "Store Profile",
-        sourceTool: "steam_fetch",
-        observedAt: "2026-08-11T09:30:00.000Z",
-        payload: {appid: 1145350, changed: true},
-      }, {overwrite: true});
+      const profilePath = resolver.resolveIntelArtifactPath(
+        "Hades II",
+        "Store Profile",
+      ).absolutePath;
+      const profileRecord = JSON.parse(await readFile(profilePath, "utf8")) as {
+        payload: Record<string, unknown>;
+      };
+      profileRecord.payload.changed = true;
+      await writeFile(profilePath, `${JSON.stringify(profileRecord, null, 2)}\n`);
       const drifted = await client.callTool({
         name: "get_artifact",
         arguments: {kind: "run", target: "Hades II", id: runId},
@@ -1945,7 +1963,7 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("does not overwrite an artifact unless overwrite is true", async () => {
+  it("keeps artifacts immutable and requires a new ID for revisions", async () => {
     const {client, server} = await createHarness();
     const base = {
       kind: "intel",
@@ -1964,14 +1982,14 @@ describe("MCP server contract", () => {
       });
       expect(first.structuredContent).toMatchObject({data: {payload: {version: 1}}});
 
-      const replaced = await client.callTool({
+      const revised = await client.callTool({
         name: "save_artifact",
-        arguments: {...base, payload: {version: 2}, overwrite: true},
+        arguments: {...base, id: "Snapshot v2", payload: {version: 2}},
       });
-      expect(replaced.isError).not.toBe(true);
+      expect(revised.isError).not.toBe(true);
       const second = await client.callTool({
         name: "get_artifact",
-        arguments: {kind: "intel", target: "Hades II", id: "Snapshot"},
+        arguments: {kind: "intel", target: "Hades II", id: "Snapshot v2"},
       });
       expect(second.structuredContent).toMatchObject({data: {payload: {version: 2}}});
     } finally {
@@ -1980,109 +1998,56 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("keeps MCP overwrite artifacts readable under parallel save and read load", async () => {
+  it("keeps parallel immutable saves readable without temporary-file residue", async () => {
     const {client, resolver, server} = await createHarness();
-    const intelBase = {
-      kind: "intel",
-      target: "Hades II",
-      id: "Concurrent Snapshot",
-      sourceTool: "steam_fetch",
-      observedAt: "2026-08-10T08:09:10.000Z",
-    } as const;
-    const evaluationBase = {
-      kind: "evaluation",
-      target: "Hades II",
-      topic: "Concurrent Review",
-      date: "2026-08-11",
-    } as const;
     try {
-      const derivationResultHandle = await derivePersonaHandle(client);
-      await Promise.all([
-        client.callTool({
-          name: "save_artifact",
-          arguments: {...intelBase, payload: {cycle: -1}},
-        }),
-        client.callTool({
-          name: "save_artifact",
-          arguments: {
-            ...evaluationBase,
-            content: evaluationMarkdown("concurrent-cycle--1"),
-          },
-        }),
-        client.callTool({
-          name: "save_persona",
-          arguments: {persona: persona(), derivationResultHandle},
-        }),
-      ]);
-
-      for (let cycle = 0; cycle < 5; cycle += 1) {
-        const writes = Array.from({length: 4}, (_, index) => cycle * 4 + index);
-        const results = await Promise.all(writes.flatMap((version) => [
+      const versions = Array.from({length: 20}, (_, index) => index);
+      const results = await Promise.all(versions.flatMap((version) => [
           client.callTool({
             name: "save_artifact",
-            arguments: {...intelBase, payload: {cycle: version}, overwrite: true},
+            arguments: {
+              kind: "intel",
+              target: "Hades II",
+              id: `Concurrent Snapshot ${version}`,
+              sourceTool: "steam_fetch",
+              observedAt: "2026-08-10T08:09:10.000Z",
+              payload: {cycle: version},
+            },
           }),
           client.callTool({
             name: "save_artifact",
             arguments: {
-              ...evaluationBase,
+              kind: "evaluation",
+              target: "Hades II",
+              topic: `Concurrent Review ${version}`,
+              date: "2026-08-11",
               content: evaluationMarkdown(`concurrent-cycle-${version}`),
-              overwrite: true,
             },
           }),
-          client.callTool({
-            name: "save_persona",
-            arguments: {
-              persona: {...persona(), archetype: `MCP test user ${version}`},
-              derivationResultHandle,
-              overwrite: true,
-            },
-          }),
-          client.callTool({
-            name: "get_artifact",
-            arguments: {kind: "intel", target: "Hades II", id: "Concurrent Snapshot"},
-          }),
-        ]));
-        expect(results.every((result) => result.isError !== true)).toBe(true);
-      }
+      ]));
+      expect(results.every((result) => result.isError !== true)).toBe(true);
 
-      const [intel, evaluation, storedPersona] = await Promise.all([
+      const [intel, evaluation] = await Promise.all([
         client.callTool({
           name: "get_artifact",
-          arguments: {kind: "intel", target: "Hades II", id: "Concurrent Snapshot"},
+          arguments: {kind: "intel", target: "Hades II", id: "Concurrent Snapshot 19"},
         }),
         client.callTool({
           name: "get_artifact",
           arguments: {
             kind: "evaluation",
             target: "Hades II",
-            id: "2026-08-11-concurrent-review",
+            id: "2026-08-11-concurrent-review-19",
           },
         }),
-        client.callTool({
-          name: "get_knowledge",
-          arguments: {kind: "personas", id: persona().id},
-        }),
       ]);
-      const finalCycle = (intel.structuredContent?.data as {
-        payload: {cycle: number};
-      }).payload.cycle;
-      expect(Number.isInteger(finalCycle)).toBe(true);
-      expect(finalCycle).toBeGreaterThanOrEqual(0);
-      expect(finalCycle).toBeLessThan(20);
+      expect(intel.structuredContent).toMatchObject({data: {payload: {cycle: 19}}});
       expect((evaluation.structuredContent?.data as {content: string}).content)
-        .toMatch(/concurrent-cycle-\d+/u);
-      expect(storedPersona.structuredContent).toMatchObject({
-        data: {
-          id: persona().id,
-          persona: {archetype: expect.stringMatching(/^MCP test user \d+$/u)},
-        },
-      });
+        .toContain("concurrent-cycle-19");
 
       const storageDirectories = [
-        resolver.resolveIntelArtifactPath("Hades II", "Concurrent Snapshot").absolutePath,
-        resolver.resolveEvaluationPath("Hades II", "2026-08-11", "Concurrent Review").absolutePath,
-        resolver.resolvePersonaPath(persona().id),
+        resolver.resolveIntelArtifactPath("Hades II", "Concurrent Snapshot 19").absolutePath,
+        resolver.resolveEvaluationPath("Hades II", "2026-08-11", "Concurrent Review 19").absolutePath,
       ].map((path) => join(path, ".."));
       for (const directory of storageDirectories) {
         expect((await readdir(directory)).some((name) => name.includes(".tmp"))).toBe(false);
@@ -2392,6 +2357,47 @@ describe("MCP server contract", () => {
   it("issues distinct exact-save handles for normalized manual tests", async () => {
     const {client, server} = await createHarness();
     try {
+      const recordedFirstContact = await client.callTool({
+        name: "record_first_contact",
+        arguments: {
+          testedAt: "2026-08-12T11:00:00+04:00",
+          assetId: "store-viewport-v2",
+          parentAssetId: "store-viewport-v1",
+          changeSummary: "Showed the route-planning proof moment first",
+          changedVariables: ["presentation"],
+          invariantsKept: ["Same audience and display context"],
+          assetType: "store-viewport",
+          assetDescription: "The first Steam viewport without scrolling",
+          exposure: {
+            device: "desktop",
+            viewport: "1440x900",
+            durationSeconds: 20,
+            sound: "not-applicable",
+          },
+          recruitment: "External tactics players",
+          targetPlayerDefinition: "Players who enjoy route planning",
+          participants: [{
+            participantId: "p-02",
+            targetFit: "high",
+            visualQuality: "rough",
+            visualQualityReason: "The route overlay looks unfinished at this viewport",
+            understoodTheme: "yes",
+            themeAppeal: "yes",
+            understoodAction: "unclear",
+            understoodReward: "no",
+            tryIntent: "maybe",
+            tryIntentReason: "The world appeals to me, but the playable action is unclear",
+            immediateReject: "yes",
+            unaidedSummary: "A storm courier game with unclear controls",
+            rejectionReason: "The playable action is not visible",
+            confusions: ["What can be controlled"],
+          }],
+        },
+      });
+      expect(recordedFirstContact.isError).not.toBe(true);
+      const firstContactResultHandle = (
+        recordedFirstContact.structuredContent?.meta as {resultHandle: string}
+      ).resultHandle;
       const prompt = await client.getPrompt({
         name: "audit-project",
         arguments: {
@@ -2428,45 +2434,7 @@ describe("MCP server contract", () => {
               confusions: [],
             }],
           }),
-          firstContactTest: JSON.stringify({
-            testedAt: "2026-08-12T11:00:00+04:00",
-            assetId: "store-viewport-v2",
-            parentAssetId: "store-viewport-v1",
-            changeSummary: "Showed the route-planning proof moment first",
-            changedVariables: ["presentation"],
-            invariantsKept: ["Same audience, questions, and display context"],
-            assetType: "store-viewport",
-            assetDescription: "The first Steam viewport without scrolling",
-            exposureContext: {
-              device: "desktop",
-              viewport: "1440x900",
-              durationSeconds: 20,
-              sound: "not-applicable",
-              orderDescription: "Natural Steam store order",
-            },
-            recruitment: "External tactics players",
-            targetPlayerDefinition: "Players who enjoy route planning",
-            questionsAsked: [
-              "What would you do repeatedly?",
-              "Would anything make you leave immediately?",
-            ],
-            participants: [{
-              participantId: "p-02",
-              targetFit: "high",
-              visualQuality: "rough",
-              visualQualityReason: "The route overlay looks unfinished at this viewport",
-              understoodTheme: "yes",
-              themeAppeal: "yes",
-              understoodAction: "unclear",
-              understoodReward: "no",
-              tryIntent: "maybe",
-              tryIntentReason: "The world appeals to me, but the playable action is unclear",
-              immediateReject: "yes",
-              unaidedSummary: "A storm courier game with unclear controls",
-              rejectionReason: "The playable action is not visible",
-              confusions: ["What can be controlled"],
-            }],
-          }),
+          firstContactResultHandle,
           playtestTask: "Start a new run and defeat the tutorial enemy",
           playtestBuild: "0.4.2-dev",
           playtestControls: "keyboard and mouse",
@@ -2551,7 +2519,7 @@ describe("MCP server contract", () => {
         },
       });
       expect(firstContactEvidence).toMatchObject({
-        sourceTool: "manual",
+        sourceTool: "record_first_contact",
         observedAt: "2026-08-12T11:00:00+04:00",
         resultHandle: expect.any(String),
         exactSaveRequired: true,
@@ -2647,7 +2615,7 @@ describe("MCP server contract", () => {
       });
       expect(readFirstContact.structuredContent).toMatchObject({
         data: {
-          sourceTool: "manual",
+          sourceTool: "record_first_contact",
           observedAt: "2026-08-12T11:00:00+04:00",
           payload: {
             data: {
@@ -2886,7 +2854,7 @@ describe("MCP server contract", () => {
         "specification",
         "projectBrief",
         "conceptTest",
-        "firstContactTest",
+        "firstContactResultHandle",
         "playtestSession",
         "playtestCohort",
         "playtestUrl",
@@ -2894,6 +2862,7 @@ describe("MCP server contract", () => {
         "playtestBuild",
         "playtestControls",
         "playtestDurationMinutes",
+        "auditSnapshotBundle",
         "uiUrl",
         "uiBenchmarkTask",
         "uiReferenceUrls",
@@ -2914,7 +2883,7 @@ describe("MCP server contract", () => {
         "specification",
         "projectBrief",
         "conceptTest",
-        "firstContactTest",
+        "firstContactResultHandle",
         "playtestSession",
         "playtestCohort",
         "playtestUrl",
@@ -3019,6 +2988,25 @@ describe("MCP server contract", () => {
         },
         derivationResultHandle,
       });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("rejects a persona claim backed by a review that matched another research question", async () => {
+    const unrelated = derivationResult(persona());
+    unrelated.data.reviews[0]!.matchedResearchQuestionIds = ["market-awareness"];
+    const {client, server} = await createHarness({
+      buildDerivationPack: vi.fn(async () => unrelated),
+    });
+    try {
+      const derivationResultHandle = await derivePersonaHandle(client);
+      const rejected = await expectToolError(client, "save_persona", {
+        persona: persona(),
+        derivationResultHandle,
+      });
+      expect(resultText(rejected)).toMatch(/unrelated to its research question/i);
     } finally {
       await client.close();
       await server.close();

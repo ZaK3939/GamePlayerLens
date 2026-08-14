@@ -6,10 +6,7 @@ import {
   writeFile as nodeWriteFile,
 } from "node:fs/promises";
 import {dirname} from "node:path";
-import {
-  type AtomicReplaceFile,
-  writeTextFileAtomically,
-} from "./atomic-write.js";
+import {writeTextFileAtomically} from "./atomic-write.js";
 import {
   type FileAccessCoordinator,
   withFileAccess as coordinateFileAccess,
@@ -18,7 +15,7 @@ import {PersonaSchema, type Persona} from "./persona-schemas.js";
 import {resolvePersonaPath, type PathResolver} from "./paths.js";
 
 export interface PersonaFileOps {
-  writeFile(path: string, data: string, options: {encoding: "utf8"; flag: "wx"}): Promise<void>;
+  writeFile(path: string, data: string, options: {encoding: "utf8"; flag: "wx"; flush: true}): Promise<void>;
   link(existingPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
   readFile(path: string, encoding: "utf8"): Promise<string>;
@@ -34,14 +31,13 @@ const nodeFileOps: PersonaFileOps = {
 };
 
 export interface PersonaStore {
-  savePersona(persona: unknown, opts?: {overwrite?: boolean}): Promise<Persona>;
+  savePersona(persona: unknown): Promise<Persona>;
   loadPersona(id: string): Promise<Persona>;
   listPersonas(): Promise<Persona[]>;
 }
 
 export interface PersonaStoreDependencies {
   fileOps?: Partial<PersonaFileOps>;
-  replaceFile?: AtomicReplaceFile;
   withFileAccess?: FileAccessCoordinator;
 }
 
@@ -54,7 +50,6 @@ export function createPersonaStore(
 
   async function savePersona(
     input: unknown,
-    opts: {overwrite?: boolean} = {},
   ): Promise<Persona> {
     const persona = PersonaSchema.parse(input);
     const destination = resolver.resolvePersonaPath(persona.id);
@@ -66,8 +61,6 @@ export function createPersonaStore(
         {
           fileOps: ops,
           alreadyExistsMessage: `persona already exists: ${persona.id}`,
-          overwrite: opts.overwrite,
-          replaceFile: dependencies.replaceFile,
         },
       ),
     );
@@ -106,9 +99,8 @@ function getRepositoryStore(): PersonaStore {
 
 export function savePersona(
   persona: unknown,
-  opts?: {overwrite?: boolean},
 ): Promise<Persona> {
-  return getRepositoryStore().savePersona(persona, opts);
+  return getRepositoryStore().savePersona(persona);
 }
 
 export function loadPersona(id: string): Promise<Persona> {

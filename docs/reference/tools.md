@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 14 MCP tools and three prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 15 MCP tools and three prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -14,6 +14,7 @@ GamePlayerLens exposes exactly 14 MCP tools and three prompts. All tools return 
 | `steam_updates` | Fetch official Steam announcements with update selection, classification evidence, highlights, and cadence |
 | `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; audience, research questions, and an explicit source-fit selection are required |
 | `save_persona` | Validate a generated persona against an exact `derive_personas` result handle and atomically save its server grounding |
+| `record_first_contact` | Normalize a compact pseudonymous first-contact test with a fixed unaided question protocol and return an exact-save handle |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
 | `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
@@ -24,28 +25,32 @@ GamePlayerLens exposes exactly 14 MCP tools and three prompts. All tools return 
 ## Prompts
 
 - `review-change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
-- `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally.
+- `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
 The two main review prompts orchestrate intake, evidence collection, review-grounded player-lens rounds, domain review, criticism, evaluation storage, and run storage. `domains` must explicitly name at least one domain; omission returns `needs-input`, and a ready prompt receives only the named domain recipe sections. Both lead with a compact Decision Check before detailed severity-ranked findings.
 
-Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `firstContactTest`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary.
+Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `auditSnapshotBundle`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary. First-contact input goes through `record_first_contact`; pass its result handle as `firstContactResultHandle`.
 
 ## Partial success and provenance
 
 External fetches preserve successful source data when another endpoint fails. Always retain `warnings`; they are part of the evidence envelope.
 
-Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, and `derive_personas` include a short-lived `meta.resultHandle`. Pass the handle with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription.
+Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, and `record_first_contact` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact, pass the same handle to the review prompt first so it can include the normalized observations and expose the exact-save pointer.
 
-For persona generation, every requested appid needs an explicit `sourceRoles` entry linked to one of one-to-three `researchQuestions`. A competitor source must be direct or adjacent and declare at least three fit axes. A reference source is limited to `system-reference`; visual references and market-success anchors belong in their own evidence ledgers, not persona voice. Pass the same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field, research question, audience, and source-selection field with the cached result, then stores a SHA-256 binding to that result. Every saved voice must support an observed pattern whose evidence entry explains its relevance. These deterministic checks expose the semantic argument for review; they do not prove that the argument is true.
+For persona generation, every requested appid needs an explicit `sourceRoles` entry linked to one of one-to-three `researchQuestions`. Each question has one-to-twelve `evidenceSignals` of 2–80 characters. The server applies Unicode/case normalization, removes reviews containing none of the signals mapped to their source, and records the matched question IDs and signals. A competitor source must be direct or adjacent and declare at least three fit axes. A reference source is limited to `system-reference`; visual references and market-success anchors belong in their own evidence ledgers, not persona voice. Pass the same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field, research question, audience, and source-selection field with the cached result, then stores a SHA-256 binding to that result. Every saved voice must support an observed pattern whose evidence entry explains its relevance, and its matched question ID must equal the pattern's question. These deterministic checks expose and enforce a lexical relevance boundary; they do not prove the broader interpretation is true.
 
 ```json
 {
   "appids": [1145360, 588650],
-  "market": "Japan",
-  "language": "japanese",
+  "market": "United States",
+  "language": "english",
   "researchQuestions": [
-    {"id": "combat-readability", "question": "Which signals make the combat choice and result readable?"}
+    {
+      "id": "combat-readability",
+      "question": "Which signals make the combat choice and result readable?",
+      "evidenceSignals": ["combat", "controls", "attack", "feedback"]
+    }
   ],
   "sourceRoles": [
     {
@@ -106,13 +111,13 @@ Direct image fetches are limited to `steamstatic.com` and its subdomains. Creden
 
 ## Artifact writes
 
-`save_artifact` supports three write modes:
+`save_artifact` supports three artifact kinds:
 
 - `kind=intel`: exact-save a result handle or directly save a validated JSON envelope.
-- `kind=evaluation`: save Markdown that passes the canonical report structure and evidence checks.
+- `kind=evaluation`: save Markdown that passes the canonical report structure and evidence checks, then return its structured `decisionCard` and compact `developerSummary`.
 - `kind=run`: seal the review context, dependencies, structured virtual-player and reviewer rounds, warnings, confidence, and final evaluation in an immutable run record.
 
-Intel and evaluation writes default to `overwrite=false`. Experiment specs, measurements, and outcomes are immutable and must not use overwrite. Run IDs are always immutable.
+All intel, evaluation, run, and persona IDs are immutable. Reusing an existing ID is rejected. Save every revision under a new ID and connect it through an audit snapshot, revision bundle, or experiment lineage.
 
 ## Artifact reads
 
@@ -120,7 +125,8 @@ Intel and evaluation writes default to `overwrite=false`. Experiment specs, meas
 |---|---|---|
 | `intel`, `evaluation`, `run` | no `target` | target ID list |
 | `intel`, `evaluation`, `run` | `target`, no `id` | artifact metadata list |
-| `intel`, `evaluation` | `target` and `id` | JSON or Markdown content |
+| `intel` | `target` and `id` | saved JSON content and metadata |
+| `evaluation` | `target` and `id` | saved Markdown, metadata, structured Decision Card, and developer summary |
 | `run` | `target` and `id` | run metadata, record, and integrity report |
 | `capture`, `ui-reference` | no `id` | image metadata list |
 | `capture`, `ui-reference` | `id` | metadata and valid `ImageContent` when at most 6 MiB |

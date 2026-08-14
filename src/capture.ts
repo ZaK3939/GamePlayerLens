@@ -339,6 +339,7 @@ export function createCaptureService(
         ownsOutput = true;
         try {
           await output.writeFile(bytes);
+          await output.sync();
         } finally {
           await output.close();
         }
@@ -363,7 +364,12 @@ export function createCaptureService(
     let browser: Browser | null = null;
     let child: CaptureChild | null = null;
     let spawnError: Error | null = null;
+    let ownsOutput = false;
     try {
+      const reservation = await open(request.path, "wx", 0o600);
+      ownsOutput = true;
+      await reservation.close();
+
       const port = await findPort();
       const runningChild = spawn(obscuraPath, obscuraServeArgs(request.url, port));
       child = runningChild;
@@ -390,10 +396,16 @@ export function createCaptureService(
         type: "png",
         fullPage: request.fullPage,
       });
+      const completed = await open(request.path, "r");
+      try {
+        await completed.sync();
+      } finally {
+        await completed.close();
+      }
 
       return await resultFor("png");
     } catch {
-      await unlink(request.path).catch(() => undefined);
+      if (ownsOutput) await unlink(request.path).catch(() => undefined);
       return {data: null, warnings: [captureFailureWarning()]};
     } finally {
       browser?.disconnect();

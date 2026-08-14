@@ -1,5 +1,9 @@
 import {z} from "zod";
 import {
+  AuditSnapshotBundleObjectSchema,
+  AuditSnapshotBundleSchema,
+} from "./audit-snapshot.js";
+import {
   buildConceptTestDiagnostics,
   buildFirstContactTestDiagnostics,
   buildPlaytestCohortDiagnostics,
@@ -7,7 +11,7 @@ import {
   ConceptTestObjectSchema,
   ConceptTestSchema,
   FirstContactTestObjectSchema,
-  FirstContactTestSchema,
+  type FirstContactTest,
   PlaytestCohortObjectSchema,
   PlaytestCohortSchema,
   PlaytestSessionObjectSchema,
@@ -149,8 +153,8 @@ const GameReviewPromptArgumentShape = {
   conceptTest: ConceptTestSchema.optional().describe(
     "JSON object containing a bounded, pseudonymous third-party concept comprehension test",
   ),
-  firstContactTest: FirstContactTestSchema.optional().describe(
-    "JSON object containing a bounded, pseudonymous first-contact asset test",
+  firstContactResultHandle: z.uuid().optional().describe(
+    "Result handle returned by record_first_contact",
   ),
   playtestSession: PlaytestSessionSchema.optional().describe(
     "JSON object containing one chronological, evidence-linked playtest session",
@@ -166,6 +170,9 @@ const GameReviewPromptArgumentShape = {
   revisionBundle: RevisionBundleSchema.optional().describe(
     "JSON object binding current and candidate Git commits and build artifacts",
   ),
+  auditSnapshotBundle: AuditSnapshotBundleSchema.optional().describe(
+    "JSON object binding one audited Git commit and build ID to saved artifact hashes",
+  ),
   uiUrl: UiUrlSchema.optional(),
   uiBenchmarkTask: z.string().trim().min(1).max(500).optional(),
   uiReferenceUrls: UiReferenceUrlsSchema.optional(),
@@ -179,14 +186,16 @@ const GameReviewPromptArgumentShape = {
 
 const {
   mode: _reviewMode,
+  auditSnapshotBundle: _reviewAuditSnapshotBundle,
   ...ReviewChangePromptArgumentShape
 } = GameReviewPromptArgumentShape;
 const {
+  mode: _auditMode,
   currentState: _auditCurrentState,
   proposal: _auditProposal,
   revisionBundle: _auditRevisionBundle,
   ...AuditProjectPromptArgumentShape
-} = ReviewChangePromptArgumentShape;
+} = GameReviewPromptArgumentShape;
 
 function addSharedPromptIssues(
   value: {
@@ -245,7 +254,7 @@ export type AuditProjectPromptArguments = z.input<
 export type UiBlindComparePromptArguments = z.input<typeof UiBlindComparePromptArgumentsSchema>;
 
 export interface PromptEvidencePointer {
-  sourceTool: "manual";
+  sourceTool: "manual" | "record_first_contact";
   observedAt: string;
   resultHandle: string;
 }
@@ -254,9 +263,11 @@ export interface GameReviewPromptContext {
   reviewWorkflow?: "change" | "audit";
   conceptTestEvidence?: PromptEvidencePointer;
   firstContactTestEvidence?: PromptEvidencePointer;
+  firstContactTest?: FirstContactTest;
   playtestSessionEvidence?: PromptEvidencePointer;
   playtestCohortEvidence?: PromptEvidencePointer;
   revisionBundleEvidence?: PromptEvidencePointer;
+  auditSnapshotBundleEvidence?: PromptEvidencePointer;
 }
 
 function appendSerializedInput(recipe: string, data: Record<string, unknown>): string {
@@ -279,7 +290,8 @@ export function buildGameReviewPrompt(
   const parsed = GameReviewPromptArgumentsSchema.parse(input);
   const {
     conceptTest,
-    firstContactTest,
+    auditSnapshotBundle,
+    firstContactResultHandle: _firstContactResultHandle,
     playtestCohort,
     playtestSession,
     projectBrief,
@@ -292,6 +304,9 @@ export function buildGameReviewPrompt(
     : undefined;
   const projectBriefDiagnostics = structuredProjectBrief
     ? buildProjectBriefDiagnostics(structuredProjectBrief)
+    : undefined;
+  const structuredAuditSnapshotBundle = auditSnapshotBundle
+    ? AuditSnapshotBundleObjectSchema.parse(JSON.parse(auditSnapshotBundle))
     : undefined;
   const selectedDomains = parsed.domains
     ? parsed.domains.split(",") as SimulationDomain[]
@@ -320,6 +335,11 @@ export function buildGameReviewPrompt(
     ...(selectedDomains?.includes("ui") && !parsed.uiBenchmarkTask?.trim()
       ? ["uiBenchmarkTask"]
       : []),
+    ...(parsed.mode === "baseline"
+      && parsed.subjectKind === "developer-project"
+      && !structuredAuditSnapshotBundle
+      ? ["auditSnapshotBundle"]
+      : []),
     ...missingDeveloperBriefFields,
   ])];
   const intakeDiagnostics = {
@@ -332,8 +352,8 @@ export function buildGameReviewPrompt(
   const structuredConceptTest = conceptTest
     ? ConceptTestObjectSchema.parse(JSON.parse(conceptTest))
     : undefined;
-  const structuredFirstContactTest = firstContactTest
-    ? FirstContactTestObjectSchema.parse(JSON.parse(firstContactTest))
+  const structuredFirstContactTest = context.firstContactTest
+    ? FirstContactTestObjectSchema.parse(context.firstContactTest)
     : undefined;
   const structuredPlaytestSession = playtestSession
     ? PlaytestSessionObjectSchema.parse(JSON.parse(playtestSession))
@@ -344,7 +364,6 @@ export function buildGameReviewPrompt(
   const structuredRevisionBundle = revisionBundle
     ? RevisionBundleObjectSchema.parse(JSON.parse(revisionBundle))
     : undefined;
-
   const compiledRecipe = compileGameReviewRecipe(recipe, {
     subjectKind: parsed.subjectKind,
     selectedDomains,
@@ -364,6 +383,19 @@ export function buildGameReviewPrompt(
             ? {
                 revisionBundleEvidence: {
                   ...context.revisionBundleEvidence,
+                  exactSaveRequired: true,
+                },
+              }
+            : {}),
+        }
+      : {}),
+    ...(structuredAuditSnapshotBundle
+      ? {
+          auditSnapshotBundle: structuredAuditSnapshotBundle,
+          ...(context.auditSnapshotBundleEvidence
+            ? {
+                auditSnapshotBundleEvidence: {
+                  ...context.auditSnapshotBundleEvidence,
                   exactSaveRequired: true,
                 },
               }

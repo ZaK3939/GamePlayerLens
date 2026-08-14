@@ -61,9 +61,10 @@ For everyday development, use `review-change`. It fixes the workflow to a curren
 | Goal | Start here | Guide |
 |---|---|---|
 | Review one proposed revision | `review-change` with `currentState`, `proposal`, and `revisionBundle` | [Developer projects](docs/guides/developer-project.md) |
-| Audit a concept, prototype, vertical slice, or milestone | `audit-project` with `subjectKind=developer-concept` or `developer-project` | [Developer projects](docs/guides/developer-project.md) |
+| Audit a concept, prototype, vertical slice, or milestone | `audit-project`; active projects also require an `auditSnapshotBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a released Steam game | `steam_search` → `steam_brief`, then `audit-project` | [Existing games](docs/guides/existing-game.md) |
 | Compare UI quality | Either review prompt with the `ui` domain and a concrete `uiBenchmarkTask` | [Existing games: UI comparison](docs/guides/existing-game.md#ui-comparison) |
+| Record a first-contact observation | `record_first_contact`, then pass its handle to either review prompt | [Developer projects](docs/guides/developer-project.md#first-contact-test) |
 | Record a playtest or revision | Either review prompt with `playtestSession` or `playtestCohort` | [Experiments and playtests](docs/reference/experiments.md) |
 | Read previous evidence or reviews | `get_artifact` | [Tool reference](docs/reference/tools.md) |
 
@@ -76,7 +77,7 @@ For everyday development, use `review-change`. It fixes the workflow to a curren
 | Review through player lenses | Expose the same server-grounded v3 personas to current and proposed scenarios | exact derivation memory, explicit research questions, source-fit rationale, explicit stimulus, perceived signals, action, predicted response, uncertainty, human falsifier |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Observe | Preserve concept tests, first-contact tests, playtest sessions, and cohorts | chronological action-response traces and bounded participant reports |
-| Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | one-screen Decision Check, severity-ranked findings, and prioritized backlog |
+| Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | structured Decision Card, short developer summary, severity-ranked findings, and prioritized backlog |
 | Learn | Save source envelopes, personas, evaluations, runs, and experiment outcomes | exact-save artifacts, integrity reports, verified experiment decisions |
 
 The three MCP prompts are:
@@ -87,7 +88,7 @@ The three MCP prompts are:
 
 Both main review prompts lead with a compact `Decision Check`: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations. Detailed findings follow with `Blocker`, `Important`, or `Suggestion` severity and evidence links.
 
-The server currently exposes exactly 14 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
+The server currently exposes exactly 15 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
 
 ## What it does not prove
 
@@ -136,6 +137,8 @@ knowledge/intel/captures/{captureId}.{png|jpg}
 knowledge/ui-references/{referenceId}.png
 ```
 
+Every artifact and persona ID is create-only. To revise evidence, save a new ID and bind that revision in the next audit or change bundle. The server never replaces a published file; this removes the Windows overwrite-rename path that could fail under antivirus or file-indexer locks.
+
 Display names are normalized to safe IDs. Arbitrary paths, traversal, symlink escapes, credentials in URLs, and unbounded payloads are rejected. See [Evidence and integrity](docs/reference/evidence-and-integrity.md) for size limits, canonical evaluation rules, and run verification.
 
 Unicode display names are canonicalized before storage, including composed and decomposed forms commonly encountered on macOS. Repository and packaged operation use the same storage contract on Linux, Windows, and macOS.
@@ -154,13 +157,13 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 Live tests use Hades (`1145360`) for Steam data, Hades II (`1145350`) for Steam image capture, and `Action Roguelike` for SteamSpy discovery. Optional integrations are tested when configured and otherwise must return explicit warnings.
 
-Evidence collection and review for released Steam games remain the strongest validated workflow. `derive_personas` requires explicit research questions and a source selection for every appid. Direct or adjacent competitors need at least three declared fit axes; persona references are limited to system references, so visual-quality and market-success examples cannot silently become player voice. `save_persona` requires the original derivation handle, rejects source-selection drift, and requires every selected review voice to support an observed pattern with an explicit relevance explanation. These checks make semantic claims auditable; they do not make the server an automatic judge of meaning. Calibration against repeated real-player responses and continued end-to-end dogfooding with playable builds remain the highest-value validation work.
+Evidence collection and review for released Steam games remain the strongest validated workflow. `derive_personas` requires explicit research questions with concrete `evidenceSignals` and a source selection for every appid. Reviews that contain none of a source's mapped signals are removed before generation. Direct or adjacent competitors need at least three declared fit axes; persona references are limited to system references, so visual-quality and market-success examples cannot silently become player voice. `save_persona` requires the original derivation handle and rejects source-selection drift or a citation whose exact review did not match the pattern's research question. These deterministic checks prevent an unrelated market-awareness comment from silently supporting a gameplay claim. They do not make the server an automatic judge of broader meaning. Calibration against repeated real-player responses and continued end-to-end dogfooding with playable builds remain the highest-value validation work.
 
 ## Documentation
 
 - [Developer projects](docs/guides/developer-project.md): Project Briefs, concept tests, first-contact evidence, and moment-to-moment experience reviews.
 - [Existing games](docs/guides/existing-game.md): Steam triage, domains, competitor selection, updates, localization, price, and UI comparison.
-- [Tool reference](docs/reference/tools.md): all 14 tools, result handles, image capture, and artifact read/write semantics.
+- [Tool reference](docs/reference/tools.md): all 15 tools, result handles, image capture, and immutable artifact semantics.
 - [Evidence and integrity](docs/reference/evidence-and-integrity.md): coverage, provenance, persona boundaries, canonical evaluations, and immutable runs.
 - [Experiments and playtests](docs/reference/experiments.md): sessions, cohorts, retest lineage, prediction runs, measurements, and outcomes.
 - [Dogfood data policy](docs/dogfood/README.md): how private raw research is separated from publishable summaries.

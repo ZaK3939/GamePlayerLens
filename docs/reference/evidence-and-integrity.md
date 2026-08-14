@@ -29,6 +29,8 @@ The evaluation's Selected Domains must exactly match the run's `selectedDomains`
 
 `save_artifact(kind=evaluation)` validates the canonical report rather than accepting arbitrary prose. It checks required sections, ordering, non-empty content, data coverage, Evidence Index structure, and detailed indie-strategy sections when applicable. The Decision Card must contain one valid verdict and decision, one to three evidence-linked Proven entries, one to three explicitly missing Unproven entries, one highest risk, one player problem, one to three structured next validations, confidence, and a revisit condition. Domain findings require a `Blocker`, `Important`, or `Suggestion` severity. Unfilled template markers and token completion text are rejected.
 
+A successful evaluation save returns that validated card as structured `decisionCard` data and a five-field `developerSummary` containing verdict, decision, highest risk, next action, and success signal. These are deterministic projections of the saved Markdown, not an independent server judgment.
+
 When competition is selected, the evaluation also requires:
 
 - a freshness window;
@@ -56,11 +58,12 @@ When a fetch tool returns `meta.resultHandle`, use exact-save. Model-reconstruct
 - `generationReadiness=blocked` prohibits persona generation.
 - `partial` limits generation to `supportedCount`.
 - Research questions are explicit, bounded, and exact-saved with the derivation result.
+- Every research question declares `evidenceSignals`; reviews that contain none of the mapped signals are excluded before persona generation.
 - Every appid has an explicit source selection; there is no implicit non-target-to-competitor default.
 - Competitor sources declare direct or adjacent fit and at least three matching gameplay/player axes.
 - Persona references are system references. Visual references and market-success anchors are not persona voice sources.
 - Observed patterns, inferred traits, unknowns, and limitations stay separate.
-- Every selected voice supports at least one observed pattern, and each citation names its research question and relevance rationale.
+- Every selected voice supports at least one observed pattern, and each citation names its research question and relevance rationale. Persona save rechecks that the exact review matched that question's declared signals.
 - `save_persona` requires the live `derive_personas` result handle and server-verifies exact review text, ID, language, vote, audience, research questions, and source selection before adding a result hash to the stored persona.
 
 Review balance does not reveal population sentiment. Use separate aggregate review evidence for overall positive share, and never convert persona counts into affected-player share.
@@ -101,6 +104,8 @@ Every scenario-domain pair and every persona-scenario pair must be represented b
 
 A change run additionally requires `revisionBundleRef`. The referenced exact-saved manual artifact records different current and candidate Git commit SHAs, build IDs, changed areas, invariants, and at least one artifact binding for each revision. Run creation resolves every bound evidence ref and rejects a kind or SHA-256 mismatch.
 
+A baseline `developer-project` run similarly requires `auditSnapshotBundleRef`. Its exact-saved manual artifact binds one snapshot ID, declared Git commit SHA, build ID, and one or more evidence refs to their saved SHA-256 values. The server verifies those artifact bytes when the run is sealed and read. This prevents later substitution and cross-build evidence mix-ups, but it does not independently attest that an external build process produced the artifacts from the declared commit.
+
 `get_artifact(kind=run)` re-reads the recipe, personas, evidence, and record. `integrity.status=verified` means every required dependency still matches. `failed` identifies missing, mismatched, unreadable, or structurally invalid dependencies. This seal detects drift; it is not a cryptographic signature or external attestation.
 
 The recipe is recompiled from the stored run's `subjectKind` and explicitly selected `selectedDomains` before hashing. `domains=auto` is not accepted. Changes to an unused domain do not invalidate the run; changes to core, the selected subject contract, or a selected domain do.
@@ -122,7 +127,7 @@ Server-verified calibration is limited to matching past outcomes with complete h
 
 Display names are normalized to canonical IDs. Arbitrary paths, path traversal, root escapes through symlinks, unsupported image formats, credentialed URLs, and oversized payloads are rejected.
 
-Create-only saves publish through a same-directory hard link and never replace an existing artifact. Temporary-file cleanup retries transient filesystem locks; if cleanup still fails after publication, the error explicitly reports that the destination was already saved and must be read before retrying. Reads and writes in one server process share a FIFO coordinator for each normalized path, so an overwrite never races a still-open evidence handle. Explicit overwrites then use a fsynced atomic replacement with bounded retries for filesystem locks outside that coordinator; failed writes remain errors and are never reported as successful saves. Different paths remain independent and can be processed concurrently.
+Every save is create-only: a fsynced same-directory temporary file is published through a hard link, and an existing destination is never replaced. Revisions therefore use new artifact or persona IDs instead of overwrite. Publication and temporary-file cleanup retry transient filesystem locks; an existing destination is never retried or replaced. If cleanup still fails after publication, the error explicitly reports that the destination was already saved and must be read before retrying. Reads and writes in one server process share a FIFO coordinator for each normalized path, while different paths remain independent and can proceed concurrently. Removing replacement rename avoids the Windows EPERM path previously observed when antivirus or indexing software held the destination.
 
 The complete build, test, stdio, and packaged-CLI gates run on Linux, Windows, and Apple Silicon macOS. Windows and macOS also repeat the full suite ten times as storage reliability gates. Unicode display names are normalized to one canonical ID before path resolution, so composed and decomposed input forms resolve to the same artifact on macOS filesystems.
 

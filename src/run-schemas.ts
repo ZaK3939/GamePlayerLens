@@ -9,7 +9,9 @@ import {
   validateDeveloperProjectBrief,
   validateRunCompleteness,
   validateRunRelations,
+  validateSaveAuditSnapshotBundleReference,
   validateSaveRevisionBundleReference,
+  validateStoredAuditSnapshotBundleReference,
   validateStoredDeveloperEvaluation,
   validateStoredRevisionBundleReference,
 } from "./run-validation.js";
@@ -211,6 +213,7 @@ const RunAudienceShape = {
 };
 const ScenariosSchema = z.array(ScenarioSchema).min(1).max(8);
 const RevisionBundleRefSchema = ReferenceIdSchema.optional();
+const AuditSnapshotBundleRefSchema = ReferenceIdSchema.optional();
 const SimulationRoundsSchema = z.array(SimulationRoundSchema).min(1).max(100);
 const RunWarningsSchema = z.array(z.string().max(2_000)).max(100);
 
@@ -223,6 +226,7 @@ export const SaveRunInputBaseSchema = z.object({
   personaIds: z.array(ReferenceIdSchema).min(1).max(12),
   evidence: z.array(EvidenceReferenceInputSchema).min(1).max(100),
   revisionBundleRef: RevisionBundleRefSchema,
+  auditSnapshotBundleRef: AuditSnapshotBundleRefSchema,
   rounds: SimulationRoundsSchema,
   warnings: RunWarningsSchema,
   confidence: ConfidenceInputSchema,
@@ -239,6 +243,10 @@ export const SaveRunInputSchema = SaveRunInputBaseSchema.superRefine((value, con
   validateRunCompleteness(relations, context);
   validateDeveloperProjectBrief(value, context);
   validateSaveRevisionBundleReference({
+    ...value,
+    evidenceRefs: value.evidence,
+  }, context);
+  validateSaveAuditSnapshotBundleReference({
     ...value,
     evidenceRefs: value.evidence,
   }, context);
@@ -409,7 +417,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 export const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(9),
+  schemaVersion: z.literal(10),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
@@ -424,6 +432,7 @@ export const RunRecordCoreSchema = z.object({
   personas: z.array(ResolvedPersonaSchema).min(1).max(12),
   evidence: z.array(ResolvedEvidenceSchema).min(1).max(100),
   revisionBundleRef: RevisionBundleRefSchema,
+  auditSnapshotBundleRef: AuditSnapshotBundleRefSchema,
   rounds: SimulationRoundsSchema,
   warnings: RunWarningsSchema,
   confidence: ConfidenceInputSchema.extend({reportedByClient: z.literal(true)}).strict(),
@@ -450,6 +459,10 @@ export const RunRecordSchema = RunRecordBaseSchema.superRefine((value, context) 
     evidenceRefs: value.evidence,
   }, context);
   validateStoredRevisionBundleReference({
+    ...value,
+    evidenceRefs: value.evidence,
+  }, context);
+  validateStoredAuditSnapshotBundleReference({
     ...value,
     evidenceRefs: value.evidence,
   }, context);

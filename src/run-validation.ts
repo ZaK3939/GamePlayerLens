@@ -33,6 +33,11 @@ interface RevisionReferenceShape {
   evidenceRefs: RunRelationShape["evidenceRefs"];
 }
 
+interface AuditSnapshotReferenceShape extends RevisionReferenceShape {
+  subjectKind: SubjectKind;
+  auditSnapshotBundleRef?: string;
+}
+
 function issue(
   context: RefinementCtx,
   path: Array<string | number>,
@@ -233,6 +238,39 @@ export function validateSaveRevisionBundleReference(
   }
 }
 
+export function validateSaveAuditSnapshotBundleReference(
+  value: AuditSnapshotReferenceShape,
+  context: RefinementCtx,
+): void {
+  const required = value.mode === "baseline" && value.subjectKind === "developer-project";
+  if (required) {
+    if (!value.auditSnapshotBundleRef) {
+      issue(
+        context,
+        ["auditSnapshotBundleRef"],
+        "developer-project baseline runs require an exact-saved audit snapshot bundle",
+      );
+      return;
+    }
+    const snapshotEvidence = value.evidenceRefs.find(
+      (evidence) => evidence.ref === value.auditSnapshotBundleRef,
+    );
+    if (snapshotEvidence?.kind !== "intel") {
+      issue(
+        context,
+        ["auditSnapshotBundleRef"],
+        "auditSnapshotBundleRef must reference intel evidence",
+      );
+    }
+  } else if (value.auditSnapshotBundleRef) {
+    issue(
+      context,
+      ["auditSnapshotBundleRef"],
+      "audit snapshot bundles are only valid for developer-project baseline runs",
+    );
+  }
+}
+
 export function validateStoredDeveloperEvaluation(
   value: Pick<RunRelationShape, "evidenceRefs" | "finalEvaluationRef"> & {
     subjectKind: SubjectKind;
@@ -278,6 +316,35 @@ export function validateStoredRevisionBundleReference(
       context,
       ["revisionBundleRef"],
       "stored baseline runs cannot contain a revision bundle",
+    );
+  }
+}
+
+export function validateStoredAuditSnapshotBundleReference(
+  value: AuditSnapshotReferenceShape,
+  context: RefinementCtx,
+): void {
+  const required = value.mode === "baseline" && value.subjectKind === "developer-project";
+  if (required) {
+    const snapshotEvidence = value.evidenceRefs.find(
+      (item) => item.ref === value.auditSnapshotBundleRef,
+    );
+    if (
+      !value.auditSnapshotBundleRef
+      || snapshotEvidence?.kind !== "intel"
+      || snapshotEvidence.sourceTool !== "manual"
+    ) {
+      issue(
+        context,
+        ["auditSnapshotBundleRef"],
+        "stored developer-project baseline runs require manual audit-snapshot evidence",
+      );
+    }
+  } else if (value.auditSnapshotBundleRef) {
+    issue(
+      context,
+      ["auditSnapshotBundleRef"],
+      "stored non-project audits cannot contain an audit snapshot bundle",
     );
   }
 }

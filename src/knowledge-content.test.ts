@@ -578,8 +578,8 @@ describe("experiment loop rubric", () => {
     }
     expect(content).toMatch(/mutable status[\s\S]*持たない/);
     expect(content).toMatch(/run[\s\S]*予測simulation[\s\S]*executed[\s\S]*呼ばない/);
-    expect(content).toMatch(/ExperimentSpec[\s\S]*overwrite=true[\s\S]*禁止/);
-    expect(content).toMatch(/ExperimentOutcome[\s\S]*overwrite=true[\s\S]*禁止/);
+    expect(content).toMatch(/ExperimentSpec[\s\S]*create-only[\s\S]*canonical ID[\s\S]*再利用を拒否/);
+    expect(content).toMatch(/ExperimentOutcome[\s\S]*exact SHA-256[\s\S]*保証境界/);
   });
 
   it("keeps measurement sources separate and missing outcomes unresolved", async () => {
@@ -780,9 +780,18 @@ describe("MCP prompt source recipes", () => {
   it("saves and interprets first-contact tests as bounded observations", async () => {
     const content = await read("skills/game-review.md");
 
+    expect(content).toMatch(/record_first_contact[\s\S]*firstContactResultHandle/);
     expect(content).toMatch(/firstContactTestEvidence\.resultHandle[\s\S]*save_artifact/);
     expect(content).toMatch(/theme[\s\S]*action[\s\S]*reward[\s\S]*immediateReject/);
     expect(content).toMatch(/bounded sample[\s\S]*(conversion|需要)[\s\S]*(証明しない|変換しない)/);
+  });
+
+  it("binds milestone audits and exposes a structured developer decision", async () => {
+    const content = await read("skills/game-review.md");
+
+    expect(content).toMatch(/auditSnapshotBundleEvidence\.resultHandle[\s\S]*exact-save/);
+    expect(content).toMatch(/auditSnapshotBundleRef[\s\S]*server検証/);
+    expect(content).toMatch(/structured[\s\S]*decisionCard[\s\S]*developerSummary/);
   });
 
   it("uses the bounded Steam CDN image path for storefront screenshots", async () => {

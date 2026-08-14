@@ -1,4 +1,4 @@
-import {mkdtemp, mkdir, readdir, rm, writeFile as nodeWriteFile} from "node:fs/promises";
+import {mkdtemp, mkdir, rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, describe, expect, expectTypeOf, it, vi} from "vitest";
@@ -21,6 +21,7 @@ const AUDIENCE = {market: "Japan", language: "japanese"} as const;
 const RESEARCH_QUESTIONS = [{
   id: "choice-readability",
   question: "Which signals make the next choice and its result readable?",
+  evidenceSignals: ["text"],
 }] as const;
 
 function targetSource(appid: number) {
@@ -281,7 +282,7 @@ describe("persona store", () => {
     await expect(store.listPersonas()).resolves.toEqual([persona()]);
   });
 
-  it("rejects traversal and atomic overwrite by default", async () => {
+  it("rejects traversal and replacement of an immutable persona ID", async () => {
     const store = createPersonaStore(await tempResolver());
     await store.savePersona(persona());
 
@@ -292,28 +293,13 @@ describe("persona store", () => {
     expect((await store.loadPersona(persona().id)).archetype).not.toBe("changed");
   });
 
-  it("atomically replaces when overwrite is explicit", async () => {
+  it("requires a new persona ID for a revised lens", async () => {
     const store = createPersonaStore(await tempResolver());
     await store.savePersona(persona());
-    await store.savePersona(persona({archetype: "changed"}), {overwrite: true});
+    await store.savePersona(persona({id: "jp-localization-hawk-v2", archetype: "changed"}));
 
-    expect((await store.loadPersona(persona().id)).archetype).toBe("changed");
-  });
-
-  it("delegates overwrite cleanup to the resilient replacement boundary", async () => {
-    const resolver = await tempResolver();
-    const unrelated = join(resolver.root, "knowledge", "personas", ".keep.tmp");
-    await nodeWriteFile(unrelated, "keep");
-    const replaceFile = vi.fn(async () => {
-      throw new Error("replace failed");
-    });
-    const store = createPersonaStore(resolver, {replaceFile});
-
-    await expect(store.savePersona(persona(), {overwrite: true})).rejects.toThrow(
-      "replace failed",
-    );
-    const files = await readdir(join(resolver.root, "knowledge", "personas"));
-    expect(files).toEqual([".keep.tmp"]);
+    expect((await store.loadPersona(persona().id)).archetype).not.toBe("changed");
+    expect((await store.loadPersona("jp-localization-hawk-v2")).archetype).toBe("changed");
   });
 });
 
@@ -378,7 +364,7 @@ describe("persona derivation pack", () => {
     expect(result.meta).toMatchObject({
       observedAt: NOW.toISOString(),
       methodology: {
-        strategy: "requested-language-first-recent-polarity-balanced",
+        strategy: "requested-language-first-signal-filtered-polarity-balanced",
         ordering: "round-robin-appid-polarity",
         representative: false,
         requestedPerPolarity: 25,
@@ -426,6 +412,51 @@ describe("persona derivation pack", () => {
     expect(result.warnings).toContain(
       "persona generation blocked: 0 of 2 requested personas have disjoint review voice support",
     );
+  });
+
+  it("excludes real but off-topic reviews before persona generation", async () => {
+    const fetchGame = vi.fn(async (appid: number) => ({data: {appid}, warnings: []}));
+    const fetchReviews = vi.fn(async (
+      _appid: number,
+      opts: ReviewOptions = {},
+    ) => ({
+      data: (opts.type === "positive"
+        ? [
+            review("relevant-positive", true),
+            {...review("awareness-only", true), review: "日本でもっと人気になってほしい"},
+            {...review("community-only", true), review: "コミュニティが増えてほしい"},
+          ]
+        : [
+            review("relevant-negative-1", false),
+            review("relevant-negative-2", false),
+            {...review("price-only", false), review: "価格だけが気になる"},
+          ]),
+      warnings: [],
+    }));
+
+    const result = await createPersonaDeriver({
+      fetchGame,
+      fetchReviews,
+      now: () => NOW,
+    })([1145360], {
+      market: "Japan",
+      language: "all",
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [targetSource(1145360)],
+    }, 1, 3);
+
+    expect(result.data?.reviews.map(({recommendationId}) => recommendationId)).toEqual([
+      "relevant-positive",
+      "relevant-negative-1",
+      "relevant-negative-2",
+    ]);
+    expect(result.data?.reviews).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        matchedResearchQuestionIds: ["choice-readability"],
+        matchedEvidenceSignals: ["text"],
+      }),
+    ]));
+    expect(result.data?.generationReadiness.status).toBe("ready");
   });
 
   it("limits persona generation to the count supported by disjoint review voices", async () => {

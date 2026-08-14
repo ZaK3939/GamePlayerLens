@@ -11,6 +11,7 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
       researchQuestions: [{
         id: "combat-readability",
         question: "Which combat signals support adoption and continued play?",
+        evidenceSignals: ["戦闘", "アクション", "操作", "combat"],
       }],
       sourceRoles: [{
         appid: 1145360,
@@ -22,8 +23,10 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
       }],
     }, 5, 8);
     expect(result.data?.requestedCount).toBe(5);
-    expect(result.data?.reviews.length).toBeGreaterThanOrEqual(10);
     expect(result.data?.reviews.length).toBeLessThanOrEqual(16);
+    expect(result.data?.reviews.every((review) =>
+      review.matchedResearchQuestionIds.includes("combat-readability")
+      && review.matchedEvidenceSignals.length > 0)).toBe(true);
     const ids = result.data?.reviews.map((review) => review.recommendationId) ?? [];
     expect(new Set(ids).size).toBe(ids.length);
     const supportedCount = Math.min(5, Math.floor(ids.length / 3));
@@ -45,6 +48,7 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
       researchQuestions: [{
         id: "combat-readability",
         question: "Which combat signals support adoption and continued play?",
+        evidenceSignals: ["戦闘", "アクション", "操作", "combat"],
       }],
       sources: [{
         appid: 1145360,
@@ -56,7 +60,7 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
       expect.arrayContaining(["schema_version", "target_context", "decision_profile", "evidence_basis"]),
     );
     expect(result.meta?.methodology).toMatchObject({
-      strategy: "requested-language-first-recent-polarity-balanced",
+      strategy: "requested-language-first-signal-filtered-polarity-balanced",
       ordering: "round-robin-appid-polarity",
       representative: false,
       requestedPerPolarity: 8,

@@ -1,5 +1,5 @@
 import {EventEmitter} from "node:events";
-import {access, mkdtemp, mkdir, readdir, rm, writeFile} from "node:fs/promises";
+import {access, mkdtemp, mkdir, readFile, readdir, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {basename, join, relative} from "node:path";
 import {PassThrough} from "node:stream";
@@ -282,6 +282,35 @@ describe("capture service", () => {
 
     expect(result.data).toBeNull();
     await expect(access(existing.absolutePath)).resolves.toBeUndefined();
+  });
+
+  it("never replaces or deletes a pre-existing page capture", async () => {
+    const resolver = await tempResolver();
+    const existing = resolver.resolveCaptureReadPath("claimed-page", "png");
+    await writeFile(existing.absolutePath, PNG_BYTES);
+    const page = {
+      setViewport: vi.fn(async () => undefined),
+      goto: vi.fn(async () => undefined),
+      screenshot: vi.fn(async () => undefined),
+    };
+    const browser = {
+      newPage: vi.fn(async () => page),
+      disconnect: vi.fn(),
+    } as unknown as Browser;
+    const capture = createCaptureService({
+      resolver: {
+        ...resolver,
+        resolveCapturePath: () => existing.absolutePath,
+      },
+      obscuraPath: "/opt/obscura",
+      connect: vi.fn(async () => browser),
+    });
+
+    const result = await capture("https://example.com", {name: "claimed-page"});
+
+    expect(result.data).toBeNull();
+    expect(page.screenshot).not.toHaveBeenCalled();
+    await expect(readFile(existing.absolutePath)).resolves.toEqual(PNG_BYTES);
   });
 
   it("returns install and manual fallback guidance when Obscura is unset", async () => {

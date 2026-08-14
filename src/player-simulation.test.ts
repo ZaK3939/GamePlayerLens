@@ -13,6 +13,7 @@ const OBSERVED_AT = "2026-08-14T09:00:00+04:00";
 const RESEARCH_QUESTIONS = [{
   id: "decision-readability",
   question: "Which signals make a combat decision and outcome readable?",
+  evidenceSignals: ["readable"],
 }] as const;
 
 function targetSource() {
@@ -89,7 +90,11 @@ function derivationPayload(includeCompetitor: boolean) {
           ...(includeCompetitor ? [competitorSource()] : []),
         ],
       },
-      reviews,
+      reviews: reviews.map((review) => ({
+        ...review,
+        matchedResearchQuestionIds: ["decision-readability"],
+        matchedEvidenceSignals: ["readable"],
+      })),
     },
     warnings: [],
     meta: {observedAt: OBSERVED_AT},
