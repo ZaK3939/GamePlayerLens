@@ -5,7 +5,7 @@ import {
   buildProjectBriefDiagnostics,
   ProjectBriefObjectSchema,
   SubjectKindSchema,
-} from "./prompts.js";
+} from "./project-brief.js";
 
 export const MAX_RUN_BYTES = 2 * 1024 * 1024;
 export const RUN_RECIPE_ID = "run-sim.md";
