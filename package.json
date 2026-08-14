@@ -11,6 +11,8 @@
     "dist",
     "knowledge/rubrics",
     "knowledge/templates",
+    "docs/guides",
+    "docs/reference",
     "skills",
     "README.md"
   ],

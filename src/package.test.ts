@@ -19,6 +19,8 @@ describe("npm package contract", () => {
     expect(manifest.bin).toEqual({"game-player-lens": "dist/cli.js"});
     expect(manifest.files).toEqual(expect.arrayContaining([
       "dist",
+      "docs/guides",
+      "docs/reference",
       "knowledge/rubrics",
       "knowledge/templates",
       "skills",
