@@ -13,13 +13,15 @@ import {basename, dirname, relative, sep} from "node:path";
 import {z} from "zod";
 import {writeTextFileAtomically} from "./atomic-write.js";
 import {
-  assertCanonicalEvaluationMarkdown,
-  EVALUATION_DOMAINS,
   IntelRecordSchema,
   MAX_EVALUATION_BYTES,
   MAX_INTEL_PAYLOAD_BYTES,
   SourceToolSchema,
 } from "./artifacts.js";
+import {
+  assertCanonicalEvaluationMarkdown,
+  EVALUATION_DOMAINS,
+} from "./evaluation-markdown.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {canonicalSha256, sha256} from "./integrity.js";
 import {PersonaSchema} from "./personas.js";
