@@ -2,6 +2,8 @@
 
 GamePlayerLens separates direct operation, human reports, predictions, measurements, and decisions. Passing a technical test is not evidence of fun, and a participant report is not a population metric.
 
+Use `play-build` before this heavier evidence loop when the immediate question is whether one playable task works. Its Player Probe Card is an AI-operated observation and hypothesis handoff, not a stored human session or experiment result. Known execution blockers route to repair before a playtest protocol is assembled.
+
 ## A bounded playtest session
 
 Before starting, fix:

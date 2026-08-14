@@ -61,6 +61,9 @@ function referencePersonaSource(appid: number) {
 
 function runRecipeFixture(core = "# Test run recipe"): string {
   return [
+    "<!-- GPL:section route:repair-first -->",
+    "# Repair-first test contract",
+    "<!-- GPL:end -->",
     "<!-- GPL:section core -->",
     core,
     "<!-- GPL:end -->",
@@ -150,6 +153,7 @@ async function createHarness(overrides: BuildServerOverrides = {}) {
   ].map((directory) => mkdir(join(root, directory), {recursive: true})));
   const runRecipe = runRecipeFixture();
   await writeFile(join(root, "skills", "game-review.md"), runRecipe);
+  await writeFile(join(root, "skills", "play-build.md"), "# Play build test recipe\n");
   await writeFile(join(root, "skills", "ui-blind-compare.md"), "# Test UI recipe\n");
 
   const resolver = createPathResolver(root);
@@ -450,7 +454,7 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly fifteen tools and three review prompts", async () => {
+  it("exposes exactly fifteen tools and four review prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -472,6 +476,7 @@ describe("MCP server contract", () => {
       ]);
       expect((await client.listPrompts()).prompts.map((prompt) => prompt.name).sort()).toEqual([
         "audit-project",
+        "play-build",
         "review-change",
         "ui-blind-compare",
       ]);
@@ -504,7 +509,7 @@ describe("MCP server contract", () => {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
-          capabilities: {toolCount: 15, promptCount: 3},
+          capabilities: {toolCount: 15, promptCount: 4},
         },
         warnings: [],
       });
@@ -2852,6 +2857,7 @@ describe("MCP server contract", () => {
         "subjectKind",
         "domains",
         "specification",
+        "knownBlockers",
         "projectBrief",
         "conceptTest",
         "firstContactResultHandle",
@@ -2870,6 +2876,22 @@ describe("MCP server contract", () => {
         "market",
         "language",
         "qualityTier",
+      ]);
+
+      const playBuild = prompts.find((prompt) => prompt.name === "play-build")!;
+      expect(playBuild.arguments?.filter((argument) => argument.required).map((argument) => argument.name))
+        .toEqual(["target"]);
+      expect(playBuild.arguments?.map((argument) => argument.name)).toEqual([
+        "target",
+        "buildUrl",
+        "buildId",
+        "task",
+        "controls",
+        "startState",
+        "endState",
+        "timeLimitMinutes",
+        "personaIds",
+        "knownBlockers",
       ]);
 
       const change = prompts.find((prompt) => prompt.name === "review-change")!;
@@ -2912,6 +2934,30 @@ describe("MCP server contract", () => {
         "context",
         "qualityTier",
       ]);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("routes known build blockers to repair before operation or research", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const prompt = await client.getPrompt({
+        name: "play-build",
+        arguments: {
+          target: "Project Nyx",
+          knownBlockers: "Steering force is reversed\nStress feedback is binary",
+        },
+      });
+      const content = prompt.messages[0]?.content;
+      expect(content?.type).toBe("text");
+      if (content?.type !== "text") throw new Error("play-build did not return text");
+      expect(content.text).toContain('"route": "repair-first"');
+      expect(content.text).toContain('"status": "repair-first"');
+      expect(content.text).toContain('"blockedActions": [');
+      expect(content.text).toContain('"steam-research"');
+      expect(content.text).not.toContain("auditSnapshotBundle");
     } finally {
       await client.close();
       await server.close();

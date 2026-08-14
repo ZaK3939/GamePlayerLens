@@ -3,6 +3,21 @@ import {describe, expect, it} from "vitest";
 import {compileGameReviewRecipe} from "./run-recipe.js";
 
 describe("game review recipe compiler", () => {
+  it("selects only the repair route when declared blockers make review premature", async () => {
+    const source = await readFile(new URL("../skills/game-review.md", import.meta.url), "utf8");
+    const compiled = compileGameReviewRecipe(source, {
+      subjectKind: "developer-project",
+      selectedDomains: ["gameplay", "competition"],
+      repairFirst: true,
+    });
+
+    expect(compiled).toContain("Repair-first route");
+    expect(compiled).not.toContain("Core workflow");
+    expect(compiled).not.toContain("Developer subject contract");
+    expect(compiled).not.toContain("Competition domain contract");
+    expect(compiled.length).toBeLessThan(2_000);
+  });
+
   it("selects only the requested subject and domains in canonical order", async () => {
     const source = await readFile(new URL("../skills/game-review.md", import.meta.url), "utf8");
     const compiled = compileGameReviewRecipe(source, {

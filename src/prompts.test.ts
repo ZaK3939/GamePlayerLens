@@ -12,15 +12,20 @@ import {
   AuditProjectPromptArgumentsSchema,
   buildAuditProjectPrompt,
   buildGameReviewPrompt,
+  buildPlayBuildPrompt,
   buildReviewChangePrompt,
   buildUiBlindComparePrompt,
   GameReviewPromptArgumentsSchema,
+  PlayBuildPromptArgumentsSchema,
   ReviewChangePromptArgumentsSchema,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
 
 const coreRecipe = "# Repository recipe\n\nFollow only this repository recipe.";
 const recipe = [
+  "<!-- GPL:section route:repair-first -->",
+  "# Repair-first test contract\n\nDo not operate, research, or audit.",
+  "<!-- GPL:end -->",
   "<!-- GPL:section core -->",
   coreRecipe,
   "<!-- GPL:end -->",
@@ -38,6 +43,7 @@ const recipe = [
     ],
   ),
 ].join("\n");
+const playBuildRecipe = "# Play build\n\nFollow the workflow route and return a Player Probe Card.";
 
 function rewardMechanismsFixture(): Array<Record<string, string>> {
   return [{
@@ -1899,6 +1905,67 @@ describe("game review prompt argument normalization", () => {
   });
 });
 
+describe("play-build prompt", () => {
+  it("asks only for operation inputs when no blocker is declared", () => {
+    const result = buildPlayBuildPrompt(playBuildRecipe, {target: "Project Nyx"});
+
+    expect(result).toContain('"route": "play-build"');
+    expect(result).toContain('"status": "needs-input"');
+    expect(result).toContain('"missingFields": [\n      "buildUrl",\n      "buildId",\n      "task",\n      "controls",\n      "startState",\n      "endState"\n    ]');
+    expect(result).not.toContain("auditSnapshotBundle");
+    expect(result).not.toContain("steam_brief");
+  });
+
+  it("routes known blockers directly to a short repair card", () => {
+    const result = buildPlayBuildPrompt(playBuildRecipe, {
+      target: "Project Nyx",
+      knownBlockers: "- Steering force is reversed\n- Stress never reaches the readable range",
+    });
+
+    expect(result.startsWith(playBuildRecipe)).toBe(true);
+    expect(result).toContain('"route": "repair-first"');
+    expect(result).toContain('"status": "repair-first"');
+    expect(result).toContain('"missingFields": []');
+    expect(result).toContain('"blockedActions": [\n      "operate-build",\n      "steam-research",\n      "persona-derivation",\n      "full-audit",\n      "artifact-save"\n    ]');
+  });
+
+  it("normalizes a ready bounded task and explicit persona IDs", () => {
+    const parsed = PlayBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      buildUrl: "http://127.0.0.1:4173/play#debug",
+      buildId: "build-042",
+      task: "Complete one delivery",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "Delivery result is visible",
+      timeLimitMinutes: "12",
+      personaIds: "cautious-builder, risk-taker,cautious-builder",
+    });
+    const result = buildPlayBuildPrompt(playBuildRecipe, parsed);
+
+    expect(parsed.buildUrl).toBe("http://127.0.0.1:4173/play#debug");
+    expect(result).toContain('"route": "play-build"');
+    expect(result).toContain('"status": "ready"');
+    expect(result).toContain('"personaIds": [\n    "cautious-builder",\n    "risk-taker"\n  ]');
+    expect(result).toContain('"testerType": "ai-operated"');
+  });
+
+  it("rejects unsafe build URLs and invalid persona IDs", () => {
+    expect(() => PlayBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      buildUrl: "https://user:secret@example.com/play",
+    })).toThrow(/credential-free/i);
+    expect(() => PlayBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      personaIds: "../private-persona",
+    })).toThrow(/personaIds/i);
+    expect(() => PlayBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      timeLimitMinutes: "121",
+    })).toThrow(/timeLimitMinutes/i);
+  });
+});
+
 describe("public game review prompts", () => {
   it("fixes change and audit modes instead of exposing a mode switch", () => {
     const change = ReviewChangePromptArgumentsSchema.parse({
@@ -1956,6 +2023,21 @@ describe("public game review prompts", () => {
     expect(change).toContain('"exactSaveRequired": true');
     expect(audit).toContain('"reviewWorkflow": "audit"');
     expect(audit).toContain('"mode": "baseline"');
+  });
+
+  it("short-circuits a milestone audit when declared blockers must be repaired first", () => {
+    const audit = buildAuditProjectPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "prototype readiness",
+      knownBlockers: "Steering force is reversed\nStress feedback is binary",
+    });
+
+    expect(audit.startsWith("# Repair-first test contract")).toBe(true);
+    expect(audit).not.toContain("Core workflow");
+    expect(audit).not.toContain("Developer test contract");
+    expect(audit).toContain('"route": "repair-first"');
+    expect(audit).toContain('"status": "repair-first"');
+    expect(audit).toContain('"missingFields": []');
   });
 });
 

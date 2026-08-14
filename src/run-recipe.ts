@@ -11,6 +11,7 @@ const DOMAIN_ORDER: readonly SimulationDomain[] = [
   "competition",
 ];
 const SECTION_IDS = new Set([
+  "route:repair-first",
   "core",
   "subject:existing-game",
   "subject:developer",
@@ -20,6 +21,7 @@ const SECTION_IDS = new Set([
 export interface RunRecipeSelection {
   subjectKind?: SubjectKind;
   selectedDomains: readonly SimulationDomain[];
+  repairFirst?: boolean;
 }
 
 function parseSections(source: string): Map<string, string> {
@@ -54,6 +56,9 @@ export function compileGameReviewRecipe(
   selection: RunRecipeSelection,
 ): string {
   const sections = parseSections(source);
+  if (selection.repairFirst) {
+    return `${requiredSection(sections, "route:repair-first")}\n`;
+  }
   const selected: string[] = [requiredSection(sections, "core")];
   if (selection.subjectKind) {
     selected.push(requiredSection(

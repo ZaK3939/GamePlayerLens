@@ -29,6 +29,11 @@ import {
   RevisionBundleSchema,
 } from "./revision-bundle.js";
 import type {SimulationDomain} from "./run-schemas.js";
+import {
+  KnownBlockersTextSchema,
+  normalizeKnownBlockers,
+  routeDevelopmentWorkflow,
+} from "./workflow-routing.js";
 
 const DOMAIN_ORDER = [
   "gameplay",
@@ -132,11 +137,32 @@ function httpUrlSchema(field: string) {
 
 const PlaytestUrlSchema = httpUrlSchema("playtestUrl");
 const UiUrlSchema = httpUrlSchema("uiUrl");
+const BuildUrlSchema = httpUrlSchema("buildUrl");
 
-const PlaytestDurationSchema = z.string().trim().regex(/^\d{1,3}$/).refine(
-  (value) => Number(value) >= 1 && Number(value) <= 120,
-  "playtestDurationMinutes must be between 1 and 120",
-);
+function durationMinutesSchema(field: string) {
+  return z.string().trim().regex(/^\d{1,3}$/).refine(
+    (value) => Number(value) >= 1 && Number(value) <= 120,
+    `${field} must be between 1 and 120`,
+  );
+}
+
+const PlaytestDurationSchema = durationMinutesSchema("playtestDurationMinutes");
+const BuildProbeDurationSchema = durationMinutesSchema("timeLimitMinutes");
+const PersonaIdsSchema = z.string().max(1_000).transform((input, context) => {
+  const ids = [...new Set(input.split(",").map((id) => id.trim()).filter(Boolean))];
+  if (
+    ids.length === 0
+    || ids.length > 12
+    || ids.some((id) => !/^[a-z0-9][a-z0-9_-]{0,63}$/iu.test(id))
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "personaIds must contain one to twelve comma-separated persona IDs",
+    });
+    return z.NEVER;
+  }
+  return ids.join(",");
+});
 
 const GameReviewPromptArgumentShape = {
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
@@ -147,6 +173,9 @@ const GameReviewPromptArgumentShape = {
     "Explicit comma-separated review domains; omission returns needs-input",
   ),
   specification: z.string().max(50_000).optional(),
+  knownBlockers: KnownBlockersTextSchema.optional().describe(
+    "One known execution blocker per line; declared blockers route developer work to repair-first",
+  ),
   projectBrief: ProjectBriefSchema.optional().describe(
     "JSON object containing declared concept origin, project stage, core experience, and production constraints",
   ),
@@ -187,6 +216,7 @@ const GameReviewPromptArgumentShape = {
 const {
   mode: _reviewMode,
   auditSnapshotBundle: _reviewAuditSnapshotBundle,
+  knownBlockers: _reviewKnownBlockers,
   ...ReviewChangePromptArgumentShape
 } = GameReviewPromptArgumentShape;
 const {
@@ -244,6 +274,19 @@ export const UiBlindComparePromptArgumentsSchema = z.object({
   qualityTier: z.string().optional(),
 });
 
+export const PlayBuildPromptArgumentsSchema = z.object({
+  target: NonEmptyTrimmedStringSchema.describe("Game build to operate"),
+  buildUrl: BuildUrlSchema.optional(),
+  buildId: z.string().trim().min(1).max(200).optional(),
+  task: z.string().trim().min(1).max(1_000).optional(),
+  controls: z.string().trim().min(1).max(500).optional(),
+  startState: z.string().trim().min(1).max(1_000).optional(),
+  endState: z.string().trim().min(1).max(1_000).optional(),
+  timeLimitMinutes: BuildProbeDurationSchema.optional(),
+  personaIds: PersonaIdsSchema.optional(),
+  knownBlockers: KnownBlockersTextSchema.optional(),
+}).strict();
+
 export type GameReviewPromptArguments = z.input<typeof GameReviewPromptArgumentsSchema>;
 export type ReviewChangePromptArguments = z.input<
   typeof ReviewChangePromptArgumentsSchema
@@ -252,6 +295,7 @@ export type AuditProjectPromptArguments = z.input<
   typeof AuditProjectPromptArgumentsSchema
 >;
 export type UiBlindComparePromptArguments = z.input<typeof UiBlindComparePromptArgumentsSchema>;
+export type PlayBuildPromptArguments = z.input<typeof PlayBuildPromptArgumentsSchema>;
 
 export interface PromptEvidencePointer {
   sourceTool: "manual" | "record_first_contact";
@@ -297,8 +341,16 @@ export function buildGameReviewPrompt(
     projectBrief,
     revisionBundle,
     uiReferenceUrls,
+    knownBlockers,
     ...promptInput
   } = parsed;
+  const blockerList = normalizeKnownBlockers(knownBlockers);
+  const requestedWorkflow = parsed.mode === "change" ? "review-change" : "audit-project";
+  const workflowRouting = routeDevelopmentWorkflow({
+    requestedWorkflow,
+    knownBlockers: blockerList,
+  });
+  const repairFirst = workflowRouting.route === "repair-first";
   const structuredProjectBrief = projectBrief
     ? ProjectBriefObjectSchema.parse(JSON.parse(projectBrief))
     : undefined;
@@ -315,8 +367,10 @@ export function buildGameReviewPrompt(
     ? (["currentState", "proposal", "revisionBundle"] as const)
         .filter((field) => !parsed[field]?.trim())
     : undefined;
-  const requiresDeveloperBrief = parsed.subjectKind === "developer-concept"
-    || parsed.subjectKind === "developer-project";
+  const requiresDeveloperBrief = !repairFirst && (
+    parsed.subjectKind === "developer-concept"
+    || parsed.subjectKind === "developer-project"
+  );
   const missingDeveloperBriefFields = !requiresDeveloperBrief
     ? []
     : !structuredProjectBrief || !projectBriefDiagnostics
@@ -326,7 +380,7 @@ export function buildGameReviewPrompt(
           ...projectBriefDiagnostics.rewardMechanism.missingFields,
           ...projectBriefDiagnostics.mechanismTransfer.missingFields,
         ])].map((field) => `projectBrief.${field}`);
-  const missingFields = [...new Set([
+  const missingFields = repairFirst ? [] : [...new Set([
     ...(!parsed.subjectKind ? ["subjectKind"] : []),
     ...(!parsed.domains ? ["domains"] : []),
     ...(!parsed.market?.trim() ? ["market"] : []),
@@ -343,9 +397,13 @@ export function buildGameReviewPrompt(
     ...missingDeveloperBriefFields,
   ])];
   const intakeDiagnostics = {
-    status: missingFields.length === 0 ? "ready" : "needs-input",
+    status: repairFirst
+      ? "repair-first"
+      : missingFields.length === 0 ? "ready" : "needs-input",
     missingFields,
-    nextAction: missingFields.length === 0
+    nextAction: repairFirst
+      ? workflowRouting.nextAction
+      : missingFields.length === 0
       ? "Proceed with the selected evidence workflow."
       : "Ask the user for all missing fields in one concise question before calling external evidence tools.",
   };
@@ -367,9 +425,12 @@ export function buildGameReviewPrompt(
   const compiledRecipe = compileGameReviewRecipe(recipe, {
     subjectKind: parsed.subjectKind,
     selectedDomains,
+    repairFirst,
   });
   return appendSerializedInput(compiledRecipe, {
     ...promptInput,
+    knownBlockers: blockerList,
+    workflowRouting,
     ...(structuredProjectBrief
       ? {
           projectBrief: structuredProjectBrief,
@@ -481,6 +542,49 @@ export function buildGameReviewPrompt(
     selectedDomains,
     missingChangeInputs,
     intakeDiagnostics,
+  });
+}
+
+export function buildPlayBuildPrompt(
+  recipe: string,
+  input: PlayBuildPromptArguments,
+): string {
+  const parsed = PlayBuildPromptArgumentsSchema.parse(input);
+  const blockerList = normalizeKnownBlockers(parsed.knownBlockers);
+  const workflowRouting = routeDevelopmentWorkflow({
+    requestedWorkflow: "play-build",
+    knownBlockers: blockerList,
+  });
+  const repairFirst = workflowRouting.route === "repair-first";
+  const requiredOperationFields = [
+    "buildUrl",
+    "buildId",
+    "task",
+    "controls",
+    "startState",
+    "endState",
+  ] as const;
+  const missingFields = repairFirst
+    ? []
+    : requiredOperationFields.filter((field) => !parsed[field]?.trim());
+  const {knownBlockers: _knownBlockers, personaIds, ...promptInput} = parsed;
+  return appendSerializedInput(recipe, {
+    ...promptInput,
+    knownBlockers: blockerList,
+    ...(personaIds ? {personaIds: personaIds.split(",")} : {}),
+    testerType: "ai-operated",
+    workflowRouting,
+    intakeDiagnostics: {
+      status: repairFirst
+        ? "repair-first"
+        : missingFields.length === 0 ? "ready" : "needs-input",
+      missingFields,
+      nextAction: repairFirst
+        ? workflowRouting.nextAction
+        : missingFields.length === 0
+          ? "Operate only the bounded build task and return a Player Probe Card."
+          : "Ask for all missing operation fields in one concise question.",
+    },
   });
 }
 

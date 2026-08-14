@@ -37,9 +37,11 @@ import type {PathResolver} from "./paths.js";
 import {
   AuditProjectPromptArgumentsSchema,
   buildAuditProjectPrompt,
+  buildPlayBuildPrompt,
   buildReviewChangePrompt,
   buildUiBlindComparePrompt,
   ReviewChangePromptArgumentsSchema,
+  PlayBuildPromptArgumentsSchema,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
 import {trackReviewPromptEvidence} from "./review-prompt-evidence.js";
@@ -56,7 +58,7 @@ import {
 const SERVER_NAME = "game-player-lens";
 const SERVER_VERSION = "0.2.0";
 const TOOL_COUNT = 15;
-const PROMPT_COUNT = 3;
+const PROMPT_COUNT = 4;
 
 const AppidSchema = z.number().int().positive();
 const ReviewTypeSchema = z.enum(["all", "positive", "negative"]);
@@ -499,6 +501,26 @@ export function buildServer(
       }
       return imageEnvelope(await services.imageService.readImage(kind, id));
     },
+  );
+
+  server.registerPrompt(
+    "play-build",
+    {
+      description: "Operate one bounded build task and return observation-first player-lens hypotheses without running a full audit",
+      argsSchema: PlayBuildPromptArgumentsSchema,
+    },
+    async (arguments_) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: buildPlayBuildPrompt(
+            await services.readSkill("play-build.md"),
+            arguments_,
+          ),
+        },
+      }],
+    }),
   );
 
   server.registerPrompt(

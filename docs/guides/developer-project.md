@@ -2,7 +2,7 @@
 
 Use this workflow for a concept, prototype, vertical slice, demo, prelaunch build, or proposed change that is not fully represented by a public Steam page.
 
-## Start with one decision
+## Start with one next action
 
 Do not ask for a general verdict on the whole game. Choose the next decision that could change development work, for example:
 
@@ -11,7 +11,44 @@ Do not ask for a general verdict on the whole game. Choose the next decision tha
 - Should the team build the next content wave or repair the current slice?
 - Does a proposed UI change improve one concrete player task?
 
-Use `review-change` for one explicit current-to-proposed revision. Use `audit-project` for the current milestone as a whole. The prompt name fixes the evidence mode; callers do not pass a `mode` argument.
+Start with `play-build` when a playable URL exists. Use `review-change` for one explicit current-to-proposed revision after both sides have useful evidence. Use `audit-project` only for the current milestone as a whole. The prompt name fixes the workflow; callers do not pass a `mode` argument.
+
+## Operation-first daily loop
+
+`play-build` needs no Project Brief, market, competitor set, audit bundle, or saved run. Give it one bounded operation:
+
+```json
+{
+  "target": "Project Nyx",
+  "buildUrl": "http://127.0.0.1:4173/play",
+  "buildId": "prototype-042",
+  "task": "Build one vehicle, carry one load, and read the arrival result",
+  "controls": "Keyboard and mouse",
+  "startState": "At the dock before construction",
+  "endState": "The arrival result is visible",
+  "timeLimitMinutes": "12",
+  "personaIds": "cautious-builder,risk-taker"
+}
+```
+
+The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, grounded lens reactions, the smallest playable change, and one human falsifier. It does not return a milestone verdict or automatically run Steam research.
+
+If the client cannot operate the build, it reports an operation blocker. Loading a page, reading source, or viewing one static frame is not play.
+
+### Repair-first routing
+
+When known execution defects already prevent a useful operation, declare them instead of assembling audit evidence:
+
+```json
+{
+  "target": "Project Nyx",
+  "knownBlockers": "Steering force is reversed\nStress feedback is binary"
+}
+```
+
+This route returns a Repair First Card and blocks build operation, Steam research, persona derivation, full audit, and artifact saving. Re-enter through `play-build` after a new build can execute the task. `audit-project` accepts the same `knownBlockers` escape route when a premature milestone audit was requested.
+
+The route is explicit rather than inferred from source code. Do not omit a known blocker merely to force a player simulation.
 
 ## Minimal `audit-project` request
 

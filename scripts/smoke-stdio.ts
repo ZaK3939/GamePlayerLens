@@ -26,7 +26,7 @@ const EXPECTED_TOOLS = [
   "steam_updates",
   "ui_capture",
 ];
-const EXPECTED_PROMPTS = ["audit-project", "review-change", "ui-blind-compare"];
+const EXPECTED_PROMPTS = ["audit-project", "play-build", "review-change", "ui-blind-compare"];
 const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
   "target",
   "topic",
@@ -56,7 +56,19 @@ const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
 ];
 const EXPECTED_AUDIT_PROJECT_ARGUMENTS = EXPECTED_REVIEW_CHANGE_ARGUMENTS.filter(
   (name) => name !== "currentState" && name !== "proposal" && name !== "revisionBundle",
-).toSpliced(15, 0, "auditSnapshotBundle");
+).toSpliced(5, 0, "knownBlockers").toSpliced(16, 0, "auditSnapshotBundle");
+const EXPECTED_PLAY_BUILD_ARGUMENTS = [
+  "target",
+  "buildUrl",
+  "buildId",
+  "task",
+  "controls",
+  "startState",
+  "endState",
+  "timeLimitMinutes",
+  "personaIds",
+  "knownBlockers",
+];
 
 async function repositoryArtifactEntries(root: string): Promise<string[]> {
   const artifactRoots = [
@@ -127,6 +139,7 @@ try {
   assert(
     statusJson.includes('"location":"repository-root"')
       && statusJson.includes('"toolCount":15')
+      && statusJson.includes('"promptCount":4')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",
   );
@@ -152,6 +165,31 @@ try {
     JSON.stringify(reviewChange.arguments?.map((argument) => argument.name))
       === JSON.stringify(EXPECTED_REVIEW_CHANGE_ARGUMENTS),
     "unexpected review-change prompt argument schema",
+  );
+
+  const playBuild = listedPrompts.find((prompt) => prompt.name === "play-build");
+  assert(playBuild !== undefined, "play-build prompt is missing");
+  assert(
+    JSON.stringify(playBuild.arguments?.map((argument) => argument.name))
+      === JSON.stringify(EXPECTED_PLAY_BUILD_ARGUMENTS),
+    "unexpected play-build prompt argument schema",
+  );
+  const repairPrompt = await client.getPrompt({
+    name: "play-build",
+    arguments: {
+      target: "Stdio Repair Fixture",
+      knownBlockers: "Steering force is reversed\nStress feedback is binary",
+    },
+  });
+  const repairContent = repairPrompt.messages[0]?.content;
+  assert(repairContent?.type === "text", "play-build repair route did not return text");
+  assert(
+    repairContent.type === "text"
+      && repairContent.text.includes('"route": "repair-first"')
+      && repairContent.text.includes('"status": "repair-first"')
+      && repairContent.text.includes('"steam-research"')
+      && !repairContent.text.includes("auditSnapshotBundle"),
+    "play-build did not short-circuit known blockers",
   );
 
   const firstContactRecord = await client.callTool({

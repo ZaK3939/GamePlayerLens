@@ -1,11 +1,11 @@
 # GamePlayerLens
 
-GamePlayerLens is an evidence-driven review agent for game teams. It reviews each playable revision through grounded player lenses and tells an AI client whether the project has enough evidence to advance. It combines current Steam data, review-derived player memories, matched competitors, UI stimuli, project briefs, playtest observations, and immutable review runs to answer four questions:
+GamePlayerLens is an operation-first player-lens and evidence-review MCP server for game teams. Its shortest loop is `play build → form grounded player hypotheses → make the smallest change → ask a human to falsify them`. Milestone auditing remains available after the build produces useful evidence. It combines direct build operation, review-derived player memories, UI stimuli, human observations, and—only when the decision needs them—Steam and competitor data to answer four questions:
 
-- Should this change or milestone advance now?
-- What is supported by evidence?
-- What is still unknown?
-- What are the smallest useful validations to run next?
+- What happened when one bounded player task was operated?
+- How might different grounded player lenses interpret that response?
+- What is the smallest playable change to try next?
+- At a milestone, is there enough evidence to advance?
 
 Review-derived personas remain part of the process, but they are evidence-grounded lenses for generating questions and response hypotheses—not substitutes for people who played the game. The server validates inputs, collects and normalizes evidence, stores artifacts, and checks coverage and integrity. The AI model in your MCP client writes the review; GamePlayerLens does not run a server-side LLM.
 
@@ -41,25 +41,29 @@ game-player-lens
 
 After connecting, call `get_status` with no arguments. It reports whether the data directory is writable and whether the optional ITAD and Obscura integrations are configured, without returning secrets or absolute paths.
 
-For a copy-runnable first review, call `audit-project` with a released game and one bounded decision:
+For a playable development build, start with `play-build` rather than a full audit:
 
 ```json
 {
-  "target": "Hades",
-  "topic": "Current Japanese store promise and competitive position",
-  "subjectKind": "existing-game",
-  "domains": "storefront,competition",
-  "market": "Japan",
-  "language": "japanese"
+  "target": "Project Nyx",
+  "buildUrl": "http://127.0.0.1:4173/play",
+  "buildId": "prototype-042",
+  "task": "Complete one delivery and read the result",
+  "controls": "Keyboard and mouse",
+  "startState": "At the dock before construction",
+  "endState": "The delivery result is visible",
+  "timeLimitMinutes": "12"
 }
 ```
 
-For everyday development, use `review-change`. It fixes the workflow to a current-versus-candidate revision and requires a `revisionBundle` that binds both Git commits and build IDs to saved artifact SHA-256 values. This prevents screenshots, receipts, or test results from another build entering the change run. The [developer-project guide](docs/guides/developer-project.md) defines the bundle. Use `audit-project` at vertical-slice, demo, release, or other milestone boundaries.
+If known execution blockers already prevent that task, pass one per line as `knownBlockers`. The route returns a short Repair First Card without operating the build, researching Steam, deriving personas, saving artifacts, or running an audit. After a candidate build exists, use `review-change`. Use `audit-project` only at vertical-slice, demo, release, or another milestone boundary.
 
 ## Choose a workflow
 
 | Goal | Start here | Guide |
 |---|---|---|
+| Operate one build task through player lenses | `play-build` with build, task, controls, and start/end state | [Developer projects](docs/guides/developer-project.md) |
+| Repair already-known execution blockers | `play-build` with `target` and newline-separated `knownBlockers` | [Developer projects](docs/guides/developer-project.md#repair-first-routing) |
 | Review one proposed revision | `review-change` with `currentState`, `proposal`, and `revisionBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a concept, prototype, vertical slice, or milestone | `audit-project`; active projects also require an `auditSnapshotBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a released Steam game | `steam_search` → `steam_brief`, then `audit-project` | [Existing games](docs/guides/existing-game.md) |
@@ -72,21 +76,23 @@ For everyday development, use `review-change`. It fixes the workflow to a curren
 
 | Stage | Capability | Typical output |
 |---|---|---|
-| Understand | Collect store data, regional prices, reviews, updates, current snapshots, and candidate competitors | `steam_brief`, provenance, supported decisions, gaps |
-| Structure | Turn developer intent into a strict Project Brief | Core Experience Map, intake diagnostics |
-| Review through player lenses | Expose the same server-grounded v3 personas to current and proposed scenarios | exact derivation memory, explicit research questions, source-fit rationale, explicit stimulus, perceived signals, action, predicted response, uncertainty, human falsifier |
+| Route | Stop known blockers before research or audit | Repair First Card and re-entry condition |
+| Play | Operate one bounded task in a playable build | Action → Response Trace |
+| Hypothesize | Replay the same observed stimulus through explicit grounded personas | Player Lens Reactions with confidence and human falsifier |
+| Fix | Choose the smallest change that can alter the next operation | player problem, change, success signal, guardrail |
+| Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
-| Observe | Preserve concept tests, first-contact tests, playtest sessions, and cohorts | chronological action-response traces and bounded participant reports |
-| Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | structured Decision Card, short developer summary, severity-ranked findings, and prioritized backlog |
-| Learn | Save source envelopes, personas, evaluations, runs, and experiment outcomes | exact-save artifacts, integrity reports, verified experiment decisions |
+| Audit | Decide whether a milestone or bounded revision should advance | structured Decision Card, immutable evidence run, prioritized backlog |
+| Research | Collect current Steam, review, update, price, and competitor evidence when the selected decision requires it | `steam_brief`, provenance, supported decisions, gaps |
 
-The three MCP prompts are:
+The four MCP prompts are:
 
+- `play-build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card, not a milestone verdict.
 - `review-change`: the daily current-versus-candidate revision review. It fixes `mode=change`, requires a revision bundle, and prioritizes changed findings.
 - `audit-project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
 - `ui-blind-compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.
 
-Both main review prompts lead with a compact `Decision Check`: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations. Detailed findings follow with `Blocker`, `Important`, or `Suggestion` severity and evidence links.
+`play-build` never returns GO / HOLD / NO-GO. The two decision prompts lead with a compact Decision Check: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations.
 
 The server currently exposes exactly 15 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
 

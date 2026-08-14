@@ -135,7 +135,7 @@ try {
   assert(tools.length === 15, "packaged CLI did not expose fifteen tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
-      === JSON.stringify(["audit-project", "review-change", "ui-blind-compare"]),
+      === JSON.stringify(["audit-project", "play-build", "review-change", "ui-blind-compare"]),
     "packaged CLI did not expose the review prompt surface",
   );
 
@@ -146,12 +146,31 @@ try {
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
       && statusJson.includes('"toolCount":15')
+      && statusJson.includes('"promptCount":4')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
         && statusJson.includes(process.env.ITAD_API_KEY))
       && !(process.env.OBSCURA_PATH?.trim()
         && statusJson.includes(process.env.OBSCURA_PATH)),
     "packaged get_status exposed sensitive configuration or returned incomplete readiness metadata",
+  );
+
+  const repairPrompt = await client.getPrompt({
+    name: "play-build",
+    arguments: {
+      target: "Package Repair Fixture",
+      knownBlockers: "Steering force is reversed\nStress feedback is binary",
+    },
+  });
+  const repairContent = repairPrompt.messages[0]?.content;
+  assert(repairContent?.type === "text", "packaged play-build did not return text");
+  assert(
+    repairContent.type === "text"
+      && repairContent.text.includes('"route": "repair-first"')
+      && repairContent.text.includes('"status": "repair-first"')
+      && repairContent.text.includes('"steam-research"')
+      && !repairContent.text.includes("auditSnapshotBundle"),
+    "packaged play-build did not short-circuit known blockers",
   );
 
   const knowledge = await client.callTool({

@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 15 MCP tools and three prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 15 MCP tools and four prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -24,13 +24,16 @@ GamePlayerLens exposes exactly 15 MCP tools and three prompts. All tools return 
 
 ## Prompts
 
+- `play-build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. It returns a Player Probe Card and never starts Steam research, persona derivation, a full audit, or mandatory persistence.
 - `review-change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
-- `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`.
+- `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`. Supplying `knownBlockers` short-circuits a premature audit to Repair First without requiring the full intake.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
-The two main review prompts orchestrate intake, evidence collection, review-grounded player-lens rounds, domain review, criticism, evaluation storage, and run storage. `domains` must explicitly name at least one domain; omission returns `needs-input`, and a ready prompt receives only the named domain recipe sections. Both lead with a compact Decision Check before detailed severity-ranked findings.
+`play-build` is intentionally separate from the two decision prompts. It operates one task, distinguishes observed responses from persona hypotheses, proposes one smallest change, and hands one falsifiable question to a person. The decision prompts orchestrate evidence collection, domain review, criticism, evaluation storage, and run storage. They lead with a compact Decision Check before detailed findings.
 
 Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `auditSnapshotBundle`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary. First-contact input goes through `record_first_contact`; pass its result handle as `firstContactResultHandle`.
+
+`knownBlockers` is newline-separated. When non-empty, its Repair First route takes precedence over missing build or audit fields. `personaIds` is a comma-separated list of already saved personas; `play-build` never derives personas implicitly.
 
 ## Partial success and provenance
 
