@@ -40,11 +40,22 @@ function persona(): Persona {
     })),
     dealbreakers: [],
     price_sensitivity: "セール待ち",
-    schema_version: 2,
+    schema_version: 3,
     target_context: {
       market: "Japan",
       language: "japanese",
-      source_roles: [{appid: 1145360, role: "target"}],
+      research_questions: [{
+        id: "value-clarity",
+        question: "Which signals make the offered value clear?",
+      }],
+      source_roles: [{
+        appid: 1145360,
+        role: "target",
+        fitRole: "target-game",
+        matchedAxes: ["player-problem"],
+        researchQuestionIds: ["value-clarity"],
+        rationale: "Target reviews directly describe the value problem under review.",
+      }],
     },
     decision_profile: {
       adoption_trigger: "価格と価値の対応が明確",
@@ -55,12 +66,22 @@ function persona(): Persona {
     evidence_basis: {
       observed_patterns: [
         {
+          research_question_id: "value-clarity",
           claim: "価格を採用判断に使う",
-          evidence: [{source_appid: 1145360, recommendation_id: "rec-0"}],
+          evidence: [{
+            source_appid: 1145360,
+            recommendation_id: "rec-0",
+            relevance: "The review directly connects price to the adoption decision.",
+          }],
         },
         {
+          research_question_id: "value-clarity",
           claim: "価値の明確さを重視する",
-          evidence: [{source_appid: 1145360, recommendation_id: "rec-1"}],
+          evidence: ["rec-1", "rec-2"].map((recommendation_id) => ({
+            source_appid: 1145360,
+            recommendation_id,
+            relevance: "The review directly evaluates whether the value is clear.",
+          })),
         },
       ],
       inferred_traits: [],

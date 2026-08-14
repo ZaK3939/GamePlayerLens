@@ -564,7 +564,18 @@ try {
         targetAppid: 1145360,
         market: "Japan",
         language: "japanese",
-        sourceRoles: [{appid: 1145360, role: "target"}],
+        researchQuestions: [{
+          id: "combat-readability",
+          question: "Which combat signals support adoption and continued play?",
+        }],
+        sourceRoles: [{
+          appid: 1145360,
+          role: "target",
+          fitRole: "target-game",
+          matchedAxes: ["player-problem"],
+          researchQuestionIds: ["combat-readability"],
+          rationale: "Hades reviews directly describe the target game's combat expectations.",
+        }],
       },
     });
     assert(personas.isError !== true, "derive_personas returned a tool error");

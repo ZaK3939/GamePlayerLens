@@ -8,7 +8,18 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
       market: "Japan",
       language: "japanese",
       focus: ["adoption", "retention", "churn", "update-response"],
-      sourceRoles: [{appid: 1145360, role: "target"}],
+      researchQuestions: [{
+        id: "combat-readability",
+        question: "Which combat signals support adoption and continued play?",
+      }],
+      sourceRoles: [{
+        appid: 1145360,
+        role: "target",
+        fitRole: "target-game",
+        matchedAxes: ["player-problem"],
+        researchQuestionIds: ["combat-readability"],
+        rationale: "Hades reviews directly describe the target game's combat expectations.",
+      }],
     }, 5, 8);
     expect(result.data?.requestedCount).toBe(5);
     expect(result.data?.reviews.length).toBeGreaterThanOrEqual(10);
@@ -31,7 +42,15 @@ describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hade
       targetAppid: 1145360,
       market: "Japan",
       language: "japanese",
-      sources: [{appid: 1145360, role: "target"}],
+      researchQuestions: [{
+        id: "combat-readability",
+        question: "Which combat signals support adoption and continued play?",
+      }],
+      sources: [{
+        appid: 1145360,
+        role: "target",
+        fitRole: "target-game",
+      }],
     });
     expect((result.data?.schema.required as unknown[] | undefined)).toEqual(
       expect.arrayContaining(["schema_version", "target_context", "decision_profile", "evidence_basis"]),

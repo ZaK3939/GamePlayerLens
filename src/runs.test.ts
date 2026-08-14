@@ -189,6 +189,22 @@ function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+const PERSONA_RESEARCH_QUESTIONS = [{
+  id: "combat-readability",
+  question: "Which signals make the first combat decision and result readable?",
+}] as const;
+
+function personaTargetSource() {
+  return {
+    appid: 1145350,
+    role: "target" as const,
+    fitRole: "target-game" as const,
+    matchedAxes: ["player-problem" as const],
+    researchQuestionIds: ["combat-readability"],
+    rationale: "Target reviews directly describe the combat-readability problem.",
+  };
+}
+
 function derivationPayload() {
   return {
     data: {
@@ -208,7 +224,8 @@ function derivationPayload() {
         market: "Japan",
         language: "japanese",
         focus: ["adoption"],
-        sources: [{appid: 1145350, role: "target"}],
+        researchQuestions: [...PERSONA_RESEARCH_QUESTIONS],
+        sources: [personaTargetSource()],
       },
       games: [],
       reviews: [1, 2, 3].map((index) => ({
@@ -248,11 +265,12 @@ function persona(id = "jp-skeptic"): Persona {
     })),
     dealbreakers: ["unreadable text"],
     price_sensitivity: "medium",
-    schema_version: 2,
+    schema_version: 3,
     target_context: {
       market: "Japan",
       language: "japanese",
-      source_roles: [{appid: 1145350, role: "target"}],
+      research_questions: [...PERSONA_RESEARCH_QUESTIONS],
+      source_roles: [personaTargetSource()],
     },
     decision_profile: {
       adoption_trigger: "The first combat decision and result are readable",
@@ -263,12 +281,22 @@ function persona(id = "jp-skeptic"): Persona {
     evidence_basis: {
       observed_patterns: [
         {
+          research_question_id: "combat-readability",
           claim: "Combat readability affects adoption",
-          evidence: [{source_appid: 1145350, recommendation_id: "rec-1"}],
+          evidence: [{
+            source_appid: 1145350,
+            recommendation_id: "rec-1",
+            relevance: "The review directly connects combat readability to adoption.",
+          }],
         },
         {
+          research_question_id: "combat-readability",
           claim: "Unreadable feedback is a dealbreaker",
-          evidence: [{source_appid: 1145350, recommendation_id: "rec-3"}],
+          evidence: ["rec-2", "rec-3"].map((recommendation_id) => ({
+            source_appid: 1145350,
+            recommendation_id,
+            relevance: "The review directly evaluates readable combat feedback.",
+          })),
         },
       ],
       inferred_traits: [],

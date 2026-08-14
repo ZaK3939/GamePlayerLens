@@ -12,7 +12,7 @@ GamePlayerLens exposes exactly 14 MCP tools and three prompts. All tools return 
 | `steam_reviews` | Fetch recent reviews filtered by language, polarity, and minimum playtime |
 | `steam_timeline` | Fetch a current SteamSpy snapshot and optional ITAD price history |
 | `steam_updates` | Fetch official Steam announcements with update selection, classification evidence, highlights, and cadence |
-| `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; `market` and `language` are required |
+| `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; audience, research questions, and an explicit source-fit selection are required |
 | `save_persona` | Validate a generated persona against an exact `derive_personas` result handle and atomically save its server grounding |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
@@ -37,7 +37,38 @@ External fetches preserve successful source data when another endpoint fails. Al
 
 Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, and `derive_personas` include a short-lived `meta.resultHandle`. Pass the handle with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription.
 
-For persona generation, pass that same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field and the audience/source-role context with the cached tool result, then stores a SHA-256 binding to the exact result. An unknown, expired, non-derivation, blocked, or mismatched result is rejected.
+For persona generation, every requested appid needs an explicit `sourceRoles` entry linked to one of one-to-three `researchQuestions`. A competitor source must be direct or adjacent and declare at least three fit axes. A reference source is limited to `system-reference`; visual references and market-success anchors belong in their own evidence ledgers, not persona voice. Pass the same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field, research question, audience, and source-selection field with the cached result, then stores a SHA-256 binding to that result. Every saved voice must support an observed pattern whose evidence entry explains its relevance. These deterministic checks expose the semantic argument for review; they do not prove that the argument is true.
+
+```json
+{
+  "appids": [1145360, 588650],
+  "market": "Japan",
+  "language": "japanese",
+  "researchQuestions": [
+    {"id": "combat-readability", "question": "Which signals make the combat choice and result readable?"}
+  ],
+  "sourceRoles": [
+    {
+      "appid": 1145360,
+      "role": "target",
+      "fitRole": "target-game",
+      "matchedAxes": ["player-problem"],
+      "researchQuestionIds": ["combat-readability"],
+      "rationale": "Target reviews directly describe the current readability problem."
+    },
+    {
+      "appid": 588650,
+      "role": "competitor",
+      "fitRole": "adjacent-competitor",
+      "matchedAxes": ["repeated-action", "decision-cadence", "system-response"],
+      "researchQuestionIds": ["combat-readability"],
+      "rationale": "The repeated combat action, decision cadence, and visible response match this question."
+    }
+  ]
+}
+```
+
+Allowed match axes are `repeated-action`, `decision-cadence`, `system-response`, `reward-structure`, `player-problem`, `session-shape`, `platform-controls`, and `audience-expectation`.
 
 The result store retains only the most recent 32 handles in the current MCP process. Handles expire when that process ends.
 

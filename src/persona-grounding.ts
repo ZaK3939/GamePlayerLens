@@ -2,8 +2,9 @@ import {z} from "zod";
 import {canonicalSha256} from "./integrity.js";
 import {
   GeneratedPersonaSchema,
+  PersonaResearchQuestionSchema,
   PersonaSchema,
-  SourceRoleSchema,
+  PersonaSourceSelectionSchema,
   type GeneratedPersona,
   type Persona,
 } from "./persona-schemas.js";
@@ -27,7 +28,8 @@ const DerivationPayloadSchema = z.object({
     brief: z.object({
       market: z.string().min(1),
       language: z.string().min(1),
-      sources: z.array(SourceRoleSchema).min(1),
+      researchQuestions: z.array(PersonaResearchQuestionSchema).min(1).max(3),
+      sources: z.array(PersonaSourceSelectionSchema).min(1),
     }).passthrough(),
     reviews: z.array(DerivationReviewSchema),
   }).passthrough(),
@@ -55,16 +57,19 @@ function assertPersonaMatchesPayload(
   if (
     persona.target_context.market !== payload.data.brief.market
     || persona.target_context.language !== payload.data.brief.language
+    || canonicalSha256(persona.target_context.research_questions)
+      !== canonicalSha256(payload.data.brief.researchQuestions)
   ) {
     throw new Error("persona audience does not match the derivation result");
   }
 
   const sourceRoles = new Map(
-    payload.data.brief.sources.map(({appid, role}) => [appid, role]),
+    payload.data.brief.sources.map((source) => [source.appid, source]),
   );
-  for (const {appid, role} of persona.target_context.source_roles) {
-    if (sourceRoles.get(appid) !== role) {
-      throw new Error(`persona source role does not match derivation result: ${appid}`);
+  for (const source of persona.target_context.source_roles) {
+    const selectedSource = sourceRoles.get(source.appid);
+    if (!selectedSource || canonicalSha256(selectedSource) !== canonicalSha256(source)) {
+      throw new Error(`persona source selection does not match derivation result: ${source.appid}`);
     }
   }
 
@@ -79,7 +84,7 @@ function assertPersonaMatchesPayload(
       || review.review !== voice.text
       || review.language !== voice.language
       || review.votedUp !== voice.voted_up
-      || review.sourceRole !== sourceRoles.get(voice.source_appid)
+      || review.sourceRole !== sourceRoles.get(voice.source_appid)?.role
     ) {
       throw new Error(
         `persona voice does not exactly match derivation review: ${voiceKey(voice)}`,

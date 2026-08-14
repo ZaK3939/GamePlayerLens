@@ -5,9 +5,11 @@ import {
   MAX_DERIVATION_APPIDS,
   MIN_UNIQUE_VOICE_REVIEWS_PER_PERSONA,
   PERSONA_FOCUS_VALUES,
-  SourceRoleSchema,
+  PersonaResearchQuestionSchema,
+  PersonaSourceSelectionSchema,
   type PersonaFocus,
-  type PersonaSourceRole,
+  type PersonaResearchQuestion,
+  type PersonaSourceSelection,
 } from "./persona-schemas.js";
 import {fetchReviews, type Review, type ReviewOptions} from "./reviews.js";
 import {fetchGame, type GameProfile} from "./steam.js";
@@ -25,7 +27,8 @@ export interface PersonaDerivationOptions {
   market: string;
   language: string;
   focus?: PersonaFocus[];
-  sourceRoles?: PersonaSourceRole[];
+  researchQuestions: PersonaResearchQuestion[];
+  sourceRoles: PersonaSourceSelection[];
 }
 
 interface NormalizedPersonaDerivationOptions {
@@ -33,7 +36,8 @@ interface NormalizedPersonaDerivationOptions {
   market: string;
   language: string;
   focus: PersonaFocus[];
-  sourceRoles: PersonaSourceRole[];
+  researchQuestions: PersonaResearchQuestion[];
+  sourceRoles: PersonaSourceSelection[];
 }
 
 export interface DerivationPack {
@@ -54,10 +58,8 @@ export interface DerivationPack {
     market: string;
     language: string;
     focus: PersonaFocus[];
-    sources: Array<{
-      appid: number;
-      role: "target" | "competitor" | "reference";
-    }>;
+    researchQuestions: PersonaResearchQuestion[];
+    sources: PersonaSourceSelection[];
   };
   games: GameProfile[];
   reviews: DerivationReview[];
@@ -189,9 +191,10 @@ function personaGenerationInstruction(
   return [
     generationDirective,
     "voice の各項目は reviews の本文・sourceAppid・recommendationId・language・votedUp に直接対応させ、同じreview voiceをpersona間で再利用しないでください。",
-    "schema_version=2 とし、target_context、decision_profile、evidence_basisを省略しないでください。",
+    "schema_version=3 とし、target_context、decision_profile、evidence_basisを省略しないでください。",
+    "各observed_patternはresearch_question_idを1件選び、すべてのvoiceを少なくとも1つのpatternから参照し、引用ごとのrelevanceに本文がそのclaimを支える理由を書いてください。関連性を説明できないreviewはvoiceへ採用しないでください。",
+    "target、direct / adjacent competitor、system referenceのfitRoleを混同せず、市場成功や視覚品質だけを理由にpersona voiceへ転用しないでください。",
     "observed_patternsはvoiceを参照し、inferred_traitsとlimitationsを分離してください。更新反応の根拠がなければupdate_reactionをunknownとして不足根拠を記録してください。",
-    "target、competitor、referenceのsourceRoleを混同せず、各personaのadoption/retention/churn triggerが実質的に異なることを確認してください。",
     "The polarity-balanced review sample is not representative of population shares.",
     "生成した各 JSON は返されたderivation resultHandleと一緒にsave_personaへ渡し、実review本文との完全一致をserver検証して1件ずつ保存してください。",
   ].join(" ");
@@ -223,6 +226,7 @@ function personaMeta(
       market: options.market,
       language: options.language,
       focus: options.focus,
+      researchQuestions: options.researchQuestions,
       sourceRoles: options.sourceRoles,
     },
     methodology: {
@@ -252,8 +256,10 @@ function normalizeDerivationOptions(
     !input
     || typeof input.market !== "string"
     || typeof input.language !== "string"
+    || !Array.isArray(input.researchQuestions)
+    || !Array.isArray(input.sourceRoles)
   ) {
-    throw new TypeError("market and language are required");
+    throw new TypeError("market, language, researchQuestions, and sourceRoles are required");
   }
   const market = input.market.trim();
   if (!market) throw new TypeError("market must be a non-empty string");
@@ -274,49 +280,60 @@ function normalizeDerivationOptions(
     throw new TypeError("focus values must be known and unique");
   }
 
-  let targetAppid = input.targetAppid;
-  let sourceRoles: PersonaSourceRole[];
-  if (input.sourceRoles !== undefined) {
-    const parsed = z.array(SourceRoleSchema)
-      .min(1)
-      .max(MAX_DERIVATION_APPIDS)
-      .safeParse(input.sourceRoles);
-    if (!parsed.success) {
-      throw new TypeError("sourceRoles must contain valid appid and role entries");
-    }
-    const roleAppids = parsed.data.map(({appid}) => appid);
-    const coversExactly = roleAppids.length === uniqueAppids.length
-      && new Set(roleAppids).size === roleAppids.length
-      && roleAppids.every((appid) => uniqueAppids.includes(appid));
-    if (!coversExactly) {
-      throw new TypeError("sourceRoles must cover exactly the requested appids");
-    }
-    const targets = parsed.data.filter(({role}) => role === "target");
-    if (targets.length > 1) {
-      throw new TypeError("sourceRoles may contain at most one target");
-    }
-    if (targetAppid !== undefined && targets[0]?.appid !== targetAppid) {
-      throw new TypeError("targetAppid must match the target entry in sourceRoles");
-    }
-    targetAppid ??= targets[0]?.appid;
-    const byAppid = new Map(parsed.data.map((source) => [source.appid, source]));
-    sourceRoles = uniqueAppids.map((appid) => byAppid.get(appid)!);
-  } else {
-    sourceRoles = uniqueAppids.map((appid) => ({
-      appid,
-      role: targetAppid === undefined
-        ? "reference"
-        : appid === targetAppid
-          ? "target"
-          : "competitor",
-    }));
+  const parsedQuestions = z.array(PersonaResearchQuestionSchema)
+    .min(1)
+    .max(3)
+    .safeParse(input.researchQuestions);
+  if (!parsedQuestions.success) {
+    throw new TypeError("researchQuestions must contain 1 to 3 valid questions");
   }
-  return {targetAppid, market, language, focus: [...focus], sourceRoles};
+  const questionIds = parsedQuestions.data.map(({id}) => id);
+  if (new Set(questionIds).size !== questionIds.length) {
+    throw new TypeError("researchQuestions must use unique ids");
+  }
+  const parsedRoles = z.array(PersonaSourceSelectionSchema)
+    .min(1)
+    .max(MAX_DERIVATION_APPIDS)
+    .safeParse(input.sourceRoles);
+  if (!parsedRoles.success) {
+    throw new TypeError("sourceRoles must contain valid, evidence-relevant source selections");
+  }
+  const knownQuestionIds = new Set(questionIds);
+  if (parsedRoles.data.some((source) =>
+    source.researchQuestionIds.some((id) => !knownQuestionIds.has(id)))) {
+    throw new TypeError("sourceRoles must reference only declared researchQuestions");
+  }
+  const roleAppids = parsedRoles.data.map(({appid}) => appid);
+  const coversExactly = roleAppids.length === uniqueAppids.length
+    && new Set(roleAppids).size === roleAppids.length
+    && roleAppids.every((appid) => uniqueAppids.includes(appid));
+  if (!coversExactly) {
+    throw new TypeError("sourceRoles must cover exactly the requested appids");
+  }
+  const targets = parsedRoles.data.filter(({role}) => role === "target");
+  if (targets.length > 1) {
+    throw new TypeError("sourceRoles may contain at most one target");
+  }
+  let targetAppid = input.targetAppid;
+  if (targetAppid !== undefined && targets[0]?.appid !== targetAppid) {
+    throw new TypeError("targetAppid must match the target entry in sourceRoles");
+  }
+  targetAppid ??= targets[0]?.appid;
+  const byAppid = new Map(parsedRoles.data.map((source) => [source.appid, source]));
+  const sourceRoles = uniqueAppids.map((appid) => byAppid.get(appid)!);
+  return {
+    targetAppid,
+    market,
+    language,
+    focus: [...focus],
+    researchQuestions: parsedQuestions.data,
+    sourceRoles,
+  };
 }
 
 function sourceRole(
   appid: number,
-  sourceRoles: PersonaSourceRole[],
+  sourceRoles: PersonaSourceSelection[],
 ): "target" | "competitor" | "reference" {
   const source = sourceRoles.find((candidate) => candidate.appid === appid);
   if (!source) throw new TypeError(`source role missing for appid ${appid}`);
@@ -526,6 +543,7 @@ export function createPersonaDeriver(
           market: options.market,
           language: options.language,
           focus: options.focus,
+          researchQuestions: options.researchQuestions,
           sources: options.sourceRoles,
         },
         games,

@@ -24,12 +24,12 @@
 - 外部toolの`meta.resultHandle`は取得直後に`save_artifact(kind=intel, target, id, resultHandle)`でexact-saveします。モデルがpayloadを再serialize、統合、抜粋、要約しません。handleを使えない場合だけ完全payload、sourceTool、確実なobservedAtを渡します。
 - changeでは`revisionBundleEvidence.resultHandle`をexact-saveし、そのintel refをrunの`revisionBundleRef`へ渡します。bundle内artifactもrun evidenceへ含め、serverのkind / SHA-256照合を通します。
 - `get_artifact(kind=evaluation)`で必要な履歴だけ読み、`get_knowledge`でtemplate、critic、coverage、選択domain rubricを読みます。`steam_search` / `steam_discover` / `steam_fetch` / `steam_reviews` / `steam_timeline` / `steam_updates`の役割を混同せず、Steam Sonarの`referenceLinks.steamSonar`を独立証拠にしません。
-- `derive_personas`へappid、market、language、sourceRolesを渡し、resultHandleを`save_artifact`してEvidence Indexへ入れます。`generationAllowed=false`なら停止し、`generationReadiness.supportedCount`を守ります。同じreview voiceをpersona間で再利用しません。同じ`derivationResultHandle`で`save_persona`し、server照合を通します。
+- `derive_personas`へappid、market、language、1〜3件のresearchQuestions、全appidを覆うsourceRolesを渡します。competitorはdirect / adjacentと最低3一致軸、referenceはsystem-referenceだけです。visual referenceやmarket-success anchorをpersona voiceへ入れません。resultHandleを`save_artifact`してEvidence Indexへ入れ、`generationAllowed=false`なら停止し、`generationReadiness.supportedCount`を守ります。同じreview voiceをpersona間で再利用しません。同じ`derivationResultHandle`で`save_persona`し、server照合を通します。
 - 各領域はsubagentで独立評価し、利用できないclientでは領域を混ぜないsequential independent passにします。全主張をEvidence IDまたはvoiceのsource_appid / recommendation_idへ接続します。
 
 ## Evidence-grounded player-lens review
 
-レビュー前に、実Steam voiceから作った保存済みv2 personaを各scenarioへ通します。personaは人間参加者の代替ではなく反応仮説を作るreview lensです。changeはpersona、task、evidence classを固定します。
+レビュー前に、実Steam voiceから作った保存済みv3 personaを各scenarioへ通します。各voiceはresearch question、observed pattern、引用ごとのrelevanceへ接続し、説明できないreviewは採用しません。personaは人間参加者の代替ではなく反応仮説を作るreview lensです。changeはpersona、task、evidence classを固定します。
 
 各`persona × scenario`に`playerSimulation`を保存し、`memory.derivationEvidenceRef`、`memory.voiceEvidence`、`stimulusEvidenceRefs`、`perception → decision → response → reflection`を分離します。UIはcapture、competitionはcompetitor voiceを引用し、scenario-onlyはstimulusを空にします。予測をhuman report / 市場比率にせず、反証条件までsynthesisします。
 

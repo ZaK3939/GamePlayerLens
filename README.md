@@ -73,7 +73,7 @@ For everyday development, use `review-change`. It fixes the workflow to a curren
 |---|---|---|
 | Understand | Collect store data, regional prices, reviews, updates, current snapshots, and candidate competitors | `steam_brief`, provenance, supported decisions, gaps |
 | Structure | Turn developer intent into a strict Project Brief | Core Experience Map, intake diagnostics |
-| Review through player lenses | Expose the same server-grounded v2 personas to current and proposed scenarios | exact derivation memory, explicit stimulus, perceived signals, action, predicted response, uncertainty, human falsifier |
+| Review through player lenses | Expose the same server-grounded v3 personas to current and proposed scenarios | exact derivation memory, explicit research questions, source-fit rationale, explicit stimulus, perceived signals, action, predicted response, uncertainty, human falsifier |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Observe | Preserve concept tests, first-contact tests, playtest sessions, and cohorts | chronological action-response traces and bounded participant reports |
 | Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | one-screen Decision Check, severity-ranked findings, and prioritized backlog |
@@ -154,7 +154,7 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 Live tests use Hades (`1145360`) for Steam data, Hades II (`1145350`) for Steam image capture, and `Action Roguelike` for SteamSpy discovery. Optional integrations are tested when configured and otherwise must return explicit warnings.
 
-Evidence collection and review for released Steam games remain the strongest validated workflow. `save_persona` now requires the original `derive_personas` result handle and rejects any review text, ID, language, vote, audience, or source-role mismatch. Structured virtual-player rounds bind that exact-saved derivation artifact separately from explicit scenario stimuli, require UI evidence when UI is selected, competitor voice evidence when competition is selected, and a human falsification plan. Calibration against repeated real-player responses and continued end-to-end dogfooding with playable builds remain the highest-value validation work.
+Evidence collection and review for released Steam games remain the strongest validated workflow. `derive_personas` requires explicit research questions and a source selection for every appid. Direct or adjacent competitors need at least three declared fit axes; persona references are limited to system references, so visual-quality and market-success examples cannot silently become player voice. `save_persona` requires the original derivation handle, rejects source-selection drift, and requires every selected review voice to support an observed pattern with an explicit relevance explanation. These checks make semantic claims auditable; they do not make the server an automatic judge of meaning. Calibration against repeated real-player responses and continued end-to-end dogfooding with playable builds remain the highest-value validation work.
 
 ## Documentation
 

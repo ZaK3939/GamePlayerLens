@@ -448,6 +448,18 @@ try {
   );
   playtestCohortRoundTrip = true;
 
+  const packageResearchQuestions = [{
+    id: "promise-readability",
+    question: "Which signals make the first meaningful action and result readable?",
+  }] as const;
+  const packageTargetSource = {
+    appid: 1145360,
+    role: "target",
+    fitRole: "target-game",
+    matchedAxes: ["player-problem"],
+    researchQuestionIds: ["promise-readability"],
+    rationale: "Target reviews directly describe the readability problem under review.",
+  } as const;
   const packageGeneratedPersona = {
     id: "package-smoke-player",
     source_appids: [1145360],
@@ -463,11 +475,12 @@ try {
     })),
     dealbreakers: ["unclear value proposition"],
     price_sensitivity: "medium",
-    schema_version: 2,
+    schema_version: 3,
     target_context: {
       market: "United States",
       language: "english",
-      source_roles: [{appid: 1145360, role: "target"}],
+      research_questions: packageResearchQuestions,
+      source_roles: [packageTargetSource],
     },
     decision_profile: {
       adoption_trigger: "The first meaningful action is clear",
@@ -478,12 +491,22 @@ try {
     evidence_basis: {
       observed_patterns: [
         {
+          research_question_id: "promise-readability",
           claim: "A clear promise affects adoption",
-          evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-1"}],
+          evidence: [{
+            source_appid: 1145360,
+            recommendation_id: "package-smoke-1",
+            relevance: "The review directly connects a clear promise to adoption.",
+          }],
         },
         {
+          research_question_id: "promise-readability",
           claim: "Unclear value is a dealbreaker",
-          evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-3"}],
+          evidence: ["package-smoke-2", "package-smoke-3"].map((recommendation_id) => ({
+            source_appid: 1145360,
+            recommendation_id,
+            relevance: "The review directly evaluates whether the action or value is clear.",
+          })),
         },
       ],
       inferred_traits: [],
@@ -520,7 +543,8 @@ try {
         market: "United States",
         language: "english",
         focus: ["adoption"],
-        sources: [{appid: 1145360, role: "target"}],
+        researchQuestions: packageResearchQuestions,
+        sources: [packageTargetSource],
       },
       games: [],
       reviews: packageGeneratedPersona.voice.map((voice) => ({

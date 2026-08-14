@@ -16,6 +16,47 @@ const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
 const NOW = new Date("2026-08-11T09:10:11.000Z");
 const roots: string[] = [];
+const PERSONA_RESEARCH_QUESTIONS = [{
+  id: "choice-readability",
+  question: "Which signals make the next action and result readable?",
+}] as const;
+
+function targetPersonaSource(appid: number) {
+  return {
+    appid,
+    role: "target" as const,
+    fitRole: "target-game" as const,
+    matchedAxes: ["player-problem" as const],
+    researchQuestionIds: ["choice-readability"],
+    rationale: "Target reviews directly describe the player problem under review.",
+  };
+}
+
+function competitorPersonaSource(appid: number) {
+  return {
+    appid,
+    role: "competitor" as const,
+    fitRole: "direct-competitor" as const,
+    matchedAxes: [
+      "repeated-action" as const,
+      "decision-cadence" as const,
+      "system-response" as const,
+    ],
+    researchQuestionIds: ["choice-readability"],
+    rationale: "The repeated action, decision cadence, and response match the research question.",
+  };
+}
+
+function referencePersonaSource(appid: number) {
+  return {
+    appid,
+    role: "reference" as const,
+    fitRole: "system-reference" as const,
+    matchedAxes: ["system-response" as const],
+    researchQuestionIds: ["choice-readability"],
+    rationale: "Only the system response is transferred; this is not a market competitor.",
+  };
+}
 
 function runRecipeFixture(core = "# Test run recipe"): string {
   return [
@@ -248,11 +289,12 @@ function persona(): GeneratedPersona {
     })),
     dealbreakers: [],
     price_sensitivity: "中程度",
-    schema_version: 2,
+    schema_version: 3,
     target_context: {
       market: "Japan",
       language: "japanese",
-      source_roles: [{appid: 1145360, role: "target"}],
+      research_questions: [...PERSONA_RESEARCH_QUESTIONS],
+      source_roles: [targetPersonaSource(1145360)],
     },
     decision_profile: {
       adoption_trigger: "操作と結果が明確に見える",
@@ -263,12 +305,22 @@ function persona(): GeneratedPersona {
     evidence_basis: {
       observed_patterns: [
         {
+          research_question_id: "choice-readability",
           claim: "操作性を採用判断に使う",
-          evidence: [{source_appid: 1145360, recommendation_id: "mcp-0"}],
+          evidence: [{
+            source_appid: 1145360,
+            recommendation_id: "mcp-0",
+            relevance: "The review directly evaluates action readability.",
+          }],
         },
         {
+          research_question_id: "choice-readability",
           claim: "操作結果の明確さを重視する",
-          evidence: [{source_appid: 1145360, recommendation_id: "mcp-1"}],
+          evidence: ["mcp-1", "mcp-2"].map((recommendation_id) => ({
+            source_appid: 1145360,
+            recommendation_id,
+            relevance: "The review directly evaluates the clarity of the system response.",
+          })),
         },
       ],
       inferred_traits: [],
@@ -302,6 +354,7 @@ function derivationResult(generated: GeneratedPersona) {
         market: generated.target_context.market,
         language: generated.target_context.language,
         focus: ["adoption"],
+        researchQuestions: generated.target_context.research_questions,
         sources: generated.target_context.source_roles,
       },
       games: [],
@@ -331,6 +384,7 @@ async function derivePersonaHandle(client: Client): Promise<string> {
       targetAppid: persona().source_appids[0],
       market: persona().target_context.market,
       language: persona().target_context.language,
+      researchQuestions: persona().target_context.research_questions,
       sourceRoles: persona().target_context.source_roles,
       count: 1,
     },
@@ -476,6 +530,26 @@ describe("MCP server contract", () => {
     }
   });
 
+  it("rejects persona derivation without explicit research questions and source selection", async () => {
+    const buildDerivationPack = vi.fn();
+    const {client, server} = await createHarness({buildDerivationPack});
+    try {
+      const result = await client.callTool({
+        name: "derive_personas",
+        arguments: {
+          appids: [1145360],
+          market: "Japan",
+          language: "japanese",
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(buildDerivationPack).not.toHaveBeenCalled();
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("forwards bounded persona evidence size and returns generation readiness", async () => {
     const buildDerivationPack = vi.fn(async (
       appids: number[],
@@ -515,10 +589,11 @@ describe("MCP server contract", () => {
           market: " Japan ",
           language: "JAPANESE",
           focus: ["adoption", "retention", "update-response"],
+          researchQuestions: [...PERSONA_RESEARCH_QUESTIONS],
           sourceRoles: [
-            {appid: 1145350, role: "target"},
-            {appid: 1145360, role: "competitor"},
-            {appid: 588650, role: "reference"},
+            targetPersonaSource(1145350),
+            competitorPersonaSource(1145360),
+            referencePersonaSource(588650),
           ],
         },
       });
@@ -533,10 +608,11 @@ describe("MCP server contract", () => {
             market: "Japan",
             language: "japanese",
             focus: ["adoption", "retention", "update-response"],
+            researchQuestions: [...PERSONA_RESEARCH_QUESTIONS],
             sourceRoles: [
-              {appid: 1145350, role: "target"},
-              {appid: 1145360, role: "competitor"},
-              {appid: 588650, role: "reference"},
+              targetPersonaSource(1145350),
+              competitorPersonaSource(1145360),
+              referencePersonaSource(588650),
             ],
           },
           generationReadiness: {
@@ -559,10 +635,11 @@ describe("MCP server contract", () => {
         market: "Japan",
         language: "japanese",
         focus: ["adoption", "retention", "update-response"],
+        researchQuestions: [...PERSONA_RESEARCH_QUESTIONS],
         sourceRoles: [
-          {appid: 1145350, role: "target"},
-          {appid: 1145360, role: "competitor"},
-          {appid: 588650, role: "reference"},
+          targetPersonaSource(1145350),
+          competitorPersonaSource(1145360),
+          referencePersonaSource(588650),
         ],
       }, 3, 8);
     } finally {
@@ -643,6 +720,11 @@ describe("MCP server contract", () => {
           market: pickSchema(schemaProperty(derive, "market"), ["type", "minLength", "maxLength"]),
           language: pickSchema(schemaProperty(derive, "language"), ["type", "pattern"]),
           focus: pickSchema(schemaProperty(derive, "focus"), ["type", "minItems", "maxItems"]),
+          researchQuestions: pickSchema(schemaProperty(derive, "researchQuestions"), [
+            "type",
+            "minItems",
+            "maxItems",
+          ]),
           sourceRoles: pickSchema(schemaProperty(derive, "sourceRoles"), [
             "type",
             "minItems",
@@ -748,6 +830,7 @@ describe("MCP server contract", () => {
               "market",
               "language",
               "focus",
+              "researchQuestions",
               "sourceRoles",
             ],
             "focus": {
@@ -768,7 +851,14 @@ describe("MCP server contract", () => {
               "appids",
               "market",
               "language",
+              "researchQuestions",
+              "sourceRoles",
             ],
+            "researchQuestions": {
+              "maxItems": 3,
+              "minItems": 1,
+              "type": "array",
+            },
             "reviewsPerPolarity": {
               "maximum": 25,
               "minimum": 3,

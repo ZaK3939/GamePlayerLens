@@ -10,6 +10,23 @@ export const PERSONA_FOCUS_VALUES = [
   "localization",
   "update-response",
 ] as const;
+export const PERSONA_MATCH_AXIS_VALUES = [
+  "repeated-action",
+  "decision-cadence",
+  "system-response",
+  "reward-structure",
+  "player-problem",
+  "session-shape",
+  "platform-controls",
+  "audience-expectation",
+] as const;
+
+const ResearchQuestionIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i);
+
+export const PersonaResearchQuestionSchema = z.object({
+  id: ResearchQuestionIdSchema,
+  question: z.string().trim().min(1).max(500),
+}).strict();
 
 export const VoiceEvidenceSchema = z.object({
   text: z.string().min(1),
@@ -19,17 +36,53 @@ export const VoiceEvidenceSchema = z.object({
   voted_up: z.boolean(),
 }).strict();
 
-export const SourceRoleSchema = z.object({
+const SourceSelectionShape = {
   appid: z.number().int().positive(),
-  role: z.enum(["target", "competitor", "reference"]),
-}).strict();
+  researchQuestionIds: z.array(ResearchQuestionIdSchema).min(1).max(3).refine(
+    (values) => new Set(values).size === values.length,
+    "researchQuestionIds must be unique",
+  ),
+  rationale: z.string().trim().min(1).max(1_000),
+};
 
-export type PersonaSourceRole = z.infer<typeof SourceRoleSchema>;
+function matchedAxesSchema(minimum: number) {
+  return z.array(z.enum(PERSONA_MATCH_AXIS_VALUES))
+    .min(minimum)
+    .max(PERSONA_MATCH_AXIS_VALUES.length)
+    .refine(
+      (values) => new Set(values).size === values.length,
+      "matchedAxes must be unique",
+    );
+}
+
+export const PersonaSourceSelectionSchema = z.discriminatedUnion("role", [
+  z.object({
+    ...SourceSelectionShape,
+    role: z.literal("target"),
+    fitRole: z.literal("target-game"),
+    matchedAxes: matchedAxesSchema(1),
+  }).strict(),
+  z.object({
+    ...SourceSelectionShape,
+    role: z.literal("competitor"),
+    fitRole: z.enum(["direct-competitor", "adjacent-competitor"]),
+    matchedAxes: matchedAxesSchema(3),
+  }).strict(),
+  z.object({
+    ...SourceSelectionShape,
+    role: z.literal("reference"),
+    fitRole: z.literal("system-reference"),
+    matchedAxes: matchedAxesSchema(1),
+  }).strict(),
+]);
+
+export type PersonaSourceSelection = z.infer<typeof PersonaSourceSelectionSchema>;
 
 const TargetContextSchema = z.object({
   market: z.string().trim().min(1).max(80),
   language: z.string().trim().min(1).max(32),
-  source_roles: z.array(SourceRoleSchema).min(1).max(MAX_DERIVATION_APPIDS),
+  research_questions: z.array(PersonaResearchQuestionSchema).min(1).max(3),
+  source_roles: z.array(PersonaSourceSelectionSchema).min(1).max(MAX_DERIVATION_APPIDS),
 }).strict();
 
 const DecisionProfileSchema = z.object({
@@ -42,10 +95,12 @@ const DecisionProfileSchema = z.object({
 const VoiceReferenceSchema = z.object({
   source_appid: z.number().int().positive(),
   recommendation_id: z.string().min(1),
+  relevance: z.string().trim().min(1).max(1_000),
 }).strict();
 
 const EvidenceBasisSchema = z.object({
   observed_patterns: z.array(z.object({
+    research_question_id: ResearchQuestionIdSchema,
     claim: z.string().trim().min(1).max(1_000),
     evidence: z.array(VoiceReferenceSchema).min(1).max(5),
   }).strict()).min(2).max(8),
@@ -130,14 +185,60 @@ function personaIssues(value: {
       message: "at most one source appid may be the target",
     });
   }
+  const researchQuestionIds = value.target_context.research_questions.map(({id}) => id);
+  const uniqueResearchQuestionIds = new Set(researchQuestionIds);
+  if (uniqueResearchQuestionIds.size !== researchQuestionIds.length) {
+    issues.push({
+      path: ["target_context", "research_questions"],
+      message: "research question ids must be unique",
+    });
+  }
+  for (const [sourceIndex, source] of value.target_context.source_roles.entries()) {
+    for (const [questionIndex, questionId] of source.researchQuestionIds.entries()) {
+      if (!uniqueResearchQuestionIds.has(questionId)) {
+        issues.push({
+          path: ["target_context", "source_roles", sourceIndex, "researchQuestionIds", questionIndex],
+          message: "source researchQuestionIds must reference target research questions",
+        });
+      }
+    }
+  }
+  const sourceByAppid = new Map(
+    value.target_context.source_roles.map((source) => [source.appid, source]),
+  );
+  const usedVoiceKeys = new Set<string>();
   for (const [patternIndex, pattern] of value.evidence_basis.observed_patterns.entries()) {
+    if (!uniqueResearchQuestionIds.has(pattern.research_question_id)) {
+      issues.push({
+        path: ["evidence_basis", "observed_patterns", patternIndex, "research_question_id"],
+        message: "observed pattern must reference a target research question",
+      });
+    }
     for (const [evidenceIndex, evidence] of pattern.evidence.entries()) {
-      if (!voiceKeys.has(`${evidence.source_appid}:${evidence.recommendation_id}`)) {
+      const key = `${evidence.source_appid}:${evidence.recommendation_id}`;
+      if (!voiceKeys.has(key)) {
         issues.push({
           path: ["evidence_basis", "observed_patterns", patternIndex, "evidence", evidenceIndex],
           message: "observed pattern evidence must reference persona voice",
         });
       }
+      usedVoiceKeys.add(key);
+      if (!sourceByAppid.get(evidence.source_appid)?.researchQuestionIds.includes(
+        pattern.research_question_id,
+      )) {
+        issues.push({
+          path: ["evidence_basis", "observed_patterns", patternIndex, "evidence", evidenceIndex],
+          message: "voice source is not selected for the observed pattern research question",
+        });
+      }
+    }
+  }
+  for (const [voiceIndex, voice] of value.voice.entries()) {
+    if (!usedVoiceKeys.has(`${voice.source_appid}:${voice.recommendation_id}`)) {
+      issues.push({
+        path: ["voice", voiceIndex],
+        message: "every persona voice must support an observed pattern",
+      });
     }
   }
   return issues;
@@ -152,7 +253,7 @@ function addPersonaIssues(
 
 export const GeneratedPersonaSchema = z.object({
   ...PersonaBaseShape,
-  schema_version: z.literal(2),
+  schema_version: z.literal(3),
   target_context: TargetContextSchema,
   decision_profile: DecisionProfileSchema,
   evidence_basis: EvidenceBasisSchema,
@@ -160,7 +261,7 @@ export const GeneratedPersonaSchema = z.object({
 
 export const PersonaSchema = z.object({
   ...PersonaBaseShape,
-  schema_version: z.literal(2),
+  schema_version: z.literal(3),
   target_context: TargetContextSchema,
   decision_profile: DecisionProfileSchema,
   evidence_basis: EvidenceBasisSchema,
@@ -171,3 +272,4 @@ export type Persona = z.infer<typeof PersonaSchema>;
 export type GeneratedPersona = z.infer<typeof GeneratedPersonaSchema>;
 
 export type PersonaFocus = typeof PERSONA_FOCUS_VALUES[number];
+export type PersonaResearchQuestion = z.infer<typeof PersonaResearchQuestionSchema>;

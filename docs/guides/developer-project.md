@@ -141,7 +141,7 @@ Everything in the Project Brief is declared design intent. It remains separate f
 
 ## Run evidence-grounded player-lens rounds
 
-Each player lens uses a saved v2 persona whose voice, observed patterns, decision triggers, and limitations trace back to real Steam recommendation IDs. It generates review questions and falsifiable response hypotheses; it is not a person who played the build. Use target-game reviews for current expectations and competitor or reference-game reviews for genre conventions, alternatives, and dealbreakers. UI screenshots and builds are scenario stimuli; they do not become personality traits.
+Each player lens uses a saved v3 persona whose voice, observed patterns, decision triggers, and limitations trace back to real Steam recommendation IDs and explicit research questions. It generates falsifiable response hypotheses; it is not a person who played the build. Every source game must state why its reviews answer a named question. Direct and adjacent competitors need three matching axes; system references may support a narrower mechanism question. Market-success anchors and visual references stay outside persona voice. UI screenshots and builds are scenario stimuli; they do not become personality traits.
 
 Each saved persona reviews every current or proposed scenario. The stored Player Simulation Card records:
 

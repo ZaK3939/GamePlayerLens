@@ -21,6 +21,8 @@ import {
   GeneratedPersonaSchema,
   MAX_DERIVATION_APPIDS,
   PERSONA_FOCUS_VALUES,
+  PersonaResearchQuestionSchema,
+  PersonaSourceSelectionSchema,
 } from "./persona-schemas.js";
 import {groundPersonaFromResult} from "./persona-grounding.js";
 import {
@@ -242,7 +244,7 @@ export function buildServer(
   server.registerTool(
     "derive_personas",
     {
-      description: "Build a traceable, explicitly source-role-labeled review evidence pack and Persona JSON Schema",
+      description: "Build a traceable Persona v3 review pack from explicit research questions and source-fit selections; market-only and visual-only references are rejected",
       inputSchema: z.object({
         appids: z.array(AppidSchema).min(1).max(MAX_DERIVATION_APPIDS),
         count: z.number().int().min(1).max(12).optional(),
@@ -258,13 +260,10 @@ export function buildServer(
           .min(1)
           .max(PERSONA_FOCUS_VALUES.length)
           .optional(),
-        sourceRoles: z.array(z.object({
-          appid: AppidSchema,
-          role: z.enum(["target", "competitor", "reference"]),
-        }).strict())
+        researchQuestions: z.array(PersonaResearchQuestionSchema).min(1).max(3),
+        sourceRoles: z.array(PersonaSourceSelectionSchema)
           .min(1)
-          .max(MAX_DERIVATION_APPIDS)
-          .optional(),
+          .max(MAX_DERIVATION_APPIDS),
       }),
       outputSchema: ResultEnvelopeSchema,
     },
@@ -276,6 +275,7 @@ export function buildServer(
       market,
       language,
       focus,
+      researchQuestions,
       sourceRoles,
     }) => {
       const result = await services.buildDerivationPack(appids, {
@@ -283,6 +283,7 @@ export function buildServer(
         market,
         language,
         focus,
+        researchQuestions,
         sourceRoles,
       }, count, reviewsPerPolarity);
       return trackedJsonEnvelope(

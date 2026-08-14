@@ -18,6 +18,53 @@ import type {Review, ReviewOptions} from "./reviews.js";
 const roots: string[] = [];
 const NOW = new Date("2026-08-11T12:34:56.000Z");
 const AUDIENCE = {market: "Japan", language: "japanese"} as const;
+const RESEARCH_QUESTIONS = [{
+  id: "choice-readability",
+  question: "Which signals make the next choice and its result readable?",
+}] as const;
+
+function targetSource(appid: number) {
+  return {
+    appid,
+    role: "target" as const,
+    fitRole: "target-game" as const,
+    matchedAxes: ["player-problem" as const],
+    researchQuestionIds: ["choice-readability"],
+    rationale: "Target reviews directly describe the player problem under review.",
+  };
+}
+
+function competitorSource(appid: number) {
+  return {
+    appid,
+    role: "competitor" as const,
+    fitRole: "direct-competitor" as const,
+    matchedAxes: [
+      "repeated-action" as const,
+      "decision-cadence" as const,
+      "system-response" as const,
+    ],
+    researchQuestionIds: ["choice-readability"],
+    rationale: "The repeated action, decision cadence, and system response match the research question.",
+  };
+}
+
+function referenceSource(appid: number) {
+  return {
+    appid,
+    role: "reference" as const,
+    fitRole: "system-reference" as const,
+    matchedAxes: ["system-response" as const],
+    researchQuestionIds: ["choice-readability"],
+    rationale: "The system response is relevant without treating this game as a market competitor.",
+  };
+}
+
+const TARGET_AUDIENCE = {
+  ...AUDIENCE,
+  researchQuestions: RESEARCH_QUESTIONS,
+  sourceRoles: [targetSource(1145360)],
+};
 
 async function tempResolver() {
   const root = await mkdtemp(join(tmpdir(), "steam-user-sim-personas-"));
@@ -46,11 +93,12 @@ function persona(overrides: Partial<Persona> = {}): Persona {
     })),
     dealbreakers: ["機械翻訳調の台詞"],
     price_sensitivity: "完成度が高ければ定価でも購入",
-    schema_version: 2,
+    schema_version: 3,
     target_context: {
       market: "Japan",
       language: "japanese",
-      source_roles: [{appid: 1145360, role: "target"}],
+      research_questions: [...RESEARCH_QUESTIONS],
+      source_roles: [targetSource(1145360)],
     },
     decision_profile: {
       adoption_trigger: "日本語品質と操作感を確認できる",
@@ -61,12 +109,22 @@ function persona(overrides: Partial<Persona> = {}): Persona {
     evidence_basis: {
       observed_patterns: [
         {
+          research_question_id: "choice-readability",
           claim: "日本語品質を評価軸にする",
-          evidence: [{source_appid: 1145360, recommendation_id: "rec-0"}],
+          evidence: [{
+            source_appid: 1145360,
+            recommendation_id: "rec-0",
+            relevance: "The review directly evaluates the localized signals used for the choice.",
+          }],
         },
         {
+          research_question_id: "choice-readability",
           claim: "操作感を評価軸にする",
-          evidence: [{source_appid: 1145360, recommendation_id: "rec-1"}],
+          evidence: ["rec-1", "rec-2"].map((recommendation_id) => ({
+            source_appid: 1145360,
+            recommendation_id,
+            relevance: "The review directly describes readable input response or its absence.",
+          })),
         },
       ],
       inferred_traits: [],
@@ -93,15 +151,16 @@ function review(id: string, votedUp: boolean, language = "japanese"): Review {
   };
 }
 
-function personaV2(overrides: Record<string, unknown> = {}) {
+function personaV3(overrides: Record<string, unknown> = {}) {
   const {grounding: _grounding, ...generated} = persona();
   return {
     ...generated,
-    schema_version: 2,
+    schema_version: 3,
     target_context: {
       market: "Japan",
       language: "japanese",
-      source_roles: [{appid: 1145360, role: "target"}],
+      research_questions: [...RESEARCH_QUESTIONS],
+      source_roles: [targetSource(1145360)],
     },
     decision_profile: {
       adoption_trigger: "日本語品質と操作感を確認できる",
@@ -112,12 +171,22 @@ function personaV2(overrides: Record<string, unknown> = {}) {
     evidence_basis: {
       observed_patterns: [
         {
+          research_question_id: "choice-readability",
           claim: "日本語品質を評価軸にする",
-          evidence: [{source_appid: 1145360, recommendation_id: "rec-0"}],
+          evidence: [{
+            source_appid: 1145360,
+            recommendation_id: "rec-0",
+            relevance: "The review directly evaluates localized choice signals.",
+          }],
         },
         {
+          research_question_id: "choice-readability",
           claim: "操作感を評価軸にする",
-          evidence: [{source_appid: 1145360, recommendation_id: "rec-1"}],
+          evidence: ["rec-1", "rec-2"].map((recommendation_id) => ({
+            source_appid: 1145360,
+            recommendation_id,
+            relevance: "The review directly evaluates readable input response.",
+          })),
         },
       ],
       inferred_traits: [{
@@ -145,11 +214,11 @@ describe("PersonaSchema", () => {
     expect(PersonaSchema.safeParse(missingSource).success).toBe(false);
   });
 
-  it("requires the traceable v2 decision profile for every persona", () => {
+  it("requires the traceable v3 research and decision profile for every persona", () => {
     expect(PersonaSchema.safeParse(persona()).success).toBe(true);
     const {grounding: _grounding, ...generated} = persona();
     expect(GeneratedPersonaSchema.safeParse(generated).success).toBe(true);
-    expect(GeneratedPersonaSchema.safeParse(personaV2()).success).toBe(true);
+    expect(GeneratedPersonaSchema.safeParse(personaV3()).success).toBe(true);
 
     const legacy = structuredClone(persona()) as Record<string, unknown>;
     delete legacy.schema_version;
@@ -158,28 +227,48 @@ describe("PersonaSchema", () => {
     delete legacy.evidence_basis;
     expect(PersonaSchema.safeParse(legacy).success).toBe(false);
 
-    const missingDecisionProfile = personaV2();
+    const missingDecisionProfile = personaV3();
     delete missingDecisionProfile.decision_profile;
     expect(PersonaSchema.safeParse(missingDecisionProfile).success).toBe(false);
   });
 
-  it("rejects v2 evidence and source roles that are not present in persona voice", () => {
-    expect(GeneratedPersonaSchema.safeParse(personaV2({
+  it("rejects v3 evidence and source roles that are not present in persona voice", () => {
+    expect(GeneratedPersonaSchema.safeParse(personaV3({
       evidence_basis: {
-        ...personaV2().evidence_basis,
+        ...personaV3().evidence_basis,
         observed_patterns: [{
+          research_question_id: "choice-readability",
           claim: "unsupported",
-          evidence: [{source_appid: 1145360, recommendation_id: "missing"}],
+          evidence: [{
+            source_appid: 1145360,
+            recommendation_id: "missing",
+            relevance: "This reference is intentionally absent.",
+          }],
         }],
       },
     })).success).toBe(false);
-    expect(GeneratedPersonaSchema.safeParse(personaV2({
+    expect(GeneratedPersonaSchema.safeParse(personaV3({
       target_context: {
         market: "Japan",
         language: "japanese",
-        source_roles: [{appid: 588650, role: "competitor"}],
+        research_questions: [...RESEARCH_QUESTIONS],
+        source_roles: [competitorSource(588650)],
       },
     })).success).toBe(false);
+  });
+
+  it("rejects unused voices and research-question drift", () => {
+    const unusedVoice = personaV3();
+    unusedVoice.evidence_basis.observed_patterns[1]!.evidence = [{
+      source_appid: 1145360,
+      recommendation_id: "rec-1",
+      relevance: "The review directly evaluates readable input response.",
+    }];
+    expect(GeneratedPersonaSchema.safeParse(unusedVoice).success).toBe(false);
+
+    const unknownQuestion = personaV3();
+    unknownQuestion.evidence_basis.observed_patterns[0]!.research_question_id = "unknown";
+    expect(GeneratedPersonaSchema.safeParse(unknownQuestion).success).toBe(false);
   });
 });
 
@@ -262,7 +351,7 @@ describe("persona derivation pack", () => {
     });
     const derive = createPersonaDeriver({fetchGame, fetchReviews, now: () => NOW});
 
-    const result = await derive([1145360], AUDIENCE);
+    const result = await derive([1145360], TARGET_AUDIENCE);
     expect(result.data?.requestedCount).toBe(5);
     expect(result.data?.reviews).toHaveLength(50);
     expect(result.data?.reviews.slice(0, 4).map((item) => item.votedUp)).toEqual([
@@ -315,7 +404,12 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], {market: "Global", language: "all"}, 2, 3);
+    })([1145360], {
+      market: "Global",
+      language: "all",
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [targetSource(1145360)],
+    }, 2, 3);
 
     expect(result.data?.generationReadiness).toEqual({
       status: "blocked",
@@ -349,7 +443,12 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], {market: "Global", language: "all"}, 3, 3);
+    })([1145360], {
+      market: "Global",
+      language: "all",
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [targetSource(1145360)],
+    }, 3, 3);
 
     expect(result.data?.generationReadiness).toEqual({
       status: "partial",
@@ -396,6 +495,8 @@ describe("persona derivation pack", () => {
       market: "Japan",
       language: "japanese",
       focus: ["adoption", "retention", "update-response"],
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [targetSource(1145350), competitorSource(1145360)],
     }, 3, 3);
 
     expect(result.data?.reviews).toHaveLength(12);
@@ -466,10 +567,11 @@ describe("persona derivation pack", () => {
       now: () => NOW,
     })([10, 20, 30], {
       ...AUDIENCE,
+      researchQuestions: [...RESEARCH_QUESTIONS],
       sourceRoles: [
-        {appid: 30, role: "reference"},
-        {appid: 10, role: "target"},
-        {appid: 20, role: "competitor"},
+        referenceSource(30),
+        targetSource(10),
+        competitorSource(20),
       ],
     }, 3, 3);
 
@@ -500,16 +602,54 @@ describe("persona derivation pack", () => {
 
     await expect(derive([10, 20], {
       ...AUDIENCE,
-      sourceRoles: [{appid: 10, role: "target"}],
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [targetSource(10)],
     }, 3, 3)).rejects.toThrow(/cover exactly/i);
     await expect(derive([10, 20], {
       ...AUDIENCE,
       targetAppid: 10,
+      researchQuestions: [...RESEARCH_QUESTIONS],
       sourceRoles: [
-        {appid: 10, role: "competitor"},
-        {appid: 20, role: "target"},
+        competitorSource(10),
+        targetSource(20),
       ],
     }, 3, 3)).rejects.toThrow(/targetAppid/i);
+    expect(fetchGame).not.toHaveBeenCalled();
+    expect(fetchReviews).not.toHaveBeenCalled();
+  });
+
+  it("rejects persona derivation without an explicit research and source-selection contract", async () => {
+    const fetchGame = vi.fn();
+    const fetchReviews = vi.fn();
+    const derive = createPersonaDeriver({fetchGame, fetchReviews});
+
+    await expect(derive([10, 20], AUDIENCE, 3, 3)).rejects.toThrow(
+      /researchQuestions.*sourceRoles|sourceRoles.*researchQuestions/i,
+    );
+    expect(fetchGame).not.toHaveBeenCalled();
+    expect(fetchReviews).not.toHaveBeenCalled();
+  });
+
+  it("rejects market or visual references and weak competitor fit before fetching reviews", async () => {
+    const fetchGame = vi.fn();
+    const fetchReviews = vi.fn();
+    const derive = createPersonaDeriver({fetchGame, fetchReviews});
+
+    await expect(derive([10], {
+      ...AUDIENCE,
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [{...referenceSource(10), fitRole: "visual-reference"}],
+    } as unknown as PersonaDerivationOptions, 1, 3)).rejects.toThrow(/evidence-relevant/i);
+    await expect(derive([10], {
+      ...AUDIENCE,
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [{...competitorSource(10), matchedAxes: ["repeated-action"]}],
+    } as unknown as PersonaDerivationOptions, 1, 3)).rejects.toThrow(/evidence-relevant/i);
+    await expect(derive([10], {
+      ...AUDIENCE,
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [{...referenceSource(10), researchQuestionIds: ["unknown"]}],
+    }, 1, 3)).rejects.toThrow(/declared researchQuestions/i);
     expect(fetchGame).not.toHaveBeenCalled();
     expect(fetchReviews).not.toHaveBeenCalled();
   });
@@ -531,7 +671,12 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([10], {...AUDIENCE, targetAppid: 10}, 1, 3);
+    })([10], {
+      ...AUDIENCE,
+      targetAppid: 10,
+      researchQuestions: [...RESEARCH_QUESTIONS],
+      sourceRoles: [targetSource(10)],
+    }, 1, 3);
     const coverage = (result.meta?.methodology as {
       appids: Array<{sample: {coverage: Record<string, unknown>}}>;
     }).appids[0]?.sample.coverage;
@@ -564,7 +709,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], AUDIENCE);
+    })([1145360], TARGET_AUDIENCE);
 
     expect(fetchReviews).toHaveBeenCalledTimes(2);
     const sampling = (result.meta?.methodology as {
@@ -590,7 +735,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], AUDIENCE);
+    })([1145360], TARGET_AUDIENCE);
 
     expect(result.data?.games).toEqual([]);
     expect(result.data?.reviews).toHaveLength(2);
@@ -612,8 +757,8 @@ describe("persona derivation pack", () => {
       fetchGame: vi.fn(),
       fetchReviews: vi.fn(),
     });
-    await expect(derive([1145360], AUDIENCE, 0)).rejects.toThrow(/1 to 12/);
-    await expect(derive([1145360], AUDIENCE, 13)).rejects.toThrow(/1 to 12/);
+    await expect(derive([1145360], TARGET_AUDIENCE, 0)).rejects.toThrow(/1 to 12/);
+    await expect(derive([1145360], TARGET_AUDIENCE, 13)).rejects.toThrow(/1 to 12/);
   });
 
   it("rejects review evidence limits outside 3 through 25", async () => {
@@ -621,8 +766,8 @@ describe("persona derivation pack", () => {
       fetchGame: vi.fn(),
       fetchReviews: vi.fn(),
     });
-    await expect(derive([1145360], AUDIENCE, 5, 2)).rejects.toThrow(/3 to 25/);
-    await expect(derive([1145360], AUDIENCE, 5, 26)).rejects.toThrow(/3 to 25/);
+    await expect(derive([1145360], TARGET_AUDIENCE, 5, 2)).rejects.toThrow(/3 to 25/);
+    await expect(derive([1145360], TARGET_AUDIENCE, 5, 26)).rejects.toThrow(/3 to 25/);
   });
 
   it("rejects more than twelve source appids before fetching", async () => {
@@ -630,7 +775,7 @@ describe("persona derivation pack", () => {
     const fetchReviews = vi.fn();
     const derive = createPersonaDeriver({fetchGame, fetchReviews});
 
-    await expect(derive(Array.from({length: 13}, () => 1145360), AUDIENCE))
+    await expect(derive(Array.from({length: 13}, () => 1145360), TARGET_AUDIENCE))
       .rejects.toThrow(/at most 12/);
     expect(fetchGame).not.toHaveBeenCalled();
     expect(fetchReviews).not.toHaveBeenCalled();

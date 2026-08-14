@@ -10,6 +10,36 @@ import type {SaveRunInput} from "./run-schemas.js";
 
 const SHA = "a".repeat(64);
 const OBSERVED_AT = "2026-08-14T09:00:00+04:00";
+const RESEARCH_QUESTIONS = [{
+  id: "decision-readability",
+  question: "Which signals make a combat decision and outcome readable?",
+}] as const;
+
+function targetSource() {
+  return {
+    appid: 10,
+    role: "target" as const,
+    fitRole: "target-game" as const,
+    matchedAxes: ["player-problem" as const],
+    researchQuestionIds: ["decision-readability"],
+    rationale: "Target reviews directly describe the readability problem.",
+  };
+}
+
+function competitorSource() {
+  return {
+    appid: 20,
+    role: "competitor" as const,
+    fitRole: "direct-competitor" as const,
+    matchedAxes: [
+      "repeated-action" as const,
+      "decision-cadence" as const,
+      "system-response" as const,
+    ],
+    researchQuestionIds: ["decision-readability"],
+    rationale: "The action, decision cadence, and response match the readability question.",
+  };
+}
 
 function derivationPayload(includeCompetitor: boolean) {
   const reviews = [
@@ -53,9 +83,10 @@ function derivationPayload(includeCompetitor: boolean) {
       brief: {
         market: "United States",
         language: "english",
+        researchQuestions: [...RESEARCH_QUESTIONS],
         sources: [
-          {appid: 10, role: "target"},
-          ...(includeCompetitor ? [{appid: 20, role: "competitor"}] : []),
+          targetSource(),
+          ...(includeCompetitor ? [competitorSource()] : []),
         ],
       },
       reviews,
@@ -106,13 +137,14 @@ function persona(includeCompetitor: boolean): Persona {
     ],
     dealbreakers: ["unclear feedback"],
     price_sensitivity: "medium",
-    schema_version: 2,
+    schema_version: 3,
     target_context: {
       market: "United States",
       language: "english",
+      research_questions: [...RESEARCH_QUESTIONS],
       source_roles: [
-        {appid: 10, role: "target"},
-        ...(includeCompetitor ? [{appid: 20, role: "competitor" as const}] : []),
+        targetSource(),
+        ...(includeCompetitor ? [competitorSource()] : []),
       ],
     },
     decision_profile: {
@@ -124,12 +156,35 @@ function persona(includeCompetitor: boolean): Persona {
     evidence_basis: {
       observed_patterns: [
         {
+          research_question_id: "decision-readability",
           claim: "Readable decisions support adoption",
-          evidence: [{source_appid: 10, recommendation_id: "target-1"}],
+          evidence: [{
+            source_appid: 10,
+            recommendation_id: "target-1",
+            relevance: "The review directly connects readable choices to interest.",
+          }],
         },
         {
+          research_question_id: "decision-readability",
           claim: "Unclear feedback causes churn",
-          evidence: [{source_appid: 10, recommendation_id: "target-2"}],
+          evidence: [
+            {
+              source_appid: 10,
+              recommendation_id: "target-2",
+              relevance: "The review directly connects unclear feedback to stopping play.",
+            },
+            includeCompetitor
+              ? {
+                  source_appid: 20,
+                  recommendation_id: "competitor-voice",
+                  relevance: "The competitor review describes the same readable decision response.",
+                }
+              : {
+                  source_appid: 10,
+                  recommendation_id: "target-3",
+                  relevance: "The review directly connects readable outcomes to continuation.",
+                },
+          ],
         },
       ],
       inferred_traits: [],

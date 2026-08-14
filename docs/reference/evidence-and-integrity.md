@@ -55,15 +55,19 @@ When a fetch tool returns `meta.resultHandle`, use exact-save. Model-reconstruct
 - The same review voice is not reused across personas.
 - `generationReadiness=blocked` prohibits persona generation.
 - `partial` limits generation to `supportedCount`.
-- Source roles distinguish target, competitor, and reference games.
+- Research questions are explicit, bounded, and exact-saved with the derivation result.
+- Every appid has an explicit source selection; there is no implicit non-target-to-competitor default.
+- Competitor sources declare direct or adjacent fit and at least three matching gameplay/player axes.
+- Persona references are system references. Visual references and market-success anchors are not persona voice sources.
 - Observed patterns, inferred traits, unknowns, and limitations stay separate.
-- `save_persona` requires the live `derive_personas` result handle and server-verifies exact review text, ID, language, vote, audience, and source role before adding a result hash to the stored persona.
+- Every selected voice supports at least one observed pattern, and each citation names its research question and relevance rationale.
+- `save_persona` requires the live `derive_personas` result handle and server-verifies exact review text, ID, language, vote, audience, research questions, and source selection before adding a result hash to the stored persona.
 
 Review balance does not reveal population sentiment. Use separate aggregate review evidence for overall positive share, and never convert persona counts into affected-player share.
 
 ## Player-lens hypothesis rounds
 
-New review runs accept only grounded v2 personas. Every persona-scenario round contains a structured `playerSimulation` hypothesis with an exact-saved `memory.derivationEvidenceRef`, review-memory references, explicit `stimulusEvidenceRefs`, perception, decision, predicted response, reflection, uncertainty, and a human falsification signal. The server verifies the derivation artifact hash and content against the saved persona before accepting a recommendation ID.
+New review runs accept only grounded v3 personas. Every persona-scenario round contains a structured `playerSimulation` hypothesis with an exact-saved `memory.derivationEvidenceRef`, review-memory references, explicit `stimulusEvidenceRefs`, perception, decision, predicted response, reflection, uncertainty, and a human falsification signal. The server verifies the derivation artifact hash and content against the saved persona before accepting a recommendation ID.
 
 If UI is selected, persona rounds must name a saved capture or UI reference inside `stimulusEvidenceRefs` and cannot use `scenario-only` exposure. If competition is selected, each round must cite a voice from a persona source assigned the `competitor` role. `visual-evidence` exposure requires an explicitly named image, `ai-operated` requires an explicitly named AI-operated playtest session, and `scenario-only` requires an empty stimulus list. This ensures that UI, competitor, and execution inputs affect the player simulation rather than appearing only in the final reviewer narrative.
 
