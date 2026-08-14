@@ -1,5 +1,5 @@
 import {constants} from "node:fs";
-import {access, readFile} from "node:fs/promises";
+import {access} from "node:fs/promises";
 import {resolve} from "node:path";
 import {pathToFileURL} from "node:url";
 import {McpServer} from "@modelcontextprotocol/server";
@@ -10,30 +10,22 @@ import {
   JsonValueSchema,
   SaveEvaluationInputSchema,
   SaveIntelInputSchema,
-  createArtifactStore,
-  type ArtifactStore,
-  type SourceTool,
 } from "./artifacts.js";
+import {SteamDeveloperBriefInputSchema} from "./brief.js";
 import {
-  SteamDeveloperBriefInputSchema,
-  createDeveloperBriefFetcher,
-} from "./brief.js";
-import {createCaptureService} from "./capture.js";
-import {discoverGames} from "./discovery.js";
-import type {FetchResult} from "./http.js";
-import {createImageService, type ImageFetchResult, type ImageService} from "./images.js";
-import {createKnowledgeReader, type KnowledgeReader} from "./knowledge.js";
+  imageEnvelope,
+  jsonEnvelope,
+  trackManualPromptEvidence,
+  trackedJsonEnvelope,
+} from "./mcp-responses.js";
 import {
-  buildDerivationPack,
-  createPersonaStore,
   MAX_DERIVATION_APPIDS,
   MAX_REVIEWS_PER_POLARITY,
   MIN_REVIEWS_PER_POLARITY,
   PERSONA_FOCUS_VALUES,
   PersonaSchema,
-  type PersonaStore,
 } from "./personas.js";
-import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
+import type {PathResolver} from "./paths.js";
 import {
   buildConceptTestEvidenceEnvelope,
   buildFirstContactTestEvidenceEnvelope,
@@ -44,32 +36,20 @@ import {
   RunSimPromptArgumentsSchema,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
-import {fetchReviews} from "./reviews.js";
 import {
+  ResultEnvelopeSchema,
   ResultHandleSchema,
-  createResultStore,
-  type ResultEnvelope,
-  type ResultStore,
 } from "./results.js";
+import {SaveRunInputBaseSchema} from "./runs.js";
 import {
-  SaveRunInputBaseSchema,
-  createRunStore,
-  type RunStore,
-} from "./runs.js";
-import {fetchGame, searchGames} from "./steam.js";
-import {fetchTimeline} from "./timeline.js";
-import {fetchUpdates} from "./updates.js";
+  createServerServices,
+  type ServerServices,
+} from "./server-services.js";
 
 const SERVER_NAME = "game-player-lens";
 const SERVER_VERSION = "0.1.0";
 const TOOL_COUNT = 14;
 const PROMPT_COUNT = 2;
-
-const ResultEnvelopeSchema = z.object({
-  data: z.json().nullable(),
-  warnings: z.array(z.string()),
-  meta: z.record(z.string(), z.json()).optional(),
-});
 
 const AppidSchema = z.number().int().positive();
 const ReviewTypeSchema = z.enum(["all", "positive", "negative"]);
@@ -111,71 +91,6 @@ const GetArtifactInputSchema = z.object({
   id: z.string().min(1).optional(),
 }).strict();
 
-export interface ServerServices {
-  resolver: PathResolver;
-  searchGames: typeof searchGames;
-  buildDeveloperBrief: ReturnType<typeof createDeveloperBriefFetcher>;
-  discoverGames: typeof discoverGames;
-  fetchGame: typeof fetchGame;
-  fetchReviews: typeof fetchReviews;
-  fetchTimeline: typeof fetchTimeline;
-  fetchUpdates: typeof fetchUpdates;
-  buildDerivationPack: typeof buildDerivationPack;
-  savePersona: PersonaStore["savePersona"];
-  captureUrl: ReturnType<typeof createCaptureService>;
-  readKnowledge: KnowledgeReader;
-  readSkill(id: string): Promise<string>;
-  artifactStore: ArtifactStore;
-  runStore: RunStore;
-  imageService: ImageService;
-  resultStore: ResultStore;
-}
-
-function jsonEnvelope(result: FetchResult<unknown>) {
-  const structuredContent = ResultEnvelopeSchema.parse(
-    JSON.parse(JSON.stringify(result)) as unknown,
-  );
-  return {
-    content: [{type: "text" as const, text: JSON.stringify(structuredContent)}],
-    structuredContent,
-  };
-}
-
-function trackedJsonEnvelope(
-  store: ResultStore,
-  sourceTool: SourceTool,
-  result: FetchResult<unknown>,
-) {
-  const normalized = ResultEnvelopeSchema.parse(
-    JSON.parse(JSON.stringify(result)) as unknown,
-  ) as ResultEnvelope;
-  return jsonEnvelope(store.remember(sourceTool, normalized));
-}
-
-function trackManualPromptEvidence(
-  store: ResultStore,
-  envelope: (ResultEnvelope & {meta: {observedAt: string}}) | undefined,
-) {
-  if (!envelope) return undefined;
-  const tracked = store.remember("manual", envelope);
-  return {
-    sourceTool: "manual" as const,
-    observedAt: envelope.meta.observedAt,
-    resultHandle: ResultHandleSchema.parse(tracked.meta?.resultHandle),
-  };
-}
-
-function imageEnvelope(result: ImageFetchResult<unknown>) {
-  const {imageContent, ...envelope} = result;
-  const response = jsonEnvelope(envelope);
-  return {
-    ...response,
-    content: imageContent
-      ? [...response.content, imageContent]
-      : response.content,
-  };
-}
-
 async function getServerStatus(resolver: PathResolver) {
   let writable = true;
   try {
@@ -198,41 +113,6 @@ async function getServerStatus(resolver: PathResolver) {
     },
     capabilities: {toolCount: TOOL_COUNT, promptCount: PROMPT_COUNT},
     legacyAudienceDefaults: {market: "Japan", language: "japanese"},
-  };
-}
-
-function createServerServices(overrides: Partial<ServerServices>): ServerServices {
-  const resolver = overrides.resolver ?? initializeRepositoryPaths();
-  const personaStore = createPersonaStore(resolver);
-  const {buildDeveloperBrief, ...serviceOverrides} = overrides;
-  const defaults: Omit<ServerServices, "buildDeveloperBrief"> = {
-    resolver,
-    searchGames,
-    discoverGames,
-    fetchGame,
-    fetchReviews,
-    fetchTimeline,
-    fetchUpdates,
-    buildDerivationPack,
-    savePersona: personaStore.savePersona,
-    captureUrl: createCaptureService({resolver}),
-    readKnowledge: createKnowledgeReader(resolver, personaStore),
-    readSkill: (id) => readFile(resolver.resolveSkillPath(id), "utf8"),
-    artifactStore: createArtifactStore(resolver),
-    runStore: createRunStore(resolver),
-    imageService: createImageService(resolver),
-    resultStore: createResultStore(),
-  };
-  const services = {...defaults, ...serviceOverrides, resolver};
-  return {
-    ...services,
-    buildDeveloperBrief: buildDeveloperBrief ?? createDeveloperBriefFetcher({
-      fetchGame: services.fetchGame,
-      fetchReviews: services.fetchReviews,
-      fetchTimeline: services.fetchTimeline,
-      fetchUpdates: services.fetchUpdates,
-      discoverGames: services.discoverGames,
-    }),
   };
 }
 

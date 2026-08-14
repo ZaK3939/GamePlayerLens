@@ -12,7 +12,7 @@ export const MAX_TRACKED_RESULTS = 32;
 export const ResultHandleSchema = z.uuid();
 
 const ObservedAtSchema = z.iso.datetime({offset: true});
-const ResultEnvelopeSchema = z.object({
+export const ResultEnvelopeSchema = z.object({
   data: JsonValueSchema,
   warnings: z.array(z.string()),
   meta: z.record(z.string(), JsonValueSchema).optional(),
