@@ -279,13 +279,13 @@ export function buildServer(
       focus,
       sourceRoles,
     }) => {
-      const result = await services.buildDerivationPack(appids, count, reviewsPerPolarity, {
+      const result = await services.buildDerivationPack(appids, {
         targetAppid,
         market,
         language,
         focus,
         sourceRoles,
-      });
+      }, count, reviewsPerPolarity);
       return trackedJsonEnvelope(
         services.resultStore,
         "derive_personas",

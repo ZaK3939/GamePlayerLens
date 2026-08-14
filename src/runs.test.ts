@@ -198,9 +198,30 @@ function persona(id = "jp-skeptic"): Persona {
   };
 }
 
+function runRecipeFixture(): string {
+  return [
+    "<!-- GPL:section core -->",
+    "# run-sim\n\nEvidence-grounded simulation recipe.",
+    "<!-- GPL:end -->",
+    "<!-- GPL:section subject:existing-game -->",
+    "Existing-game test contract.",
+    "<!-- GPL:end -->",
+    "<!-- GPL:section subject:developer -->",
+    "Developer test contract.",
+    "<!-- GPL:end -->",
+    ...["gameplay", "storefront", "ui", "price", "localization", "competition"].flatMap(
+      (domain) => [
+        `<!-- GPL:section domain:${domain} -->`,
+        `${domain} test contract.`,
+        "<!-- GPL:end -->",
+      ],
+    ),
+  ].join("\n");
+}
+
 async function harness(
   clock: () => Date = () => NOW,
-  recipe = "# run-sim\n\nEvidence-grounded simulation recipe.\n",
+  recipe = runRecipeFixture(),
 ) {
   const root = await mkdtemp(join(tmpdir(), "game-player-lens-runs-"));
   roots.push(root);
@@ -238,7 +259,16 @@ async function harness(
     clock,
     idFactory: () => RUN_ID,
   });
-  return {artifacts, recipe, resolver, root, store};
+  return {
+    artifacts,
+    recipe: compileRunSimRecipe(recipe, {
+      subjectKind: "existing-game",
+      selectedDomains: ["storefront", "ui"],
+    }),
+    resolver,
+    root,
+    store,
+  };
 }
 
 function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {

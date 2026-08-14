@@ -23,7 +23,7 @@ GamePlayerLens exposes exactly 14 MCP tools and two prompts. All tools return a 
 
 ## Prompts
 
-- `run-sim` orchestrates intake, evidence collection, persona work, domain review, criticism, evaluation storage, and run storage. Explicit domains receive only their domain recipe sections; `auto` receives all domain sections.
+- `run-sim` orchestrates intake, evidence collection, persona work, domain review, criticism, evaluation storage, and run storage. `domains` must explicitly name at least one domain; omission returns `needs-input`, and a ready prompt receives only the named domain recipe sections.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
 Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `firstContactTest`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary.

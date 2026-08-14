@@ -3,13 +3,13 @@ import {buildDerivationPack} from "./personas.js";
 
 describe.runIf(process.env.RUN_LIVE === "1")("persona derivation (live API, Hades)", () => {
   it("builds a deduplicated evidence pack", async () => {
-    const result = await buildDerivationPack([1145360], 5, 8, {
+    const result = await buildDerivationPack([1145360], {
       targetAppid: 1145360,
       market: "Japan",
       language: "japanese",
       focus: ["adoption", "retention", "churn", "update-response"],
       sourceRoles: [{appid: 1145360, role: "target"}],
-    });
+    }, 5, 8);
     expect(result.data?.requestedCount).toBe(5);
     expect(result.data?.reviews.length).toBeGreaterThanOrEqual(10);
     expect(result.data?.reviews.length).toBeLessThanOrEqual(16);

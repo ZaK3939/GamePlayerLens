@@ -88,7 +88,7 @@ Every scenario-domain pair and every persona-scenario pair must be represented b
 
 `get_artifact(kind=run)` re-reads the recipe, personas, evidence, and record. `integrity.status=verified` means every required dependency still matches. `failed` identifies missing, mismatched, unreadable, or structurally invalid dependencies. This seal detects drift; it is not a cryptographic signature or external attestation.
 
-The recipe is recompiled from the stored run's `subjectKind` and `selectedDomains` before hashing. Changes to an unused domain do not invalidate the run; changes to core, the selected subject contract, or a selected domain do.
+The recipe is recompiled from the stored run's `subjectKind` and explicitly selected `selectedDomains` before hashing. `domains=auto` is not accepted. Changes to an unused domain do not invalidate the run; changes to core, the selected subject contract, or a selected domain do.
 
 ## Simulation readiness
 
@@ -107,7 +107,7 @@ Server-verified calibration is limited to matching past outcomes with complete h
 
 Display names are normalized to canonical IDs. Arbitrary paths, path traversal, root escapes through symlinks, unsupported image formats, credentialed URLs, and oversized payloads are rejected.
 
-Create-only saves publish through a same-directory hard link and never replace an existing artifact. Explicit overwrites use a queued, fsynced atomic replacement with bounded retries for transient filesystem locks such as Windows `EPERM`; failed writes remain errors and are never reported as successful saves.
+Create-only saves publish through a same-directory hard link and never replace an existing artifact. Temporary-file cleanup retries transient filesystem locks; if cleanup still fails after publication, the error explicitly reports that the destination was already saved and must be read before retrying. Explicit overwrites use a queued, fsynced atomic replacement with bounded retries for locks such as Windows `EPERM`; failed writes remain errors and are never reported as successful saves.
 
 The server does not return configured secrets or absolute data-root paths. External warnings omit response bodies, query strings, keys, and other sensitive request details.
 

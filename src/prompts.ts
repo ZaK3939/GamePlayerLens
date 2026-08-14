@@ -36,7 +36,7 @@ const NonEmptyTrimmedStringSchema = z.string().trim().min(1);
 
 const DomainsSchema = z.string().transform((input, context) => {
   const domains = input.split(",").map((domain) => domain.trim()).filter(Boolean);
-  const unknown = domains.filter((domain) => domain !== "auto" && !DOMAIN_VALUES.has(domain));
+  const unknown = domains.filter((domain) => !DOMAIN_VALUES.has(domain));
   if (domains.length === 0 || unknown.length > 0) {
     context.addIssue({
       code: "custom",
@@ -46,17 +46,6 @@ const DomainsSchema = z.string().transform((input, context) => {
     });
     return z.NEVER;
   }
-  if (domains.includes("auto")) {
-    if (domains.some((domain) => domain !== "auto")) {
-      context.addIssue({
-        code: "custom",
-        message: "auto cannot be mixed with explicit domains",
-      });
-      return z.NEVER;
-    }
-    return "auto";
-  }
-
   const selected = new Set(domains);
   return DOMAIN_ORDER.filter((domain) => selected.has(domain)).join(",");
 });
@@ -146,7 +135,9 @@ export const RunSimPromptArgumentsSchema = z.object({
   topic: NonEmptyTrimmedStringSchema.describe("Consultation topic"),
   subjectKind: SubjectKindSchema.optional().describe("Whether the subject is an existing game, a developer concept, or an active developer project"),
   mode: z.enum(["baseline", "change"]).default("baseline"),
-  domains: DomainsSchema.default("auto"),
+  domains: DomainsSchema.optional().describe(
+    "Explicit comma-separated review domains; omission returns needs-input",
+  ),
   specification: z.string().max(50_000).optional(),
   projectBrief: ProjectBriefSchema.optional().describe(
     "JSON object containing declared concept origin, project stage, core experience, and production constraints",
@@ -313,9 +304,9 @@ export function buildRunSimPrompt(
   const projectBriefDiagnostics = structuredProjectBrief
     ? buildProjectBriefDiagnostics(structuredProjectBrief)
     : undefined;
-  const selectedDomains = parsed.domains === "auto"
-    ? undefined
-    : parsed.domains.split(",") as SimulationDomain[];
+  const selectedDomains = parsed.domains
+    ? parsed.domains.split(",") as SimulationDomain[]
+    : [];
   const missingChangeInputs = parsed.mode === "change"
     ? (["currentState", "proposal"] as const).filter((field) => !parsed[field]?.trim())
     : undefined;
@@ -332,6 +323,7 @@ export function buildRunSimPrompt(
         ])].map((field) => `projectBrief.${field}`);
   const missingFields = [...new Set([
     ...(!parsed.subjectKind ? ["subjectKind"] : []),
+    ...(!parsed.domains ? ["domains"] : []),
     ...(!parsed.market?.trim() ? ["market"] : []),
     ...(!parsed.language?.trim() ? ["language"] : []),
     ...(missingChangeInputs ?? []),
@@ -445,7 +437,6 @@ export function buildRunSimPrompt(
     ...(uiReferenceUrls
       ? {uiReferenceUrls: uiReferenceUrls.split("\n")}
       : {}),
-    domainSelection: parsed.domains === "auto" ? "auto" : "explicit",
     selectedDomains,
     missingChangeInputs,
     intakeDiagnostics,

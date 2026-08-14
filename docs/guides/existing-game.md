@@ -27,7 +27,7 @@ Use this workflow for a released game, an Early Access title, or a public store 
 }
 ```
 
-Use `mode=change` only with both `currentState` and `proposal`. `domains` is `auto` or a comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
+Use `mode=change` only with both `currentState` and `proposal`. `domains` is a required comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
 
 ## Domain boundaries
 

@@ -19,13 +19,15 @@ const SECTION_IDS = new Set([
 
 export interface RunRecipeSelection {
   subjectKind?: SubjectKind;
-  selectedDomains?: readonly SimulationDomain[];
+  selectedDomains: readonly SimulationDomain[];
 }
 
 function parseSections(source: string): Map<string, string> {
   const sections = new Map<string, string>();
   const matches = [...source.matchAll(SECTION_PATTERN)];
-  if (matches.length === 0) return new Map([["core", source]]);
+  if (matches.length === 0) {
+    throw new Error("run-sim recipe contains no declared sections");
+  }
 
   const outside = source.replace(SECTION_PATTERN, "").trim();
   if (outside) throw new Error("run-sim recipe contains content outside declared sections");
@@ -52,8 +54,6 @@ export function compileRunSimRecipe(
   selection: RunRecipeSelection,
 ): string {
   const sections = parseSections(source);
-  if (sections.size === 1) return requiredSection(sections, "core");
-
   const selected: string[] = [requiredSection(sections, "core")];
   if (selection.subjectKind) {
     selected.push(requiredSection(
@@ -63,9 +63,8 @@ export function compileRunSimRecipe(
         : "subject:developer",
     ));
   }
-  const domains = selection.selectedDomains ?? DOMAIN_ORDER;
   for (const domain of DOMAIN_ORDER) {
-    if (domains.includes(domain)) {
+    if (selection.selectedDomains.includes(domain)) {
       selected.push(requiredSection(sections, `domain:${domain}`));
     }
   }

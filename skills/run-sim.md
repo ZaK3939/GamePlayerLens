@@ -5,9 +5,9 @@
 
 ## Intake gate
 
-- `target`、`topic`、`subjectKind`、`market`、`language`は必須です。`market`とSteam language codeを省略時のJapan / japaneseへ補完しません。
+- `target`、`topic`、`subjectKind`、`domains`、`market`、`language`は必須です。`domains`は最低1領域を明示し、`market`とSteam language codeを省略時のJapan / japaneseへ補完しません。
 - 最初に`intakeDiagnostics`を読みます。`status=needs-input`なら全`missingFields`を一つの簡潔な質問にまとめ、回答までは外部tool、persona派生、artifact保存を開始しません。`ready`は入力準備だけで、品質合格ではありません。
-- `mode=change`では`currentState`と`proposal`が必要です。不足時は評価開始前に質問します。`domains=auto`ではtopicから領域を選択し、Selected Domainsと各選択理由を最初に宣言します。
+- `mode=change`では`currentState`と`proposal`が必要です。不足時は評価開始前に質問します。指定されたSelected Domainsと各選択理由を最初に確認します。
 - 明示domainだけを評価します。例えば`price,competition`に`ui`がなければ`ui_capture`、`ui-blind-compare`、UI gateはN/Aで、不合格理由にしないものとします。選択外領域のmissingも失敗にしません。
 - archive / zipはclient-side extractionが必要です。serverに展開させず、抽出した関連内容をprompt入力として再送してもらいます。
 - `get_status`で保存先の書込可否と任意連携の設定有無だけを確認します。秘密、絶対path、keyを要求・推測しません。

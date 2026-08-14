@@ -14,7 +14,25 @@ import {
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
 
-const recipe = "# Repository recipe\n\nFollow only this repository recipe.";
+const coreRecipe = "# Repository recipe\n\nFollow only this repository recipe.";
+const recipe = [
+  "<!-- GPL:section core -->",
+  coreRecipe,
+  "<!-- GPL:end -->",
+  "<!-- GPL:section subject:existing-game -->",
+  "Existing-game test contract.",
+  "<!-- GPL:end -->",
+  "<!-- GPL:section subject:developer -->",
+  "Developer test contract.",
+  "<!-- GPL:end -->",
+  ...["gameplay", "storefront", "ui", "price", "localization", "competition"].flatMap(
+    (domain) => [
+      `<!-- GPL:section domain:${domain} -->`,
+      `${domain} test contract.`,
+      "<!-- GPL:end -->",
+    ],
+  ),
+].join("\n");
 
 function rewardMechanismsFixture(): Array<Record<string, string>> {
   return [{
@@ -237,7 +255,7 @@ describe("run-sim prompt arguments", () => {
     expect(RunSimPromptArgumentsSchema.parse({
       target: "Example Game",
       topic: "launch",
-    })).toMatchObject({mode: "baseline", domains: "auto"});
+    })).toMatchObject({mode: "baseline"});
 
     const parsedProjectBrief = RunSimPromptArgumentsSchema.parse({
       target: "Example Game",
@@ -341,6 +359,7 @@ describe("run-sim prompt arguments", () => {
   it.each([
     ["invalid mode", {target: "Game", topic: "topic", mode: "delta"}],
     ["unknown domain", {target: "Game", topic: "topic", domains: "price,audio"}],
+    ["removed auto domain", {target: "Game", topic: "topic", domains: "auto"}],
     ["auto mixed with explicit domains", {target: "Game", topic: "topic", domains: "auto,ui"}],
     ["empty explicit domains", {target: "Game", topic: "topic", domains: " , "}],
     ["oversized specification", {
@@ -519,7 +538,7 @@ describe("run-sim prompt arguments", () => {
       specification: hostile,
     });
 
-    expect(result.startsWith(`${recipe}\n\n--- END REPOSITORY RECIPE ---`)).toBe(true);
+    expect(result.startsWith(coreRecipe)).toBe(true);
     expect(result).toContain("--- BEGIN INPUT DATA (JSON) ---");
     const serialized = result.slice(result.indexOf("--- BEGIN INPUT DATA (JSON) ---"));
     expect(serialized).toContain(JSON.stringify(hostile).slice(1, -1));
@@ -537,8 +556,8 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"missingChangeInputs": [\n    "currentState",\n    "proposal"\n  ]');
     expect(result).toContain('"intakeDiagnostics": {');
     expect(result).toContain('"status": "needs-input"');
-    expect(result).toContain('"missingFields": [\n      "subjectKind",\n      "market",\n      "language",\n      "currentState",\n      "proposal"\n    ]');
-    expect(result.slice(0, result.indexOf("--- END REPOSITORY RECIPE ---")).trimEnd()).toBe(recipe);
+    expect(result).toContain('"missingFields": [\n      "subjectKind",\n      "domains",\n      "market",\n      "language",\n      "currentState",\n      "proposal"\n    ]');
+    expect(result.slice(0, result.indexOf("--- END REPOSITORY RECIPE ---")).trimEnd()).toBe(coreRecipe);
   });
 
   it("reports a ready intake only when audience and conditional inputs are present", () => {
@@ -573,6 +592,7 @@ describe("run-sim prompt arguments", () => {
       target: "Project Nyx",
       topic: "concept review",
       subjectKind: "developer-concept",
+      domains: "gameplay",
       market: "Japan",
       language: "japanese",
     });
@@ -582,6 +602,7 @@ describe("run-sim prompt arguments", () => {
       target: "Project Nyx",
       topic: "concept review",
       subjectKind: "developer-concept",
+      domains: "gameplay",
       market: "Japan",
       language: "japanese",
       projectBrief: JSON.stringify({
@@ -602,6 +623,7 @@ describe("run-sim prompt arguments", () => {
       target: "Project Nyx",
       topic: "prototype review",
       subjectKind: "developer-project",
+      domains: "gameplay",
       market: "Japan",
       language: "japanese",
       projectBrief: JSON.stringify({
@@ -1905,7 +1927,7 @@ describe("repository prompt recipes", () => {
   it("scopes run-sim before evaluation and handles non-UI and UI paths", async () => {
     const content = await skill("run-sim.md");
 
-    expect(content).toMatch(/auto[\s\S]*選択[\s\S]*理由[\s\S]*最初/);
+    expect(content).toMatch(/domains[\s\S]*最低1領域[\s\S]*Selected Domains[\s\S]*選択理由/);
     expect(content).toMatch(/change[\s\S]*currentState[\s\S]*proposal[\s\S]*評価開始前[\s\S]*質問/);
     expect(content).toMatch(/price[\s\S]*competition[\s\S]*ui_capture[\s\S]*ui-blind-compare[\s\S]*UI gate[\s\S]*N\/A[\s\S]*不合格理由にしない/);
     expect(content).toMatch(/ui[\s\S]*get_artifact[\s\S]*capture[\s\S]*ui-reference[\s\S]*ui-blind-compare/);

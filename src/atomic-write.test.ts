@@ -10,7 +10,10 @@ import {
 import {tmpdir} from "node:os";
 import {basename, dirname, join} from "node:path";
 import {describe, expect, it, vi} from "vitest";
-import {writeTextFileAtomically} from "./atomic-write.js";
+import {
+  AtomicPublishCleanupError,
+  writeTextFileAtomically,
+} from "./atomic-write.js";
 
 const DESTINATION = join("workspace", "data", "item.json");
 const TEMPORARY = join(dirname(DESTINATION), ".item.json.fixed-id.tmp");
@@ -119,15 +122,33 @@ describe("atomic text writes", () => {
     expect(ops.unlink).not.toHaveBeenCalled();
   });
 
-  it("surfaces unexpected cleanup failure after a successful publish", async () => {
+  it("retries transient Windows cleanup locks after a successful publish", async () => {
     const ops = fileOps();
-    ops.unlink.mockRejectedValueOnce(new Error("cleanup failed"));
+    ops.unlink
+      .mockRejectedValueOnce(nodeError("EPERM"))
+      .mockRejectedValueOnce(nodeError("EBUSY"));
 
     await expect(writeTextFileAtomically(DESTINATION, "payload", {
       fileOps: ops,
       alreadyExistsMessage: "item already exists",
       idFactory: () => "fixed-id",
-    })).rejects.toThrow("cleanup failed");
+    })).resolves.toBeUndefined();
+    expect(ops.unlink).toHaveBeenCalledTimes(3);
+  });
+
+  it("marks an unrecoverable post-publish cleanup failure as committed", async () => {
+    const ops = fileOps();
+    ops.unlink.mockRejectedValue(nodeError("EPERM"));
+
+    const failure = writeTextFileAtomically(DESTINATION, "payload", {
+      fileOps: ops,
+      alreadyExistsMessage: "item already exists",
+      idFactory: () => "fixed-id",
+      cleanupRetryTimeoutMs: 0,
+    });
+    await expect(failure).rejects.toBeInstanceOf(AtomicPublishCleanupError);
+    await expect(failure).rejects.toMatchObject({committed: true});
+    await expect(failure).rejects.toThrow(/file was saved.*read the saved record/i);
   });
 
   it("accepts an already-removed temporary after a successful publish", async () => {

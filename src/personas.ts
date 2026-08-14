@@ -360,9 +360,9 @@ export function createPersonaDeriver(
   dependencies: PersonaDeriverDependencies = {},
 ): (
   appids: number[],
+  options: PersonaDerivationOptions,
   count?: number,
   reviewsPerPolarity?: number,
-  options?: PersonaDerivationOptions,
 ) => Promise<FetchResult<DerivationPack>> {
   const gameFetcher = dependencies.fetchGame ?? fetchGame;
   const reviewFetcher = dependencies.fetchReviews ?? fetchReviews;
@@ -370,9 +370,9 @@ export function createPersonaDeriver(
 
   return async (
     appids: number[],
+    inputOptions: PersonaDerivationOptions,
     count = 5,
     reviewsPerPolarity = DEFAULT_REVIEWS_PER_POLARITY,
-    inputOptions?: PersonaDerivationOptions,
   ) => {
     if (!Number.isInteger(count) || count < 1 || count > 12) {
       throw new TypeError("count must be an integer from 1 to 12");

@@ -20,6 +20,28 @@ interface AtomicTextWriteOptions {
   overwrite?: boolean;
   idFactory?: () => string;
   replaceFile?: AtomicReplaceFile;
+  cleanupRetryTimeoutMs?: number;
+}
+
+const CLEANUP_RETRY_CODES = new Set([
+  "EACCES",
+  "EBUSY",
+  "EMFILE",
+  "ENFILE",
+  "EPERM",
+]);
+const DEFAULT_CLEANUP_RETRY_TIMEOUT_MS = 7_500;
+
+export class AtomicPublishCleanupError extends Error {
+  override name = "AtomicPublishCleanupError";
+  readonly committed = true;
+
+  constructor(cause: unknown) {
+    super(
+      "file was saved, but temporary-file cleanup failed; read the saved record before retrying",
+      {cause},
+    );
+  }
 }
 
 export async function replaceTextFileAtomically(path: string, data: string): Promise<void> {
@@ -37,6 +59,31 @@ function hasErrorCode(error: unknown, code: string): boolean {
     current = current.cause;
   }
   return false;
+}
+
+async function unlinkTemporaryWithRetry(
+  unlink: AtomicTextFileOps["unlink"],
+  path: string,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  let delayMs = 10;
+  while (true) {
+    try {
+      await unlink(path);
+      return;
+    } catch (error) {
+      if (hasErrorCode(error, "ENOENT")) return;
+      const retryable = [...CLEANUP_RETRY_CODES].some(
+        (code) => hasErrorCode(error, code),
+      );
+      const remainingMs = deadline - Date.now();
+      if (!retryable || remainingMs <= 0) throw error;
+      const waitMs = Math.min(delayMs, remainingMs);
+      await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+      delayMs = Math.min(delayMs * 2, 250);
+    }
+  }
 }
 
 export async function writeTextFileAtomically(
@@ -76,9 +123,13 @@ export async function writeTextFileAtomically(
   } finally {
     if (temporaryCreated) {
       try {
-        await options.fileOps.unlink(temporary);
+        await unlinkTemporaryWithRetry(
+          options.fileOps.unlink,
+          temporary,
+          options.cleanupRetryTimeoutMs ?? DEFAULT_CLEANUP_RETRY_TIMEOUT_MS,
+        );
       } catch (error) {
-        if (!hasErrorCode(error, "ENOENT") && !operationFailed) throw error;
+        if (!operationFailed) throw new AtomicPublishCleanupError(error);
       }
     }
   }

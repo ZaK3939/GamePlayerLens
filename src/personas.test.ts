@@ -1,7 +1,7 @@
 import {mkdtemp, mkdir, readdir, rm, writeFile as nodeWriteFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
-import {afterEach, describe, expect, it, vi} from "vitest";
+import {afterEach, describe, expect, expectTypeOf, it, vi} from "vitest";
 import {createPathResolver} from "./paths.js";
 import {
   GeneratedPersonaSchema,
@@ -11,6 +11,7 @@ import {
 import {createPersonaStore} from "./persona-store.js";
 import {
   createPersonaDeriver,
+  type PersonaDerivationOptions,
 } from "./personas.js";
 import type {Review, ReviewOptions} from "./reviews.js";
 
@@ -187,14 +188,9 @@ describe("persona store", () => {
 });
 
 describe("persona derivation pack", () => {
-  it("requires market and language before fetching persona evidence", async () => {
-    const fetchGame = vi.fn();
-    const fetchReviews = vi.fn();
-    const derive = createPersonaDeriver({fetchGame, fetchReviews});
-
-    await expect(derive([1145360])).rejects.toThrow("market and language are required");
-    expect(fetchGame).not.toHaveBeenCalled();
-    expect(fetchReviews).not.toHaveBeenCalled();
+  it("requires audience options in the direct TypeScript API", () => {
+    type DeriveParameters = Parameters<ReturnType<typeof createPersonaDeriver>>;
+    expectTypeOf<DeriveParameters[1]>().toEqualTypeOf<PersonaDerivationOptions>();
   });
 
   it("fills Japanese shortages from all languages without duplicates", async () => {
@@ -225,7 +221,7 @@ describe("persona derivation pack", () => {
     });
     const derive = createPersonaDeriver({fetchGame, fetchReviews, now: () => NOW});
 
-    const result = await derive([1145360], undefined, undefined, AUDIENCE);
+    const result = await derive([1145360], AUDIENCE);
     expect(result.data?.requestedCount).toBe(5);
     expect(result.data?.reviews).toHaveLength(50);
     expect(result.data?.reviews.slice(0, 4).map((item) => item.votedUp)).toEqual([
@@ -278,7 +274,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], 2, 3, {market: "Global", language: "all"});
+    })([1145360], {market: "Global", language: "all"}, 2, 3);
 
     expect(result.data?.generationReadiness).toEqual({
       status: "blocked",
@@ -312,7 +308,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], 3, 3, {market: "Global", language: "all"});
+    })([1145360], {market: "Global", language: "all"}, 3, 3);
 
     expect(result.data?.generationReadiness).toEqual({
       status: "partial",
@@ -354,12 +350,12 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145350, 1145360], 3, 3, {
+    })([1145350, 1145360], {
       targetAppid: 1145350,
       market: "Japan",
       language: "japanese",
       focus: ["adoption", "retention", "update-response"],
-    });
+    }, 3, 3);
 
     expect(result.data?.reviews).toHaveLength(12);
     expect(result.data?.reviews.map(({sourceAppid, votedUp}) => [sourceAppid, votedUp]))
@@ -427,14 +423,14 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([10, 20, 30], 3, 3, {
+    })([10, 20, 30], {
       ...AUDIENCE,
       sourceRoles: [
         {appid: 30, role: "reference"},
         {appid: 10, role: "target"},
         {appid: 20, role: "competitor"},
       ],
-    });
+    }, 3, 3);
 
     expect(result.data?.brief).toMatchObject({
       targetAppid: 10,
@@ -461,18 +457,18 @@ describe("persona derivation pack", () => {
     const fetchReviews = vi.fn();
     const derive = createPersonaDeriver({fetchGame, fetchReviews});
 
-    await expect(derive([10, 20], 3, 3, {
+    await expect(derive([10, 20], {
       ...AUDIENCE,
       sourceRoles: [{appid: 10, role: "target"}],
-    })).rejects.toThrow(/cover exactly/i);
-    await expect(derive([10, 20], 3, 3, {
+    }, 3, 3)).rejects.toThrow(/cover exactly/i);
+    await expect(derive([10, 20], {
       ...AUDIENCE,
       targetAppid: 10,
       sourceRoles: [
         {appid: 10, role: "competitor"},
         {appid: 20, role: "target"},
       ],
-    })).rejects.toThrow(/targetAppid/i);
+    }, 3, 3)).rejects.toThrow(/targetAppid/i);
     expect(fetchGame).not.toHaveBeenCalled();
     expect(fetchReviews).not.toHaveBeenCalled();
   });
@@ -494,7 +490,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([10], 1, 3, {...AUDIENCE, targetAppid: 10});
+    })([10], {...AUDIENCE, targetAppid: 10}, 1, 3);
     const coverage = (result.meta?.methodology as {
       appids: Array<{sample: {coverage: Record<string, unknown>}}>;
     }).appids[0]?.sample.coverage;
@@ -527,7 +523,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], undefined, undefined, AUDIENCE);
+    })([1145360], AUDIENCE);
 
     expect(fetchReviews).toHaveBeenCalledTimes(2);
     const sampling = (result.meta?.methodology as {
@@ -553,7 +549,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], undefined, undefined, AUDIENCE);
+    })([1145360], AUDIENCE);
 
     expect(result.data?.games).toEqual([]);
     expect(result.data?.reviews).toHaveLength(2);
@@ -575,8 +571,8 @@ describe("persona derivation pack", () => {
       fetchGame: vi.fn(),
       fetchReviews: vi.fn(),
     });
-    await expect(derive([1145360], 0)).rejects.toThrow(/1 to 12/);
-    await expect(derive([1145360], 13)).rejects.toThrow(/1 to 12/);
+    await expect(derive([1145360], AUDIENCE, 0)).rejects.toThrow(/1 to 12/);
+    await expect(derive([1145360], AUDIENCE, 13)).rejects.toThrow(/1 to 12/);
   });
 
   it("rejects review evidence limits outside 3 through 25", async () => {
@@ -584,8 +580,8 @@ describe("persona derivation pack", () => {
       fetchGame: vi.fn(),
       fetchReviews: vi.fn(),
     });
-    await expect(derive([1145360], 5, 2)).rejects.toThrow(/3 to 25/);
-    await expect(derive([1145360], 5, 26)).rejects.toThrow(/3 to 25/);
+    await expect(derive([1145360], AUDIENCE, 5, 2)).rejects.toThrow(/3 to 25/);
+    await expect(derive([1145360], AUDIENCE, 5, 26)).rejects.toThrow(/3 to 25/);
   });
 
   it("rejects more than twelve source appids before fetching", async () => {
@@ -593,7 +589,7 @@ describe("persona derivation pack", () => {
     const fetchReviews = vi.fn();
     const derive = createPersonaDeriver({fetchGame, fetchReviews});
 
-    await expect(derive(Array.from({length: 13}, () => 1145360)))
+    await expect(derive(Array.from({length: 13}, () => 1145360), AUDIENCE))
       .rejects.toThrow(/at most 12/);
     expect(fetchGame).not.toHaveBeenCalled();
     expect(fetchReviews).not.toHaveBeenCalled();

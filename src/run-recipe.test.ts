@@ -24,9 +24,19 @@ describe("run-sim recipe compiler", () => {
     expect(compiled.length).toBeLessThan(12_000);
   });
 
-  it("includes every domain only for auto selection", async () => {
+  it("includes every domain when every domain is explicitly selected", async () => {
     const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
-    const compiled = compileRunSimRecipe(source, {subjectKind: "existing-game"});
+    const compiled = compileRunSimRecipe(source, {
+      subjectKind: "existing-game",
+      selectedDomains: [
+        "gameplay",
+        "storefront",
+        "ui",
+        "price",
+        "localization",
+        "competition",
+      ],
+    });
 
     for (const label of [
       "Gameplay domain contract",
@@ -42,10 +52,22 @@ describe("run-sim recipe compiler", () => {
     expect(compiled).not.toContain("Developer subject contract");
   });
 
-  it("treats an unsectioned test recipe as one core section", () => {
-    expect(compileRunSimRecipe("# Test recipe\n", {
+  it("does not silently add domains when intake has no explicit selection", async () => {
+    const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
+    const compiled = compileRunSimRecipe(source, {
+      subjectKind: "existing-game",
+      selectedDomains: [],
+    });
+
+    expect(compiled).toContain("Core workflow");
+    expect(compiled).toContain("Existing-game subject contract");
+    expect(compiled).not.toContain("domain contract");
+  });
+
+  it("rejects an unsectioned recipe instead of silently disabling scoping", () => {
+    expect(() => compileRunSimRecipe("# Test recipe\n", {
       subjectKind: "existing-game",
       selectedDomains: ["ui"],
-    })).toBe("# Test recipe\n");
+    })).toThrow(/no declared sections/i);
   });
 });
