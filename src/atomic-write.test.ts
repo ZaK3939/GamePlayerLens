@@ -162,6 +162,8 @@ describe("atomic text writes", () => {
     })).resolves.toBeUndefined();
   });
 
+  // Keep this above atomically's 7.5 s operation timeout so a real retry
+  // failure surfaces instead of being masked by Vitest during busy Windows CI.
   it("repeatedly overwrites a real file without leaving temporary files", async () => {
     const directory = await mkdtemp(join(tmpdir(), "game-player-lens-atomic-"));
     const destination = join(directory, "item.json");
@@ -181,5 +183,5 @@ describe("atomic text writes", () => {
     } finally {
       await rm(directory, {recursive: true, force: true});
     }
-  });
+  }, 30_000);
 });
