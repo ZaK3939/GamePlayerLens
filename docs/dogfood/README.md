@@ -39,15 +39,15 @@ v1.1 workflowは `Dogfood-validated` です。これはworkflow acceptanceであ
 
 Indie survival strategy rubricはcanonical knowledge、run-sim、evaluation template、harsh critic、package smokeまで接続済みですが、開発中ゲームの企画→human playtest→store funnel→outcomeを通したdogfoodは未完了です。固定販売本数や反応率を正当化したこと、または生存確率を校正したことを意味しません。
 
-`subjectKind`による既存ゲーム / 開発中対象の分岐、structured `projectBrief.rewardMechanisms`、score化しない`projectBriefDiagnostics`はschema、prompt serialization、stdio、package smokeまで検証済みです。開発中対象ではbriefとroute固有fieldを開始前にgateし、before → action → response → after / perceived rewardをdeclared hypothesisとして扱います。ただし実在する開発中ゲームのbrief入力はまだ保存しておらず、Implemented, not dogfood-validatedです。
+`subjectKind`による既存ゲーム / 開発中対象の分岐、structured `projectBrief.rewardMechanisms`、score化しない`projectBriefDiagnostics`はschema、prompt serialization、stdio、package smokeまで検証済みです。開発中対象ではtarget player、route固有field、`oneSentencePromise`、`coreProofMoment`を開始前にgateし、before → action → response → after / perceived rewardとproof momentをdeclared hypothesisとして扱います。ただし実在する開発中ゲームのbrief入力はまだ保存しておらず、Implemented, not dogfood-validatedです。
 
 `firstContactTest.visualQuality`とvisual concern reason、theme / action / reward / immediate rejectの分離集計はunit・MCP・stdio・package smokeまで検証済みです。これはsynthetic transport fixtureであり、実在assetを第三者へ提示したvisual-quality判断ではありません。実際の外部participant反復testはPendingです。
 
 evaluation保存時のcanonical構造gateは、必須section、非空本文、Indie Survival Strategyの詳細sectionまたは具体的な適用外理由、未記入placeholder拒否までunit・MCP・package smokeで検証済みです。既存の保存済み実相談を新gateで再保存したdogfoodではないため、過去artifactを遡及合格扱いにしません。
 
-run schema v5は`subjectKind / market / language / projectBrief`とevaluationのIndie strategy modeをimmutable recordへ封印します。開発中対象のroute-incomplete briefまたはIndie strategy N/Aを拒否するgateはunit・in-memory MCP・package smokeで検証しますが、実在する開発案件runの封印はまだPendingです。
+run schema v6は`subjectKind / market / language / projectBrief`とevaluationのIndie strategy modeをimmutable recordへ封印します。開発中対象のtarget player / promise / proof contractを含むroute-incomplete brief、またはIndie strategy N/Aを拒否するgateはunit・in-memory MCP・package smokeで検証しますが、実在する開発案件runの封印はまだPendingです。
 
-structured `conceptTest`とdescriptive-onlyな診断はschema、匿名ID / email拒否、field-level safe error、prompt serialization、canonical knowledge、stdio、package smokeまで検証済みです。MCP promptが正規化済み入力へ`conceptTestEvidence.resultHandle`を発行し、payloadのモデル転記なしにmanual intelへexact-saveできることもin-memory MCPで確認しました。`projectBriefRevision` / `promiseShown`はbriefとの完全一致だけをprovenanceとして報告し、意味や品質をscore化しません。schemaが自動検出する個人情報はemail形式だけです。行動理解、報酬理解、興味を分離し、sample countをconversionやpurchase予測へ変換しないgateも接続しました。ただし実在する開発中ゲームでの第三者concept testはまだ保存しておらず、Implemented, not dogfood-validatedです。
+structured `conceptTest`とdescriptive-onlyな診断はschema、匿名ID / email拒否、field-level safe error、prompt serialization、canonical knowledge、stdio、package smokeまで検証済みです。MCP promptが正規化済み入力へ`conceptTestEvidence.resultHandle`を発行し、payloadのモデル転記なしにmanual intelへexact-saveできることもin-memory MCPで確認しました。`projectBriefRevision` / `promiseShown`はbriefとの完全一致だけをprovenanceとして報告し、意味や品質をscore化しません。schemaが自動検出する個人情報はemail形式だけです。theme理解、theme-system fit、行動理解、報酬理解、興味を分離し、`no / unclear`のfit reasonをparticipant自身の記録として要求します。sample countをconversionやpurchase予測へ変換しないgateも接続しました。ただし実在する開発中ゲームでの第三者concept testはまだ保存しておらず、Implemented, not dogfood-validatedです。
 
 既存のHades UI runを新しいreadbackで監査すると、12 dependencyはverified、recordは旧形式のためunsealed、更新後の`run-sim.md`は保存hashとmismatchになり、全体statusはfailed・issueCount 2となった。過去runを新gateへ遡及合格させず、evidence driftと通常のrecipe更新をdependency別に区別できることを実dataで確認した。
 

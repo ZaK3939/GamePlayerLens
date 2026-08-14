@@ -124,6 +124,7 @@ describe("canonical adoption evaluation template", () => {
 
     expect(content).toContain("## Indie Survival Strategy");
     expect(content).toContain("Core Experience Map");
+    expect(content).toContain("coreProofMoment");
     expect(content).toContain("Concept Origin Route");
     expect(content).toContain("Reward Mechanism Trace");
     expect(content).toContain("Mechanism Transfer Map");
@@ -131,12 +132,19 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("Promise-Delivery Trace");
     expect(content).toContain("Funnel Health");
     expect(content).toContain("Milestone Readiness");
+    expect(content).toContain("Capability Reinvestment Gate");
+    expect(content).toContain("Repair Backlog");
     expect(content).toContain("Experiment Queue");
     expect(content).toContain("Core Legibility Gate");
     expect(content).toContain("Core Revision Ledger");
     expect(content).toContain("First-contact Asset Readiness");
     expect(content).toContain("Immediate reject risk");
     expect(content).toMatch(/適用外[\s\S]*N\/A理由/);
+    expect(content).toMatch(/Experiment Queue[\s\S]*最大3件/);
+    expect(content).toMatch(/Repair Backlog[\s\S]*(実験|Experiment)[\s\S]*(分離|混ぜない)/);
+    expect(content).toMatch(/Repair Backlog[\s\S]*(0件|行を空)/);
+    expect(content).toMatch(/Capability Reinvestment Gate[\s\S]*Bottleneck[\s\S]*Expansion trigger/);
+    expect(content).toMatch(/Coverage rate[\s\S]*小数1桁/);
   });
 });
 
@@ -218,6 +226,8 @@ describe("harsh critic rubric", () => {
     expect(content).toMatch(/表層feature[\s\S]*action → response → reward[\s\S]*差し戻す/);
     expect(content).toMatch(/AI[\s\S]*人間のfun[\s\S]*証明[\s\S]*差し戻す/);
     expect(content).toMatch(/最初の4枚[\s\S]*30秒[\s\S]*固定条件[\s\S]*差し戻す/);
+    expect(content).toMatch(/understoodTheme[\s\S]*themeAppeal[\s\S]*tryIntent[\s\S]*(混同|分け)/);
+    expect(content).toMatch(/outsource[\s\S]*runway[\s\S]*Evidence ID[\s\S]*差し戻す/);
   });
 });
 
@@ -263,6 +273,7 @@ describe("indie survival strategy rubric", () => {
     expect(content).toMatch(/surface feature[\s\S]*source action → response → reward[\s\S]*target adaptation/i);
     expect(content).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
     expect(content).toMatch(/visualQuality[\s\S]*visualQualityReason/);
+    expect(content).toMatch(/understoodTheme[\s\S]*themeAppeal[\s\S]*tryIntent/);
   });
 
   it("diagnoses the acquisition and play funnel without blaming one metric", async () => {
@@ -302,6 +313,9 @@ describe("indie survival strategy rubric", () => {
     expect(content).toMatch(/販売本数[\s\S]*runway[\s\S]*project固有/);
     expect(content).toMatch(/platform fee[\s\S]*refund[\s\S]*tax[\s\S]*固定値/);
     expect(content).toMatch(/AI playtest[\s\S]*human playtest[\s\S]*代表/);
+    expect(content).toContain("Capability Reinvestment Gate");
+    expect(content).toMatch(/outsource[\s\S]*hire[\s\S]*runway[\s\S]*reversible/i);
+    expect(content).toMatch(/online[\s\S]*story[\s\S]*(scope|運用|依存)/i);
   });
 
   it("treats third-party concept tests as bounded observations rather than a success threshold", async () => {
@@ -309,7 +323,8 @@ describe("indie survival strategy rubric", () => {
 
     expect(content).toContain("conceptTest");
     expect(content).toMatch(/stimulusId[\s\S]*recruitment[\s\S]*questionsAsked/);
-    expect(content).toMatch(/understoodAction[\s\S]*understoodReward[\s\S]*interest/);
+    expect(content).toMatch(/understoodTheme[\s\S]*themeSystemFit[\s\S]*understoodAction[\s\S]*understoodReward[\s\S]*interest/);
+    expect(content).toMatch(/themeSystemFitReason[\s\S]*補完しない/);
     expect(content).toMatch(/固定threshold[\s\S]*採用しない/);
     expect(content).toMatch(/interest[\s\S]*purchase[\s\S]*証明しない/);
     expect(content).toMatch(/participantId[\s\S]*匿名[\s\S]*個人情報/);
@@ -328,6 +343,8 @@ describe("indie survival strategy rubric", () => {
     expect(content).toContain("theme-specific play");
     expect(content).toContain("experience → reward");
     expect(content).toContain("unaided teach-back");
+    expect(content).toContain("coreProofMoment");
+    expect(content).toContain("core proof moment");
     expect(content).toContain("Core Revision Ledger");
     expect(content).toMatch(/定期[\s\S]*固定cadence[\s\S]*しない/);
     expect(content).toContain("First-contact Asset Readiness");
@@ -336,6 +353,8 @@ describe("indie survival strategy rubric", () => {
     expect(content).toMatch(/AI[\s\S]*人間のfun[\s\S]*certifyしない/);
     expect(content).toMatch(/firstContactTestEvidence\.resultHandle[\s\S]*exact-save/);
     expect(content).toMatch(/changedVariables[\s\S]*invariantsKept[\s\S]*因果/);
+    expect(content).toMatch(/theme appeal[\s\S]*theme comprehension[\s\S]*別/i);
+    expect(content).toMatch(/try intent[\s\S]*(purchase|需要)[\s\S]*証明しない/i);
   });
 });
 
@@ -376,6 +395,8 @@ describe("playtest rubric", () => {
     expect(content).toContain("failure → retry");
     expect(content).toMatch(/AI[\s\S]*人間[\s\S]*代表/);
     expect(content).toContain("playtest provenance");
+    expect(content).toContain("executionEnvironment");
+    expect(content).toMatch(/software[\s\S]*hardware[\s\S]*(一般化|generaliz)/i);
   });
 
   it("requires exact-saved session evidence and separates operation from human reward reports", async () => {
@@ -396,7 +417,7 @@ describe("playtest rubric", () => {
     expect(rubric).toMatch(/parentSessionId[\s\S]*changeSummary[\s\S]*changedVariables[\s\S]*invariantsKept/);
     expect(rubric).toMatch(/複数[\s\S]*(因果|causal)[\s\S]*(unresolved|未解決)/);
     expect(recipe).toMatch(/playtest-session-<sessionId>[\s\S]*parentSessionId[\s\S]*get_artifact/);
-    expect(recipe).toMatch(/parent[\s\S]*task[\s\S]*platform[\s\S]*controls[\s\S]*(cohort|participant)/);
+    expect(recipe).toMatch(/parent[\s\S]*task[\s\S]*executionEnvironment[\s\S]*controls[\s\S]*(cohort|participant)/);
   });
 
   it("aggregates bounded cohorts without inventing population rates", async () => {
@@ -644,6 +665,7 @@ describe("MCP prompt source recipes", () => {
     expect(recipeContent).toMatch(/projectBrief[\s\S]*declared design intent[\s\S]*player evidence/);
     expect(recipeContent).toMatch(/projectBriefDiagnostics[\s\S]*inventory[\s\S]*quality[\s\S]*pass/);
     expect(recipeContent).toMatch(/sourceAction[\s\S]*sourceSystemResponse[\s\S]*sourceReward/);
+    expect(recipeContent).toMatch(/targetPlayer[\s\S]*oneSentencePromise[\s\S]*coreProofMoment[\s\S]*intake/);
     expect(recipeContent).toMatch(/mechanismTransfer[\s\S]*declared[\s\S]*evidence/);
     expect(recipeContent).toMatch(/blocking[\s\S]*missing[\s\S]*捏造/);
     expect(criticContent).toMatch(/projectBrief[\s\S]*player evidence[\s\S]*差し戻す/);
@@ -656,7 +678,8 @@ describe("MCP prompt source recipes", () => {
     const criticContent = await read("knowledge/rubrics/harsh-critic.md");
 
     expect(recipeContent).toMatch(/conceptTest[\s\S]*save_artifact[\s\S]*manual/);
-    expect(recipeContent).toMatch(/understoodAction[\s\S]*understoodReward[\s\S]*interest[\s\S]*別/);
+    expect(recipeContent).toMatch(/understoodTheme[\s\S]*themeSystemFit[\s\S]*understoodAction[\s\S]*understoodReward[\s\S]*interest[\s\S]*別/);
+    expect(recipeContent).toMatch(/themeSystemFitReason[\s\S]*要求/);
     expect(recipeContent).toMatch(/participant count[\s\S]*conversion[\s\S]*変換しない/);
     expect(criticContent).toMatch(/conceptTest[\s\S]*固定threshold[\s\S]*差し戻す/);
   });

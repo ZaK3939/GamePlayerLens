@@ -13,6 +13,7 @@ import {basename, dirname, relative, sep} from "node:path";
 import {z} from "zod";
 import {
   assertCanonicalEvaluationMarkdown,
+  EVALUATION_DOMAINS,
   IntelRecordSchema,
   MAX_EVALUATION_BYTES,
   MAX_INTEL_PAYLOAD_BYTES,
@@ -49,14 +50,7 @@ const RUN_RECIPE_ID = "run-sim.md";
 
 export const RunIdSchema = z.uuid();
 export const SimulationModeSchema = z.enum(["baseline", "change"]);
-export const SimulationDomainSchema = z.enum([
-  "gameplay",
-  "storefront",
-  "ui",
-  "price",
-  "localization",
-  "competition",
-]);
+export const SimulationDomainSchema = z.enum(EVALUATION_DOMAINS);
 const ReferenceIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i);
 const CanonicalTargetIdSchema = z.string()
   .min(1)
@@ -507,7 +501,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(5),
+  schemaVersion: z.literal(6),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
@@ -612,6 +606,7 @@ export type RunIntegrityReport = z.infer<typeof RunIntegrityReportSchema>;
 interface ResolvedEvidenceResult {
   record: z.infer<typeof ResolvedEvidenceSchema>;
   payload?: unknown;
+  evaluationDomains?: string[];
 }
 
 export interface RunArtifact {
@@ -1063,7 +1058,7 @@ export function createRunStore(
         resolved.absolutePath,
         MAX_EVALUATION_BYTES,
       );
-      const indieStrategyMode = assertCanonicalEvaluationMarkdown(bytes.toString("utf8"));
+      const evaluation = assertCanonicalEvaluationMarkdown(bytes.toString("utf8"));
       return {record: ResolvedEvidenceSchema.parse({
         ref: input.ref,
         kind: input.kind,
@@ -1071,8 +1066,8 @@ export function createRunStore(
         id: `${parsed.date}-${resolved.topicId}`,
         path: resolved.relativePath,
         sha256: hash(bytes),
-        indieStrategyMode,
-      })};
+        indieStrategyMode: evaluation.indieStrategyMode,
+      }), evaluationDomains: evaluation.selectedDomains};
     }
     if (input.kind === "capture") {
       const {resolved, bytes} = await resolveCapture(input.id);
@@ -1565,9 +1560,11 @@ export function createRunStore(
       resolvedEvidence.push(await resolveEvidence(reference));
     }
     const evidence = resolvedEvidence.map(({record}) => record);
-    const finalEvaluation = evidence.find(
-      (item) => item.ref === parsed.finalEvaluationRef && item.kind === "evaluation",
+    const finalEvaluationResult = resolvedEvidence.find(
+      (item) => item.record.ref === parsed.finalEvaluationRef
+        && item.record.kind === "evaluation",
     );
+    const finalEvaluation = finalEvaluationResult?.record;
     if (
       (parsed.subjectKind === "developer-concept" || parsed.subjectKind === "developer-project")
       && finalEvaluation?.indieStrategyMode !== "detailed"
@@ -1576,8 +1573,19 @@ export function createRunStore(
         "developer runs require a detailed Indie Survival Strategy in the final evaluation",
       );
     }
+    if (
+      !finalEvaluationResult?.evaluationDomains
+      || finalEvaluationResult.evaluationDomains.length !== parsed.selectedDomains.length
+      || parsed.selectedDomains.some(
+        (domain) => !finalEvaluationResult.evaluationDomains!.includes(domain),
+      )
+    ) {
+      throw new Error(
+        "run selectedDomains must exactly match the final evaluation Selected Domains",
+      );
+    }
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 5,
+      schemaVersion: 6,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,

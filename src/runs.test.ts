@@ -41,24 +41,71 @@ const REQUIRED_INDIE_SECTIONS = [
   "Playtest Cohort Summary",
   "Funnel Health",
   "Milestone Readiness",
+  "Capability Reinvestment Gate",
+  "Repair Backlog",
   "Experiment Queue",
   "Survival Scenarios",
 ] as const;
 
 function evaluationMarkdown(detail: string, detailedIndie = false): string {
+  const detailedSection = (heading: string): string[] => {
+    if (heading === "Mechanism Transfer Map") {
+      return [`### ${heading}`, "適用外: No imitation frame or mechanism transfer applies."];
+    }
+    if (heading === "Repair Backlog") {
+      return [
+        `### ${heading}`,
+        [
+          "| Priority | Blocking failure | Evidence ID | Owner surface | Success gate | Must not change |",
+          "|---|---|---|---|---|---|",
+          "| 1 | Fixture evidence is synthetic | E-001 | test harness | persistence succeeds | integrity checks |",
+        ].join("\n"),
+      ];
+    }
+    if (heading === "Capability Reinvestment Gate") {
+      return [
+        `### ${heading}`,
+        [
+          "| Decision | Bottleneck | Evidence ID | Capacity / runway boundary | Reversible next step | Expansion trigger |",
+          "|---|---|---|---|---|---|",
+          "| defer | Fixture evidence is synthetic | E-001 | Capacity and runway are missing | Preserve current scope | Real player evidence identifies a bottleneck |",
+        ].join("\n"),
+      ];
+    }
+    if (heading === "Experiment Queue") {
+      return [
+        `### ${heading}`,
+        [
+          "| Priority | Hypothesis | Stage | Primary metric | Source | Guardrail | Smallest build / asset | Experiment ID |",
+          "|---|---|---|---|---|---|---|---|",
+          "| 1 | The persisted fixture remains readable | prototype | integrity status | run-readback | no hash mismatch | one fixture | fixture-readback-01 |",
+        ].join("\n"),
+      ];
+    }
+    if (heading === "Survival Scenarios") {
+      return [
+        `### ${heading}`,
+        [
+          "| Scenario | Revenue assumptions | Cost / fee / refund / tax assumptions | Runway impact | Decision |",
+          "|---|---|---|---|---|",
+          "| conservative | missing | missing | missing | hold |",
+          "| base | missing | missing | missing | hold |",
+          "| upside | missing | missing | missing | validate |",
+        ].join("\n"),
+      ];
+    }
+    return [`### ${heading}`, `${heading} evidence.`];
+  };
   const indieBody = detailedIndie
     ? [
       "This developer project requires the full indie strategy trace.",
-      ...REQUIRED_INDIE_SECTIONS.flatMap((heading) => [
-        `### ${heading}`,
-        heading === "Mechanism Transfer Map"
-          ? "適用外: No imitation frame or mechanism transfer applies."
-          : `${heading} evidence.`,
-      ]),
+      ...REQUIRED_INDIE_SECTIONS.flatMap(detailedSection),
     ]
     : ["適用外: This fixture tests run persistence only."];
   return [
     "# Evaluation",
+    "- Mode: change",
+    "- Selected Domains: storefront, UI",
     "## Decision Card", detail,
     "## Detailed Scope", "Run-store integration fixture.",
     "## Indie Survival Strategy", ...indieBody,
@@ -67,8 +114,34 @@ function evaluationMarkdown(detail: string, detailedIndie = false): string {
     "## Flow Summary", "Synthetic flow summary.",
     "## Domain Findings", "Synthetic domain finding.",
     "## Data Semantics", "Synthetic data semantics.",
-    "## Data Coverage Matrix", "Synthetic coverage entry.",
-    "## Evidence Index", "Synthetic evidence entry.",
+    "## Data Coverage Matrix",
+    [
+      "| Domain | Dimension | Status | Evidence IDs | Limitation / mismatch | Decision impact |",
+      "|---|---|---|---|---|---|",
+      "| storefront | copy and metadata | missing | なし | synthetic fixture | no product claim |",
+      "| storefront | visual promise | missing | なし | synthetic fixture | no product claim |",
+      "| storefront | expectation match | missing | なし | synthetic fixture | no product claim |",
+      "| storefront | competitor context | missing | なし | synthetic fixture | no product claim |",
+      "| ui | target task state | missing | なし | synthetic fixture | no product claim |",
+      "| ui | matched cohort | missing | なし | synthetic fixture | no product claim |",
+      "| ui | provenance | missing | なし | synthetic fixture | no product claim |",
+      "| ui | interaction flow | missing | なし | synthetic fixture | no product claim |",
+      "| ui | localization and accessibility state | missing | なし | synthetic fixture | no product claim |",
+    ].join("\n"),
+    [
+      "| Scope | Applicable dimensions | Observed | Reported-zero | Estimated | Missing | Coverage rate | Direct observation rate |",
+      "|---|---|---|---|---|---|---|---|",
+      "| storefront | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      "| ui | 5 | 0 | 0 | 0 | 5 | 0.0% | 0.0% |",
+      "| overall | 9 | 0 | 0 | 0 | 9 | 0.0% | 0.0% |",
+    ].join("\n"),
+    "Blocking missing dimensions: all fixture dimensions are intentionally missing.",
+    "## Evidence Index",
+    [
+      "| Evidence ID | artifact repository-relative path | observedAt | source | Data status / warning |",
+      "|---|---|---|---|---|",
+      "| E-001 | `knowledge/intel/hades-ii/snapshot.json` | 2026-08-11T12:34:56.000Z | manual | observed; synthetic fixture |",
+    ].join("\n"),
     "## Final Recommendation", detail,
   ].join("\n\n");
 }
@@ -93,6 +166,8 @@ function projectBriefFixture() {
       perceivedReward: "a correct read becomes a successful delivery",
       amplifier: "storm audio and vehicle motion",
     }],
+    oneSentencePromise: "Outread the storm to keep a fragile courier network alive",
+    coreProofMoment: "A route is redrawn around a storm and the delivery state reacts immediately",
   };
 }
 
@@ -645,6 +720,17 @@ describe("run input schema", () => {
         .toContain("projectBrief");
     }
 
+    const {coreProofMoment: _coreProofMoment, ...withoutCoreProofMoment} = projectBriefFixture();
+    const developerWithoutProof = SaveRunInputSchema.safeParse(runInput({
+      subjectKind: "developer-project",
+      projectBrief: withoutCoreProofMoment,
+    }));
+    expect(developerWithoutProof.success).toBe(false);
+    if (!developerWithoutProof.success) {
+      expect(developerWithoutProof.error.issues.map((issue) => issue.path.join(".")).join(" "))
+        .toContain("projectBrief.coreProofMoment");
+    }
+
     expect(() => SaveRunInputSchema.parse(runInput({
       subjectKind: "developer-project",
       projectBrief: projectBriefFixture(),
@@ -675,7 +761,7 @@ describe("run store", () => {
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 5,
+      schemaVersion: 6,
       runId: RUN_ID,
       targetId: "hades-ii",
       subjectKind: "existing-game",
@@ -796,6 +882,29 @@ describe("run store", () => {
     await expect(store.listRuns("Hades II")).resolves.toEqual([saved]);
   });
 
+  it("rejects a final evaluation whose Selected Domains differ from the run", async () => {
+    const {artifacts, store} = await harness();
+    const storefrontOnly = evaluationMarkdown("Current versus proposal.")
+      .replace("- Selected Domains: storefront, UI", "- Selected Domains: storefront")
+      .split("\n")
+      .filter((line) => !line.startsWith("| ui |"))
+      .join("\n")
+      .replace(
+        "| overall | 9 | 0 | 0 | 0 | 9 | 0.0% | 0.0% |",
+        "| overall | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      );
+    await artifacts.saveEvaluation({
+      target: "Hades II",
+      topic: "Store Page",
+      date: "2026-08-11",
+      content: storefrontOnly,
+    }, true);
+
+    await expect(store.saveRun(runInput())).rejects.toThrow(
+      /selectedDomains.*final evaluation/i,
+    );
+  });
+
   it("rejects an indie-strategy N/A final evaluation for a developer project", async () => {
     const {artifacts, store} = await harness();
     const developerRun = runInput({
@@ -814,8 +923,12 @@ describe("run store", () => {
     await expect(store.saveRun(developerRun)).resolves.toMatchObject({id: RUN_ID});
     await expect(store.readRun("Hades II", RUN_ID)).resolves.toMatchObject({
       record: {
+        schemaVersion: 6,
         subjectKind: "developer-project",
-        projectBrief: {revisionId: "brief-v1"},
+        projectBrief: {
+          revisionId: "brief-v1",
+          coreProofMoment: "A route is redrawn around a storm and the delivery state reacts immediately",
+        },
         evidence: expect.arrayContaining([
           expect.objectContaining({
             ref: "evaluation",
@@ -971,7 +1084,7 @@ describe("run store", () => {
   it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
     const read = await calibrationHarness("verified");
 
-    expect(read.record.schemaVersion).toBe(5);
+    expect(read.record.schemaVersion).toBe(6);
     expect(read.record.simulationReadiness).toMatchObject({
       status: "validation-ready",
       heldOutValidation: {

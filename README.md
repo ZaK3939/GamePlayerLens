@@ -11,7 +11,7 @@ Steam の実データに接地したゲーム開発コンサル用 MCP サーバ
 | 公開済みゲームの競合・価格・レビュー・更新を深掘りする | `run-sim` | `subjectKind=existing-game`、`target`、`topic`、`market`、`language`。appidが不明でも名前から開始可能 |
 | 過去の相談や保存根拠を読み返す | `get_artifact` | `kind`。まずtarget一覧、次にitem一覧、最後に本文を読む |
 
-接続後は引数なしの`get_status`で、保存先が書込可能か、ITAD価格履歴とObscura page captureが設定済みかを確認できます。返すのは状態だけで、秘密値や絶対pathは返しません。`run-sim`では`subjectKind`を`existing-game / developer-concept / developer-project`から指定します。`intakeDiagnostics.status`が`needs-input`なら、クライアントは`missingFields`を一度に確認してから根拠収集を始めます。開発中対象ではrouteに必要な`projectBrief.<field>`もgateし、`ready`は入力準備の完了だけを表します。
+接続後は引数なしの`get_status`で、保存先が書込可能か、ITAD価格履歴とObscura page captureが設定済みかを確認できます。返すのは状態だけで、秘密値や絶対pathは返しません。`run-sim`では`subjectKind`を`existing-game / developer-concept / developer-project`から指定します。`intakeDiagnostics.status`が`needs-input`なら、クライアントは`missingFields`を一度に確認してから根拠収集を始めます。開発中対象ではrouteに必要な`projectBrief.<field>`に加え、対象player、一文の約束、theme固有のaction → response → rewardを最短で示す`coreProofMoment`もgateします。`ready`は入力準備の完了だけを表し、funや市場性の合格ではありません。
 
 ## 現在できること
 
@@ -146,14 +146,14 @@ Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短
   "subjectKind": "developer-project",
   "mode": "baseline",
   "domains": "gameplay,storefront,competition",
-  "projectBrief": "{\"revisionId\":\"brief-v3\",\"developmentStage\":\"prototype\",\"conceptOrigin\":\"theme-first\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"rewardMechanisms\":[{\"family\":\"mastery\",\"form\":\"mixed\",\"beforeState\":\"安全な航路がまだ分からない\",\"playerAction\":\"予報を読み航路を確定する\",\"systemResponse\":\"風、燃料、荷物が選択へ反応する\",\"afterState\":\"航路予測の成否が判明する\",\"perceivedReward\":\"読みが成立し配達を完了できる手応え\",\"amplifier\":\"嵐の音、機体animation、受取人の反応\"}],\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"knownFrame\":\"route-planning management\",\"sourceAction\":\"制約を読みながら経路を選ぶ\",\"sourceSystemResponse\":\"選んだ経路に応じて時間と資源が変わる\",\"sourceReward\":\"計画が成立して効率が改善する手応え\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
+  "projectBrief": "{\"revisionId\":\"brief-v3\",\"developmentStage\":\"prototype\",\"conceptOrigin\":\"theme-first\",\"targetPlayer\":\"読みやすいrisk判断を好むroute-planning player\",\"themeWorld\":\"嵐の中で配達網を守る飛行船郵便局\",\"distinctiveSystem\":\"変化する予報に対して航路を描き直す\",\"repeatedAction\":\"予報を読み、航路を決め、結果から立て直す\",\"playerDecision\":\"安全性と配達価値のどちらを優先するか\",\"systemResponse\":\"風、燃料、荷物の状態が即座に変わる\",\"rewardMechanisms\":[{\"family\":\"mastery\",\"form\":\"mixed\",\"beforeState\":\"安全な航路がまだ分からない\",\"playerAction\":\"予報を読み航路を確定する\",\"systemResponse\":\"風、燃料、荷物が選択へ反応する\",\"afterState\":\"航路予測の成否が判明する\",\"perceivedReward\":\"読みが成立し配達を完了できる手応え\",\"amplifier\":\"嵐の音、機体animation、受取人の反応\"}],\"oneSentencePromise\":\"嵐を読み切り、小さな空の郵便網を守る\",\"coreProofMoment\":\"嵐の進路を見て航路を引き直すと、風、燃料、荷傷み、到着結果が即座に変わる\",\"knownFrame\":\"route-planning management\",\"sourceAction\":\"制約を読みながら経路を選ぶ\",\"sourceSystemResponse\":\"選んだ経路に応じて時間と資源が変わる\",\"sourceReward\":\"計画が成立して効率が改善する手応え\",\"meaningfulDifference\":\"予報の不確実性を航路として描き直せる\",\"teamCapacity\":\"開発2名、音楽はpart-time\",\"runwayMonths\":14,\"nextIrreversibleCommitment\":\"Steam coming-soon pageの公開\"}",
   "competitors": "既知なら作品名、未知なら省略",
   "market": "Japan",
   "language": "japanese"
 }
 ```
 
-`projectBrief`は開発者が宣言した設計意図です。`conceptOrigin`は`theme-first / system-first / holistic-image / imitation`のいずれかで、優劣ではなく次に確認する不足counterpartを選ぶために使います。報酬は`rewardMechanisms`へ1〜6件、family、`inherent / transition / mixed`、before state、player action、system response、after state、perceived reward、任意のamplifierに分けます。`knownFrame`を使う場合は、参照作品で想定する体験を`sourceAction`、`sourceSystemResponse`、`sourceReward`へ分け、target側の差を`meaningfulDifference`へ書きます。いずれもplayer evidenceとは扱わず、source asset、build、third-party理解test、human playtest、telemetryで順に検証します。promptの`projectBriefDiagnostics`は`conceptRoute`、`rewardMechanism`、`mechanismTransfer`を返しますが、field数やstatusはquality scoreやmilestone passではありません。
+`projectBrief`は開発者が宣言した設計意図です。`conceptOrigin`は`theme-first / system-first / holistic-image / imitation`のいずれかで、優劣ではなく次に確認する不足counterpartを選ぶために使います。報酬は`rewardMechanisms`へ1〜6件、family、`inherent / transition / mixed`、before state、player action、system response、after state、perceived reward、任意のamplifierに分けます。`coreProofMoment`には、theme固有のaction → response → rewardを第三者へ最短で見せるscene / state / interactionを書きます。`knownFrame`を使う場合は、参照作品で想定する体験を`sourceAction`、`sourceSystemResponse`、`sourceReward`へ分け、target側の差を`meaningfulDifference`へ書きます。いずれもplayer evidenceとは扱わず、source asset、build、third-party理解test、human playtest、telemetryで順に検証します。promptの`projectBriefDiagnostics`は`conceptRoute`、`rewardMechanism`、`mechanismTransfer`を返しますが、field数やstatusはquality scoreやmilestone passではありません。
 
 第三者へ短いpitchやmockupを見せた結果は、`conceptTest`へJSON文字列として渡せます。次はJSON文字列へencodeする前の形です。
 
@@ -172,6 +172,8 @@ Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短
   "recruitment": "External players recruited from a tactics community",
   "targetPlayerDefinition": "Players who enjoy deliberate route planning",
   "questionsAsked": [
+    "What theme or world did you understand?",
+    "Why did the theme and repeated action feel connected or disconnected?",
     "What would you do repeatedly?",
     "What would feel rewarding?",
     "Would you choose to try it? Why?"
@@ -180,6 +182,9 @@ Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短
     {
       "participantId": "p-01",
       "targetFit": "high",
+      "understoodTheme": "yes",
+      "themeSystemFit": "unclear",
+      "themeSystemFitReason": "Courier themeは伝わったが、航路を描く必然性はまだ弱い",
       "understoodAction": "yes",
       "understoodReward": "unclear",
       "interest": "maybe",
@@ -191,15 +196,15 @@ Steam Store、Steam Reviews、Steam News、SteamSpy、ITADのJSON取得は、短
 }
 ```
 
-`participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptは行動理解、報酬理解、興味を別々に件数集計し、`teachBackAudit`でyes判定と`unaidedSummary`の有無も分けます。`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示し、意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
+`participantId`は重複しない仮名IDだけにし、氏名、email、連絡先などの個人情報を入れません。schemaが自動拒否する個人情報はemail形式だけであり、氏名、電話番号、住所、アカウントIDなどは送信前に利用者が除去してください。promptはtheme理解、theme-system fit、行動理解、報酬理解、興味を別々に件数集計します。`themeSystemFit=no / unclear`にはparticipant自身の`themeSystemFitReason`が必須です。`teachBackAudit`ではyes判定と`unaidedSummary`の有無も分けます。`revisionId` / `projectBriefRevision`と`oneSentencePromise` / `promiseShown`の完全一致だけをprovenanceとして示し、意味的な一致や品質scoreは推定しません。この少人数sampleから固定合格率、conversion、purchase、需要も推定しません。
 
 再検証では新しい`stimulusId`と一緒に`parentStimulusId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて渡します。親revisionを指定して比較設計の一部を省略した入力は拒否されます。診断はprotocol deviation、測定不足、action / rewardの読みにくさ、参加者の混乱を次に調べる候補として返しますが、原因とは断定しません。効果を比較したい場合は一度に変えるcoreまたはasset変数を1つに絞り、複数を変えた結果の因果は`unresolved`として残します。単一変更でも、維持条件は自己申告なので因果証明ではなく比較候補です。
 
-インディー戦略の出力では、テーマ固有のplay、theme-system fit、experience → reward、第三者のunaided teach-backを別々に扱う`Core Legibility Gate`、変更と維持条件を追う`Core Revision Ledger`、実際の第一viewport・screenshots・trailerで即離脱リスクを見る`First-contact Asset Readiness`を作ります。「最初の4枚」「30秒」などの固定数は合格条件にせず、現在の表示contextとtarget playerの証拠で判断します。AI生成や自動化は制作速度の補助であり、人間のfunやtaste fitの証明にはしません。
+インディー戦略の出力では、テーマ固有のplay、theme-system fit、experience → reward、第三者のunaided teach-back、asset / build上のcore proof momentを別々に扱う`Core Legibility Gate`、変更と維持条件を追う`Core Revision Ledger`、実際の第一viewport・screenshots・trailerで即離脱リスクを見る`First-contact Asset Readiness`を作ります。「最初の4枚」「30秒」などの固定数は合格条件にせず、現在の表示contextとtarget playerの証拠で判断します。AI生成や自動化は制作速度の補助であり、人間のfunやtaste fitの証明にはしません。
 
 concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動追加されます。レシピはこのhandleだけを`save_artifact(kind=intel)`へ渡すため、モデルによる転記・要約を挟まず、正規化済み入力と`testedAt`をそのまま保存できます。field-level validation errorは許可済みfield名と違反種別だけを返し、拒否した入力値や未知field名は表示しません。
 
-第一viewport、screenshots、trailerなどを第三者へ見せた結果は`firstContactTest`へ渡せます。asset ID / type、device・viewport・duration・sound・表示順、募集条件、匿名participantごとの`visualQuality`、theme / action / reward理解、`immediateReject`を別々に保存・診断します。`rough`または`style-mismatch`には`visualQualityReason`が必須です。promptに追加される`firstContactTestEvidence.resultHandle`で原本をexact-saveし、少人数の反応をconversion、需要、fun、客観的な制作品質scoreへ変換しません。
+第一viewport、screenshots、trailerなどを第三者へ見せた結果は`firstContactTest`へ渡せます。asset ID / type、device・viewport・duration・sound・表示順、募集条件、匿名participantごとの`visualQuality`、`understoodTheme`、`themeAppeal`、action / reward理解、`tryIntent`、`immediateReject`を別々に保存・診断します。themeを理解できたことと、そのthemeが好みに刺さったことを混同しません。`rough`または`style-mismatch`には`visualQualityReason`、theme appealの`no / unclear`には`themeAppealReason`、try intentの`maybe / no`には`tryIntentReason`が必須です。promptに追加される`firstContactTestEvidence.resultHandle`で原本をexact-saveし、少人数のtry intentをpurchase、conversion、需要、fun、客観的な制作品質scoreへ変換しません。
 
 次はJSON文字列へencodeする前の例です。
 
@@ -226,6 +231,8 @@ concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動�
     "どんな世界だと思いましたか？",
     "何を繰り返すゲームだと思いましたか？",
     "何が報酬になりそうですか？",
+    "この世界観は自分の好みに合いますか？理由は？",
+    "この表示の後に試してみたいですか？理由は？",
     "すぐ離脱したくなる点はありましたか？"
   ],
   "participants": [{
@@ -234,8 +241,11 @@ concept test入力時は、promptに`conceptTestEvidence.resultHandle`が自動�
     "visualQuality": "rough",
     "visualQualityReason": "route overlayがこのviewportでは未完成に見える",
     "understoodTheme": "yes",
+    "themeAppeal": "yes",
     "understoodAction": "unclear",
     "understoodReward": "no",
+    "tryIntent": "maybe",
+    "tryIntentReason": "世界観は好みだが、遊びと報酬がまだ想像できない",
     "immediateReject": "yes",
     "unaidedSummary": "嵐の配達ゲームだが操作は分からない",
     "rejectionReason": "遊べるactionが画面に見えない",
@@ -296,7 +306,9 @@ UI の change 相談:
 
 ### Data coverage と分析精度
 
-Selected Domainごとに固定dimensionを持つData Coverage Matrixを作り、`observed`、`reported-zero`、`estimated`、`missing`、`N/A`を区別します。`Coverage rate`は推定を含む取得充足率、`Direct observation rate`は直接観測と明示的な0だけの比率です。どちらも成功確率ではなく、blocking dimensionがmissingなら平均値が高くてもconfidenceをhighにしません。固定dimensionと計算規則は`get_knowledge(kind=rubrics, id=evidence-coverage.md)`で取得できます。
+Selected Domainごとに固定dimensionを持つData Coverage Matrixを作り、`observed`、`reported-zero`、`estimated`、`missing`、`N/A`を区別します。`Coverage rate`は推定を含む取得充足率、`Direct observation rate`は直接観測と明示的な0だけの比率で、いずれも小数1桁の%表記です。どちらも成功確率ではなく、blocking dimensionがmissingなら平均値が高くてもconfidenceをhighにしません。固定dimensionと計算規則は`get_knowledge(kind=rubrics, id=evidence-coverage.md)`で取得できます。
+
+evaluation保存時には、冒頭`Selected Domains`、固定dimension全行、標準status、domain別とoverallのCoverage Summary再計算、Evidence ID参照、repository-relative path、offset付き`observedAt`、sourceを機械検証します。run保存時にはevaluationのSelected Domainsとrunの`selectedDomains`が完全一致しなければ拒否します。これにより、たとえばUI referenceだけを調べたのに`competition`を選択して市場signalや履歴を欠落させるscope混同を保存前に検出します。
 
 change runは全`scenario × Selected Domain`と全`persona × scenario`のroundを要求します。final evaluation以外の全evidenceは少なくとも1 roundで使用し、synthesis後に作る`finalEvaluationRef`をroundから参照する循環は拒否します。これにより「変更案だけ評価した」「保存したが判断に使わなかった」データをmachine gateで検出します。
 
@@ -305,6 +317,10 @@ change runは全`scenario × Selected Domain`と全`persona × scenario`のround
 企画、prototype、store公開、demo、Next Fest、launch、post-launchの相談では、購入前の`Appeal Promise`と購入後の`Delivered Experience`を別ledgerで評価します。`Core Experience Map`でtheme、distinctive system、反復行動、player decision、system response、即時報酬・変化の報酬を結び、`Concept Origin Route`で企画の起点から不足側を特定し、`Reward Mechanism Trace`でbefore state → action → response → after stateを追います。`Promise-Delivery Trace`ではcapsule / trailer / copyが約束した体験をbuild momentとplaytestへ接続します。競合作品は`Mechanism Transfer Map`でsurface featureとsourceのaction → response → rewardを分け、`Known Frame`から理解costを下げつつ、targetのaction / decision / rewardを変える`Meaningful Difference`へ転用します。
 
 市場側は`impression → store visit → wishlist → demo start → demo completion → purchase → retained play`として観測し、wishlistを面白さ、販売本数、Steam visibilityの単独証明にしません。milestoneは日付だけでなくplayer / asset evidenceでgateし、Next Fest等の条件は[公式Steamworks](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest)の現在仕様を実行時に確認します。販売本数、platform fee、refund、税、conversion、開発期間は固定値を埋めず、project固有のteam capacity、cost、契約、法域、runwayをconservative / base / upside scenarioへ分離します。
+
+売上再投資や外注、採用、online / story / live operations等のscope拡張は`Capability Reinvestment Gate`で判断します。現在のplayer-facing bottleneck、Evidence ID、capacity / runway、戻せる最小step、expansion triggerが揃わなければ`defer`します。一般的な販売本数や開発期間から自動的に制作規模を上げません。
+
+実行不能、capture / receipt不整合、liveness failure、instrumentation欠損は、Evidence ID・success gate・維持contractを持つ`Repair Backlog`へ置きます。これは既知failureの修復でありplayer / market仮説の実験ではありません。`Experiment Queue`は修復後に判断を動かす仮説だけを最大3件に絞り、primary metric、source、guardrailを要求します。
 
 詳細な判断境界は`get_knowledge(kind=rubrics, id=indie-survival-strategy.md)`で取得できます。
 
@@ -316,7 +332,7 @@ change runは全`scenario × Selected Domain`と全`persona × scenario`のround
 
 ### 実buildのtest play
 
-`run-sim`へ`playtestUrl`、`playtestTask`、`playtestBuild`、`playtestControls`、`playtestDurationMinutes`を渡せます。完了した1 sessionは`playtestSession`へ渡すと、build / task / controlsの照合、時系列Action → system response → rewardSignal、friction、人間の任意`humanReport`を分離して診断します。promptの`playtestSessionEvidence.resultHandle`で原本をexact-saveでき、1 sessionをfun score、completion rate、retention、需要へ変換しません。gameplayを選択した相談では`get_knowledge(kind=rubrics, id=playtest.md)`のprotocolを使います。
+`run-sim`へ`playtestUrl`、`playtestTask`、`playtestBuild`、`playtestControls`、`playtestDurationMinutes`を渡せます。完了した1 sessionは`playtestSession`へ渡すと、build / task / controlsの照合、時系列Action → system response → rewardSignal、friction、人間の任意`humanReport`を分離して診断します。sessionはstrictな`executionEnvironment`でOS、device、runtime、renderer backend / implementation、hardware / software acceleration、viewport / DPRを記録します。software rendererの結果はそのcompatibility pathだけに限定し、hardware player性能へ一般化しません。promptの`playtestSessionEvidence.resultHandle`で原本をexact-saveでき、1 sessionをfun score、completion rate、retention、需要へ変換しません。gameplayを選択した相談では`get_knowledge(kind=rubrics, id=playtest.md)`のprotocolを使います。
 
 browser/desktop controlを持つAI clientでは実buildを操作します。操作能力がない場合はページ閲覧をtest playと呼ばず、recordingまたはユーザー同席sessionへ切り替えます。AI 1 testerは再現可能な操作摩擦の発見には使えますが、人間の楽しさ、需要、completion rate、retentionの代表ではありません。native buildの任意実行はMCP server自身では行いません。
 
@@ -342,7 +358,15 @@ browser/desktop controlを持つAI clientでは実buildを操作します。操�
   "endedAt": "2026-08-12T12:08:00+04:00",
   "sessionId": "playtest-build-042-p04",
   "buildId": "0.4.2-dev",
-  "platform": "Windows 11 desktop",
+  "executionEnvironment": {
+    "operatingSystem": "Windows 11 24H2",
+    "device": "Desktop with NVIDIA RTX 4060",
+    "runtime": "Chrome 140",
+    "rendererBackend": "webgl2",
+    "rendererImplementation": "ANGLE D3D11 (NVIDIA RTX 4060)",
+    "graphicsAcceleration": "hardware",
+    "viewport": {"width": 1920, "height": 1080, "devicePixelRatio": 1}
+  },
   "controls": "keyboard and mouse",
   "task": "Start a new run and defeat the tutorial enemy",
   "startState": "Fresh save at the title screen",
@@ -378,7 +402,7 @@ browser/desktop controlを持つAI clientでは実buildを操作します。操�
 }
 ```
 
-改善後のretestでは、47文字以内のlowercase kebab-caseによる新しい`sessionId`に`parentSessionId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて追加します。diagnosticsが返すartifact IDを使ってsession原本を`playtest-session-<sessionId>`へimmutableに保存し、親原本のtask、platform、controls、start state、tester / cohort、observation sourceと照合します。単一変更でも比較候補であり因果証明ではありません。複数変更は`unresolved-multiple-changes`となります。事前の成功criterion、guardrail、複数scenario集計が必要な比較はExperimentSpecを使います。
+改善後のretestでは、47文字以内のlowercase kebab-caseによる新しい`sessionId`に`parentSessionId`、`changeSummary`、`changedVariables`、`invariantsKept`をすべて追加します。diagnosticsが返すartifact IDを使ってsession原本を`playtest-session-<sessionId>`へimmutableに保存し、親原本のtask、executionEnvironment、controls、start state、tester / cohort、observation sourceと照合します。単一変更でも比較候補であり因果証明ではありません。複数変更は`unresolved-multiple-changes`となります。事前の成功criterion、guardrail、複数scenario集計が必要な比較はExperimentSpecを使います。
 
 2〜20件のsessionをまとめる場合は、完全なsession objectを`sessions`へ入れた`playtestCohort`を使います。`playtestSession`との同時入力は拒否されます。cohortには`assembledAt`、48文字以内のlowercase kebab-case `cohortId`、`purpose`、`recruitment`、`targetPlayerDefinition`、`samplingBoundary`が必要です。原本は`playtest-cohort-<cohortId>`へexact-saveされ、session count、unique human participant、repeat exposure、AI / human、outcome、human report coverage、friction / reward evidence、protocol group、lineageを件数のまま返します。内部parentがあるretestは`retestComparisons`でrecorded protocol、participant exposure、変更変数、outcome / reward / material friction / human reportの前後差を照合します。cohort外parentはexact-readbackまで未解決です。前後差を率、fun score、因果効果、需要予測へ変換しません。
 
@@ -390,7 +414,7 @@ ExperimentSpec、ExperimentMeasurement、ExperimentOutcomeは`save_artifact(kind
 
 Outcomeのmetricは`ai-playtest / human-playtest / telemetry / steam-reviews / store-metric / manual-observation`を区別し、source、instrument、unit、aggregation、cohort、windowがspecと一致しない値で登録済みcriterionを満たしません。測定できなかった場合もmissingを0やfailureへ変換せず、`overallVerdict=unresolved`として保存します。次のspecが`parentOutcomeRef`を持ち、次runが新spec、parent outcome、raw measurementのすべてをevidenceとして各analysis phaseで使ったときにloopがつながります。
 
-実験artifactは既存intel storeへ保存しますが、run schema v5は相談時の`subjectKind / market / language / projectBrief`に加え、ExperimentSpec / Measurement / Outcomeをstrict validationします。次runの`simulationReadiness.calibration.serverVerified=true`は、parent ref、spec / Prediction Run / measurementのSHA-256 chain、時刻順、primary protocol、minimum sample、raw valueの再計算がすべて一致した場合だけ返ります。`forecastComparisons`はその1予測の誤差を示します。`experimentDecisions`は全success criterionとguardrailをraw measurementから再計算し、server overall、限定的な`recommendedAction`、client申告との一致を表示します。どちらも因果効果や母集団代表性ではありません。
+実験artifactは既存intel storeへ保存しますが、run schema v6は相談時の`subjectKind / market / language / projectBrief`に加え、ExperimentSpec / Measurement / Outcomeをstrict validationします。次runの`simulationReadiness.calibration.serverVerified=true`は、parent ref、spec / Prediction Run / measurementのSHA-256 chain、時刻順、primary protocol、minimum sample、raw valueの再計算がすべて一致した場合だけ返ります。`forecastComparisons`はその1予測の誤差を示します。`experimentDecisions`は全success criterionとguardrailをraw measurementから再計算し、server overall、限定的な`recommendedAction`、client申告との一致を表示します。どちらも因果効果や母集団代表性ではありません。
 
 ### UI実力差の比較
 
@@ -463,7 +487,7 @@ ExperimentSpec / ExperimentMeasurement / ExperimentOutcomeは直接intel方式�
 
 `simulationReadiness.status=rehearsal`は、レビュー・persona・比較根拠から問題仮説、反応方向の仮説、次のtest priorityを作れる段階です。母集団代表性と介入分離は未確認なので、population rate、market share、causal lift、retention impactはblocked claimです。`validation-ready`はrunと一致するExperimentSpecが事前登録された段階であり、実測済みまたは成功を意味しません。run一覧metadataにも`simulationReadinessStatus`を含めるため、本文を開かずに保証境界を確認できます。
 
-runを`get_artifact`で読むと、保存recordに加えて現在のrecipe、persona、全evidenceを再読込してSHA-256とpathを照合した`integrity` reportを返します。`verified`は全照合成功、`failed`はmissing / mismatch / unreadableです。現行schema v5では相談context、canonical seal、構造coverageが必須で、開発中対象はroute-completeなProject Briefと詳細Indie戦略も必須です。依存artifactのdriftはrun本文を失敗させずwarningと個別statusで可視化します。canonical sealは偶発的な編集・driftを検出するchecksumであり、署名や外部attestationではありません。
+runを`get_artifact`で読むと、保存recordに加えて現在のrecipe、persona、全evidenceを再読込してSHA-256とpathを照合した`integrity` reportを返します。`verified`は全照合成功、`failed`はmissing / mismatch / unreadableです。現行schema v6では相談context、canonical seal、構造coverageが必須で、開発中対象はtarget player、一文の約束、core proof momentを含むroute-completeなProject Briefと詳細Indie戦略も必須です。依存artifactのdriftはrun本文を失敗させずwarningと個別statusで可視化します。canonical sealは偶発的な編集・driftを検出するchecksumであり、署名や外部attestationではありません。
 
 `get_artifact` は read-only で、list/read semantics は次のとおりです。
 

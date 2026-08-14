@@ -58,6 +58,7 @@ concept、prototype、vertical slice、store公開、demo、Next Fest、launch�
 | playerDecision / systemResponse | ［判断と応答］ | ［Evidence ID］ | ［status］ |
 | rewardMechanisms | ［family / form / before → action → response → after / perceived reward / amplifier］ | ［Evidence ID］ | ［declared / observed / contradicted / missing］ |
 | oneSentencePromise | ［1文で理解できる約束］ | ［理解test Evidence ID］ | ［status］ |
+| coreProofMoment | ［theme固有のaction → response → rewardが最短で見えるscene / state / interaction］ | ［asset / build / third-party Evidence ID］ | ［declared / implemented / observed / contradicted / missing］ |
 | Known Frame / source action → response → reward / Meaningful Difference | ［理解しやすい型、source loop仮説、target体験を変える差分］ | ［source Evidence ID / missing］ | ［declared / observed / inferred / missing］ |
 
 ### Concept Origin Route
@@ -88,7 +89,7 @@ effect、coin、level-up UIはresponse / amplifierとして記録し、それだ
 
 ### Core Legibility Gate
 
-4問を合計scoreにせず、別々のstatusと根拠で記録します。説明できたことをfunの実測へ変換しません。
+5問を合計scoreにせず、別々のstatusと根拠で記録します。説明できたことをfunの実測へ変換しません。
 
 | Check | Current hypothesis | Third-party / Build observation | Evidence | Status |
 |---|---|---|---|---|
@@ -96,6 +97,7 @@ effect、coin、level-up UIはresponse / amplifierとして記録し、それだ
 | theme-system fit | ［themeとsystemが互いを強める理由］ | ［build moment / missing］ | ［Evidence ID］ | ［status］ |
 | experience → reward | ［action → response → reward］ | ［playtest observation / missing］ | ［Evidence ID］ | ［status］ |
 | one-sentence teach-back | ［oneSentencePromise］ | ［participantの自発要約。誘導質問への同意は不可］ | ［Evidence ID］ | ［status］ |
+| core proof moment | ［coreProofMoment］ | ［asset / buildでの位置、追加説明なしのunaided response］ | ［Evidence ID］ | ［declared / implemented / observed / contradicted / missing］ |
 
 ### Core Revision Ledger
 
@@ -115,11 +117,13 @@ effect、coin、level-up UIはresponse / amplifierとして記録し、それだ
 - Recruitment / questions / deviations: ［条件］
 - Diagnostic candidates: ［原因ではないinspection priority］
 - Visual-quality counts: ［credible / rough / style-mismatch / unclear / not-assessed。客観的制作品質scoreではない］
+- Theme legibility / appeal: ［understoodThemeとthemeAppealを別集計。理解できたことを好みへ変換しない］
+- Try intent: ［yes / maybe / no / not-askedとparticipant自身の理由。purchase、需要、conversionではない］
 - Missing reject reasons: ［`unexplainedImmediateRejectCount`。他回答から推測しない］
 
-| Asset / Context | Exposure condition | Perceived visual quality | Visible theme | Imagined action | Imagined reward | Immediate reject risk | Evidence | Status |
-|---|---|---|---|---|---|---|---|---|
-| ［capsule / key visual / 第一viewport / screenshots / trailer / demo］ | ［device / viewport / duration / sound / order］ | ［credible / rough / style-mismatch / unclear / not-assessed + reason］ | ［観測］ | ［unaided response］ | ［unaided response］ | ［Not for me / unreadable / wrong expectation］ | ［Evidence ID］ | ［core-visible / theme-only / system-only / unreadable / untested］ |
+| Asset / Context | Exposure condition | Perceived visual quality | Visible theme | Theme appeal | Imagined action | Imagined reward | Try intent | Immediate reject risk | Evidence | Status |
+|---|---|---|---|---|---|---|---|---|---|---|
+| ［capsule / key visual / 第一viewport / screenshots / trailer / demo］ | ［device / viewport / duration / sound / order］ | ［credible / rough / style-mismatch / unclear / not-assessed + reason］ | ［観測］ | ［yes / no / unclear / not-assessed + reason］ | ［unaided response］ | ［unaided response］ | ［yes / maybe / no / not-asked + reason］ | ［Not for me / unreadable / wrong expectation］ | ［Evidence ID］ | ［core-visible / theme-only / system-only / unreadable / untested］ |
 
 「最初の4枚」や「30秒」を固定条件にせず、現在の実表示でcoreのproof momentがいつ現れるかを記録します。生成AIや自動化で作ったassetもhuman responseの代用にはしません。
 
@@ -136,11 +140,13 @@ effect、coin、level-up UIはresponse / amplifierとして記録し、それだ
 - Recruitment / target player definition: ［募集元、target fitの判定基準］
 - Questions asked: ［誘導を避けた質問］
 - Deviations / limitations: ［順序、moderation、言語、sample boundary］
-- Teach-back audit: ［summaryProvidedCount / understandingMarkedYesWithoutSummaryCount / bothMarkedYesWithSummaryCount。yes判定だけを自発説明にしない］
+- Teach-back audit: ［summaryProvidedCount / understandingMarkedYesWithoutSummaryCount / coreDimensionsMarkedYesWithSummaryCount。yes判定だけを自発説明にしない］
 - Revision candidates: ［`conceptTestDiagnostics.revisionLoop.candidateReviewAreas`。原因ではなくinspection priority］
 
 | Observation | Counts | Confusions / unaided summary | Interpretation limit |
 |---|---|---|---|
+| understoodTheme | ［yes / no / unclear / not-measured］ | ［どのtheme / worldと読んだか］ | theme認識をsystem fitや好みへ変換しない |
+| themeSystemFit | ［yes / no / unclear / not-measured］ | ［participant自身のthemeSystemFitReason］ | themeとactionの個別理解からfitを推測しない |
 | understoodAction | ［yes / no / unclear / not-measured］ | ［反復行動の理解 / 混乱］ | action理解だけをfunや需要にしない |
 | understoodReward | ［yes / no / unclear / not-measured］ | ［報酬の理解 / 混乱］ | reward理解をaction理解で補完しない |
 | interest | ［would-play / maybe / would-not-play / not-asked］ | ［理由 / 未質問］ | purchaseや継続の証明ではない |
@@ -154,10 +160,11 @@ effect、coin、level-up UIはresponse / amplifierとして記録し、それだ
 ### Delivered Experience Playtest Trace
 
 - Exact-save evidence: ［`playtestSessionEvidence.resultHandle`で保存したmanual intel path / missing理由］
-- Session boundary: ［session ID、build、task、start/end state、platform、controls、duration、tester type、prior knowledge］
+- Session boundary: ［session ID、build、task、start/end state、executionEnvironment（OS、device、runtime、renderer backend / implementation、hardware / software acceleration、viewport / DPR）、controls、duration、tester type、prior knowledge］
 - Protocol alignment / deviations: ［build / task / controlsのmatched・mismatched・not-supplied、deviation］
 - Retest lineage: ［sessionId / parentSessionId / changeSummary / changedVariables / invariantsKept / parent artifact、またはinitial］
-- Retest comparability: ［parentとcurrentのtask、platform、controls、start state、tester / cohort、observation sourceの差。1変数でもcausal proofではない］
+- Retest comparability: ［parentとcurrentのtask、executionEnvironment、controls、start state、tester / cohort、observation sourceの差。1変数でもcausal proofではない］
+- Renderer generalization boundary: ［software rendererならそのcompatibility pathだけ。hardware player性能へ一般化しない。hardwareでも記録したdevice / runtime / renderer / viewportだけ］
 - Human report boundary: ［humanReportのfelt reward / repeat intent / confusion、またはAI-operatedなのでN/A］
 
 | Step / time | Player intent | Input / Action | System response | Friction | rewardSignal | Evidence ID |
@@ -172,7 +179,7 @@ effect、coin、level-up UIはresponse / amplifierとして記録し、それだ
 - Cohort boundary: ［cohort ID、purpose、recruitment、target player、sampling boundary、observation window］
 - Exposure counts: ［sessionCount、uniqueHumanParticipantCount、repeatHumanParticipantCount］
 - Evidence separation: ［human / AI、human-report-present / missing / AI N/Aを別々に記録］
-- Protocol groups: ［build、task、platform、controls、observation sourceごとのsession件数］
+- Protocol groups: ［build、task、executionEnvironment、controls、observation sourceごとのsession件数］
 - Lineage: ［linked retest、internal parent、external parent、multi-variable retestの件数］
 - Candidate review areas: ［原因や順位ではなく、session IDへ戻って調べる項目］
 
@@ -188,7 +195,7 @@ cohort集計はboundedな問題発見用です。同じparticipantの再参加�
 
 | Current session | Parent session / artifact | Declared change | Recorded protocol mismatches | Participant exposure | Evidence transition | Comparison status / unresolved reasons |
 |---|---|---|---|---|---|---|
-| ［session ID］ | ［parent ID、exact-readback済みpath / pending理由］ | ［change summary、changed variables、declared invariants］ | ［task / platform / controls / start state / tester type / observation source / prior knowledge］ | ［different / repeat human、AI pair、mixed］ | ［outcome、reward signals、material/blocker friction、human felt rewardのparent → current］ | ［comparison-candidate-only / unresolved、理由］ |
+| ［session ID］ | ［parent ID、exact-readback済みpath / pending理由］ | ［change summary、changed variables、declared invariants］ | ［task / executionEnvironment / controls / start state / tester type / observation source / prior knowledge］ | ［different / repeat human、AI pair、mixed］ | ［outcome、reward signals、material/blocker friction、human felt rewardのparent → current］ | ［comparison-candidate-only / unresolved、理由］ |
 
 `evidenceTransition`は2つのbounded sessionの記述差です。別participantの感想を同一playerの変化として扱わず、protocol一致や1変数変更だけから因果効果、改善率、fun、retentionを生成しません。
 
@@ -208,11 +215,30 @@ cohort集計はboundedな問題発見用です。同じparticipantの再参加�
 - Smallest evidence to unblock: ［build、asset、participant、report］
 - Current Steamworks rules checked at: ［URL / accessedAt、またはN/A］
 
+### Capability Reinvestment Gate
+
+売上再投資、外注、採用、online、story、live operationsなどのscope拡張は一般論で勧めず、現在のplayer-facing bottleneckとproject固有のcapacity / runwayで判定します。複数案を平均せず、現時点の決定を1行だけ記録します。
+
+| Decision | Bottleneck | Evidence ID | Capacity / runway boundary | Reversible next step | Expansion trigger |
+|---|---|---|---|---|---|
+| ［learn / simplify / outsource / hire / defer / not-applicable］ | ［player / asset evidenceで確認した現在の制約］ | ［E-###］ | ［予算、担当、運用費、runway / missing］ | ［固定契約前の小さく戻せる検証］ | ［どの証拠が揃えばscopeを拡張するか］ |
+
+### Repair Backlog
+
+capture failure、receipt不整合、crash、liveness failure、計測不能など、次のplayer / market仮説を検証する前提を直す作業を記録します。修復は実験と分離し、仮説が支持されたoutcomeとして数えません。
+修復対象が0件ならcanonical headerとseparatorだけを残し、data rowは空にします。
+
+| Priority | Blocking failure | Evidence ID | Owner surface | Success gate | Must not change |
+|---|---|---|---|---|---|
+| 1 | ［再現可能なfailure］ | ［E-###］ | ［capture / runtime / build / instrumentation］ | ［同一条件で機械判定できる復旧条件］ | ［弱めてはいけないcontract / invariant］ |
+
 ### Experiment Queue
 
-| Priority | Hypothesis | Stage | Primary metric | Guardrail | Smallest build / asset | Experiment ID |
-|---|---|---|---|---|---|---|
-| 1 | ［検証可能な仮説］ | ［gate］ | ［1件］ | ［悪化停止条件］ | ［最小変更］ | ［prospective ID / not registered］ |
+最大3件に絞り、修復後に初めて検証できるplayer / asset / market仮説だけを置きます。修復作業や単なる証拠取得を実験として扱いません。
+
+| Priority | Hypothesis | Stage | Primary metric | Source | Guardrail | Smallest build / asset | Experiment ID |
+|---|---|---|---|---|---|---|---|
+| 1 | ［検証可能な仮説］ | ［gate］ | ［1件］ | ［human-playtest / telemetry等］ | ［悪化停止条件］ | ［最小変更］ | ［prospective ID / not registered］ |
 
 ### Survival Scenarios
 
@@ -305,7 +331,7 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 
 - Status: ［Selected / N/A と理由］
 - Mode result: ［プレイヤーから観測できるコアループ、目標、入力→反応、進行、失敗→再挑戦、継続動機 / change の場合は現状 vs 変更案］
-- Playtest protocol: ［build ID、player task、start state、end state、platform、controls、duration、tester prior knowledge / 未実施ならmissing理由］
+- Playtest protocol: ［build ID、player task、start state、end state、executionEnvironment、controls、duration、tester prior knowledge / 未実施ならmissing理由］
 - Playtest observations: ［time to first meaningful action、task completion、Action → response → rewardSignal、誤入力、feedback、failure → retry、次目標の認識とEvidence ID］
 - Human-validity boundary: ［AI 1 testerの観測を人間のfun、completion rate、retentionの代表値へ変換しない］
 - 観測とproxyの境界: ［仕様・build・動画・telemetry・playtestによる直接根拠 / description・categories・tags・reviewsによるプレイヤー知覚のproxy］
@@ -391,13 +417,17 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 ## Data Coverage Matrix
 
 `evidence-coverage.md`にあるSelected Domainごとの固定dimensionを省略せず、`observed / reported-zero / estimated / missing / N/A`のいずれかで記録します。取得失敗をN/Aへ変えず、N/Aには具体的なscope理由を付けます。
+Coverage rateとDirect observation rateは、serverと同じ丸めによる小数1桁の%表記（例: `0.0%`、`66.7%`）で記録します。
 
 | Domain | Dimension | Status | Evidence IDs | Limitation / mismatch | Decision impact |
 |---|---|---|---|---|---|
 | ［domain］ | ［固定dimension］ | ［status］ | ［ID / なし］ | ［観測範囲・不一致］ | ［confidence・勧告への影響］ |
 
-- Coverage rate: ［`(observed + reported-zero + estimated) / applicable dimensions` をdomain別・全体で記録］
-- Direct observation rate: ［`(observed + reported-zero) / applicable dimensions` をdomain別・全体で記録］
+| Scope | Applicable dimensions | Observed | Reported-zero | Estimated | Missing | Coverage rate | Direct observation rate |
+|---|---|---|---|---|---|---|---|
+| ［Selected Domain］ | ［N/Aを除く固定dimension数］ | ［件数］ | ［件数］ | ［件数］ | ［件数］ | ［`(observed + reported-zero + estimated) / applicable dimensions`］ | ［`(observed + reported-zero) / applicable dimensions`］ |
+| overall | ［全Selected Domain合計］ | ［件数］ | ［件数］ | ［件数］ | ［件数］ | ［同式］ | ［同式］ |
+
 - Blocking missing dimensions: ［意思決定を止めるmissingと、その取得条件］
 
 coverageはデータ充足率であり、結論の正しさや成功確率ではありません。blocking dimensionがmissingなら、平均coverageだけを理由にconfidenceをhighにしません。

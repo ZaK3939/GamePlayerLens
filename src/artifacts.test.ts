@@ -42,24 +42,70 @@ const REQUIRED_INDIE_SECTIONS = [
   "Playtest Cohort Summary",
   "Funnel Health",
   "Milestone Readiness",
+  "Capability Reinvestment Gate",
+  "Repair Backlog",
   "Experiment Queue",
   "Survival Scenarios",
 ] as const;
 
 function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: string} = {}): string {
   const section = (heading: string) => [`## ${heading}`, `${heading} evidence.`];
+  const detailedIndieSection = (heading: string) => {
+    if (heading === "Capability Reinvestment Gate") {
+      return [
+        `### ${heading}`,
+        [
+          "| Decision | Bottleneck | Evidence ID | Capacity / runway boundary | Reversible next step | Expansion trigger |",
+          "|---|---|---|---|---|---|",
+          "| defer | Player-facing proof is missing | E-001 | Team capacity and runway are missing | Validate one proof asset | Player evidence identifies a production bottleneck |",
+        ].join("\n"),
+      ];
+    }
+    if (heading === "Repair Backlog") {
+      return [
+        `### ${heading}`,
+        [
+          "| Priority | Blocking failure | Evidence ID | Owner surface | Success gate | Must not change |",
+          "|---|---|---|---|---|---|",
+          "| 1 | Capture is blocked | E-001 | capture receipt | receipt failures are zero | production receipt semantics |",
+        ].join("\n"),
+      ];
+    }
+    if (heading === "Experiment Queue") {
+      return [
+        `### ${heading}`,
+        [
+          "| Priority | Hypothesis | Stage | Primary metric | Source | Guardrail | Smallest build / asset | Experiment ID |",
+          "|---|---|---|---|---|---|---|---|",
+          "| 1 | A matched capture clarifies the target state | vertical-slice | unaided target identification | human-playtest | no new blocker | one current capture | slot-ember-target-state-01 |",
+        ].join("\n"),
+      ];
+    }
+    if (heading === "Survival Scenarios") {
+      return [
+        `### ${heading}`,
+        [
+          "| Scenario | Revenue assumptions | Cost / fee / refund / tax assumptions | Runway impact | Decision |",
+          "|---|---|---|---|---|",
+          "| conservative | missing | missing | missing | hold |",
+          "| base | missing | missing | missing | hold |",
+          "| upside | missing | missing | missing | validate before expansion |",
+        ].join("\n"),
+      ];
+    }
+    return [`### ${heading}`, `${heading} evidence.`];
+  };
   const indieBody = options.indieNotApplicable
     ? ["Applicable scope was checked.", "適用外: This artifact evaluates an existing game only."]
     : [
       "Applicable to this developer-facing evaluation.",
-      ...REQUIRED_INDIE_SECTIONS.flatMap((heading) => [
-        `### ${heading}`,
-        `${heading} evidence.`,
-      ]),
+      ...REQUIRED_INDIE_SECTIONS.flatMap(detailedIndieSection),
     ];
 
   return [
     "# Evaluation",
+    "- Mode: baseline",
+    "- Selected Domains: gameplay, UI, competition",
     ...section("Decision Card"),
     ...section("Detailed Scope"),
     "## Indie Survival Strategy",
@@ -69,8 +115,40 @@ function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: str
     ...section("Flow Summary"),
     ...section("Domain Findings"),
     ...section("Data Semantics"),
-    ...section("Data Coverage Matrix"),
-    ...section("Evidence Index"),
+    "## Data Coverage Matrix",
+    [
+      "| Domain | Dimension | Status | Evidence IDs | Limitation / mismatch | Decision impact |",
+      "|---|---|---|---|---|---|",
+      "| gameplay | player-facing core loop | missing | なし | no playable result observed | blocks delivery claim |",
+      "| gameplay | progression and reward | missing | なし | no human reward evidence | lowers confidence |",
+      "| gameplay | failure and retry | missing | なし | retry was not reached | blocks retry assessment |",
+      "| gameplay | player response | missing | なし | no human participant | blocks player conclusion |",
+      "| ui | target task state | missing | なし | current combat capture missing | blocks visual assessment |",
+      "| ui | matched cohort | missing | なし | no current comparison | blocks quality rank |",
+      "| ui | provenance | missing | なし | manifest not saved | blocks audit |",
+      "| ui | interaction flow | missing | なし | flow stopped early | blocks interaction claim |",
+      "| ui | localization and accessibility state | missing | なし | Japanese state not tested | blocks locale claim |",
+      "| competition | candidate discovery | missing | なし | discovery not run | blocks candidate scope |",
+      "| competition | candidate validation | missing | なし | candidates not validated | blocks comparison |",
+      "| competition | current market signal | missing | なし | current values unavailable | blocks market claim |",
+      "| competition | historical context | missing | なし | history unavailable | blocks trend claim |",
+    ].join("\n"),
+    [
+      "| Scope | Applicable dimensions | Observed | Reported-zero | Estimated | Missing | Coverage rate | Direct observation rate |",
+      "|---|---|---|---|---|---|---|---|",
+      "| gameplay | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      "| ui | 5 | 0 | 0 | 0 | 5 | 0.0% | 0.0% |",
+      "| competition | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      "| overall | 13 | 0 | 0 | 0 | 13 | 0.0% | 0.0% |",
+    ].join("\n"),
+    "",
+    "Blocking missing dimensions: all selected-domain dimensions require evidence.",
+    "## Evidence Index",
+    [
+      "| Evidence ID | artifact repository-relative path | observedAt | source | Data status / warning |",
+      "|---|---|---|---|---|",
+      "| E-001 | `knowledge/intel/hades-ii/build.json` | 2026-08-11T09:10:11.000Z | manual | observed; synthetic fixture |",
+    ].join("\n"),
     "## Final Recommendation",
     options.detail ?? "Final recommendation evidence.",
   ].join("\n\n");
@@ -378,7 +456,7 @@ describe("evaluation artifact store", () => {
   it("rejects incomplete, empty, or unfilled canonical evaluation sections", async () => {
     const store = createArtifactStore(await tempResolver(), {clock: () => now});
     const missingEvidenceIndex = evaluationMarkdown().replace(
-      /\n\n## Evidence Index\n\nEvidence Index evidence\./,
+      /\n\n## Evidence Index\n\n\| Evidence ID[\s\S]*?synthetic fixture \|/,
       "",
     );
     const emptyDataSemantics = evaluationMarkdown().replace(
@@ -423,6 +501,151 @@ describe("evaluation artifact store", () => {
     await expect(store.saveEvaluation({
       target: "Hades II", topic: "Missing Reward", content: missingRewardTrace,
     })).rejects.toThrow(/Reward Mechanism Trace/);
+  });
+
+  it("rejects noncanonical coverage dimensions, statuses, and calculated summaries", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Custom Dimension",
+      content: evaluationMarkdown().replace(
+        "player-facing core loop",
+        "Build executes",
+      ),
+    })).rejects.toThrow(/player-facing core loop|dimension/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Custom Status",
+      content: evaluationMarkdown().replace(
+        "| gameplay | player-facing core loop | missing |",
+        "| gameplay | player-facing core loop | Covered as failure |",
+      ),
+    })).rejects.toThrow(/status/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Wrong Denominator",
+      content: evaluationMarkdown().replace(
+        "| overall | 13 | 0 | 0 | 0 | 13 | 0.0% | 0.0% |",
+        "| overall | 12 | 0 | 0 | 0 | 12 | 0.0% | 0.0% |",
+      ),
+    })).rejects.toThrow(/overall|coverage summary/i);
+  });
+
+  it("rejects duplicate Coverage Summary scopes even when the last row is correct", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const duplicateGameplaySummary = evaluationMarkdown().replace(
+      "| gameplay | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      [
+        "| gameplay | 99 | 99 | 0 | 0 | 0 | 100.0% | 100.0% |",
+        "| gameplay | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      ].join("\n"),
+    );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Duplicate Coverage Scope",
+      content: duplicateGameplaySummary,
+    })).rejects.toThrow(/Coverage Summary.*exactly one row|duplicate/i);
+  });
+
+  it("reports the canonical one-decimal percentage when a summary rate is malformed", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const integerPercentage = evaluationMarkdown().replace(
+      "| gameplay | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      "| gameplay | 4 | 0 | 0 | 0 | 4 | 0% | 0.0% |",
+    );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Integer Percentage",
+      content: integerPercentage,
+    })).rejects.toThrow(/expected.*0\.0%/i);
+  });
+
+  it("reads Selected Domains only from metadata before the first level-two section", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const bodyExample = evaluationMarkdown({
+      detail: "Do not copy metadata examples such as:\n- Selected Domains: price",
+    });
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Body Metadata Example",
+      content: bodyExample,
+    })).resolves.toMatchObject({
+      topicId: "body-metadata-example",
+    });
+  });
+
+  it("distinguishes a selected domain with no applicable dimensions from a missing summary", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const noApplicableGameplay = evaluationMarkdown()
+      .replace(/\| gameplay \| (player-facing core loop|progression and reward|failure and retry|player response) \| missing \|/g,
+        "| gameplay | $1 | N/A |")
+      .replace(
+        "| gameplay | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+        "| gameplay | 0 | 0 | 0 | 0 | 0 | 0.0% | 0.0% |",
+      );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "No Applicable Gameplay",
+      content: noApplicableGameplay,
+    })).rejects.toThrow(/gameplay.*no applicable coverage dimensions/i);
+  });
+
+  it("rejects unsupported or ungrounded capability reinvestment decisions", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Unsupported Reinvestment",
+      content: evaluationMarkdown().replace(
+        "| defer | Player-facing proof is missing | E-001 |",
+        "| spend-everything | Player-facing proof is missing | E-001 |",
+      ),
+    })).rejects.toThrow(/Capability Reinvestment Gate|decision/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Ungrounded Reinvestment",
+      content: evaluationMarkdown().replace(
+        "| defer | Player-facing proof is missing | E-001 |",
+        "| outsource | Player-facing proof is missing | E-999 |",
+      ),
+    })).rejects.toThrow(/Capability Reinvestment Gate|Evidence/i);
+  });
+
+  it("rejects more than three experiments and incomplete evidence provenance", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const experimentRow = "| 1 | A matched capture clarifies the target state | vertical-slice | unaided target identification | human-playtest | no new blocker | one current capture | slot-ember-target-state-01 |";
+    const fourExperiments = evaluationMarkdown().replace(
+      experimentRow,
+      [1, 2, 3, 4].map((priority) => experimentRow
+        .replace("| 1 |", `| ${priority} |`)
+        .replace("-01 |", `-0${priority} |`))
+        .join("\n"),
+    );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II", topic: "Too Many Experiments", content: fourExperiments,
+    })).rejects.toThrow(/three|3|Experiment Queue/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Missing Observed At",
+      content: evaluationMarkdown().replace(
+        "2026-08-11T09:10:11.000Z",
+        "unknown",
+      ),
+    })).rejects.toThrow(/observedAt/i);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Absolute Evidence Path",
+      content: evaluationMarkdown().replace(
+        "knowledge/intel/hades-ii/build.json",
+        "/Users/example/build.json",
+      ),
+    })).rejects.toThrow(/repository-relative|path/i);
   });
 
   it("allows Markdown whose exact UTF-8 size is 512 KiB", async () => {

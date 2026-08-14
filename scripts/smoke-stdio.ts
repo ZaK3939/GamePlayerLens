@@ -59,7 +59,15 @@ function playtestCohortFixture(prefix: string) {
     endedAt: "2026-08-12T12:03:00+04:00",
     sessionId: `${prefix}-session-01`,
     buildId: `${prefix}-build-1`,
-    platform: "desktop browser",
+    executionEnvironment: {
+      operatingSystem: "Ubuntu 24.04",
+      device: "CI desktop fixture",
+      runtime: "Chromium 140",
+      rendererBackend: "webgl2",
+      rendererImplementation: "ANGLE Vulkan (SwiftShader Device)",
+      graphicsAcceleration: "software",
+      viewport: {width: 1280, height: 720, devicePixelRatio: 1},
+    },
     controls: "keyboard and mouse",
     task: "Reach the tutorial checkpoint",
     startState: "Fresh save at title",
@@ -241,6 +249,9 @@ try {
         participants: [{
           participantId: "p-01",
           targetFit: "high",
+          understoodTheme: "yes",
+          themeSystemFit: "unclear",
+          themeSystemFitReason: "The underworld theme is visible, but its connection to the repeated action is unclear",
           understoodAction: "yes",
           understoodReward: "unclear",
           interest: "maybe",
@@ -268,8 +279,11 @@ try {
           targetFit: "high",
           visualQuality: "credible",
           understoodTheme: "yes",
+          themeAppeal: "yes",
           understoodAction: "unclear",
           understoodReward: "no",
+          tryIntent: "maybe",
+          tryIntentReason: "The world appeals to me, but the action and reward are unclear",
           immediateReject: "yes",
           unaidedSummary: "A reactive underworld journey with unclear action",
           rejectionReason: "The action is not visible",
@@ -311,6 +325,8 @@ try {
       && promptContent.text.includes('"firstContactTestDiagnostics": {')
       && promptContent.text.includes('"firstContactTestEvidence": {')
       && promptContent.text.includes('"visualQualityCounts": {')
+      && promptContent.text.includes('"themeAppealCounts": {')
+      && promptContent.text.includes('"tryIntentCounts": {')
       && promptContent.text.includes('"immediateRejectCounts": {')
       && promptContent.text.includes('"developmentStage": "prelaunch"')
       && promptContent.text.includes('"runwayMonths": 12')
@@ -341,7 +357,15 @@ try {
         changedVariables: ["reward"],
         invariantsKept: ["Same task, platform, controls, cohort, and moderation script"],
         buildId: "protocol-fixture-1",
-        platform: "desktop browser",
+        executionEnvironment: {
+          operatingSystem: "Ubuntu 24.04",
+          device: "CI desktop fixture",
+          runtime: "Chromium 140",
+          rendererBackend: "webgl2",
+          rendererImplementation: "ANGLE Vulkan (SwiftShader Device)",
+          graphicsAcceleration: "software",
+          viewport: {width: 1280, height: 720, devicePixelRatio: 1},
+        },
         controls: "keyboard and mouse",
         task: "Start a new run and reach the tutorial checkpoint",
         startState: "Fresh save at the title screen",

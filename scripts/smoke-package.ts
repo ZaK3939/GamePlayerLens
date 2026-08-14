@@ -12,6 +12,8 @@ function assert(condition: unknown, message: string): asserts condition {
 function evaluationMarkdown(detail: string): string {
   return [
     "# Package run evaluation",
+    "- Mode: baseline",
+    "- Selected Domains: gameplay",
     "## Decision Card", detail,
     "## Detailed Scope", "Packaged MCP transport fixture.",
     "## Indie Survival Strategy", "適用外: This fixture tests package wiring only.",
@@ -20,8 +22,28 @@ function evaluationMarkdown(detail: string): string {
     "## Flow Summary", "Synthetic flow summary.",
     "## Domain Findings", "Synthetic domain finding.",
     "## Data Semantics", "Synthetic data semantics.",
-    "## Data Coverage Matrix", "Synthetic coverage entry.",
-    "## Evidence Index", "Synthetic evidence entry.",
+    "## Data Coverage Matrix",
+    [
+      "| Domain | Dimension | Status | Evidence IDs | Limitation / mismatch | Decision impact |",
+      "|---|---|---|---|---|---|",
+      "| gameplay | player-facing core loop | missing | なし | package fixture | no product claim |",
+      "| gameplay | progression and reward | missing | なし | package fixture | no product claim |",
+      "| gameplay | failure and retry | missing | なし | package fixture | no product claim |",
+      "| gameplay | player response | missing | なし | package fixture | no product claim |",
+    ].join("\n"),
+    [
+      "| Scope | Applicable dimensions | Observed | Reported-zero | Estimated | Missing | Coverage rate | Direct observation rate |",
+      "|---|---|---|---|---|---|---|---|",
+      "| gameplay | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+      "| overall | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+    ].join("\n"),
+    "Blocking missing dimensions: all fixture dimensions are intentionally missing.",
+    "## Evidence Index",
+    [
+      "| Evidence ID | artifact repository-relative path | observedAt | source | Data status / warning |",
+      "|---|---|---|---|---|",
+      "| E-001 | `knowledge/intel/package-game/snapshot.json` | 2026-08-11T09:10:11.000Z | manual | observed; synthetic fixture |",
+    ].join("\n"),
     "## Final Recommendation", detail,
   ].join("\n\n");
 }
@@ -32,7 +54,15 @@ function playtestCohortFixture(prefix: string) {
     endedAt: "2026-08-12T12:03:00+04:00",
     sessionId: `${prefix}-session-01`,
     buildId: `${prefix}-build-1`,
-    platform: "desktop browser",
+    executionEnvironment: {
+      operatingSystem: "Ubuntu 24.04",
+      device: "CI desktop fixture",
+      runtime: "Chromium 140",
+      rendererBackend: "webgl2",
+      rendererImplementation: "ANGLE Vulkan (SwiftShader Device)",
+      graphicsAcceleration: "software",
+      viewport: {width: 1280, height: 720, devicePixelRatio: 1},
+    },
     controls: "keyboard and mouse",
     task: "Reach the tutorial checkpoint",
     startState: "Fresh save at title",
@@ -283,6 +313,7 @@ try {
           amplifier: "a distinct flash and sound",
         }],
         oneSentencePromise: "Learn the loop and reach the checkpoint",
+        coreProofMoment: "The player reads one signal, acts, and receives an immediate checkpoint response",
         runwayMonths: 6,
       }),
       conceptTest: JSON.stringify({
@@ -302,6 +333,9 @@ try {
         participants: [{
           participantId: "p-01",
           targetFit: "medium",
+          understoodTheme: "yes",
+          themeSystemFit: "unclear",
+          themeSystemFitReason: "The checkpoint theme is visible, but its connection to the action loop is incomplete",
           understoodAction: "yes",
           understoodReward: "unclear",
           interest: "maybe",
@@ -330,8 +364,12 @@ try {
           visualQuality: "rough",
           visualQualityReason: "The checkpoint action does not yet read as production-ready",
           understoodTheme: "yes",
+          themeAppeal: "unclear",
+          themeAppealReason: "The theme is legible but this asset does not show enough to judge taste fit",
           understoodAction: "unclear",
           understoodReward: "no",
+          tryIntent: "no",
+          tryIntentReason: "The repeated action and reward are not visible",
           immediateReject: "yes",
           unaidedSummary: "A checkpoint game with an unclear action",
           rejectionReason: "The repeated action is not visible",
@@ -352,7 +390,15 @@ try {
         changedVariables: ["reward"],
         invariantsKept: ["Same task, platform, controls, cohort, and moderation script"],
         buildId: "package-smoke-fixture-1",
-        platform: "desktop browser",
+        executionEnvironment: {
+          operatingSystem: "Ubuntu 24.04",
+          device: "CI desktop fixture",
+          runtime: "Chromium 140",
+          rendererBackend: "webgl2",
+          rendererImplementation: "ANGLE Vulkan (SwiftShader Device)",
+          graphicsAcceleration: "software",
+          viewport: {width: 1280, height: 720, devicePixelRatio: 1},
+        },
         controls: "keyboard and mouse",
         task: "Reach the first checkpoint",
         startState: "Fresh save at the title screen",
@@ -410,6 +456,8 @@ try {
       && playtestContent.text.includes('"firstContactTestDiagnostics": {')
       && playtestContent.text.includes('"firstContactTestEvidence": {')
       && playtestContent.text.includes('"visualQualityCounts": {')
+      && playtestContent.text.includes('"themeAppealCounts": {')
+      && playtestContent.text.includes('"tryIntentCounts": {')
       && playtestContent.text.includes('"immediateRejectCounts": {')
       && playtestContent.text.includes('"developmentStage": "prototype"')
       && playtestContent.text.includes('"runwayMonths": 6')
@@ -710,7 +758,7 @@ try {
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 5
+      && runRecord.schemaVersion === 6
       && runRecord.subjectKind === "existing-game"
       && runRecord.market === "United States"
       && runRecord.language === "english"

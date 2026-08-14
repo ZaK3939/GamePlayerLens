@@ -115,12 +115,26 @@ function validateUniqueParticipants(
 const ConceptTestParticipantSchema = z.object({
   participantId: PseudonymousParticipantIdSchema,
   targetFit: TargetFitSchema,
+  understoodTheme: UnderstandingSchema,
+  themeSystemFit: UnderstandingSchema,
+  themeSystemFitReason: ManualTestTextSchema.optional(),
   understoodAction: UnderstandingSchema,
   understoodReward: UnderstandingSchema,
   interest: InterestSchema,
   unaidedSummary: ManualTestTextSchema.optional(),
   confusions: z.array(ManualTestTextSchema).max(20),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (
+    (value.themeSystemFit === "no" || value.themeSystemFit === "unclear")
+    && value.themeSystemFitReason === undefined
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["themeSystemFitReason"],
+      message: "themeSystemFitReason is required for no or unclear theme-system fit observations",
+    });
+  }
+});
 
 export const ConceptTestObjectSchema = z.object({
   testedAt: z.iso.datetime({offset: true}),
@@ -154,8 +168,9 @@ const CONCEPT_TEST_SAFE_FIELDS = new Set<string>([
   "changedVariables", "invariantsKept", "projectBriefRevision", "promiseShown",
   "stimulusDescription", "exposureProtocol", "recruitment",
   "targetPlayerDefinition", "questionsAsked", "participants", "deviations",
-  "participantId", "targetFit", "understoodAction", "understoodReward",
-  "interest", "unaidedSummary", "confusions",
+  "participantId", "targetFit", "understoodTheme", "themeSystemFit",
+  "themeSystemFitReason", "understoodAction", "understoodReward", "interest",
+  "unaidedSummary", "confusions",
 ]);
 
 export const ConceptTestSchema = createJsonStringSchema(
@@ -185,6 +200,8 @@ const VisualQualitySchema = z.enum([
   "unclear",
   "not-assessed",
 ]);
+const ThemeAppealSchema = z.enum(["yes", "no", "unclear", "not-assessed"]);
+const TryIntentSchema = z.enum(["yes", "maybe", "no", "not-asked"]);
 
 const FirstContactParticipantSchema = z.object({
   participantId: PseudonymousParticipantIdSchema,
@@ -192,8 +209,12 @@ const FirstContactParticipantSchema = z.object({
   visualQuality: VisualQualitySchema,
   visualQualityReason: ManualTestTextSchema.optional(),
   understoodTheme: UnderstandingSchema,
+  themeAppeal: ThemeAppealSchema,
+  themeAppealReason: ManualTestTextSchema.optional(),
   understoodAction: UnderstandingSchema,
   understoodReward: UnderstandingSchema,
+  tryIntent: TryIntentSchema,
+  tryIntentReason: ManualTestTextSchema.optional(),
   immediateReject: ImmediateRejectSchema,
   unaidedSummary: ManualTestTextSchema.optional(),
   rejectionReason: ManualTestTextSchema.optional(),
@@ -207,6 +228,26 @@ const FirstContactParticipantSchema = z.object({
       code: "custom",
       path: ["visualQualityReason"],
       message: "visualQualityReason is required for rough or style-mismatch observations",
+    });
+  }
+  if (
+    (value.themeAppeal === "no" || value.themeAppeal === "unclear")
+    && value.themeAppealReason === undefined
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["themeAppealReason"],
+      message: "themeAppealReason is required for no or unclear theme appeal observations",
+    });
+  }
+  if (
+    (value.tryIntent === "maybe" || value.tryIntent === "no")
+    && value.tryIntentReason === undefined
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["tryIntentReason"],
+      message: "tryIntentReason is required for maybe or no try intent observations",
     });
   }
 });
@@ -243,8 +284,9 @@ const FIRST_CONTACT_TEST_SAFE_FIELDS = new Set<string>([
   "viewport", "durationSeconds", "sound", "orderDescription", "recruitment",
   "targetPlayerDefinition", "questionsAsked", "participants", "deviations",
   "participantId", "targetFit", "visualQuality", "visualQualityReason",
-  "understoodTheme", "understoodAction",
-  "understoodReward", "immediateReject", "unaidedSummary", "rejectionReason",
+  "understoodTheme", "themeAppeal", "themeAppealReason", "understoodAction",
+  "understoodReward", "tryIntent", "tryIntentReason", "immediateReject",
+  "unaidedSummary", "rejectionReason",
   "confusions",
 ]);
 
@@ -301,6 +343,33 @@ const HumanPlaytestReportSchema = z.object({
   confusions: z.array(ManualTestTextSchema).max(20),
 }).strict();
 
+export const PlaytestExecutionEnvironmentSchema = z.object({
+  operatingSystem: ManualTestTextSchema,
+  device: ManualTestTextSchema,
+  runtime: ManualTestTextSchema,
+  rendererBackend: z.enum([
+    "webgpu",
+    "webgl2",
+    "webgl1",
+    "canvas2d",
+    "native",
+    "other",
+    "not-applicable",
+  ]),
+  rendererImplementation: ManualTestTextSchema,
+  graphicsAcceleration: z.enum([
+    "hardware",
+    "software",
+    "unknown",
+    "not-applicable",
+  ]),
+  viewport: z.object({
+    width: z.number().int().positive().max(16_384),
+    height: z.number().int().positive().max(16_384),
+    devicePixelRatio: z.number().finite().positive().max(10),
+  }).strict(),
+}).strict();
+
 export const PlaytestSessionObjectSchema = z.object({
   startedAt: z.iso.datetime({offset: true}),
   endedAt: z.iso.datetime({offset: true}),
@@ -308,7 +377,7 @@ export const PlaytestSessionObjectSchema = z.object({
   parentSessionId: PlaytestSessionIdSchema.optional(),
   ...RevisionDesignShape,
   buildId: ManualTestTextSchema,
-  platform: ManualTestTextSchema,
+  executionEnvironment: PlaytestExecutionEnvironmentSchema,
   controls: ManualTestTextSchema,
   task: ManualTestTextSchema,
   startState: ManualTestTextSchema,
@@ -410,7 +479,10 @@ export type PlaytestSession = z.infer<typeof PlaytestSessionObjectSchema>;
 
 const PLAYTEST_SESSION_SAFE_FIELDS = new Set<string>([
   "startedAt", "endedAt", "sessionId", "parentSessionId", "changeSummary",
-  "changedVariables", "invariantsKept", "buildId", "platform", "controls",
+  "changedVariables", "invariantsKept", "buildId", "executionEnvironment",
+  "operatingSystem", "device", "runtime", "rendererBackend",
+  "rendererImplementation", "graphicsAcceleration", "viewport", "width",
+  "height", "devicePixelRatio", "controls",
   "task", "startState", "endState", "testerType", "participantId", "targetFit",
   "observationSource", "priorKnowledge", "priorKnowledgeDetails", "observations",
   "outcome", "stopReason", "humanReport", "deviations", "step", "elapsedSeconds",
@@ -561,6 +633,14 @@ export function buildConceptTestDiagnostics(
   projectBrief?: ProjectBriefAlignment,
 ) {
   const participants = conceptTest.participants;
+  const themeUnderstandingCounts = countValues(
+    participants.map((participant) => participant.understoodTheme),
+    UnderstandingSchema.options,
+  );
+  const themeSystemFitCounts = countValues(
+    participants.map((participant) => participant.themeSystemFit),
+    UnderstandingSchema.options,
+  );
   const actionUnderstandingCounts = countValues(
     participants.map((participant) => participant.understoodAction),
     UnderstandingSchema.options,
@@ -592,12 +672,22 @@ export function buildConceptTestDiagnostics(
   ).length;
   const understandingMarkedYesWithoutSummaryCount = participants.filter(
     (participant) => participant.unaidedSummary === undefined
-      && (participant.understoodAction === "yes" || participant.understoodReward === "yes"),
+      && (
+        participant.understoodTheme === "yes"
+        || participant.themeSystemFit === "yes"
+        || participant.understoodAction === "yes"
+        || participant.understoodReward === "yes"
+      ),
   ).length;
-  const bothMarkedYesWithSummaryCount = participants.filter(
+  const coreDimensionsMarkedYesWithSummaryCount = participants.filter(
     (participant) => participant.unaidedSummary !== undefined
+      && participant.understoodTheme === "yes"
+      && participant.themeSystemFit === "yes"
       && participant.understoodAction === "yes"
       && participant.understoodReward === "yes",
+  ).length;
+  const themeSystemFitReasonCount = participants.filter(
+    (participant) => participant.themeSystemFitReason !== undefined,
   ).length;
   const confusionNoteCount = participants.reduce(
     (total, participant) => total + participant.confusions.length,
@@ -615,13 +705,19 @@ export function buildConceptTestDiagnostics(
     ) ? ["stimulus-provenance"] : []),
     ...revisionDesign.candidateReviewAreas,
     ...(deviationCount > 0 ? ["protocol-deviation"] : []),
-    ...(actionUnderstandingCounts["not-measured"] > 0
+    ...(themeUnderstandingCounts["not-measured"] > 0
+      || themeSystemFitCounts["not-measured"] > 0
+      || actionUnderstandingCounts["not-measured"] > 0
       || rewardUnderstandingCounts["not-measured"] > 0
       || interestCounts["not-asked"] > 0
       || unaidedSummaryCount < participants.length
       ? ["measurement-coverage"] : []),
     ...(understandingMarkedYesWithoutSummaryCount > 0
       ? ["teach-back-evidence"] : []),
+    ...(themeUnderstandingCounts.no > 0 || themeUnderstandingCounts.unclear > 0
+      ? ["theme-legibility"] : []),
+    ...(themeSystemFitCounts.no > 0 || themeSystemFitCounts.unclear > 0
+      ? ["theme-system-fit"] : []),
     ...(actionUnderstandingCounts.no > 0 || actionUnderstandingCounts.unclear > 0
       ? ["action-legibility"] : []),
     ...(rewardUnderstandingCounts.no > 0 || rewardUnderstandingCounts.unclear > 0
@@ -636,6 +732,9 @@ export function buildConceptTestDiagnostics(
       participants.map((participant) => participant.targetFit),
       TargetFitSchema.options,
     ),
+    themeUnderstandingCounts,
+    themeSystemFitCounts,
+    themeSystemFitReasonCount,
     actionUnderstandingCounts,
     rewardUnderstandingCounts,
     interestCounts,
@@ -646,8 +745,8 @@ export function buildConceptTestDiagnostics(
         : "partial-summary-coverage",
       summaryProvidedCount: unaidedSummaryCount,
       understandingMarkedYesWithoutSummaryCount,
-      bothMarkedYesWithSummaryCount,
-      interpretationLimit: "understoodAction and understoodReward are coded observations; unaidedSummary is required to audit what the participant could explain in their own words.",
+      coreDimensionsMarkedYesWithSummaryCount,
+      interpretationLimit: "understoodTheme, themeSystemFit, understoodAction, and understoodReward are coded observations; unaidedSummary is required to audit what the participant could explain in their own words.",
     },
     confusionNoteCount,
     deviationCount,
@@ -686,6 +785,10 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
     participants.map((participant) => participant.understoodTheme),
     UnderstandingSchema.options,
   );
+  const themeAppealCounts = countValues(
+    participants.map((participant) => participant.themeAppeal),
+    ThemeAppealSchema.options,
+  );
   const actionLegibilityCounts = countValues(
     participants.map((participant) => participant.understoodAction),
     UnderstandingSchema.options,
@@ -693,6 +796,10 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
   const rewardLegibilityCounts = countValues(
     participants.map((participant) => participant.understoodReward),
     UnderstandingSchema.options,
+  );
+  const tryIntentCounts = countValues(
+    participants.map((participant) => participant.tryIntent),
+    TryIntentSchema.options,
   );
   const immediateRejectCounts = countValues(
     participants.map((participant) => participant.immediateReject),
@@ -722,8 +829,10 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
     ...revisionDesign.candidateReviewAreas,
     ...(deviationCount > 0 ? ["protocol-deviation"] : []),
     ...(themeLegibilityCounts["not-measured"] > 0
+      || themeAppealCounts["not-assessed"] > 0
       || actionLegibilityCounts["not-measured"] > 0
       || rewardLegibilityCounts["not-measured"] > 0
+      || tryIntentCounts["not-asked"] > 0
       || immediateRejectCounts["not-asked"] > 0
       || visualQualityCounts["not-assessed"] > 0
       || unaidedSummaryCount < participants.length
@@ -734,10 +843,14 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
       ? ["visual-quality"] : []),
     ...(themeLegibilityCounts.no > 0 || themeLegibilityCounts.unclear > 0
       ? ["theme-legibility"] : []),
+    ...(themeAppealCounts.no > 0 || themeAppealCounts.unclear > 0
+      ? ["theme-appeal"] : []),
     ...(actionLegibilityCounts.no > 0 || actionLegibilityCounts.unclear > 0
       ? ["action-legibility"] : []),
     ...(rewardLegibilityCounts.no > 0 || rewardLegibilityCounts.unclear > 0
       ? ["reward-legibility"] : []),
+    ...(tryIntentCounts.maybe > 0 || tryIntentCounts.no > 0
+      ? ["try-intent"] : []),
     ...(immediateRejectCounts.yes > 0 ? ["immediate-reject"] : []),
     ...(unexplainedImmediateRejectCount > 0 ? ["rejection-reason-coverage"] : []),
     ...(confusionNoteCount > 0 ? ["reported-confusions"] : []),
@@ -752,8 +865,10 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
     ),
     visualQualityCounts,
     themeLegibilityCounts,
+    themeAppealCounts,
     actionLegibilityCounts,
     rewardLegibilityCounts,
+    tryIntentCounts,
     immediateRejectCounts,
     unaidedSummaryCount,
     rejectionReasonCount,
@@ -777,6 +892,8 @@ export function buildFirstContactTestDiagnostics(firstContactTest: FirstContactT
     },
     rejectionReasonInterpretationLimit: "Missing immediate-reject reasons must not be inferred from other fields or participant responses.",
     visualQualityInterpretationLimit: "Visual-quality labels record participant perception in this exposure context; they are not an objective production-quality grade.",
+    themeAppealInterpretationLimit: "Theme appeal records taste in this exposure context and is separate from theme comprehension, production quality, and market demand.",
+    tryIntentInterpretationLimit: "Try intent records a bounded self-report after this asset exposure; it is not purchase behavior, demand, conversion, or retained play.",
     interpretationLimit: "Counts describe this bounded sample and exposure context only; they do not establish fun, demand, conversion, or storefront readiness.",
   };
 }
@@ -829,6 +946,8 @@ export function buildPlaytestSessionDiagnostics(
     session.changedVariables,
     session.invariantsKept,
   );
+  const softwareRendered = session.executionEnvironment.graphicsAcceleration === "software";
+  const recordedHardware = session.executionEnvironment.graphicsAcceleration === "hardware";
   const candidateReviewAreas = [
     ...([buildStatus, taskStatus, controlsStatus].includes("mismatched")
       ? ["protocol-provenance"] : []),
@@ -854,6 +973,7 @@ export function buildPlaytestSessionDiagnostics(
     ...(session.humanReport?.wouldRepeat === "maybe"
       || session.humanReport?.wouldRepeat === "no"
       ? ["repeat-intent-follow-up"] : []),
+    ...(!recordedHardware ? ["execution-environment-generalization"] : []),
   ];
   return {
     status: "descriptive-only",
@@ -883,6 +1003,19 @@ export function buildPlaytestSessionDiagnostics(
       taskStatus,
       controlsStatus,
       interpretationLimit: "Exact matches establish session provenance only; they do not prove equivalent execution or player experience.",
+    },
+    executionEnvironment: {
+      ...session.executionEnvironment,
+      generalizationStatus: softwareRendered
+        ? "software-renderer-compatibility-path-only"
+        : recordedHardware
+          ? "recorded-hardware-environment-only"
+          : "hardware-generalization-not-established",
+      interpretationLimit: softwareRendered
+        ? "Software-rendered measurements establish only this recorded compatibility path; they must not be generalized to hardware-rendered player performance."
+        : recordedHardware
+          ? "Hardware rendering was recorded, but results apply only to this device, runtime, renderer implementation, acceleration mode, and viewport until independently reproduced."
+          : "Graphics acceleration was not established, so renderer performance must not be generalized to player hardware.",
     },
     deviationCount,
     revisionLoop: {
@@ -975,7 +1108,7 @@ function buildPlaytestCohortEvidenceSummary(sessions: readonly PlaytestSession[]
 
 const PlaytestProtocolComparisonFields = [
   "task",
-  "platform",
+  "executionEnvironment",
   "controls",
   "startState",
   "testerType",
@@ -1015,7 +1148,11 @@ function buildInternalRetestComparison(
   const fields = Object.fromEntries(
     PlaytestProtocolComparisonFields.map((field) => [
       field,
-      parent[field] === current[field] ? "matched" : "mismatched",
+      field === "executionEnvironment"
+        ? JSON.stringify(parent[field]) === JSON.stringify(current[field])
+          ? "matched"
+          : "mismatched"
+        : parent[field] === current[field] ? "matched" : "mismatched",
     ]),
   );
   const mismatchedFields = PlaytestProtocolComparisonFields.filter(
@@ -1118,7 +1255,9 @@ export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
   );
   const buildGroups = countStringGroups(sessions.map((session) => session.buildId));
   const taskGroups = countStringGroups(sessions.map((session) => session.task));
-  const platformGroups = countStringGroups(sessions.map((session) => session.platform));
+  const executionEnvironmentGroups = countStringGroups(
+    sessions.map((session) => JSON.stringify(session.executionEnvironment)),
+  );
   const controlsGroups = countStringGroups(sessions.map((session) => session.controls));
   const allSessionEvidence = buildPlaytestCohortEvidenceSummary(sessions);
   const humanReportCoverageMissing = humanSessions.some((session) =>
@@ -1136,7 +1275,7 @@ export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
       ? ["mixed-tester-types"] : []),
     ...(buildGroups.length > 1 ? ["build-variation"] : []),
     ...(taskGroups.length > 1
-      || platformGroups.length > 1
+      || executionEnvironmentGroups.length > 1
       || controlsGroups.length > 1
       ? ["protocol-variation"] : []),
     ...(internalComparisons.some(
@@ -1163,6 +1302,9 @@ export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
     ...(linkedSessions.some((session) => (session.changedVariables?.length ?? 0) > 1)
       ? ["multi-variable-change"] : []),
     ...(externalParentCount > 0 ? ["external-parent-readback"] : []),
+    ...(sessions.some(
+      (session) => session.executionEnvironment.graphicsAcceleration !== "hardware",
+    ) ? ["execution-environment-generalization"] : []),
   ];
   const earliestSession = sessions.reduce((earliest, session) =>
     Date.parse(session.startedAt) < Date.parse(earliest.startedAt) ? session : earliest
@@ -1200,7 +1342,7 @@ export function buildPlaytestCohortDiagnostics(cohort: PlaytestCohort) {
     protocolGroups: {
       builds: buildGroups,
       tasks: taskGroups,
-      platforms: platformGroups,
+      executionEnvironments: executionEnvironmentGroups,
       controls: controlsGroups,
       observationSourceCounts: countValues(
         sessions.map((session) => session.observationSource),

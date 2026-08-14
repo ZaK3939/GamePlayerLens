@@ -17,6 +17,8 @@ Selected Domainの各必須dimensionへ、`observed`、`reported-zero`、`estima
 - `Coverage rate = (observed + reported-zero + estimated) / applicable dimensions`
 - `Direct observation rate = (observed + reported-zero) / applicable dimensions`
 
+両方のrateは小数1桁の%表記に丸めます。Selected Domainの全dimensionをN/Aにはできません。該当dimensionが1つもないなら、そのdomainをSelected Domainsから外します。
+
 小数はデータ充足のinventoryであり、結論の正しさや成功確率ではありません。blocking dimensionがmissingなら、平均coverageが高くてもconfidenceをhighにしません。
 
 ## 2. Domain別の必須dimension

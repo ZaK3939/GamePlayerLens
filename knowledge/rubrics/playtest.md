@@ -7,7 +7,8 @@
 開始前に次を固定します。
 
 - build ID / version / commitと、development・staging・release candidateの区別
-- platform、viewport / resolution、performance preset
+- `executionEnvironment`: operating system、device、runtime、renderer backend / implementation、hardware / software acceleration、viewport / DPR
+- performance preset
 - controlsとinput method
 - player task: 達成したい具体的な目的
 - start state: save、tutorial、inventory、所持品、既知情報
@@ -16,6 +17,8 @@
 - tester prior knowledge: source code、仕様、攻略情報、先行sessionを見たか
 
 build、start state、controlsが不明なsessionは比較へ使わず、exploratory observationと明記します。
+
+software renderer（例: SwiftShader）で観測したliveness、stall、frame continuityは、そのsoftware compatibility pathの結果です。hardware acceleration環境のplayer性能へ一般化しません。hardware sessionでもdevice、runtime、renderer implementation、viewportが違う環境へ自動一般化しません。
 
 ## 2. 操作方法
 
@@ -63,6 +66,7 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 
 `run-sim`の`playtestSession`は1回のbounded sessionを時系列の原本として受け取ります。各観測は`step`と`elapsedSeconds`を連続・非減少にし、Player intent、Input / Action、system response、friction severity、`rewardSignal`、Evidence IDを別fieldで記録します。つまり、Action、response、rewardSignalを一つの「面白かった」に統合しません。
 
+- `platform`自由記述は使わず、strictな`executionEnvironment`にOS、device、runtime、renderer backend / implementation、graphics acceleration、viewport / DPRを記録する。
 - human participantでは仮名の`participantId`とtarget fitを必須にし、任意の`humanReport`でfelt reward、repeat intent、confusionを操作logと分離する。
 - AI-operated sessionでは操作と観測だけを保存し、AIが人間の感情を代弁する`humanReport`は禁止する。
 - completed以外は`stopReason`を必須にし、失敗・blocker・中断を成功へ丸めない。
@@ -76,7 +80,7 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 
 - `sessionId`と`parentSessionId`は47文字以内のlowercase kebab-case IDとし、異なる値にする。これによりdiagnosticsが返すcanonical artifact IDの64文字上限内で`playtest-session-<sessionId>`へ保存できる。
 - `changedVariables`は重複を禁止する。複数の変数を同時に変えた場合、差の因果帰属は`unresolved-multiple-changes`として未解決にする。
-- 1変数と維持条件を宣言しても`comparison-candidate-only`であり、親sessionとtask、platform、controls、start state、target cohort、moderationが実際に一致した証明ではない。
+- 1変数と維持条件を宣言しても`comparison-candidate-only`であり、親sessionとtask、executionEnvironment、controls、start state、target cohort、moderationが実際に一致した証明ではない。
 - `parentEvidenceStatus=pending-exact-readback`は親IDが入力されたことだけを示す。保存済みparentを読めた後にだけ比較へ進む。
 - 厳密な成功criterion、guardrail、複数scenario集計が必要なら`experiment.md`へ進み、軽量retestを事前登録済み実験と呼ばない。
 
@@ -89,13 +93,13 @@ change評価ではcurrentとproposalを同じbuild条件、task、controls、時
 - AI-operated sessionとhuman participant sessionを分離し、両者の結果を一つのhuman metricへ混ぜない。
 - 同一participantの複数sessionはrepeat exposureとして示し、独立participantが増えたと数えない。
 - 観測件数・session件数をcompletion rate、retention rate、fun rate、需要率へ変換しない。このcohortに対する率の生成は禁止する。
-- build、task、platform、controlsが異なるsessionを平均しない。group差は比較可能性のwarningであり、原因ではない。
+- build、task、executionEnvironment、controlsが異なるsessionを平均しない。group差は比較可能性のwarningであり、原因ではない。
 - `playtestCohortEvidence.resultHandle`を使ってcohort原本を`playtest-cohort-<cohortId>`へexact-saveし、session本文をモデルが再集計用に転記しない。
 - 厳密なscenario差、sample minimum、success criterion、guardrailが必要なら、cohort件数から後付けthresholdを作らず`experiment.md`で事前登録する。
 
 ### Retest comparison trace
 
-cohort内でparent sessionも見つかるretestは、`retestComparisons.internalComparisons`として原本同士を照合します。task、platform、controls、start state、tester type、observation source、prior knowledgeを完全一致で比較し、不一致fieldを`protocolComparison.mismatchedFields`へ残します。build IDはrevisionの識別子なのでprotocol一致判定には含めず、変更内容は`changedVariables`で追跡します。
+cohort内でparent sessionも見つかるretestは、`retestComparisons.internalComparisons`として原本同士を照合します。task、executionEnvironment、controls、start state、tester type、observation source、prior knowledgeを完全一致で比較し、不一致fieldを`protocolComparison.mismatchedFields`へ残します。build IDはrevisionの識別子なのでprotocol一致判定には含めず、変更内容は`changedVariables`で追跡します。
 
 - `participantExposure`は`different-human-participants`、`repeat-human-participant`、`ai-operated-pair`、`mixed-tester-types`を区別する。別人のhuman reportを同一playerの変化として読まず、repeat participantを独立sampleとして読まない。
 - `evidenceTransition`はparent / currentのoutcome、reward signalの集合、material / blocker frictionの有無、human felt rewardを並べるだけにする。減少、増加、改善率、効果量を自動生成しない。
@@ -109,7 +113,7 @@ cohort内でparent sessionも見つかるretestは、`retestComparisons.internal
 
 - build ID、URLまたは配布経路の非機密識別子
 - session開始・終了時刻とduration
-- platform、resolution、controls
+- executionEnvironment（OS、device、runtime、renderer backend / implementation、graphics acceleration、viewport / DPR）とcontrols
 - player task、start state、end state
 - tester prior knowledgeとclient/tool
 - chronological observations

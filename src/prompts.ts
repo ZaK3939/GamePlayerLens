@@ -181,6 +181,7 @@ export const ProjectBriefObjectSchema = z.object({
   systemResponse: ProjectBriefTextSchema.optional(),
   rewardMechanisms: z.array(RewardMechanismSchema).min(1).max(6).optional(),
   oneSentencePromise: ProjectBriefTextSchema.optional(),
+  coreProofMoment: ProjectBriefTextSchema.optional(),
   knownFrame: ProjectBriefTextSchema.optional(),
   sourceAction: ProjectBriefTextSchema.optional(),
   sourceSystemResponse: ProjectBriefTextSchema.optional(),
@@ -207,6 +208,7 @@ const PROJECT_BRIEF_FIELD_GROUPS = {
     "systemResponse",
     "rewardMechanisms",
     "oneSentencePromise",
+    "coreProofMoment",
   ],
   differentiation: [
     "conceptOrigin",
@@ -228,28 +230,38 @@ const PROJECT_BRIEF_FIELD_GROUPS = {
 
 const CONCEPT_ROUTE_REQUIREMENTS = {
   "theme-first": [
-    "themeWorld",
-    "distinctiveSystem",
-    "repeatedAction",
-    "systemResponse",
-    "rewardMechanisms",
-  ],
-  "system-first": [
-    "distinctiveSystem",
-    "themeWorld",
-    "repeatedAction",
-    "systemResponse",
-    "rewardMechanisms",
-  ],
-  "holistic-image": [
+    "targetPlayer",
     "themeWorld",
     "distinctiveSystem",
     "repeatedAction",
     "systemResponse",
     "rewardMechanisms",
     "oneSentencePromise",
+    "coreProofMoment",
+  ],
+  "system-first": [
+    "targetPlayer",
+    "distinctiveSystem",
+    "themeWorld",
+    "repeatedAction",
+    "systemResponse",
+    "rewardMechanisms",
+    "oneSentencePromise",
+    "coreProofMoment",
+  ],
+  "holistic-image": [
+    "targetPlayer",
+    "themeWorld",
+    "distinctiveSystem",
+    "repeatedAction",
+    "systemResponse",
+    "rewardMechanisms",
+    "oneSentencePromise",
+    "coreProofMoment",
   ],
   imitation: [
+    "targetPlayer",
+    "themeWorld",
     "knownFrame",
     "sourceAction",
     "sourceSystemResponse",
@@ -259,6 +271,8 @@ const CONCEPT_ROUTE_REQUIREMENTS = {
     "repeatedAction",
     "systemResponse",
     "rewardMechanisms",
+    "oneSentencePromise",
+    "coreProofMoment",
   ],
 } as const satisfies Record<
   z.infer<typeof ConceptOriginSchema>,
@@ -266,10 +280,10 @@ const CONCEPT_ROUTE_REQUIREMENTS = {
 >;
 
 const CONCEPT_ROUTE_QUESTIONS = {
-  "theme-first": "What player action can exist naturally because of this theme, and what response makes it rewarding?",
-  "system-first": "Which theme makes this system easiest to understand and gives its response emotional meaning?",
-  "holistic-image": "Which concrete theme and repeatable system turn the broad image into an observable action-response-reward loop?",
-  imitation: "What source action-response-reward mechanism matters, and what target adaptation changes the resulting player experience?",
+  "theme-first": "For this target player, what action exists naturally because of the theme, what reward follows, and which shortest observable moment proves it?",
+  "system-first": "Which theme gives this system emotional meaning for the target player, and which shortest observable moment proves the fit?",
+  "holistic-image": "Which concrete theme and repeatable system turn the broad image into an observable action-response-reward moment for the target player?",
+  imitation: "What source action-response-reward mechanism matters, how does the target theme change it, and which shortest observable moment proves the difference?",
 } as const satisfies Record<z.infer<typeof ConceptOriginSchema>, string>;
 
 const MECHANISM_TRANSFER_REQUIREMENTS = [

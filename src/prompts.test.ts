@@ -3,7 +3,9 @@ import {join} from "node:path";
 import {describe, expect, it} from "vitest";
 import {
   buildPlaytestCohortDiagnostics,
+  buildPlaytestSessionDiagnostics,
   PlaytestCohortObjectSchema,
+  PlaytestSessionObjectSchema,
 } from "./manual-tests.js";
 import {
   buildRunSimPrompt,
@@ -31,6 +33,9 @@ function conceptTestFixture(
   participants: Array<Record<string, unknown>> = [{
     participantId: "p-01",
     targetFit: "high",
+    understoodTheme: "yes",
+    themeSystemFit: "unclear",
+    themeSystemFitReason: "The storm theme is visible, but its connection to route drawing is not yet clear",
     understoodAction: "yes",
     understoodReward: "unclear",
     interest: "maybe",
@@ -58,8 +63,12 @@ function firstContactTestFixture(
     visualQuality: "rough",
     visualQualityReason: "The characters and route overlay look unfinished at this viewport",
     understoodTheme: "yes",
+    themeAppeal: "no",
+    themeAppealReason: "The storm-courier world reads clearly but does not fit my taste",
     understoodAction: "unclear",
     understoodReward: "no",
+    tryIntent: "no",
+    tryIntentReason: "I cannot imagine a satisfying action or reward from this asset",
     immediateReject: "yes",
     unaidedSummary: "A storm courier game, but I cannot tell what I would do",
     rejectionReason: "The screenshot looks decorative rather than playable",
@@ -101,7 +110,19 @@ function playtestSessionFixture(): Record<string, unknown> {
     endedAt: "2026-08-12T12:08:00+04:00",
     sessionId: "playtest-build-042-p01",
     buildId: "0.4.2-dev",
-    platform: "Windows 11 desktop",
+    executionEnvironment: {
+      operatingSystem: "Windows 11 24H2",
+      device: "Desktop with NVIDIA RTX 4060",
+      runtime: "Chrome 140",
+      rendererBackend: "webgl2",
+      rendererImplementation: "ANGLE D3D11 (NVIDIA RTX 4060)",
+      graphicsAcceleration: "hardware",
+      viewport: {
+        width: 1920,
+        height: 1080,
+        devicePixelRatio: 1,
+      },
+    },
     controls: "keyboard and mouse",
     task: "Start a new run and defeat the tutorial enemy",
     startState: "Fresh save at the title screen",
@@ -268,6 +289,9 @@ describe("run-sim prompt arguments", () => {
         participants: [{
           participantId: "p-01",
           targetFit: "high",
+          understoodTheme: "yes",
+          themeSystemFit: "unclear",
+          themeSystemFitReason: "The storm courier theme is visible, but its fit with route planning is unclear",
           understoodAction: "yes",
           understoodReward: "unclear",
           interest: "maybe",
@@ -560,6 +584,9 @@ describe("run-sim prompt arguments", () => {
     expect(incompleteBrief).toContain('"projectBrief.repeatedAction"');
     expect(incompleteBrief).toContain('"projectBrief.systemResponse"');
     expect(incompleteBrief).toContain('"projectBrief.rewardMechanisms"');
+    expect(incompleteBrief).toContain('"projectBrief.targetPlayer"');
+    expect(incompleteBrief).toContain('"projectBrief.oneSentencePromise"');
+    expect(incompleteBrief).toContain('"projectBrief.coreProofMoment"');
 
     const readyBrief = buildRunSimPrompt(recipe, {
       target: "Project Nyx",
@@ -569,11 +596,14 @@ describe("run-sim prompt arguments", () => {
       language: "japanese",
       projectBrief: JSON.stringify({
         conceptOrigin: "theme-first",
+        targetPlayer: "players who enjoy readable tactical planning",
         themeWorld: "storm courier guild",
         distinctiveSystem: "redraw routes against a changing forecast",
         repeatedAction: "read, route, commit, recover",
         systemResponse: "wind and cargo condition react",
         rewardMechanisms: rewardMechanismsFixture(),
+        oneSentencePromise: "Outread the storm to keep a courier network alive",
+        coreProofMoment: "A route is redrawn around a storm and the delivery state reacts immediately",
       }),
     });
     expect(readyBrief).toContain('"subjectKind": "developer-project"');
@@ -641,6 +671,7 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"buildStatus": "matched"');
     expect(result).toContain('"taskStatus": "matched"');
     expect(result).toContain('"controlsStatus": "matched"');
+    expect(result).toContain('"generalizationStatus": "recorded-hardware-environment-only"');
     expect(result).toContain('"candidateReviewAreas": [\n      "protocol-deviation",\n      "material-friction",\n      "reward-delivery",\n      "felt-reward-follow-up",\n      "reported-confusions",\n      "repeat-intent-follow-up"\n    ]');
     expect(result).toContain('"playtestSessionEvidence": {');
     expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174002"');
@@ -648,6 +679,43 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain("one bounded session");
     expect(result).not.toContain("funScore");
     expect(result).not.toContain("completionRate");
+  });
+
+  it("limits software-renderer results to the recorded compatibility path", () => {
+    const fixture = playtestSessionFixture();
+    fixture.executionEnvironment = {
+      ...(fixture.executionEnvironment as Record<string, unknown>),
+      rendererImplementation: "ANGLE Vulkan (SwiftShader Device)",
+      graphicsAcceleration: "software",
+    };
+    const session = PlaytestSessionObjectSchema.parse(fixture);
+    const diagnostics = buildPlaytestSessionDiagnostics(session, {});
+
+    expect(diagnostics.executionEnvironment).toMatchObject({
+      rendererBackend: "webgl2",
+      rendererImplementation: "ANGLE Vulkan (SwiftShader Device)",
+      graphicsAcceleration: "software",
+      generalizationStatus: "software-renderer-compatibility-path-only",
+    });
+    expect(diagnostics.candidateReviewAreas).toContain(
+      "execution-environment-generalization",
+    );
+    expect(diagnostics.executionEnvironment.interpretationLimit).toMatch(
+      /software-rendered[\s\S]*hardware/i,
+    );
+  });
+
+  it("requires a structured renderer execution environment", () => {
+    const fixture = playtestSessionFixture();
+    delete fixture.executionEnvironment;
+    fixture.platform = "Windows 11 desktop";
+
+    const result = PlaytestSessionObjectSchema.safeParse(fixture);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(JSON.stringify(result.error)).toContain("executionEnvironment");
+      expect(JSON.stringify(result.error)).toContain("platform");
+    }
   });
 
   it("keeps unassessed reward evidence separate from an observed delivery problem", () => {
@@ -936,8 +1004,8 @@ describe("run-sim prompt arguments", () => {
         protocolComparison: {
           mismatchedFields: [],
           fields: {
-            task: "matched",
-            platform: "matched",
+          task: "matched",
+            executionEnvironment: "matched",
             controls: "matched",
             startState: "matched",
             testerType: "matched",
@@ -1155,6 +1223,7 @@ describe("run-sim prompt arguments", () => {
         systemResponse: "wind and cargo condition react",
         rewardMechanisms: rewardMechanismsFixture(),
         oneSentencePromise: "Outread the storm to keep a courier network alive",
+        coreProofMoment: "The player redraws one route around a storm and the delivery state reacts immediately",
         runwayMonths: 14,
       }),
     });
@@ -1168,8 +1237,9 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"conceptRoute": {');
     expect(result).toContain('"origin": "theme-first"');
     expect(result).toContain('"status": "declared-route-ready-for-validation"');
-    expect(result).toContain('"declaredCount": 8');
-    expect(result).toContain('"totalFields": 8');
+    expect(result).toContain('"coreProofMoment": "The player redraws one route around a storm and the delivery state reacts immediately"');
+    expect(result).toContain('"declaredCount": 9');
+    expect(result).toContain('"totalFields": 9');
     expect(result).toContain('"rewardMechanism": {');
     expect(result).toContain('"status": "declared-mechanisms-ready-for-validation"');
     expect(result).toContain('"mechanismCount": 1');
@@ -1195,7 +1265,7 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"origin": "imitation"');
     expect(result).toContain('"status": "needs-counterpart"');
     expect(result).toMatch(
-      /"missingFields": \[[\s\S]*"sourceAction"[\s\S]*"sourceSystemResponse"[\s\S]*"sourceReward"[\s\S]*"meaningfulDifference"[\s\S]*"distinctiveSystem"[\s\S]*"repeatedAction"[\s\S]*"systemResponse"[\s\S]*"rewardMechanisms"/,
+      /"missingFields": \[[\s\S]*"targetPlayer"[\s\S]*"themeWorld"[\s\S]*"sourceAction"[\s\S]*"sourceSystemResponse"[\s\S]*"sourceReward"[\s\S]*"meaningfulDifference"[\s\S]*"distinctiveSystem"[\s\S]*"repeatedAction"[\s\S]*"systemResponse"[\s\S]*"rewardMechanisms"[\s\S]*"oneSentencePromise"[\s\S]*"coreProofMoment"/,
     );
     expect(result).toContain('"status": "reward-mechanism-missing"');
     expect(result).toContain('"mechanismTransfer": {');
@@ -1286,6 +1356,9 @@ describe("run-sim prompt arguments", () => {
           {
             participantId: "p-01",
             targetFit: "high",
+            understoodTheme: "yes",
+            themeSystemFit: "unclear",
+            themeSystemFitReason: "The courier theme is visible, but why route drawing belongs to it is unclear",
             understoodAction: "yes",
             understoodReward: "unclear",
             interest: "maybe",
@@ -1295,6 +1368,9 @@ describe("run-sim prompt arguments", () => {
           {
             participantId: "p-02",
             targetFit: "medium",
+            understoodTheme: "no",
+            themeSystemFit: "no",
+            themeSystemFitReason: "The mockup could be a generic route planner without the courier world",
             understoodAction: "unclear",
             understoodReward: "no",
             interest: "would-not-play",
@@ -1303,6 +1379,8 @@ describe("run-sim prompt arguments", () => {
           {
             participantId: "p-03",
             targetFit: "unknown",
+            understoodTheme: "not-measured",
+            themeSystemFit: "not-measured",
             understoodAction: "not-measured",
             understoodReward: "not-measured",
             interest: "not-asked",
@@ -1333,11 +1411,14 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"parentStimulusId": "pitch-card-v2"');
     expect(result).toContain('"changeSummaryDeclared": true');
     expect(result).toContain('"causalAttributionStatus": "comparison-candidate-only"');
-    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "measurement-coverage",\n        "action-legibility",\n        "reward-legibility",\n        "reported-confusions",\n        "interest-follow-up"\n      ]');
+    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "measurement-coverage",\n        "theme-legibility",\n        "theme-system-fit",\n        "action-legibility",\n        "reward-legibility",\n        "reported-confusions",\n        "interest-follow-up"\n      ]');
     expect(result).toContain("change one core or asset variable");
     expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174000"');
     expect(result).toContain('"exactSaveRequired": true');
     expect(result).toMatch(/"actionUnderstandingCounts": \{[\s\S]*"yes": 1,[\s\S]*"unclear": 1,[\s\S]*"not-measured": 1/);
+    expect(result).toMatch(/"themeUnderstandingCounts": \{[\s\S]*"yes": 1,[\s\S]*"no": 1,[\s\S]*"not-measured": 1/);
+    expect(result).toMatch(/"themeSystemFitCounts": \{[\s\S]*"no": 1,[\s\S]*"unclear": 1,[\s\S]*"not-measured": 1/);
+    expect(result).toContain('"themeSystemFitReasonCount": 2');
     expect(result).toMatch(/"interestCounts": \{[\s\S]*"maybe": 1,[\s\S]*"would-not-play": 1,[\s\S]*"not-asked": 1/);
     expect(result).not.toContain("successRate");
     expect(result).not.toContain("purchaseProbability");
@@ -1354,8 +1435,38 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"status": "partial-summary-coverage"');
     expect(result).toContain('"summaryProvidedCount": 0');
     expect(result).toContain('"understandingMarkedYesWithoutSummaryCount": 1');
-    expect(result).toContain('"bothMarkedYesWithSummaryCount": 0');
+    expect(result).toContain('"coreDimensionsMarkedYesWithSummaryCount": 0');
     expect(result).toMatch(/"candidateReviewAreas": \[[\s\S]*"teach-back-evidence"/);
+  });
+
+  it("requires theme comprehension and an explained theme-system fit judgment", () => {
+    const participant = {
+      ...(conceptTestFixture().participants as Array<Record<string, unknown>>)[0],
+    };
+    delete participant.understoodTheme;
+    const missingTheme = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify(conceptTestFixture([participant])),
+    });
+    expect(missingTheme.success).toBe(false);
+    if (!missingTheme.success) {
+      expect(JSON.stringify(missingTheme.error)).toContain("understoodTheme");
+    }
+
+    const unexplainedFit = {
+      ...(conceptTestFixture().participants as Array<Record<string, unknown>>)[0],
+    };
+    delete unexplainedFit.themeSystemFitReason;
+    const missingReason = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "concept comprehension",
+      conceptTest: JSON.stringify(conceptTestFixture([unexplainedFit])),
+    });
+    expect(missingReason.success).toBe(false);
+    if (!missingReason.success) {
+      expect(JSON.stringify(missingReason.error)).toContain("themeSystemFitReason");
+    }
   });
 
   it("requires safe, non-self-referential lineage for revised concept stimuli", () => {
@@ -1429,6 +1540,8 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"assetType": "store-viewport"');
     expect(result).toContain('"participantCount": 1');
     expect(result).toContain('"themeLegibilityCounts": {');
+    expect(result).toContain('"themeAppealCounts": {');
+    expect(result).toContain('"tryIntentCounts": {');
     expect(result).toContain('"visualQualityCounts": {');
     expect(result).toContain('"rough": 1');
     expect(result).toContain('"actionLegibilityCounts": {');
@@ -1436,13 +1549,27 @@ describe("run-sim prompt arguments", () => {
     expect(result).toContain('"immediateRejectCounts": {');
     expect(result).toContain('"rejectionReasonCount": 1');
     expect(result).toContain('"causalAttributionStatus": "comparison-candidate-only"');
-    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "visual-quality",\n        "action-legibility",\n        "reward-legibility",\n        "immediate-reject",\n        "reported-confusions"\n      ]');
+    expect(result).toContain('"candidateReviewAreas": [\n        "protocol-deviation",\n        "visual-quality",\n        "theme-appeal",\n        "action-legibility",\n        "reward-legibility",\n        "try-intent",\n        "immediate-reject",\n        "reported-confusions"\n      ]');
     expect(result).toContain('"firstContactTestEvidence": {');
     expect(result).toContain('"resultHandle": "123e4567-e89b-42d3-a456-426614174001"');
     expect(result).toContain('"exactSaveRequired": true');
     expect(result).toContain("bounded sample");
     expect(result).not.toContain("readinessScore");
     expect(result).not.toContain("conversionProbability");
+  });
+
+  it("separates theme comprehension, theme appeal, and try intent", () => {
+    const result = buildRunSimPrompt(recipe, {
+      target: "Project Nyx",
+      topic: "first-contact appeal boundary",
+      firstContactTest: JSON.stringify(firstContactTestFixture()),
+    });
+
+    expect(result).toContain('"themeLegibilityCounts": {\n      "yes": 1');
+    expect(result).toContain('"themeAppealCounts": {\n      "yes": 0,\n      "no": 1');
+    expect(result).toContain('"tryIntentCounts": {\n      "yes": 0,\n      "maybe": 0,\n      "no": 1');
+    expect(result).toMatch(/theme appeal[\s\S]*theme comprehension/i);
+    expect(result).toMatch(/try intent[\s\S]*(purchase|demand)/i);
   });
 
   it("rejects unsafe first-contact lineage and duplicate participant IDs", () => {
@@ -1515,6 +1642,35 @@ describe("run-sim prompt arguments", () => {
     expect(unexplained.success).toBe(false);
     if (!unexplained.success) {
       expect(JSON.stringify(unexplained.error)).toContain("visualQualityReason");
+    }
+  });
+
+  it("requires independent appeal and try-intent observations with negative reasons", () => {
+    const base = {
+      ...(firstContactTestFixture().participants as Array<Record<string, unknown>>)[0],
+    };
+    const missingAppeal = {...base};
+    delete missingAppeal.themeAppeal;
+    const missing = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify(firstContactTestFixture([missingAppeal])),
+    });
+    expect(missing.success).toBe(false);
+    if (!missing.success) {
+      expect(JSON.stringify(missing.error)).toContain("themeAppeal");
+    }
+
+    const unexplainedTryIntent = {...base};
+    delete unexplainedTryIntent.tryIntentReason;
+    const unexplained = RunSimPromptArgumentsSchema.safeParse({
+      target: "Project Nyx",
+      topic: "store reveal readiness",
+      firstContactTest: JSON.stringify(firstContactTestFixture([unexplainedTryIntent])),
+    });
+    expect(unexplained.success).toBe(false);
+    if (!unexplained.success) {
+      expect(JSON.stringify(unexplained.error)).toContain("tryIntentReason");
     }
   });
 
