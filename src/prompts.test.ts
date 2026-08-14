@@ -6,7 +6,7 @@ import {
   buildPlaytestSessionDiagnostics,
   PlaytestCohortObjectSchema,
   PlaytestSessionObjectSchema,
-} from "./manual-tests.js";
+} from "./playtest-evidence.js";
 import {
   buildRunSimPrompt,
   buildUiBlindComparePrompt,

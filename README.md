@@ -146,7 +146,7 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 Live tests use Hades (`1145360`) for Steam data, Hades II (`1145350`) for Steam image capture, and `Action Roguelike` for SteamSpy discovery. Optional integrations are tested when configured and otherwise must return explicit warnings.
 
-The strongest validated workflow today is evidence collection and review for released Steam games. Developer-project intake, manual test evidence, immutable runs, and prospective experiment wiring are implemented and package-tested; continued end-to-end dogfooding with real playable builds remains the highest-value validation area.
+The strongest validated workflow today is evidence collection and review for released Steam games. Developer-project intake, user-supplied concept, first-contact, and playtest evidence, immutable runs, and prospective experiment wiring are implemented and package-tested; continued end-to-end dogfooding with real playable builds remains the highest-value validation area.
 
 ## Documentation
 

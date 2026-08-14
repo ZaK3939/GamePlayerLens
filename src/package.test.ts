@@ -13,19 +13,30 @@ describe("npm package contract", () => {
       files?: string[];
       scripts?: Record<string, string>;
     };
+    const tsconfig = JSON.parse(
+      await readFile(join(process.cwd(), "tsconfig.json"), "utf8"),
+    ) as {include?: string[]; exclude?: string[]};
 
     expect(manifest.name).toBe("game-player-lens");
     expect(manifest.private).toBe(false);
     expect(manifest.bin).toEqual({"game-player-lens": "dist/cli.js"});
-    expect(manifest.files).toEqual(expect.arrayContaining([
+    expect(manifest.files).toEqual([
       "dist",
-      "docs/guides",
-      "docs/reference",
       "knowledge/rubrics",
       "knowledge/templates",
+      "docs/guides",
+      "docs/reference",
       "skills",
-    ]));
+      "README.md",
+    ]);
+    expect(manifest.scripts?.build).toBe("node scripts/clean-dist.mjs && tsc");
+    expect(manifest.scripts?.["check:package"]).toBeDefined();
     expect(manifest.scripts?.prepack).toBe("pnpm build");
     expect(manifest.scripts?.["smoke:package"]).toBeDefined();
+    expect(tsconfig.include).toEqual(["src/**/*.ts"]);
+    expect(tsconfig.exclude).toEqual([
+      "src/**/*.test.ts",
+      "src/**/*.live.test.ts",
+    ]);
   });
 });

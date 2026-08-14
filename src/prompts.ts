@@ -12,7 +12,7 @@ import {
   PlaytestCohortSchema,
   PlaytestSessionObjectSchema,
   PlaytestSessionSchema,
-} from "./manual-tests.js";
+} from "./playtest-evidence.js";
 import {
   buildProjectBriefDiagnostics,
   ProjectBriefObjectSchema,

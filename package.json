@@ -37,12 +37,13 @@
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc",
+    "build": "node scripts/clean-dist.mjs && tsc",
     "test": "vitest run --config vitest.config.ts",
     "test:live": "RUN_LIVE=1 vitest run --config vitest.live.config.ts",
     "test:all": "pnpm test && pnpm test:live",
     "smoke:stdio": "tsx scripts/smoke-stdio.ts",
-    "smoke:package": "pnpm build && tsx scripts/smoke-package.ts",
+    "check:package": "node scripts/check-package-contents.mjs",
+    "smoke:package": "pnpm build && pnpm check:package && tsx scripts/smoke-package.ts",
     "prepack": "pnpm build"
   },
   "dependencies": {
