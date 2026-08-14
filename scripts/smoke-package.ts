@@ -165,7 +165,10 @@ try {
   assert(
     coachedHistoryJson.includes('"status":"insufficient-history"')
       && coachedHistoryJson.includes('"analyzedRunCount":0')
+      && coachedHistoryJson.includes('"activeFindings":[]')
+      && coachedHistoryJson.includes('"findingHistory":[]')
       && coachedHistoryJson.includes('"highestPriorityFinding":null')
+      && !coachedHistoryJson.includes('"findings":')
       && !/score/iu.test(coachedHistoryJson),
     "packaged coach_history did not preserve its empty-history and no-score contract",
   );

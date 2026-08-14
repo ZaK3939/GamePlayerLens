@@ -21,8 +21,10 @@ export interface IterationSnapshot {
   buildKey: string;
   decision: IterationDecision;
   directStimulusHashes: string[];
-  humanEvidenceHashes: string[];
-  humanValidationQuestions: string[];
+  humanValidations: Array<{
+    question: string;
+    humanEvidenceHashes: string[];
+  }>;
 }
 
 export type IterationFindingId =
@@ -40,9 +42,15 @@ export interface IterationCoachFinding {
   resolvedWhen: string;
 }
 
+export interface IterationCoachFindingHistoryEntry extends IterationCoachFinding {
+  status: "active" | "resolved";
+  resolvedByRunId: string | null;
+}
+
 export interface IterationCoachAnalysis {
   status: "insufficient-history" | "clear" | "findings";
-  findings: IterationCoachFinding[];
+  activeFindings: IterationCoachFindingHistoryEntry[];
+  findingHistory: IterationCoachFindingHistoryEntry[];
   card: {
     highestPriorityFinding: IterationFindingId | null;
     nextAction: string;
@@ -69,8 +77,8 @@ export interface IterationCoachHistoryResult {
       savedAt: string;
       decision: IterationDecision;
       buildChangedFromPrevious: boolean | null;
-      newDirectStimulusCount: number | null;
-      newHumanEvidenceCount: number | null;
+      novelDirectStimulusCount: number | null;
+      novelHumanEvidenceCount: number | null;
     }>;
     boundaries: string[];
   };
@@ -88,26 +96,30 @@ const FINDING_PRIORITY: Record<IterationFindingId, number> = {
   "human-handoff-stall": 2,
 };
 
-function newCount(current: readonly string[], previous: readonly string[]): number {
-  const seen = new Set(previous);
-  return new Set(current.filter((value) => !seen.has(value))).size;
-}
-
-function normalizedQuestions(values: readonly string[]): Set<string> {
-  return new Set(values.map((value) => value
+function normalizeQuestion(value: string): string {
+  return value
     .normalize("NFKC")
     .trim()
     .replace(/\s+/gu, " ")
-    .toLocaleLowerCase("en-US"))
-    .filter(Boolean));
+    .toLocaleLowerCase("en-US");
 }
 
-function sharedQuestionCount(
-  current: readonly string[],
-  previous: readonly string[],
-): number {
-  const earlier = normalizedQuestions(previous);
-  return [...normalizedQuestions(current)].filter((value) => earlier.has(value)).length;
+function validationsByQuestion(
+  snapshot: IterationSnapshot,
+): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  for (const validation of snapshot.humanValidations) {
+    const question = normalizeQuestion(validation.question);
+    if (!question) continue;
+    const hashes = result.get(question) ?? new Set<string>();
+    validation.humanEvidenceHashes.forEach((hash) => hashes.add(hash));
+    result.set(question, hashes);
+  }
+  return result;
+}
+
+function novelValues(current: Iterable<string>, seen: ReadonlySet<string>): string[] {
+  return [...new Set(current)].filter((value) => !seen.has(value));
 }
 
 function finding(
@@ -145,92 +157,205 @@ function finding(
     facts,
     whyItMatters: "The same human validation question crossed two reviews without new human evidence.",
     nextAction: "Ask the repeated question in one bounded human session before another review.",
-    resolvedWhen: "A later verified run cites a new first-contact, human-playtest, or human-playtest measurement SHA-256.",
+    resolvedWhen: "A later verified persona round cites a new first-contact, human-playtest, or human-playtest measurement SHA-256 for the repeated question.",
+  };
+}
+
+interface IterationDelta {
+  runId: string;
+  savedAt: string;
+  decision: IterationDecision;
+  buildChangedFromPrevious: boolean | null;
+  novelDirectStimulusCount: number | null;
+  novelHumanEvidenceCount: number | null;
+}
+
+function evaluateIterationHistory(input: readonly IterationSnapshot[]): {
+  analysis: IterationCoachAnalysis;
+  deltas: IterationDelta[];
+} {
+  const iterations = [...input].sort((left, right) =>
+    left.savedAt.localeCompare(right.savedAt) || left.runId.localeCompare(right.runId));
+  if (iterations.length < 2) {
+    return {
+      analysis: {
+        status: "insufficient-history",
+        activeFindings: [],
+        findingHistory: [],
+        card: {
+          highestPriorityFinding: null,
+          nextAction: "Use play-build for the next bounded operation; coach_history needs two verified developer-project runs to detect repetition.",
+          stopCondition: null,
+        },
+      },
+      deltas: iterations.map((iteration) => ({
+        runId: iteration.runId,
+        savedAt: iteration.savedAt,
+        decision: iteration.decision,
+        buildChangedFromPrevious: null,
+        novelDirectStimulusCount: null,
+        novelHumanEvidenceCount: null,
+      })),
+    };
+  }
+
+  const findingHistory: IterationCoachFindingHistoryEntry[] = [];
+  let activeFix: {historyIndex: number; buildKey: string} | undefined;
+  let activeReview: {historyIndex: number; buildKey: string} | undefined;
+  let activeHuman: {historyIndex: number; unresolvedQuestions: Set<string>} | undefined;
+  const seenDirectByBuild = new Map<string, Set<string>>();
+  const seenHumanByQuestion = new Map<string, Set<string>>();
+  const deltas: IterationDelta[] = [];
+
+  function activate(value: IterationCoachFinding): number {
+    return findingHistory.push({
+      ...value,
+      status: "active",
+      resolvedByRunId: null,
+    }) - 1;
+  }
+
+  function resolveFinding(historyIndex: number, runId: string): void {
+    const entry = findingHistory[historyIndex]!;
+    entry.status = "resolved";
+    entry.resolvedByRunId = runId;
+  }
+
+  for (let index = 0; index < iterations.length; index += 1) {
+    const current = iterations[index]!;
+    const previous = iterations[index - 1];
+    const seenDirect = seenDirectByBuild.get(current.buildKey) ?? new Set<string>();
+    const novelDirectStimuli = novelValues(current.directStimulusHashes, seenDirect);
+    const currentValidations = validationsByQuestion(current);
+    const previousValidations = previous
+      ? validationsByQuestion(previous)
+      : new Map<string, Set<string>>();
+    const novelHumanByQuestion = new Map<string, string[]>();
+    const novelHumanEvidence = new Set<string>();
+    for (const [question, hashes] of currentValidations) {
+      const novel = novelValues(hashes, seenHumanByQuestion.get(question) ?? new Set());
+      novelHumanByQuestion.set(question, novel);
+      novel.forEach((hash) => novelHumanEvidence.add(hash));
+    }
+
+    deltas.push({
+      runId: current.runId,
+      savedAt: current.savedAt,
+      decision: current.decision,
+      buildChangedFromPrevious: previous
+        ? current.buildKey !== previous.buildKey
+        : null,
+      novelDirectStimulusCount: previous ? novelDirectStimuli.length : null,
+      novelHumanEvidenceCount: previous ? novelHumanEvidence.size : null,
+    });
+
+    if (previous) {
+      const sameBuild = previous.buildKey === current.buildKey;
+
+      if (activeFix && current.buildKey !== activeFix.buildKey) {
+        resolveFinding(activeFix.historyIndex, current.runId);
+        activeFix = undefined;
+      }
+      if (
+        activeReview
+        && (current.buildKey !== activeReview.buildKey || novelDirectStimuli.length > 0)
+      ) {
+        resolveFinding(activeReview.historyIndex, current.runId);
+        activeReview = undefined;
+      }
+      if (activeHuman) {
+        for (const question of activeHuman.unresolvedQuestions) {
+          if ((novelHumanByQuestion.get(question)?.length ?? 0) > 0) {
+            activeHuman.unresolvedQuestions.delete(question);
+          }
+        }
+        const activeEntry = findingHistory[activeHuman.historyIndex]!;
+        activeEntry.facts.unresolvedQuestionCount = activeHuman.unresolvedQuestions.size;
+        if (activeHuman.unresolvedQuestions.size === 0) {
+          resolveFinding(activeHuman.historyIndex, current.runId);
+          activeHuman = undefined;
+        }
+      }
+
+      if (previous.decision === "fix-now" && sameBuild && !activeFix) {
+        activeFix = {
+          buildKey: current.buildKey,
+          historyIndex: activate(finding("fix-now-without-new-build", previous, current, {
+            previousDecision: previous.decision,
+            sameBuild,
+          })),
+        };
+      }
+      if (sameBuild && novelDirectStimuli.length === 0 && !activeReview) {
+        activeReview = {
+          buildKey: current.buildKey,
+          historyIndex: activate(finding("review-without-new-stimulus", previous, current, {
+            sameBuild,
+            novelDirectStimulusCount: 0,
+          })),
+        };
+      }
+
+      const stalledQuestions = [...currentValidations.keys()].filter((question) =>
+        previousValidations.has(question)
+        && (novelHumanByQuestion.get(question)?.length ?? 0) === 0);
+      if (stalledQuestions.length > 0) {
+        if (!activeHuman) {
+          activeHuman = {
+            historyIndex: activate(finding("human-handoff-stall", previous, current, {
+              repeatedQuestionCount: stalledQuestions.length,
+              novelHumanEvidenceCount: 0,
+              unresolvedQuestionCount: stalledQuestions.length,
+            })),
+            unresolvedQuestions: new Set(stalledQuestions),
+          };
+        } else {
+          stalledQuestions.forEach((question) =>
+            activeHuman!.unresolvedQuestions.add(question));
+          findingHistory[activeHuman.historyIndex]!.facts.unresolvedQuestionCount =
+            activeHuman.unresolvedQuestions.size;
+        }
+      }
+    }
+
+    current.directStimulusHashes.forEach((hash) => seenDirect.add(hash));
+    seenDirectByBuild.set(current.buildKey, seenDirect);
+    for (const [question, hashes] of currentValidations) {
+      const seenHuman = seenHumanByQuestion.get(question) ?? new Set<string>();
+      hashes.forEach((hash) => seenHuman.add(hash));
+      seenHumanByQuestion.set(question, seenHuman);
+    }
+  }
+
+  const activeFindings = findingHistory.filter(({status}) => status === "active").sort(
+    (left, right) => FINDING_PRIORITY[left.id] - FINDING_PRIORITY[right.id],
+  );
+  const highest = activeFindings[0];
+  return {
+    analysis: {
+      status: highest ? "findings" : "clear",
+      activeFindings,
+      findingHistory,
+      card: highest
+        ? {
+            highestPriorityFinding: highest.id,
+            nextAction: highest.nextAction,
+            stopCondition: highest.resolvedWhen,
+          }
+        : {
+            highestPriorityFinding: null,
+            nextAction: "Continue with the next declared playable operation and preserve its direct result.",
+            stopCondition: null,
+          },
+    },
+    deltas,
   };
 }
 
 export function analyzeIterationHistory(
   input: readonly IterationSnapshot[],
 ): IterationCoachAnalysis {
-  const iterations = [...input].sort((left, right) =>
-    left.savedAt.localeCompare(right.savedAt) || left.runId.localeCompare(right.runId));
-  if (iterations.length < 2) {
-    return {
-      status: "insufficient-history",
-      findings: [],
-      card: {
-        highestPriorityFinding: null,
-        nextAction: "Use play-build for the next bounded operation; coach_history needs two verified developer-project runs to detect repetition.",
-        stopCondition: null,
-      },
-    };
-  }
-
-  const latestById = new Map<IterationFindingId, IterationCoachFinding>();
-  for (let index = 1; index < iterations.length; index += 1) {
-    const previous = iterations[index - 1]!;
-    const current = iterations[index]!;
-    const sameBuild = previous.buildKey === current.buildKey;
-    const newDirectStimulusCount = newCount(
-      current.directStimulusHashes,
-      previous.directStimulusHashes,
-    );
-    if (previous.decision === "fix-now" && sameBuild) {
-      latestById.set(
-        "fix-now-without-new-build",
-        finding("fix-now-without-new-build", previous, current, {
-          previousDecision: previous.decision,
-          sameBuild,
-        }),
-      );
-    }
-    if (sameBuild && newDirectStimulusCount === 0) {
-      latestById.set(
-        "review-without-new-stimulus",
-        finding("review-without-new-stimulus", previous, current, {
-          sameBuild,
-          newDirectStimulusCount,
-        }),
-      );
-    }
-    const repeatedQuestionCount = sharedQuestionCount(
-      current.humanValidationQuestions,
-      previous.humanValidationQuestions,
-    );
-    const newHumanEvidenceCount = newCount(
-      current.humanEvidenceHashes,
-      previous.humanEvidenceHashes,
-    );
-    if (repeatedQuestionCount > 0 && newHumanEvidenceCount === 0) {
-      latestById.set(
-        "human-handoff-stall",
-        finding("human-handoff-stall", previous, current, {
-          repeatedQuestionCount,
-          newHumanEvidenceCount,
-        }),
-      );
-    }
-  }
-
-  const findings = [...latestById.values()].sort(
-    (left, right) => FINDING_PRIORITY[left.id] - FINDING_PRIORITY[right.id],
-  );
-  const highest = findings[0];
-  return {
-    status: highest ? "findings" : "clear",
-    findings,
-    card: highest
-      ? {
-          highestPriorityFinding: highest.id,
-          nextAction: highest.nextAction,
-          stopCondition: highest.resolvedWhen,
-        }
-      : {
-          highestPriorityFinding: null,
-          nextAction: "Continue with the next declared playable operation and preserve its direct result.",
-          stopCondition: null,
-        },
-  };
+  return evaluateIterationHistory(input).analysis;
 }
 
 function payloadData(payload: unknown): unknown {
@@ -349,11 +474,18 @@ export async function buildIterationCoachHistory(
 
       const citedRefs = new Set(run.record.rounds.flatMap(({evidenceRefs}) => evidenceRefs));
       const directStimulusHashes: string[] = [];
-      const humanEvidenceHashes: string[] = [];
+      const evidenceClasses = new Map<string, {
+        sha256: string;
+        human: boolean;
+      }>();
       for (const evidence of run.record.evidence) {
         if (!citedRefs.has(evidence.ref)) continue;
         if (evidence.kind === "capture" || evidence.kind === "ui-reference") {
           directStimulusHashes.push(evidence.sha256);
+          evidenceClasses.set(evidence.ref, {
+            sha256: evidence.sha256,
+            human: false,
+          });
           continue;
         }
         if (evidence.kind !== "intel" || !evidence.targetId) continue;
@@ -362,8 +494,11 @@ export async function buildIterationCoachHistory(
           evidence.id,
         );
         const classification = evidenceClass(record.payload);
+        evidenceClasses.set(evidence.ref, {
+          sha256: evidence.sha256,
+          human: classification.human,
+        });
         if (classification.direct) directStimulusHashes.push(evidence.sha256);
-        if (classification.human) humanEvidenceHashes.push(evidence.sha256);
       }
 
       snapshots.push({
@@ -372,11 +507,18 @@ export async function buildIterationCoachHistory(
         buildKey: identity,
         decision: evaluation.decisionCard.decision,
         directStimulusHashes: unique(directStimulusHashes),
-        humanEvidenceHashes: unique(humanEvidenceHashes),
-        humanValidationQuestions: unique(run.record.rounds.flatMap((round) =>
-          round.playerSimulation
-            ? [round.playerSimulation.reflection.humanValidationQuestion]
-            : [])),
+        humanValidations: run.record.rounds.flatMap((round) => {
+          if (!round.playerSimulation) return [];
+          return [{
+            question: round.playerSimulation.reflection.humanValidationQuestion,
+            humanEvidenceHashes: unique(
+              round.playerSimulation.stimulusEvidenceRefs.flatMap((reference) => {
+                const evidence = evidenceClasses.get(reference);
+                return evidence?.human ? [evidence.sha256] : [];
+              }),
+            ),
+          }];
+        }),
       });
     } catch {
       excludedUnreadableRunCount += 1;
@@ -386,24 +528,7 @@ export async function buildIterationCoachHistory(
 
   const ordered = [...snapshots].sort((left, right) =>
     left.savedAt.localeCompare(right.savedAt) || left.runId.localeCompare(right.runId));
-  const analysis = analyzeIterationHistory(ordered);
-  const iterations = ordered.map((current, index) => {
-    const previous = ordered[index - 1];
-    return {
-      runId: current.runId,
-      savedAt: current.savedAt,
-      decision: current.decision,
-      buildChangedFromPrevious: previous
-        ? current.buildKey !== previous.buildKey
-        : null,
-      newDirectStimulusCount: previous
-        ? newCount(current.directStimulusHashes, previous.directStimulusHashes)
-        : null,
-      newHumanEvidenceCount: previous
-        ? newCount(current.humanEvidenceHashes, previous.humanEvidenceHashes)
-        : null,
-    };
-  });
+  const evaluated = evaluateIterationHistory(ordered);
   if (ignoredNonDeveloperRunCount > 0) {
     warnings.push(`iteration coach ignored ${ignoredNonDeveloperRunCount} non-developer-project run(s)`);
   }
@@ -419,11 +544,12 @@ export async function buildIterationCoachHistory(
       window: ordered.length > 0
         ? {oldest: ordered[0]!.savedAt, newest: ordered.at(-1)!.savedAt}
         : null,
-      iterations,
-      ...analysis,
+      iterations: evaluated.deltas,
+      ...evaluated.analysis,
       boundaries: [
         "Only verified stored developer-project runs inside the requested window are analyzed.",
         "A direct stimulus is a cited capture, UI reference, first-contact test, playtest, or direct experiment measurement; it does not prove fun.",
+        "Human evidence answers a validation question only when the same persona round cites it as stimulus evidence.",
         "Findings describe repeated development behavior, not game quality, player population rates, demand, or retention.",
       ],
     },

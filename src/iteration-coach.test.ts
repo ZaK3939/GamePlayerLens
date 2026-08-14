@@ -18,8 +18,7 @@ function snapshot(
     buildKey: "a".repeat(40) + ":build-001",
     decision: "investigate",
     directStimulusHashes: ["1".repeat(64)],
-    humanEvidenceHashes: [],
-    humanValidationQuestions: [],
+    humanValidations: [],
     ...overrides,
   };
 }
@@ -32,8 +31,8 @@ describe("iteration coach", () => {
     ]);
 
     expect(result.status).toBe("findings");
-    expect(result.findings.map(({id}) => id)).toContain("review-without-new-stimulus");
-    expect(result.findings[0]?.runIds).toEqual(["run-a", "run-b"]);
+    expect(result.activeFindings.map(({id}) => id)).toContain("review-without-new-stimulus");
+    expect(result.activeFindings[0]?.runIds).toEqual(["run-a", "run-b"]);
   });
 
   it("prioritizes a fix-now decision followed by another review of the same build", () => {
@@ -42,7 +41,7 @@ describe("iteration coach", () => {
       snapshot("run-b", "2026-08-14T11:00:00Z"),
     ]);
 
-    expect(result.findings[0]?.id).toBe("fix-now-without-new-build");
+    expect(result.activeFindings[0]?.id).toBe("fix-now-without-new-build");
     expect(result.card.highestPriorityFinding).toBe("fix-now-without-new-build");
     expect(result.card.nextAction).toMatch(/new build/i);
   });
@@ -50,20 +49,26 @@ describe("iteration coach", () => {
   it("detects an unchanged human handoff question without new human evidence", () => {
     const result = analyzeIterationHistory([
       snapshot("run-a", "2026-08-14T10:00:00Z", {
-        humanValidationQuestions: ["Can the player explain why the support failed?"],
+        humanValidations: [{
+          question: "Can the player explain why the support failed?",
+          humanEvidenceHashes: [],
+        }],
       }),
       snapshot("run-b", "2026-08-14T11:00:00Z", {
         buildKey: "b".repeat(40) + ":build-002",
         directStimulusHashes: ["2".repeat(64)],
-        humanValidationQuestions: ["  can the player explain why the support failed?  "],
+        humanValidations: [{
+          question: "  can the player explain why the support failed?  ",
+          humanEvidenceHashes: [],
+        }],
       }),
     ]);
 
-    expect(result.findings.map(({id}) => id)).toContain("human-handoff-stall");
-    const finding = result.findings.find(({id}) => id === "human-handoff-stall");
+    expect(result.activeFindings.map(({id}) => id)).toContain("human-handoff-stall");
+    const finding = result.activeFindings.find(({id}) => id === "human-handoff-stall");
     expect(finding?.facts).toMatchObject({
       repeatedQuestionCount: 1,
-      newHumanEvidenceCount: 0,
+      novelHumanEvidenceCount: 0,
     });
   });
 
@@ -71,19 +76,120 @@ describe("iteration coach", () => {
     const result = analyzeIterationHistory([
       snapshot("run-a", "2026-08-14T10:00:00Z", {
         decision: "fix-now",
-        humanValidationQuestions: ["Can the player explain the result?"],
+        humanValidations: [{
+          question: "Can the player explain the result?",
+          humanEvidenceHashes: [],
+        }],
       }),
       snapshot("run-b", "2026-08-14T11:00:00Z", {
         buildKey: "b".repeat(40) + ":build-002",
         directStimulusHashes: ["2".repeat(64)],
-        humanEvidenceHashes: ["3".repeat(64)],
-        humanValidationQuestions: ["Can the player explain the result?"],
+        humanValidations: [{
+          question: "Can the player explain the result?",
+          humanEvidenceHashes: ["3".repeat(64)],
+        }],
       }),
     ]);
 
     expect(result.status).toBe("clear");
-    expect(result.findings).toEqual([]);
+    expect(result.activeFindings).toEqual([]);
     expect(result.card.highestPriorityFinding).toBeNull();
+  });
+
+  it("clears earlier findings after a later run satisfies their stop condition", () => {
+    const result = analyzeIterationHistory([
+      snapshot("run-a", "2026-08-14T10:00:00Z", {decision: "fix-now"}),
+      snapshot("run-b", "2026-08-14T11:00:00Z"),
+      snapshot("run-c", "2026-08-14T12:00:00Z", {
+        buildKey: "b".repeat(40) + ":build-002",
+        directStimulusHashes: ["2".repeat(64)],
+      }),
+    ]);
+
+    expect(result.status).toBe("clear");
+    expect(result.activeFindings).toEqual([]);
+    expect(result.findingHistory).toEqual([
+      expect.objectContaining({
+        id: "fix-now-without-new-build",
+        status: "resolved",
+        resolvedByRunId: "run-c",
+      }),
+      expect.objectContaining({
+        id: "review-without-new-stimulus",
+        status: "resolved",
+        resolvedByRunId: "run-c",
+      }),
+    ]);
+    expect(result.card.highestPriorityFinding).toBeNull();
+  });
+
+  it("does not treat an earlier stimulus as novel when it is alternated", () => {
+    const result = analyzeIterationHistory([
+      snapshot("run-a", "2026-08-14T10:00:00Z"),
+      snapshot("run-b", "2026-08-14T11:00:00Z", {
+        directStimulusHashes: ["2".repeat(64)],
+      }),
+      snapshot("run-c", "2026-08-14T12:00:00Z"),
+    ]);
+
+    expect(result.status).toBe("findings");
+    expect(result.activeFindings.map(({id}) => id)).toContain("review-without-new-stimulus");
+    expect(result.activeFindings[0]?.runIds).toEqual(["run-b", "run-c"]);
+  });
+
+  it("does not let unrelated human evidence answer a repeated question", () => {
+    const question = "Can the player explain why the support failed?";
+    const result = analyzeIterationHistory([
+      snapshot("run-a", "2026-08-14T10:00:00Z", {
+        humanValidations: [{question, humanEvidenceHashes: []}],
+      }),
+      snapshot("run-b", "2026-08-14T11:00:00Z", {
+        buildKey: "b".repeat(40) + ":build-002",
+        directStimulusHashes: ["2".repeat(64)],
+        humanValidations: [
+          {question, humanEvidenceHashes: []},
+          {
+            question: "Does the player understand the route reward?",
+            humanEvidenceHashes: ["3".repeat(64)],
+          },
+        ],
+      }),
+    ]);
+
+    expect(result.status).toBe("findings");
+    expect(result.activeFindings.map(({id}) => id)).toContain("human-handoff-stall");
+  });
+
+  it("resolves a human handoff only when the repeated question cites new human evidence", () => {
+    const question = "Can the player explain why the support failed?";
+    const result = analyzeIterationHistory([
+      snapshot("run-a", "2026-08-14T10:00:00Z", {
+        humanValidations: [{question, humanEvidenceHashes: []}],
+      }),
+      snapshot("run-b", "2026-08-14T11:00:00Z", {
+        buildKey: "b".repeat(40) + ":build-002",
+        directStimulusHashes: ["2".repeat(64)],
+        humanValidations: [{question, humanEvidenceHashes: []}],
+      }),
+      snapshot("run-c", "2026-08-14T12:00:00Z", {
+        buildKey: "c".repeat(40) + ":build-003",
+        directStimulusHashes: ["3".repeat(64)],
+        humanValidations: [{
+          question,
+          humanEvidenceHashes: ["4".repeat(64)],
+        }],
+      }),
+    ]);
+
+    expect(result.status).toBe("clear");
+    expect(result.activeFindings).toEqual([]);
+    expect(result.findingHistory).toEqual([
+      expect.objectContaining({
+        id: "human-handoff-stall",
+        status: "resolved",
+        resolvedByRunId: "run-c",
+      }),
+    ]);
   });
 
   it("keeps one run as insufficient history instead of scoring it", () => {
@@ -92,7 +198,7 @@ describe("iteration coach", () => {
     ]);
 
     expect(result.status).toBe("insufficient-history");
-    expect(result.findings).toEqual([]);
+    expect(result.activeFindings).toEqual([]);
     expect(result.card.nextAction).toMatch(/play-build/i);
   });
 
@@ -139,7 +245,7 @@ describe("iteration coach", () => {
 
     expect(result.data.analyzedRunCount).toBe(2);
     expect(result.data.ignoredNonDeveloperRunCount).toBe(1);
-    expect(result.data.findings.map(({id}) => id)).toEqual([
+    expect(result.data.activeFindings.map(({id}) => id)).toEqual([
       "fix-now-without-new-build",
       "review-without-new-stimulus",
       "human-handoff-stall",
@@ -147,8 +253,62 @@ describe("iteration coach", () => {
     expect(result.data.iterations[1]).toMatchObject({
       runId: ids.second,
       buildChangedFromPrevious: false,
-      newDirectStimulusCount: 0,
-      newHumanEvidenceCount: 0,
+      novelDirectStimulusCount: 0,
+      novelHumanEvidenceCount: 0,
+    });
+  });
+
+  it("binds human evidence only to the validation question in the citing persona round", async () => {
+    const firstId = "00000000-0000-4000-8000-000000000006";
+    const secondId = "00000000-0000-4000-8000-000000000007";
+    const first = runRecord(firstId, "2026-08-14T10:00:00Z", "bundle-first", "eval-first");
+    const second = runRecord(secondId, "2026-08-14T11:00:00Z", "bundle-second", "eval-second");
+    second.evidence.push({
+      ref: "human-measurement",
+      kind: "intel",
+      targetId: "project-nyx",
+      id: "human-measurement",
+      sha256: "7".repeat(64),
+    });
+    second.rounds.push({
+      evidenceRefs: ["human-measurement"],
+      playerSimulation: {
+        stimulusEvidenceRefs: ["human-measurement"],
+        reflection: {
+          humanValidationQuestion: "Does the player understand the route reward?",
+        },
+      },
+    });
+    const records = new Map([[firstId, first], [secondId, second]]);
+    const runStore = {
+      listRuns: async () => [{id: secondId}, {id: firstId}],
+      readRun: async (_target: string, id: string) => ({
+        record: records.get(id),
+        integrity: {status: "verified"},
+      }),
+    } as unknown as RunStore;
+    const artifactStore = {
+      readIntel: async (_target: string, id: string) => ({
+        payload: id === "human-measurement"
+          ? {data: humanMeasurement(), warnings: []}
+          : auditBundleEnvelope(id),
+      }),
+      readEvaluation: async () => ({
+        decisionCard: {decision: "investigate"},
+      }),
+    } as unknown as ArtifactStore;
+
+    const result = await buildIterationCoachHistory(
+      {runStore, artifactStore},
+      {target: "Project Nyx", limit: 2},
+    );
+
+    expect(result.data.activeFindings.map(({id}) => id)).toEqual([
+      "human-handoff-stall",
+    ]);
+    expect(result.data.iterations[1]).toMatchObject({
+      novelDirectStimulusCount: 1,
+      novelHumanEvidenceCount: 1,
     });
   });
 
@@ -185,7 +345,8 @@ describe("iteration coach", () => {
       analyzedRunCount: 0,
       excludedIntegrityRunCount: 1,
       excludedUnreadableRunCount: 1,
-      findings: [],
+      activeFindings: [],
+      findingHistory: [],
     });
     expect(result.warnings).toHaveLength(2);
   });
@@ -229,6 +390,7 @@ function runRecord(
     rounds: [{
       evidenceRefs: ["combat-capture"],
       playerSimulation: {
+        stimulusEvidenceRefs: ["combat-capture"],
         reflection: {
           humanValidationQuestion: "Can the player explain the structural failure?",
         },
@@ -256,5 +418,24 @@ function auditBundleEnvelope(bundleId: string) {
       observedAt: "2026-08-14T09:00:00Z",
       resultHandle: "00000000-0000-4000-8000-000000000010",
     },
+  };
+}
+
+function humanMeasurement() {
+  return {
+    schemaVersion: 1,
+    artifactType: "experiment-measurement",
+    measurementId: "route-reward-human",
+    experimentId: "route-reward",
+    targetId: "project-nyx",
+    metricId: "understood-reward",
+    source: "human-playtest",
+    instrument: "moderated first-contact question",
+    unit: "participants",
+    aggregation: "count",
+    cohort: "first-time players",
+    window: "first route result",
+    scenarioResults: [{scenarioId: "current", value: 2, sampleSize: 3}],
+    protocolDeviations: [],
   };
 }

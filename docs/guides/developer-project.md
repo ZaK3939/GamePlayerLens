@@ -84,9 +84,9 @@ After at least two audit or change runs have been saved, use `coach_history` to 
 }
 ```
 
-The tool reads verified `developer-project` runs and compares consecutive build identities, cited direct stimuli, cited human evidence, and exact normalized human-validation questions. It can tell you to stop reviewing and produce a new build, operate one direct stimulus, or ask the repeated question in a bounded human session.
+The tool reads verified `developer-project` runs and compares consecutive build identities, direct-stimulus novelty across all earlier runs for the same build, and exact normalized human-validation questions. Human evidence counts for a question only when the same persona round cites it in `stimulusEvidenceRefs`. It can tell you to stop reviewing and produce a new build, operate one genuinely new direct stimulus, or ask the repeated question in a bounded human session.
 
-This is a retrospective guardrail, not the daily loop. It sees only saved review runs, not an unsaved `play-build` response, local source edits, or a play session that was never preserved. It returns no development score and makes no claim about fun, retention, demand, or team performance. Act on the highest-priority finding, satisfy its stop condition, and then operate the build again.
+`activeFindings` contains current unresolved conditions; `findingHistory` preserves conditions that a later run resolved. This is a retrospective guardrail, not the daily loop. It sees only saved review runs, not an unsaved `play-build` response, local source edits, or a play session that was never preserved. It returns no development score and makes no claim about fun, retention, demand, or team performance. Act on the highest-priority active finding, satisfy its stop condition, and then operate the build again.
 
 ## Minimal `audit-project` request
 

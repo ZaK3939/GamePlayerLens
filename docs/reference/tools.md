@@ -92,13 +92,13 @@ Call `coach_history` only after saving at least two `developer-project` runs for
 }
 ```
 
-The read-only tool uses only runs whose integrity is currently verified. It derives build identity from the bound audit or candidate revision bundle and counts only evidence aliases cited by stored review rounds. It reports three deterministic conditions:
+The read-only tool uses only runs whose integrity is currently verified. It derives build identity from the bound audit or candidate revision bundle and counts only evidence aliases cited by stored review rounds. Direct-stimulus novelty is checked against every earlier run for the same build inside the requested window, so alternating old captures does not count as progress. It reports three deterministic conditions:
 
 - `fix-now-without-new-build`: a `fix-now` decision was followed by another review of the same Git/build identity;
 - `review-without-new-stimulus`: the same build was reviewed without a new cited capture, UI reference, first-contact result, playtest, or direct experiment measurement;
-- `human-handoff-stall`: the same normalized human validation question appeared in consecutive reviews without new cited human evidence.
+- `human-handoff-stall`: the same normalized human validation question appeared in consecutive reviews without new human evidence cited in that persona round's `stimulusEvidenceRefs`.
 
-The result leads with the highest-priority next action and the evidence condition that resolves it. It does not calculate a composite score, infer fun or demand, inspect unsaved `play-build` responses, or replace the next operation or human session. A finding means the stored iteration history repeated an evidence state; it is not a judgment of developer productivity or game quality.
+`activeFindings` contains only unresolved conditions. `findingHistory` retains both active and resolved occurrences and records the run that satisfied each stop condition. The result card leads with the highest-priority active next action. It does not calculate a composite score, infer fun or demand, inspect unsaved `play-build` responses, or replace the next operation or human session. A finding means the stored iteration history repeated an evidence state; it is not a judgment of developer productivity or game quality.
 
 ## Discovery
 
