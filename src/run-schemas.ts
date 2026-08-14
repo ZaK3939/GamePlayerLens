@@ -44,7 +44,9 @@ const PersonaVoiceEvidenceReferenceSchema = z.object({
 
 export const PlayerSimulationSchema = z.object({
   exposure: z.enum(["scenario-only", "visual-evidence", "ai-operated"]),
+  stimulusEvidenceRefs: z.array(ReferenceIdSchema).max(8),
   memory: z.object({
+    derivationEvidenceRef: ReferenceIdSchema,
     voiceEvidence: z.array(PersonaVoiceEvidenceReferenceSchema).min(1).max(5),
   }).strict(),
   perception: z.object({
@@ -73,6 +75,27 @@ export const PlayerSimulationSchema = z.object({
     observableSignal: PlayerSimulationTextSchema,
   }).strict(),
 }).strict().superRefine((value, context) => {
+  if (value.exposure === "scenario-only" && value.stimulusEvidenceRefs.length > 0) {
+    context.addIssue({
+      code: "custom",
+      path: ["stimulusEvidenceRefs"],
+      message: "scenario-only player simulations cannot cite observed stimuli",
+    });
+  }
+  if (value.exposure !== "scenario-only" && value.stimulusEvidenceRefs.length < 1) {
+    context.addIssue({
+      code: "custom",
+      path: ["stimulusEvidenceRefs"],
+      message: "observed player simulations require explicit stimulus evidence",
+    });
+  }
+  if (new Set(value.stimulusEvidenceRefs).size !== value.stimulusEvidenceRefs.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["stimulusEvidenceRefs"],
+      message: "player simulation stimulus evidence must be unique",
+    });
+  }
   const seen = new Set<string>();
   value.memory.voiceEvidence.forEach((reference, index) => {
     const key = `${reference.sourceAppid}:${reference.recommendationId}`;
@@ -136,6 +159,28 @@ const SimulationRoundSchema = z.object({
       path: ["playerSimulation"],
       message: "only persona rounds may contain a player simulation",
     });
+  }
+  if (value.phase === "persona" && value.personaId && value.actor !== value.personaId) {
+    context.addIssue({
+      code: "custom",
+      path: ["actor"],
+      message: "persona round actor must equal personaId",
+    });
+  }
+  if (value.playerSimulation) {
+    const explicitRefs = [
+      value.playerSimulation.memory.derivationEvidenceRef,
+      ...value.playerSimulation.stimulusEvidenceRefs,
+    ];
+    for (const reference of explicitRefs) {
+      if (!value.evidenceRefs.includes(reference)) {
+        context.addIssue({
+          code: "custom",
+          path: ["evidenceRefs"],
+          message: `player simulation evidence is not cited by the round: ${reference}`,
+        });
+      }
+    }
   }
 });
 
@@ -532,7 +577,7 @@ const RunSealSchema = z.object({
 }).strict();
 
 export const RunRecordCoreSchema = z.object({
-  schemaVersion: z.literal(7),
+  schemaVersion: z.literal(8),
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),

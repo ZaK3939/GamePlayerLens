@@ -16,7 +16,9 @@ describe("run-sim recipe compiler", () => {
     expect(compiled).toContain("UI domain contract");
     expect(compiled).toContain("Competition domain contract");
     expect(compiled).toContain("Virtual player loop");
-    expect(compiled).toMatch(/memory\.voiceEvidence[\s\S]*perception[\s\S]*decision[\s\S]*response[\s\S]*reflection/);
+    expect(compiled).toMatch(
+      /memory\.derivationEvidenceRef[\s\S]*memory\.voiceEvidence[\s\S]*stimulusEvidenceRefs[\s\S]*perception[\s\S]*decision[\s\S]*response[\s\S]*reflection/,
+    );
     expect(compiled).not.toContain("Storefront domain contract");
     expect(compiled).not.toContain("Price domain contract");
     expect(compiled).not.toContain("Localization domain contract");

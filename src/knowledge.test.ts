@@ -67,6 +67,11 @@ function persona(): Persona {
       limitations: ["fixture personaで市場構成比を表さない"],
       overall_confidence: "medium",
     },
+    grounding: {
+      sourceTool: "derive_personas",
+      observedAt: "2026-08-11T12:34:56.000Z",
+      resultSha256: "a".repeat(64),
+    },
   };
 }
 

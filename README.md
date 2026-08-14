@@ -73,7 +73,7 @@ GamePlayerLens will either return an intake question or guide the client through
 |---|---|---|
 | Understand | Collect store data, regional prices, reviews, updates, current snapshots, and candidate competitors | `steam_brief`, provenance, supported decisions, gaps |
 | Structure | Turn developer intent into a strict Project Brief | Core Experience Map, intake diagnostics |
-| Simulate | Expose the same saved v2 personas to current and proposed scenarios | review memory, perceived signals, action, predicted response, uncertainty, human falsifier |
+| Simulate | Expose the same server-grounded v2 personas to current and proposed scenarios | exact derivation memory, explicit stimulus, perceived signals, action, predicted response, uncertainty, human falsifier |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Observe | Preserve concept tests, first-contact tests, playtest sessions, and cohorts | chronological action-response traces and bounded participant reports |
 | Decide | Connect a player problem to the smallest change, success signal, guardrail, and revisit condition | Decision Card and prioritized backlog |
@@ -149,7 +149,7 @@ pnpm exec tsx scripts/smoke-package.ts --live
 
 Live tests use Hades (`1145360`) for Steam data, Hades II (`1145350`) for Steam image capture, and `Action Roguelike` for SteamSpy discovery. Optional integrations are tested when configured and otherwise must return explicit warnings.
 
-Evidence collection and review for released Steam games remain the strongest validated workflow. Structured virtual-player rounds now require v2 personas, exact Steam review voice references, UI evidence when UI is selected, competitor voice evidence when competition is selected, and a human falsification plan. This contract is package-tested; calibration against repeated real-player responses and continued end-to-end dogfooding with playable builds remain the highest-value validation work.
+Evidence collection and review for released Steam games remain the strongest validated workflow. `save_persona` now requires the original `derive_personas` result handle and rejects any review text, ID, language, vote, audience, or source-role mismatch. Structured virtual-player rounds bind that exact-saved derivation artifact separately from explicit scenario stimuli, require UI evidence when UI is selected, competitor voice evidence when competition is selected, and a human falsification plan. Calibration against repeated real-player responses and continued end-to-end dogfooding with playable builds remain the highest-value validation work.
 
 ## Documentation
 

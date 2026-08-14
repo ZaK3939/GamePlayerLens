@@ -46,7 +46,11 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("knowledge/intel/");
     expect(content).toContain("根拠不足");
     expect(content).toContain("現状 vs 変更案");
-    expect(content).toMatch(/Review memory[\s\S]*Perception[\s\S]*Decision \/ reason/);
+    expect(content).toMatch(
+      /Derivation memory[\s\S]*Explicit stimuli[\s\S]*Review voice[\s\S]*Perception[\s\S]*Decision \/ reason/,
+    );
+    expect(content).toContain("derivation memory");
+    expect(content).toContain("stimulusEvidenceRefs");
     expect(content).toContain("Human falsifier");
   });
 

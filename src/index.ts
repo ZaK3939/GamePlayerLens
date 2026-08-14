@@ -19,10 +19,11 @@ import {
   trackedJsonEnvelope,
 } from "./mcp-responses.js";
 import {
+  GeneratedPersonaSchema,
   MAX_DERIVATION_APPIDS,
   PERSONA_FOCUS_VALUES,
-  PersonaSchema,
 } from "./persona-schemas.js";
+import {groundPersonaFromResult} from "./persona-grounding.js";
 import {
   MAX_REVIEWS_PER_POLARITY,
   MIN_REVIEWS_PER_POLARITY,
@@ -297,17 +298,22 @@ export function buildServer(
   server.registerTool(
     "save_persona",
     {
-      description: "Validate and atomically save a generated persona",
+      description: "Validate a generated persona against the exact derive_personas result and atomically save the grounded persona",
       inputSchema: z.object({
-        persona: PersonaSchema,
+        persona: GeneratedPersonaSchema,
+        derivationResultHandle: ResultHandleSchema,
         overwrite: z.boolean().optional(),
       }),
       outputSchema: ResultEnvelopeSchema,
     },
-    async ({persona, overwrite}) => jsonEnvelope({
-      data: await services.savePersona(persona, {overwrite}),
-      warnings: [],
-    }),
+    async ({persona, derivationResultHandle, overwrite}) => {
+      const derivation = services.resultStore.get(derivationResultHandle);
+      const grounded = groundPersonaFromResult(persona, derivation);
+      return jsonEnvelope({
+        data: await services.savePersona(grounded, {overwrite}),
+        warnings: [],
+      });
+    },
   );
 
   server.registerTool(

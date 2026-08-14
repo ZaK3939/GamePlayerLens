@@ -18,14 +18,14 @@
 - 外部toolの`meta.resultHandle`は取得直後に`save_artifact(kind=intel, target, id, resultHandle)`でexact-saveします。モデルがpayloadを再serialize、統合、抜粋、要約しません。handleを使えない場合だけ完全payload、sourceTool、確実なobservedAtを渡します。
 - `get_artifact(kind=evaluation)`で過去targetを一覧し、必要な履歴だけ読みます。`get_knowledge`で`adoption-eval.md`、`harsh-critic.md`、`evidence-coverage.md`、必要なdomain rubricを読みます。
 - `steam_search`、`steam_discover`、`steam_fetch`、`steam_reviews`、`steam_timeline`、`steam_updates`の役割を混同せず、取得した原本をresultHandleで保存します。Steam Sonar由来の`referenceLinks.steamSonar`は参照導線であり独立証拠ではありません。
-- `derive_personas`には対象と比較appid、明示的な`market`、`language`、focus、全appidを一度ずつ覆うsourceRolesを渡します。対象はtarget、直接競合はcompetitor、仕組み/UI参照はreferenceです。返されたresultHandleを`save_artifact`してEvidence Indexへ入れた後、`generationReadiness`を読みます。`generationAllowed=false`なら生成しません。partial / readyでも`generationReadiness.supportedCount`を超えず、同じreview voiceをpersona間で再利用しません。その後だけv2 personaを`save_persona`します。
+- `derive_personas`へ対象/比較appid、market、language、全appidのsourceRoles（target / competitor / reference）を渡します。`resultHandle`を`save_artifact`してEvidence Indexへ入れます。`generationAllowed=false`なら生成せず、`generationReadiness.supportedCount`を超えず、同じreview voiceをpersona間で再利用しません。生成JSONと同じ`derivationResultHandle`を`save_persona`へ渡し、serverがreview本文/ID/言語/評価/audience/source roleを原本照合します。
 - 各領域はsubagentで独立評価し、利用できないclientでは領域を混ぜないsequential independent passにします。全主張をEvidence IDまたはvoiceのsource_appid / recommendation_idへ接続します。
 
 ## Virtual player loop
 
 レビュー所見より先に、実Steam review voiceから作った保存済みv2 personaを各scenarioへ通します。UI/captureは人物属性でなくstimulusです。`change`では同じpersona、task、evidence classをcurrent / proposalで固定します。
 
-各`persona × scenario` roundは`playerSimulation`を保存します。`memory.voiceEvidence`の実review ID → `perception`の期待・信号・不明点 → `decision`の行動・理由 → `response`のbefore / after予測感情・摩擦・報酬・継続 → `reflection`のconfidence・unknown・人間での反証条件、の順で分離します。UIはcaptureを、competitionはcompetitor roleのreview voiceを引用します。`output`は短い一人称要約にし、予測をhuman reportや市場比率へ変換しません。全cardの一致、不一致、反証条件をsynthesisし、人間結果との差を後続calibrationへ使います。
+各`persona × scenario` roundに`playerSimulation`を保存します。`memory.derivationEvidenceRef`はexact-saveした派生pack、`memory.voiceEvidence`は実review ID、`stimulusEvidenceRefs`は今回見せた画像/sessionです。`perception` → `decision` → `response`（before/after予測感情）→ `reflection`（反証条件）を分離します。UIはcapture、competitionはcompetitor voiceを明示引用し、`scenario-only`のstimulusは空にします。予測をhuman report/市場比率にせず、全cardの一致・不一致・反証条件をsynthesisしてcalibrationに使います。
 
 ## Evaluation and immutable run
 

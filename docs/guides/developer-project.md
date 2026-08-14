@@ -88,13 +88,15 @@ The virtual player is built from saved v2 personas whose voice, observed pattern
 
 Each saved persona runs through every current or proposed scenario. A Player Simulation Card records:
 
+- the exact saved derivation pack that grounded the persona;
 - the exact review memories retrieved;
+- the exact captures or operated sessions exposed as scenario stimuli;
 - what the player expected, noticed, and could not read;
 - the next action and decision reason;
 - predicted friction, reward signals, feeling, and continuation choice;
 - confidence, unknowns, and the human question and observable signal that could falsify the prediction.
 
-When UI is selected, each persona round must cite a captured target or reference image. When competition is selected, it must cite a review voice from a game assigned the `competitor` role. Use the same personas and evidence class across `current` and `proposal`; otherwise the delta is confounded.
+When UI is selected, each persona round must identify a captured target or reference image in `stimulusEvidenceRefs`. When competition is selected, it must cite a review voice from a game assigned the `competitor` role. `scenario-only` rounds must keep the stimulus list empty. Use the same personas and evidence class across `current` and `proposal`; otherwise the delta is confounded.
 
 These cards are evidence-grounded behavioral hypotheses. They are useful for finding differentiated reactions and choosing a test. They do not prove fun, purchase intent, retention, or segment size until compared with human observations.
 

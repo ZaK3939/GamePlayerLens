@@ -285,7 +285,7 @@ export function createRunStore(
     const resolvedPersonas = await resolvePersonas(parsed.personaIds);
     assertPlayerSimulationGrounding(parsed, resolvedPersonas, resolvedEvidence);
     const core = RunRecordCoreSchema.parse({
-      schemaVersion: 7,
+      schemaVersion: 8,
       runId: resolved.runId,
       targetId: resolved.targetId,
       topic: parsed.topic,

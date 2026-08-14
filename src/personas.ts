@@ -193,7 +193,7 @@ function personaGenerationInstruction(
     "observed_patternsはvoiceを参照し、inferred_traitsとlimitationsを分離してください。更新反応の根拠がなければupdate_reactionをunknownとして不足根拠を記録してください。",
     "target、competitor、referenceのsourceRoleを混同せず、各personaのadoption/retention/churn triggerが実質的に異なることを確認してください。",
     "The polarity-balanced review sample is not representative of population shares.",
-    "生成した各 JSON は Persona schema で検証し、save_persona で1件ずつ保存してください。",
+    "生成した各 JSON は返されたderivation resultHandleと一緒にsave_personaへ渡し、実review本文との完全一致をserver検証して1件ずつ保存してください。",
   ].join(" ");
 }
 

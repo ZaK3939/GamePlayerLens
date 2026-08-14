@@ -73,6 +73,11 @@ function persona(overrides: Partial<Persona> = {}): Persona {
       limitations: ["polarity-balanced sampleで市場構成比を表さない"],
       overall_confidence: "medium",
     },
+    grounding: {
+      sourceTool: "derive_personas",
+      observedAt: NOW.toISOString(),
+      resultSha256: "a".repeat(64),
+    },
     ...overrides,
   };
 }
@@ -89,8 +94,9 @@ function review(id: string, votedUp: boolean, language = "japanese"): Review {
 }
 
 function personaV2(overrides: Record<string, unknown> = {}) {
+  const {grounding: _grounding, ...generated} = persona();
   return {
-    ...persona(),
+    ...generated,
     schema_version: 2,
     target_context: {
       market: "Japan",
@@ -141,7 +147,8 @@ describe("PersonaSchema", () => {
 
   it("requires the traceable v2 decision profile for every persona", () => {
     expect(PersonaSchema.safeParse(persona()).success).toBe(true);
-    expect(GeneratedPersonaSchema.safeParse(persona()).success).toBe(true);
+    const {grounding: _grounding, ...generated} = persona();
+    expect(GeneratedPersonaSchema.safeParse(generated).success).toBe(true);
     expect(GeneratedPersonaSchema.safeParse(personaV2()).success).toBe(true);
 
     const legacy = structuredClone(persona()) as Record<string, unknown>;

@@ -8,7 +8,7 @@ import {MAX_INLINE_IMAGE_BYTES, createImageService} from "./images.js";
 import {buildServer} from "./index.js";
 import {createKnowledgeReader} from "./knowledge.js";
 import {createPathResolver} from "./paths.js";
-import type {Persona} from "./persona-schemas.js";
+import type {GeneratedPersona} from "./persona-schemas.js";
 import {createPersonaStore} from "./persona-store.js";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -143,7 +143,7 @@ async function createHarness(overrides: BuildServerOverrides = {}) {
     fetchReviews: vi.fn(async (appid: number) => ({data: {appid}, warnings: []})),
     fetchTimeline: vi.fn(async (appid: number) => ({data: {appid}, warnings: []})),
     fetchUpdates: vi.fn(async (appid: number) => ({data: {appid}, warnings: []})),
-    buildDerivationPack: vi.fn(async (appids: number[]) => ({data: {appids}, warnings: []})),
+    buildDerivationPack: vi.fn(async () => derivationResult(persona())),
     savePersona: personaStore.savePersona,
     captureUrl,
     readKnowledge: createKnowledgeReader(resolver, personaStore),
@@ -222,7 +222,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, {recursive: true, force: true})));
 });
 
-function persona(): Persona {
+function persona(): GeneratedPersona {
   return {
     id: "mcp-round-trip",
     source_appids: [1145360],
@@ -268,10 +268,92 @@ function persona(): Persona {
   };
 }
 
+function derivationResult(generated: GeneratedPersona) {
+  const roles = new Map(generated.target_context.source_roles.map(
+    ({appid, role}) => [appid, role],
+  ));
+  return {
+    data: {
+      requestedCount: 1,
+      generationReadiness: {
+        status: "ready",
+        generationAllowed: true,
+        requestedCount: 1,
+        supportedCount: 1,
+        availableUniqueReviewCount: generated.voice.length,
+        requiredUniqueReviewCount: 3,
+        minimumUniqueReviewsPerPersona: 3,
+        voiceReuseAllowed: false,
+      },
+      brief: {
+        targetAppid: generated.target_context.source_roles.find(
+          ({role}) => role === "target",
+        )?.appid ?? null,
+        market: generated.target_context.market,
+        language: generated.target_context.language,
+        focus: ["adoption"],
+        sources: generated.target_context.source_roles,
+      },
+      games: [],
+      reviews: generated.voice.map((voice) => ({
+        sourceAppid: voice.source_appid,
+        sourceRole: roles.get(voice.source_appid),
+        recommendationId: voice.recommendation_id,
+        review: voice.text,
+        votedUp: voice.voted_up,
+        language: voice.language,
+        playtimeHours: 10,
+        timestamp: 1_700_000_000,
+      })),
+      instruction: "fixture",
+      schema: {},
+    },
+    warnings: [],
+    meta: {observedAt: NOW.toISOString()},
+  };
+}
+
+async function derivePersonaHandle(client: Client): Promise<string> {
+  const derived = await client.callTool({
+    name: "derive_personas",
+    arguments: {
+      appids: persona().source_appids,
+      targetAppid: persona().source_appids[0],
+      market: persona().target_context.market,
+      language: persona().target_context.language,
+      sourceRoles: persona().target_context.source_roles,
+      count: 1,
+    },
+  });
+  expect(derived.isError).not.toBe(true);
+  const handle = (derived.structuredContent?.meta as {resultHandle?: unknown} | undefined)
+    ?.resultHandle;
+  expect(handle).toEqual(expect.any(String));
+  return handle as string;
+}
+
+async function savePersonaThroughMcp(
+  client: Client,
+  generated: GeneratedPersona = persona(),
+  overwrite?: boolean,
+) {
+  const derivationResultHandle = await derivePersonaHandle(client);
+  return client.callTool({
+    name: "save_persona",
+    arguments: {
+      persona: generated,
+      derivationResultHandle,
+      ...(overwrite === undefined ? {} : {overwrite}),
+    },
+  });
+}
+
 function playerSimulation(recommendationId: string) {
   return {
     exposure: "scenario-only",
+    stimulusEvidenceRefs: [],
     memory: {
+      derivationEvidenceRef: "derivation",
       voiceEvidence: [{sourceAppid: 1145360, recommendationId}],
     },
     perception: {
@@ -716,6 +798,7 @@ describe("MCP server contract", () => {
           "save_persona": {
             "fields": [
               "persona",
+              "derivationResultHandle",
               "overwrite",
             ],
             "overwrite": {
@@ -755,6 +838,7 @@ describe("MCP server contract", () => {
             ],
             "required": [
               "persona",
+              "derivationResultHandle",
             ],
             "sourceAppids": {
               "minItems": 1,
@@ -1406,9 +1490,19 @@ describe("MCP server contract", () => {
   it("seals and replays a simulation run through save_artifact and get_artifact", async () => {
     const {artifactStore, client, server} = await createHarness();
     try {
+      const derivationResultHandle = await derivePersonaHandle(client);
       await client.callTool({
         name: "save_persona",
-        arguments: {persona: persona()},
+        arguments: {persona: persona(), derivationResultHandle},
+      });
+      await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Hades II",
+          id: "Persona Derivation",
+          resultHandle: derivationResultHandle,
+        },
       });
       await client.callTool({
         name: "save_artifact",
@@ -1450,6 +1544,12 @@ describe("MCP server contract", () => {
           ],
           personaIds: ["mcp-round-trip"],
           evidence: [
+            {
+              ref: "derivation",
+              kind: "intel",
+              target: "Hades II",
+              id: "Persona Derivation",
+            },
             {ref: "profile", kind: "intel", target: "Hades II", id: "Store Profile"},
             {
               ref: "evaluation",
@@ -1467,7 +1567,7 @@ describe("MCP server contract", () => {
               scenarioId: "current",
               playerSimulation: playerSimulation("mcp-0"),
               output: "The current promise is understandable but generic.",
-              evidenceRefs: ["profile"],
+              evidenceRefs: ["derivation", "profile"],
             },
             {
               sequence: 2,
@@ -1477,7 +1577,7 @@ describe("MCP server contract", () => {
               scenarioId: "proposal",
               playerSimulation: playerSimulation("mcp-1"),
               output: "The proposal gives me a clearer reason to try it.",
-              evidenceRefs: ["profile"],
+              evidenceRefs: ["derivation", "profile"],
             },
             {
               sequence: 3,
@@ -1528,7 +1628,7 @@ describe("MCP server contract", () => {
           id: expect.stringMatching(/^[0-9a-f-]{36}$/),
           mode: "change",
           roundCount: 6,
-          evidenceCount: 2,
+          evidenceCount: 3,
           simulationReadinessStatus: "rehearsal",
           sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         },
@@ -1547,7 +1647,7 @@ describe("MCP server contract", () => {
         arguments: {kind: "run", target: "Hades II"},
       });
       expect(listed.structuredContent).toMatchObject({
-        data: [{id: runId, roundCount: 6, evidenceCount: 2}],
+        data: [{id: runId, roundCount: 6, evidenceCount: 3}],
         warnings: [],
       });
       expect(JSON.stringify(listed.structuredContent)).not.toContain(
@@ -1563,7 +1663,7 @@ describe("MCP server contract", () => {
         data: {
           metadata: {id: runId, sha256: expect.stringMatching(/^[a-f0-9]{64}$/)},
           record: {
-            schemaVersion: 7,
+            schemaVersion: 8,
             subjectKind: "existing-game",
             market: "Japan",
             language: "japanese",
@@ -1601,13 +1701,18 @@ describe("MCP server contract", () => {
               reasons: expect.any(Array),
             },
             evidence: [
+              expect.objectContaining({
+                ref: "derivation",
+                sourceTool: "derive_personas",
+                sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+              }),
               expect.objectContaining({ref: "profile", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
               expect.objectContaining({ref: "evaluation", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}),
             ],
             coverage: {
               scenarioDomain: {covered: 2, total: 2, ratio: 1, missing: []},
               personaScenario: {covered: 2, total: 2, ratio: 1, missing: []},
-              analysisEvidence: {referenced: 1, total: 1, ratio: 1, unusedRefs: []},
+              analysisEvidence: {referenced: 2, total: 2, ratio: 1, unusedRefs: []},
               domains: [expect.objectContaining({
                 domain: "storefront",
                 scenarioIds: ["current", "proposal"],
@@ -1718,6 +1823,7 @@ describe("MCP server contract", () => {
       date: "2026-08-11",
     } as const;
     try {
+      const derivationResultHandle = await derivePersonaHandle(client);
       await Promise.all([
         client.callTool({
           name: "save_artifact",
@@ -1730,7 +1836,10 @@ describe("MCP server contract", () => {
             content: evaluationMarkdown("concurrent-cycle--1"),
           },
         }),
-        client.callTool({name: "save_persona", arguments: {persona: persona()}}),
+        client.callTool({
+          name: "save_persona",
+          arguments: {persona: persona(), derivationResultHandle},
+        }),
       ]);
 
       for (let cycle = 0; cycle < 5; cycle += 1) {
@@ -1752,6 +1861,7 @@ describe("MCP server contract", () => {
             name: "save_persona",
             arguments: {
               persona: {...persona(), archetype: `MCP test user ${version}`},
+              derivationResultHandle,
               overwrite: true,
             },
           }),
@@ -2628,12 +2738,19 @@ describe("MCP server contract", () => {
   it("round-trips save_persona through get_knowledge", async () => {
     const {client, server} = await createHarness();
     try {
-      const saved = await client.callTool({
-        name: "save_persona",
-        arguments: {persona: persona()},
-      });
+      const saved = await savePersonaThroughMcp(client);
       expect(saved.isError).not.toBe(true);
-      expect(saved.structuredContent).toMatchObject({data: {id: "mcp-round-trip"}, warnings: []});
+      expect(saved.structuredContent).toMatchObject({
+        data: {
+          id: "mcp-round-trip",
+          grounding: {
+            sourceTool: "derive_personas",
+            observedAt: NOW.toISOString(),
+            resultSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+          },
+        },
+        warnings: [],
+      });
 
       const loaded = await client.callTool({
         name: "get_knowledge",
@@ -2642,6 +2759,51 @@ describe("MCP server contract", () => {
       expect(loaded.structuredContent).toMatchObject({
         data: {kind: "personas", id: "mcp-round-trip", persona: {archetype: "MCPテスト利用者"}},
         warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("rejects ungrounded personas and review text that differs from derivation evidence", async () => {
+    const searchGames = vi.fn(async () => ({
+      data: {hits: []},
+      warnings: [],
+      meta: {observedAt: NOW.toISOString()},
+    }));
+    const {client, server} = await createHarness({searchGames});
+    try {
+      await expectToolError(client, "save_persona", {persona: persona()});
+      const search = await client.callTool({
+        name: "steam_search",
+        arguments: {query: "Hades"},
+      });
+      const searchResultHandle = (search.structuredContent?.meta as {
+        resultHandle?: unknown;
+      } | undefined)?.resultHandle;
+      expect(searchResultHandle).toEqual(expect.any(String));
+      await expectToolError(client, "save_persona", {
+        persona: persona(),
+        derivationResultHandle: searchResultHandle,
+      });
+
+      const derivationResultHandle = await derivePersonaHandle(client);
+      await expectToolError(client, "save_persona", {
+        persona: {
+          ...persona(),
+          voice: persona().voice.map((voice, index) => index === 0
+            ? {...voice, text: "fabricated review text"}
+            : voice),
+        },
+        derivationResultHandle,
+      });
+      await expectToolError(client, "save_persona", {
+        persona: {
+          ...persona(),
+          target_context: {...persona().target_context, market: "Canada"},
+        },
+        derivationResultHandle,
       });
     } finally {
       await client.close();

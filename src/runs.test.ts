@@ -11,6 +11,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vitest";
 import {createArtifactStore} from "./artifacts.js";
+import {canonicalSha256} from "./integrity.js";
 import type {Persona} from "./persona-schemas.js";
 import {createPersonaStore} from "./persona-store.js";
 import {createPathResolver} from "./paths.js";
@@ -179,6 +180,49 @@ function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function derivationPayload() {
+  return {
+    data: {
+      requestedCount: 1,
+      generationReadiness: {
+        status: "ready",
+        generationAllowed: true,
+        requestedCount: 1,
+        supportedCount: 1,
+        availableUniqueReviewCount: 3,
+        requiredUniqueReviewCount: 3,
+        minimumUniqueReviewsPerPersona: 3,
+        voiceReuseAllowed: false,
+      },
+      brief: {
+        targetAppid: 1145350,
+        market: "Japan",
+        language: "japanese",
+        focus: ["adoption"],
+        sources: [{appid: 1145350, role: "target"}],
+      },
+      games: [],
+      reviews: [1, 2, 3].map((index) => ({
+        sourceAppid: 1145350,
+        sourceRole: "target",
+        recommendationId: `rec-${index}`,
+        review: `voice ${index}`,
+        votedUp: index !== 3,
+        language: "japanese",
+        playtimeHours: 100,
+        timestamp: 1_700_000_000,
+      })),
+      instruction: "fixture",
+      schema: {},
+    },
+    warnings: [],
+    meta: {
+      observedAt: "2026-08-11T10:00:00.000Z",
+      resultHandle: "33333333-3333-4333-8333-333333333333",
+    },
+  };
+}
+
 function persona(id = "jp-skeptic"): Persona {
   return {
     id,
@@ -222,13 +266,20 @@ function persona(id = "jp-skeptic"): Persona {
       limitations: ["The review-grounded persona does not establish population share"],
       overall_confidence: "medium",
     },
+    grounding: {
+      sourceTool: "derive_personas",
+      observedAt: "2026-08-11T10:00:00.000Z",
+      resultSha256: canonicalSha256(derivationPayload()),
+    },
   };
 }
 
 function playerSimulation(recommendationId = "rec-1") {
   return {
     exposure: "visual-evidence" as const,
+    stimulusEvidenceRefs: ["hero"],
     memory: {
+      derivationEvidenceRef: "derivation",
       voiceEvidence: [{sourceAppid: 1145350, recommendationId}],
     },
     perception: {
@@ -305,6 +356,13 @@ async function harness(
     observedAt: "2026-08-11T10:00:00.000Z",
     payload: {appid: 1145350},
   });
+  await artifacts.saveIntel({
+    target: "Hades II",
+    id: "Persona Derivation",
+    sourceTool: "derive_personas",
+    observedAt: "2026-08-11T10:00:00.000Z",
+    payload: derivationPayload(),
+  });
   await artifacts.saveEvaluation({
     target: "Hades II",
     topic: "Store Page",
@@ -348,6 +406,7 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
     ],
     personaIds: ["jp-skeptic"],
     evidence: [
+      {ref: "derivation", kind: "intel", target: "Hades II", id: "Persona Derivation"},
       {ref: "profile", kind: "intel", target: "Hades II", id: "Profile"},
       {
         ref: "evaluation",
@@ -366,7 +425,7 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         scenarioId: "current",
         playerSimulation: playerSimulation(),
         output: "The current promise is readable but generic.",
-        evidenceRefs: ["profile", "hero"],
+        evidenceRefs: ["derivation", "profile", "hero"],
       },
       {
         sequence: 2,
@@ -376,7 +435,7 @@ function runInput(overrides: Partial<SaveRunInput> = {}): SaveRunInput {
         scenarioId: "proposal",
         playerSimulation: playerSimulation("rec-2"),
         output: "The proposal is clearer but still needs validation.",
-        evidenceRefs: ["profile", "hero"],
+        evidenceRefs: ["derivation", "profile", "hero"],
       },
       {
         sequence: 3,
@@ -919,13 +978,13 @@ describe("run store", () => {
       selectedDomains: ["storefront", "ui"],
       savedAt: NOW.toISOString(),
       roundCount: 8,
-      evidenceCount: 3,
+      evidenceCount: 4,
       simulationReadinessStatus: "rehearsal",
       sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     expect(read.metadata).toEqual(saved);
     expect(read.record).toMatchObject({
-      schemaVersion: 7,
+      schemaVersion: 8,
       runId: RUN_ID,
       targetId: "hades-ii",
       subjectKind: "existing-game",
@@ -949,6 +1008,13 @@ describe("run store", () => {
       }],
       evidence: [
         expect.objectContaining({
+          ref: "derivation",
+          kind: "intel",
+          sourceTool: "derive_personas",
+          path: "knowledge/intel/hades-ii/persona-derivation.json",
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+        }),
+        expect.objectContaining({
           ref: "profile",
           kind: "intel",
           path: "knowledge/intel/hades-ii/profile.json",
@@ -969,7 +1035,7 @@ describe("run store", () => {
       coverage: {
         scenarioDomain: {covered: 4, total: 4, ratio: 1, missing: []},
         personaScenario: {covered: 2, total: 2, ratio: 1, missing: []},
-        analysisEvidence: {referenced: 2, total: 2, ratio: 1, unusedRefs: []},
+        analysisEvidence: {referenced: 3, total: 3, ratio: 1, unusedRefs: []},
         domains: [
           expect.objectContaining({
             domain: "storefront",
@@ -1031,7 +1097,9 @@ describe("run store", () => {
     });
     expect(read.record.rounds[0]?.playerSimulation).toMatchObject({
       exposure: "visual-evidence",
+      stimulusEvidenceRefs: ["hero"],
       memory: {
+        derivationEvidenceRef: "derivation",
         voiceEvidence: [{sourceAppid: 1145350, recommendationId: "rec-1"}],
       },
       decision: {
@@ -1098,7 +1166,7 @@ describe("run store", () => {
     await expect(store.saveRun(developerRun)).resolves.toMatchObject({id: RUN_ID});
     await expect(store.readRun("Hades II", RUN_ID)).resolves.toMatchObject({
       record: {
-        schemaVersion: 7,
+        schemaVersion: 8,
         subjectKind: "developer-project",
         projectBrief: {
           revisionId: "brief-v1",
@@ -1259,7 +1327,7 @@ describe("run store", () => {
   it("server-verifies a hash-linked prior forecast against raw measurements", async () => {
     const read = await calibrationHarness("verified");
 
-    expect(read.record.schemaVersion).toBe(7);
+    expect(read.record.schemaVersion).toBe(8);
     expect(read.record.simulationReadiness).toMatchObject({
       status: "validation-ready",
       heldOutValidation: {
@@ -1418,18 +1486,19 @@ describe("run store", () => {
   it("rejects missing and symlinked evidence instead of recording unverifiable paths", async () => {
     const {resolver, root, store} = await harness();
     await expect(store.saveRun(runInput({
-      evidence: [
-        {ref: "missing", kind: "capture", id: "Missing"},
-        {
-          ref: "evaluation",
-          kind: "evaluation",
-          target: "Hades II",
-          id: "2026-08-11-store-page",
-        },
-      ],
+      evidence: runInput().evidence.map((evidence) => evidence.ref === "hero"
+        ? {ref: "missing", kind: "capture" as const, id: "Missing"}
+        : evidence),
       rounds: runInput().rounds.map((round) => ({
         ...round,
-        evidenceRefs: ["missing"],
+        evidenceRefs: round.evidenceRefs.map((reference) =>
+          reference === "hero" ? "missing" : reference),
+        ...(round.playerSimulation ? {
+          playerSimulation: {
+            ...round.playerSimulation,
+            stimulusEvidenceRefs: ["missing"],
+          },
+        } : {}),
       })),
     }))).rejects.toThrow();
 
@@ -1440,18 +1509,19 @@ describe("run store", () => {
       resolver.resolveCaptureReadPath("Linked").absolutePath,
     );
     await expect(store.saveRun(runInput({
-      evidence: [
-        {ref: "linked", kind: "capture", id: "Linked"},
-        {
-          ref: "evaluation",
-          kind: "evaluation",
-          target: "Hades II",
-          id: "2026-08-11-store-page",
-        },
-      ],
+      evidence: runInput().evidence.map((evidence) => evidence.ref === "hero"
+        ? {ref: "linked", kind: "capture" as const, id: "Linked"}
+        : evidence),
       rounds: runInput().rounds.map((round) => ({
         ...round,
-        evidenceRefs: ["linked"],
+        evidenceRefs: round.evidenceRefs.map((reference) =>
+          reference === "hero" ? "linked" : reference),
+        ...(round.playerSimulation ? {
+          playerSimulation: {
+            ...round.playerSimulation,
+            stimulusEvidenceRefs: ["linked"],
+          },
+        } : {}),
       })),
     }))).rejects.toThrow(/symlink/i);
   });

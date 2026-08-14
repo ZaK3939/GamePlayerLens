@@ -1,9 +1,10 @@
-import {access, mkdir, mkdtemp, readFile, rm} from "node:fs/promises";
+import {access, mkdir, mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {dirname, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {Client} from "@modelcontextprotocol/client";
 import {StdioClientTransport} from "@modelcontextprotocol/client/stdio";
+import {canonicalSha256} from "../src/integrity.js";
 import {
   assert,
   playtestCohortFixture,
@@ -436,55 +437,123 @@ try {
   );
   playtestCohortRoundTrip = true;
 
-  const persona = await client.callTool({
+  const packageGeneratedPersona = {
+    id: "package-smoke-player",
+    source_appids: [1145360],
+    archetype: "Package smoke player",
+    playtime_profile: "Short-session roguelike player",
+    priorities: ["clear storefront promise"],
+    voice: [1, 2, 3].map((index) => ({
+      text: `package smoke voice ${index}`,
+      source_appid: 1145360,
+      recommendation_id: `package-smoke-${index}`,
+      language: "english",
+      voted_up: index !== 3,
+    })),
+    dealbreakers: ["unclear value proposition"],
+    price_sensitivity: "medium",
+    schema_version: 2,
+    target_context: {
+      market: "United States",
+      language: "english",
+      source_roles: [{appid: 1145360, role: "target"}],
+    },
+    decision_profile: {
+      adoption_trigger: "The first meaningful action is clear",
+      retention_trigger: "The action continues to create readable outcomes",
+      churn_trigger: "The value proposition or action becomes unclear",
+      update_reaction: "Reassess after the changed experience is demonstrated",
+    },
+    evidence_basis: {
+      observed_patterns: [
+        {
+          claim: "A clear promise affects adoption",
+          evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-1"}],
+        },
+        {
+          claim: "Unclear value is a dealbreaker",
+          evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-3"}],
+        },
+      ],
+      inferred_traits: [],
+      limitations: ["Synthetic package fixture does not represent a population"],
+      overall_confidence: "low",
+    },
+  } as const;
+  const rejectedUngroundedPersona = await client.callTool({
     name: "save_persona",
     arguments: {
-      persona: {
-        id: "package-smoke-player",
-        source_appids: [1145360],
-        archetype: "Package smoke player",
-        playtime_profile: "Short-session roguelike player",
-        priorities: ["clear storefront promise"],
-        voice: [1, 2, 3].map((index) => ({
-          text: `package smoke voice ${index}`,
-          source_appid: 1145360,
-          recommendation_id: `package-smoke-${index}`,
-          language: "english",
-          voted_up: index !== 3,
-        })),
-        dealbreakers: ["unclear value proposition"],
-        price_sensitivity: "medium",
-        schema_version: 2,
-        target_context: {
-          market: "United States",
-          language: "english",
-          source_roles: [{appid: 1145360, role: "target"}],
-        },
-        decision_profile: {
-          adoption_trigger: "The first meaningful action is clear",
-          retention_trigger: "The action continues to create readable outcomes",
-          churn_trigger: "The value proposition or action becomes unclear",
-          update_reaction: "Reassess after the changed experience is demonstrated",
-        },
-        evidence_basis: {
-          observed_patterns: [
-            {
-              claim: "A clear promise affects adoption",
-              evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-1"}],
-            },
-            {
-              claim: "Unclear value is a dealbreaker",
-              evidence: [{source_appid: 1145360, recommendation_id: "package-smoke-3"}],
-            },
-          ],
-          inferred_traits: [],
-          limitations: ["Synthetic package fixture does not represent a population"],
-          overall_confidence: "low",
-        },
-      },
+      persona: packageGeneratedPersona,
     },
   });
-  assert(persona.isError !== true, "packaged CLI could not save a run persona");
+  assert(
+    rejectedUngroundedPersona.isError === true,
+    "packaged CLI allowed persona persistence without a derivation result handle",
+  );
+  const packageDerivationPayload = {
+    data: {
+      requestedCount: 1,
+      generationReadiness: {
+        status: "ready",
+        generationAllowed: true,
+        requestedCount: 1,
+        supportedCount: 1,
+        availableUniqueReviewCount: 3,
+        requiredUniqueReviewCount: 3,
+        minimumUniqueReviewsPerPersona: 3,
+        voiceReuseAllowed: false,
+      },
+      schema: {},
+      brief: {
+        targetAppid: 1145360,
+        market: "United States",
+        language: "english",
+        focus: ["adoption"],
+        sources: [{appid: 1145360, role: "target"}],
+      },
+      games: [],
+      reviews: packageGeneratedPersona.voice.map((voice) => ({
+        sourceAppid: voice.source_appid,
+        sourceRole: "target",
+        recommendationId: voice.recommendation_id,
+        review: voice.text,
+        votedUp: voice.voted_up,
+        language: voice.language,
+        playtimeHours: 1,
+        timestamp: "2026-08-10T00:00:00.000Z",
+      })),
+      instruction: "Synthetic package fixture; no Steam request was made",
+    },
+    warnings: ["Synthetic package fixture; no Steam request was made"],
+    meta: {
+      observedAt: "2026-08-11T00:00:00.000Z",
+      resultHandle: "33333333-3333-4333-8333-333333333333",
+    },
+  } as const;
+  const personaDerivation = await client.callTool({
+    name: "save_artifact",
+    arguments: {
+      kind: "intel",
+      target: "Package Smoke Game",
+      id: "Persona Derivation Fixture",
+      sourceTool: "derive_personas",
+      observedAt: packageDerivationPayload.meta.observedAt,
+      payload: packageDerivationPayload,
+    },
+  });
+  assert(personaDerivation.isError !== true, "packaged CLI could not save persona derivation");
+  await writeFile(
+    join(dataRoot, "knowledge", "personas", "package-smoke-player.json"),
+    `${JSON.stringify({
+      ...packageGeneratedPersona,
+      grounding: {
+        sourceTool: "derive_personas",
+        observedAt: packageDerivationPayload.meta.observedAt,
+        resultSha256: canonicalSha256(packageDerivationPayload),
+      },
+    }, null, 2)}\n`,
+    "utf8",
+  );
   const experimentSpecArguments = {
     kind: "intel",
     target: "Package Smoke Game",
@@ -604,6 +673,12 @@ try {
       personaIds: ["package-smoke-player"],
       evidence: [
         {
+          ref: "derivation",
+          kind: "intel",
+          target: "Package Smoke Game",
+          id: "Persona Derivation Fixture",
+        },
+        {
           ref: "experiment-spec",
           kind: "intel",
           target: "Package Smoke Game",
@@ -631,7 +706,9 @@ try {
           scenarioId: "current",
           playerSimulation: {
             exposure: "scenario-only",
+            stimulusEvidenceRefs: [],
             memory: {
+              derivationEvidenceRef: "derivation",
               voiceEvidence: [{sourceAppid: 1145360, recommendationId: "package-smoke-1"}],
             },
             perception: {
@@ -661,7 +738,7 @@ try {
             },
           },
           output: "The fixture proves protocol transport only and contains no observed play.",
-          evidenceRefs: ["experiment-spec", "playtest-protocol"],
+          evidenceRefs: ["derivation", "experiment-spec", "playtest-protocol"],
         },
         {
           sequence: 2,
@@ -742,7 +819,8 @@ try {
   } | undefined)?.integrity;
   const packagePlayerSimulation = (runRecord?.rounds?.[0] as {
     playerSimulation?: {
-      memory?: {voiceEvidence?: unknown[]};
+      stimulusEvidenceRefs?: unknown[];
+      memory?: {derivationEvidenceRef?: unknown; voiceEvidence?: unknown[]};
       response?: {predictedFeeling?: {before?: unknown; after?: unknown}};
       reflection?: {humanValidationQuestion?: unknown; observableSignal?: unknown};
     };
@@ -751,7 +829,7 @@ try {
   assert(runRecord?.runId === runId, "packaged CLI returned the wrong run");
   assert(
     runMetadata?.simulationReadinessStatus === "validation-ready"
-      && runRecord.schemaVersion === 7
+      && runRecord.schemaVersion === 8
       && runRecord.subjectKind === "existing-game"
       && runRecord.market === "United States"
       && runRecord.language === "english"
@@ -769,6 +847,8 @@ try {
       && runRecord.simulationReadiness.blockedClaims?.includes("causal-lift")
       && typeof runRecord.seal?.canonicalSha256 === "string"
       && runRecord.rounds?.length === 4
+      && packagePlayerSimulation?.stimulusEvidenceRefs?.length === 0
+      && packagePlayerSimulation?.memory?.derivationEvidenceRef === "derivation"
       && packagePlayerSimulation?.memory?.voiceEvidence?.length === 1
       && typeof packagePlayerSimulation.response?.predictedFeeling?.before === "string"
       && typeof packagePlayerSimulation.response.predictedFeeling.after === "string"
@@ -937,6 +1017,12 @@ try {
       personaIds: ["package-smoke-player"],
       evidence: [
         {
+          ref: "derivation",
+          kind: "intel",
+          target: "Package Smoke Game",
+          id: "Persona Derivation Fixture",
+        },
+        {
           ref: "next-experiment-spec",
           kind: "intel",
           target: "Package Smoke Game",
@@ -970,7 +1056,9 @@ try {
           scenarioId: "current",
           playerSimulation: {
             exposure: "scenario-only",
+            stimulusEvidenceRefs: [],
             memory: {
+              derivationEvidenceRef: "derivation",
               voiceEvidence: [{sourceAppid: 1145360, recommendationId: "package-smoke-2"}],
             },
             perception: {
@@ -1000,7 +1088,12 @@ try {
             },
           },
           output: "The prior outcome is unresolved and cannot calibrate the forecast.",
-          evidenceRefs: ["next-experiment-spec", "prior-experiment-outcome", "playtest-protocol"],
+          evidenceRefs: [
+            "derivation",
+            "next-experiment-spec",
+            "prior-experiment-outcome",
+            "playtest-protocol",
+          ],
         },
         {
           sequence: 2,

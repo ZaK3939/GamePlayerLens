@@ -45,7 +45,7 @@ Indie survival strategy rubricはcanonical knowledge、run-sim、evaluation temp
 
 evaluation保存時のcanonical構造gateは、必須section、非空本文、Indie Survival Strategyの詳細sectionまたは具体的な適用外理由、未記入placeholder拒否までunit・MCP・package smokeで検証済みです。既存の保存済み実相談を新gateで再保存したdogfoodではないため、過去artifactを遡及合格扱いにしません。
 
-run schema v6は`subjectKind / market / language / projectBrief`とevaluationのIndie strategy modeをimmutable recordへ封印します。開発中対象のtarget player / promise / proof contractを含むroute-incomplete brief、またはIndie strategy N/Aを拒否するgateはunit・in-memory MCP・package smokeで検証しますが、実在する開発案件runの封印はまだPendingです。
+run schema v8は`subjectKind / market / language / projectBrief`、evaluationのIndie strategy mode、personaのderivation memory、今回提示したstimulusをimmutable recordへ封印します。開発中対象のtarget player / promise / proof contractを含むroute-incomplete brief、Indie strategy N/A、または未groundedなplayer simulationを拒否するgateはunit・in-memory MCP・package smokeで検証しますが、実在する開発案件runの封印はまだPendingです。
 
 structured `conceptTest`とdescriptive-onlyな診断はschema、匿名ID / email拒否、field-level safe error、prompt serialization、canonical knowledge、stdio、package smokeまで検証済みです。MCP promptが正規化済み入力へ`conceptTestEvidence.resultHandle`を発行し、payloadのモデル転記なしにmanual intelへexact-saveできることもin-memory MCPで確認しました。`projectBriefRevision` / `promiseShown`はbriefとの完全一致だけをprovenanceとして報告し、意味や品質をscore化しません。schemaが自動検出する個人情報はemail形式だけです。theme理解、theme-system fit、行動理解、報酬理解、興味を分離し、`no / unclear`のfit reasonをparticipant自身の記録として要求します。sample countをconversionやpurchase予測へ変換しないgateも接続しました。ただし実在する開発中ゲームでの第三者concept testはまだ保存しておらず、Implemented, not dogfood-validatedです。
 

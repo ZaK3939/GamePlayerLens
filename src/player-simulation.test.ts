@@ -1,4 +1,5 @@
 import {describe, expect, it} from "vitest";
+import {canonicalSha256} from "./integrity.js";
 import type {Persona} from "./persona-schemas.js";
 import {assertPlayerSimulationGrounding} from "./player-simulation.js";
 import type {
@@ -8,6 +9,61 @@ import type {
 import type {SaveRunInput} from "./run-schemas.js";
 
 const SHA = "a".repeat(64);
+const OBSERVED_AT = "2026-08-14T09:00:00+04:00";
+
+function derivationPayload(includeCompetitor: boolean) {
+  const reviews = [
+    {
+      sourceAppid: 10,
+      sourceRole: "target",
+      recommendationId: "target-1",
+      review: "The target is interesting when choices are readable.",
+      language: "english",
+      votedUp: true,
+    },
+    {
+      sourceAppid: 10,
+      sourceRole: "target",
+      recommendationId: "target-2",
+      review: "Unclear feedback makes me stop.",
+      language: "english",
+      votedUp: false,
+    },
+    includeCompetitor
+      ? {
+          sourceAppid: 20,
+          sourceRole: "competitor",
+          recommendationId: "competitor-voice",
+          review: "A comparable game made the decision readable.",
+          language: "english",
+          votedUp: true,
+        }
+      : {
+          sourceAppid: 10,
+          sourceRole: "target",
+          recommendationId: "target-3",
+          review: "Readable outcomes keep me engaged.",
+          language: "english",
+          votedUp: true,
+        },
+  ];
+  return {
+    data: {
+      generationReadiness: {generationAllowed: true, supportedCount: 1},
+      brief: {
+        market: "United States",
+        language: "english",
+        sources: [
+          {appid: 10, role: "target"},
+          ...(includeCompetitor ? [{appid: 20, role: "competitor"}] : []),
+        ],
+      },
+      reviews,
+    },
+    warnings: [],
+    meta: {observedAt: OBSERVED_AT},
+  };
+}
 
 function persona(includeCompetitor: boolean): Persona {
   const competitorVoice = {
@@ -80,6 +136,11 @@ function persona(includeCompetitor: boolean): Persona {
       limitations: ["This persona does not establish population share"],
       overall_confidence: "medium",
     },
+    grounding: {
+      sourceTool: "derive_personas",
+      observedAt: OBSERVED_AT,
+      resultSha256: canonicalSha256(derivationPayload(includeCompetitor)),
+    },
   };
 }
 
@@ -93,7 +154,11 @@ function resolvedPersona(includeCompetitor: boolean): ResolvedPersonaResult {
 function simulation(sourceAppid: number, recommendationId: string) {
   return {
     exposure: "visual-evidence" as const,
-    memory: {voiceEvidence: [{sourceAppid, recommendationId}]},
+    stimulusEvidenceRefs: ["stimulus"],
+    memory: {
+      derivationEvidenceRef: "derivation",
+      voiceEvidence: [{sourceAppid, recommendationId}],
+    },
     perception: {
       expectation: "The main choice should be readable.",
       noticedSignals: ["The target state is visible."],
@@ -134,12 +199,28 @@ function input(
       scenarioId: "current",
       playerSimulation: simulation(sourceAppid, recommendationId),
       output: "Structured player response.",
-      evidenceRefs: ["stimulus"],
+      evidenceRefs: ["derivation", "stimulus"],
     }],
   } as SaveRunInput;
 }
 
-const visualEvidence: ResolvedEvidenceResult[] = [{
+function derivationEvidence(includeCompetitor: boolean): ResolvedEvidenceResult {
+  return {
+    record: {
+      ref: "derivation",
+      kind: "intel",
+      targetId: "game",
+      id: "persona-derivation",
+      path: "knowledge/intel/game/persona-derivation.json",
+      sha256: SHA,
+      sourceTool: "derive_personas",
+      observedAt: OBSERVED_AT,
+    },
+    payload: derivationPayload(includeCompetitor),
+  };
+}
+
+const visualStimulus: ResolvedEvidenceResult = {
   record: {
     ref: "stimulus",
     kind: "capture",
@@ -147,18 +228,65 @@ const visualEvidence: ResolvedEvidenceResult[] = [{
     path: "knowledge/intel/captures/current-ui.png",
     sha256: SHA,
   },
-}];
+};
 
 describe("player simulation grounding", () => {
+  it("rejects derivation evidence that no longer matches the saved persona hash", () => {
+    const evidence = derivationEvidence(false);
+    evidence.payload = {
+      ...(evidence.payload as Record<string, unknown>),
+      warnings: ["tampered after persona save"],
+    };
+
+    expect(() => assertPlayerSimulationGrounding(
+      input(["gameplay"], 10, "target-1"),
+      [resolvedPersona(false)],
+      [evidence, visualStimulus],
+    )).toThrow(/derivation evidence hash mismatch/i);
+  });
+
+  it("rejects review voice reuse across different personas", () => {
+    const first = resolvedPersona(false);
+    const second: ResolvedPersonaResult = {
+      record: {
+        ...first.record,
+        id: "second-player",
+        path: "knowledge/personas/second-player.json",
+      },
+      persona: {...first.persona, id: "second-player"},
+    };
+
+    expect(() => assertPlayerSimulationGrounding(
+      input(["gameplay"], 10, "target-1"),
+      [first, second],
+      [derivationEvidence(false), visualStimulus],
+    )).toThrow(/review voice is reused across personas/i);
+  });
+
   it("requires cited visual evidence when UI is selected", () => {
     const run = input(["ui"], 10, "target-1");
 
-    expect(() => assertPlayerSimulationGrounding(run, [resolvedPersona(false)], []))
-      .toThrow(/requires cited visual evidence/i);
+    const nonVisualStimulus: ResolvedEvidenceResult = {
+      record: {
+        ref: "stimulus",
+        kind: "intel",
+        targetId: "game",
+        id: "scenario-copy",
+        path: "knowledge/intel/game/scenario-copy.json",
+        sha256: SHA,
+        sourceTool: "manual",
+      },
+      payload: {copy: "scenario"},
+    };
     expect(() => assertPlayerSimulationGrounding(
       run,
       [resolvedPersona(false)],
-      visualEvidence,
+      [derivationEvidence(false), nonVisualStimulus],
+    )).toThrow(/requires explicit visual stimulus/i);
+    expect(() => assertPlayerSimulationGrounding(
+      run,
+      [resolvedPersona(false)],
+      [derivationEvidence(false), visualStimulus],
     )).not.toThrow();
   });
 
@@ -166,20 +294,20 @@ describe("player simulation grounding", () => {
     expect(() => assertPlayerSimulationGrounding(
       input(["competition"], 10, "target-1"),
       [resolvedPersona(true)],
-      visualEvidence,
+      [derivationEvidence(true), visualStimulus],
     )).toThrow(/requires competitor review voice evidence/i);
 
     expect(() => assertPlayerSimulationGrounding(
       input(["competition"], 20, "competitor-voice"),
       [resolvedPersona(true)],
-      visualEvidence,
+      [derivationEvidence(true), visualStimulus],
     )).not.toThrow();
   });
 
   it("requires a recorded AI-operated session for AI-operated exposure", () => {
     const run = input(["gameplay"], 10, "target-1");
     run.rounds[0]!.playerSimulation!.exposure = "ai-operated";
-    const aiSessionEvidence: ResolvedEvidenceResult[] = [{
+    const aiSessionEvidence: ResolvedEvidenceResult = {
       record: {
         ref: "stimulus",
         kind: "intel",
@@ -225,14 +353,17 @@ describe("player simulation grounding", () => {
           outcome: "completed",
         },
       },
-    }];
+    };
 
-    expect(() => assertPlayerSimulationGrounding(run, [resolvedPersona(false)], []))
-      .toThrow(/requires a cited AI-operated session/i);
     expect(() => assertPlayerSimulationGrounding(
       run,
       [resolvedPersona(false)],
-      aiSessionEvidence,
+      [derivationEvidence(false), visualStimulus],
+    )).toThrow(/requires an explicit AI-operated session stimulus/i);
+    expect(() => assertPlayerSimulationGrounding(
+      run,
+      [resolvedPersona(false)],
+      [derivationEvidence(false), aiSessionEvidence],
     )).not.toThrow();
   });
 

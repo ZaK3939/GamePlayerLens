@@ -13,7 +13,7 @@ GamePlayerLens exposes exactly 14 MCP tools and two prompts. All tools return a 
 | `steam_timeline` | Fetch a current SteamSpy snapshot and optional ITAD price history |
 | `steam_updates` | Fetch official Steam announcements with update selection, classification evidence, highlights, and cadence |
 | `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; `market` and `language` are required |
-| `save_persona` | Validate and atomically save a generated persona |
+| `save_persona` | Validate a generated persona against an exact `derive_personas` result handle and atomically save its server grounding |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
 | `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
@@ -33,6 +33,8 @@ Prompt arguments are strings. Structured values such as `projectBrief`, `concept
 External fetches preserve successful source data when another endpoint fails. Always retain `warnings`; they are part of the evidence envelope.
 
 Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, and `derive_personas` include a short-lived `meta.resultHandle`. Pass the handle with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription.
+
+For persona generation, pass that same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field and the audience/source-role context with the cached tool result, then stores a SHA-256 binding to the exact result. An unknown, expired, non-derivation, blocked, or mismatched result is rejected.
 
 The result store retains only the most recent 32 handles in the current MCP process. Handles expire when that process ends.
 

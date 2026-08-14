@@ -57,14 +57,15 @@ When a fetch tool returns `meta.resultHandle`, use exact-save. Model-reconstruct
 - `partial` limits generation to `supportedCount`.
 - Source roles distinguish target, competitor, and reference games.
 - Observed patterns, inferred traits, unknowns, and limitations stay separate.
+- `save_persona` requires the live `derive_personas` result handle and server-verifies exact review text, ID, language, vote, audience, and source role before adding a result hash to the stored persona.
 
 Review balance does not reveal population sentiment. Use separate aggregate review evidence for overall positive share, and never convert persona counts into affected-player share.
 
 ## Virtual player rounds
 
-New simulation runs accept only v2 personas. Every persona-scenario round contains a structured `playerSimulation` with review-memory references, perception, decision, predicted response, reflection, uncertainty, and a human falsification signal. The server verifies that cited recommendation IDs are present in the exact saved persona.
+New simulation runs accept only grounded v2 personas. Every persona-scenario round contains a structured `playerSimulation` with an exact-saved `memory.derivationEvidenceRef`, review-memory references, explicit `stimulusEvidenceRefs`, perception, decision, predicted response, reflection, uncertainty, and a human falsification signal. The server verifies the derivation artifact hash and content against the saved persona before accepting a recommendation ID.
 
-If UI is selected, persona rounds must cite a saved capture or UI reference and cannot use `scenario-only` exposure. If competition is selected, each round must cite a voice from a persona source assigned the `competitor` role. `visual-evidence` exposure requires cited image evidence, and `ai-operated` exposure requires a cited AI-operated playtest session. This ensures that UI, competitor, and execution inputs affect the player simulation rather than appearing only in the final reviewer narrative.
+If UI is selected, persona rounds must name a saved capture or UI reference inside `stimulusEvidenceRefs` and cannot use `scenario-only` exposure. If competition is selected, each round must cite a voice from a persona source assigned the `competitor` role. `visual-evidence` exposure requires an explicitly named image, `ai-operated` requires an explicitly named AI-operated playtest session, and `scenario-only` requires an empty stimulus list. This ensures that UI, competitor, and execution inputs affect the player simulation rather than appearing only in the final reviewer narrative.
 
 The stored response remains a model-generated hypothesis. `exposure=ai-operated` means an AI client operated the recorded task; it does not mean the persona felt a human emotion. Predicted feelings, continuation choices, and agreement across personas are never human reports, population rates, demand, or retention.
 

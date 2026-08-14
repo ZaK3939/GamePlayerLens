@@ -58,6 +58,12 @@ const EvidenceBasisSchema = z.object({
   overall_confidence: z.enum(["low", "medium", "high"]),
 }).strict();
 
+const PersonaGroundingSchema = z.object({
+  sourceTool: z.literal("derive_personas"),
+  observedAt: z.iso.datetime({offset: true}),
+  resultSha256: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+
 const PersonaBaseShape = {
   id: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i),
   source_appids: z.array(z.number().int().positive()).min(1),
@@ -144,7 +150,7 @@ function addPersonaIssues(
   for (const issue of personaIssues(value)) context.addIssue({code: "custom", ...issue});
 }
 
-export const PersonaSchema = z.object({
+export const GeneratedPersonaSchema = z.object({
   ...PersonaBaseShape,
   schema_version: z.literal(2),
   target_context: TargetContextSchema,
@@ -152,8 +158,16 @@ export const PersonaSchema = z.object({
   evidence_basis: EvidenceBasisSchema,
 }).strict().superRefine(addPersonaIssues);
 
-export const GeneratedPersonaSchema = PersonaSchema;
+export const PersonaSchema = z.object({
+  ...PersonaBaseShape,
+  schema_version: z.literal(2),
+  target_context: TargetContextSchema,
+  decision_profile: DecisionProfileSchema,
+  evidence_basis: EvidenceBasisSchema,
+  grounding: PersonaGroundingSchema,
+}).strict().superRefine(addPersonaIssues);
 
 export type Persona = z.infer<typeof PersonaSchema>;
+export type GeneratedPersona = z.infer<typeof GeneratedPersonaSchema>;
 
 export type PersonaFocus = typeof PERSONA_FOCUS_VALUES[number];
