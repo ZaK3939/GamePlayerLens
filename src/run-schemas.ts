@@ -2,10 +2,17 @@ import {z} from "zod";
 import {SourceToolSchema} from "./artifacts.js";
 import {EVALUATION_DOMAINS} from "./evaluation-coverage.js";
 import {
-  buildProjectBriefDiagnostics,
   ProjectBriefObjectSchema,
   SubjectKindSchema,
 } from "./project-brief.js";
+import {
+  validateDeveloperProjectBrief,
+  validateRunCompleteness,
+  validateRunRelations,
+  validateSaveRevisionBundleReference,
+  validateStoredDeveloperEvaluation,
+  validateStoredRevisionBundleReference,
+} from "./run-validation.js";
 
 export const MAX_RUN_BYTES = 2 * 1024 * 1024;
 export const RUN_RECIPE_ID = "game-review.md";
@@ -194,213 +201,33 @@ const ConfidenceInputSchema = z.object({
   ]),
 }).strict();
 
-interface RelationShape {
-  mode: z.infer<typeof SimulationModeSchema>;
-  selectedDomains: Array<z.infer<typeof SimulationDomainSchema>>;
-  scenarios: Array<z.infer<typeof ScenarioSchema>>;
-  personaIds: string[];
-  evidenceRefs: Array<{ref: string; kind: string}>;
-  rounds: Array<z.infer<typeof SimulationRoundSchema>>;
-  finalEvaluationRef: string;
-}
-
-function duplicate(values: string[]): string | undefined {
-  const seen = new Set<string>();
-  for (const value of values) {
-    if (seen.has(value)) return value;
-    seen.add(value);
-  }
-  return undefined;
-}
-
-function validateRelations(
-  value: RelationShape,
-  context: z.RefinementCtx,
-): void {
-  const issue = (path: Array<string | number>, message: string) => {
-    context.addIssue({code: "custom", path, message});
-  };
-  if (value.mode === "baseline" && value.scenarios.length !== 1) {
-    issue(["scenarios"], "baseline runs require exactly one scenario");
-  }
-  if (value.mode === "change" && value.scenarios.length < 2) {
-    issue(["scenarios"], "change runs require at least two scenarios");
-  }
-  for (const [path, values] of [
-    [["selectedDomains"], value.selectedDomains],
-    [["scenarios"], value.scenarios.map((scenario) => scenario.id)],
-    [["personaIds"], value.personaIds],
-    [["evidence"], value.evidenceRefs.map((evidence) => evidence.ref)],
-  ] as const) {
-    const repeated = duplicate([...values]);
-    if (repeated) issue([...path], `duplicate id: ${repeated}`);
-  }
-
-  const scenarioIds = new Set(value.scenarios.map((scenario) => scenario.id));
-  const personaIds = new Set(value.personaIds);
-  const evidenceIds = new Set(value.evidenceRefs.map((evidence) => evidence.ref));
-  value.rounds.forEach((round, index) => {
-    if (round.sequence !== index + 1) {
-      issue(["rounds", index, "sequence"], "round sequences must be consecutive from 1");
-    }
-    if (round.scenarioId && !scenarioIds.has(round.scenarioId)) {
-      issue(["rounds", index, "scenarioId"], "unknown scenario reference");
-    }
-    if (round.personaId && !personaIds.has(round.personaId)) {
-      issue(["rounds", index, "personaId"], "unknown persona reference");
-    }
-    if (round.phase === "persona" && !round.personaId) {
-      issue(["rounds", index, "personaId"], "persona rounds require a persona reference");
-    }
-    if (round.phase === "domain" && !round.domain) {
-      issue(["rounds", index, "domain"], "domain rounds require a domain");
-    }
-    if (round.domain && !value.selectedDomains.includes(round.domain)) {
-      issue(["rounds", index, "domain"], "round domain is outside the selected domains");
-    }
-    const repeatedEvidence = duplicate(round.evidenceRefs);
-    if (repeatedEvidence) {
-      issue(["rounds", index, "evidenceRefs"], `duplicate evidence: ${repeatedEvidence}`);
-    }
-    for (const reference of round.evidenceRefs) {
-      if (!evidenceIds.has(reference)) {
-        issue(["rounds", index, "evidenceRefs"], `unknown evidence reference: ${reference}`);
-      }
-    }
-  });
-
-  for (const scenarioId of scenarioIds) {
-    if (!value.rounds.some((round) => round.scenarioId === scenarioId)) {
-      issue(["rounds"], `scenario has no recorded round: ${scenarioId}`);
-    }
-  }
-  for (const personaId of personaIds) {
-    if (!value.rounds.some((round) =>
-      round.phase === "persona" && round.personaId === personaId)) {
-      issue(["rounds"], `persona has no recorded persona round: ${personaId}`);
-    }
-  }
-  for (const domain of value.selectedDomains) {
-    if (!value.rounds.some((round) =>
-      round.phase === "domain" && round.domain === domain)) {
-      issue(["rounds"], `selected domain has no recorded round: ${domain}`);
-    }
-  }
-  for (const requiredPhase of ["critic", "synthesis"] as const) {
-    if (!value.rounds.some((round) => round.phase === requiredPhase)) {
-      issue(["rounds"], `simulation run requires a ${requiredPhase} round`);
-    }
-  }
-  const finalEvidence = value.evidenceRefs.find(
-    (evidence) => evidence.ref === value.finalEvaluationRef,
-  );
-  if (!finalEvidence || finalEvidence.kind !== "evaluation") {
-    issue(["finalEvaluationRef"], "final evaluation must reference evaluation evidence");
-  }
-}
-
-function validateSaveCompleteness(
-  value: RelationShape,
-  context: z.RefinementCtx,
-): void {
-  const issue = (path: Array<string | number>, message: string) => {
-    context.addIssue({code: "custom", path, message});
-  };
-  for (const scenario of value.scenarios) {
-    for (const domain of value.selectedDomains) {
-      if (!value.rounds.some((round) =>
-        round.phase === "domain"
-        && round.scenarioId === scenario.id
-        && round.domain === domain)) {
-        issue(
-          ["rounds"],
-          `scenario/domain cell has no recorded round: ${scenario.id}/${domain}`,
-        );
-      }
-    }
-  }
-  for (const personaId of value.personaIds) {
-    for (const scenario of value.scenarios) {
-      if (!value.rounds.some((round) =>
-        round.phase === "persona"
-        && round.personaId === personaId
-        && round.scenarioId === scenario.id)) {
-        issue(
-          ["rounds"],
-          `persona/scenario cell has no recorded round: ${personaId}/${scenario.id}`,
-        );
-      }
-    }
-  }
-
-  value.rounds.forEach((round, index) => {
-    if (round.evidenceRefs.includes(value.finalEvaluationRef)) {
-      issue(
-        ["rounds", index, "evidenceRefs"],
-        "rounds cannot cite the final evaluation created after synthesis",
-      );
-    }
-  });
-  const usedEvidence = new Set(value.rounds.flatMap((round) => round.evidenceRefs));
-  for (const evidence of value.evidenceRefs) {
-    if (evidence.ref !== value.finalEvaluationRef && !usedEvidence.has(evidence.ref)) {
-      issue(["evidence"], `analysis evidence is not used by any round: ${evidence.ref}`);
-    }
-  }
-}
-
-export const SaveRunInputBaseSchema = z.object({
-  target: z.string().min(1),
-  topic: z.string().trim().min(1).max(120),
+const RunAudienceShape = {
   subjectKind: SubjectKindSchema,
   market: ConsultationTextSchema,
   language: ConsultationTextSchema,
   projectBrief: ProjectBriefObjectSchema.optional(),
   mode: SimulationModeSchema,
   selectedDomains: z.array(SimulationDomainSchema).min(1).max(6),
+};
+const ScenariosSchema = z.array(ScenarioSchema).min(1).max(8);
+const RevisionBundleRefSchema = ReferenceIdSchema.optional();
+const SimulationRoundsSchema = z.array(SimulationRoundSchema).min(1).max(100);
+const RunWarningsSchema = z.array(z.string().max(2_000)).max(100);
+
+export const SaveRunInputBaseSchema = z.object({
+  target: z.string().min(1),
+  topic: z.string().trim().min(1).max(120),
+  ...RunAudienceShape,
   model: ModelInputSchema,
-  scenarios: z.array(ScenarioSchema).min(1).max(8),
+  scenarios: ScenariosSchema,
   personaIds: z.array(ReferenceIdSchema).min(1).max(12),
   evidence: z.array(EvidenceReferenceInputSchema).min(1).max(100),
-  revisionBundleRef: ReferenceIdSchema.optional(),
-  rounds: z.array(SimulationRoundSchema).min(1).max(100),
-  warnings: z.array(z.string().max(2_000)).max(100),
+  revisionBundleRef: RevisionBundleRefSchema,
+  rounds: SimulationRoundsSchema,
+  warnings: RunWarningsSchema,
   confidence: ConfidenceInputSchema,
   finalEvaluationRef: ReferenceIdSchema,
 }).strict();
-
-function validateDeveloperProjectBrief(
-  value: {
-    subjectKind: z.infer<typeof SubjectKindSchema>;
-    projectBrief?: z.infer<typeof ProjectBriefObjectSchema>;
-  },
-  context: z.RefinementCtx,
-): void {
-  if (value.subjectKind !== "developer-concept" && value.subjectKind !== "developer-project") {
-    return;
-  }
-  if (!value.projectBrief) {
-    context.addIssue({
-      code: "custom",
-      path: ["projectBrief"],
-      message: "developer runs require projectBrief",
-    });
-    return;
-  }
-  const diagnostics = buildProjectBriefDiagnostics(value.projectBrief);
-  const missingFields = [...new Set([
-    ...diagnostics.conceptRoute.missingFields,
-    ...diagnostics.rewardMechanism.missingFields,
-    ...diagnostics.mechanismTransfer.missingFields,
-  ])];
-  for (const field of missingFields) {
-    context.addIssue({
-      code: "custom",
-      path: ["projectBrief", field],
-      message: `developer run projectBrief is missing route field: ${field}`,
-    });
-  }
-}
 
 export const SaveRunInputSchema = SaveRunInputBaseSchema.superRefine((value, context) => {
   const relations = {
@@ -408,35 +235,13 @@ export const SaveRunInputSchema = SaveRunInputBaseSchema.superRefine((value, con
     personaIds: value.personaIds,
     evidenceRefs: value.evidence,
   };
-  validateRelations(relations, context);
-  validateSaveCompleteness(relations, context);
+  validateRunRelations(relations, context);
+  validateRunCompleteness(relations, context);
   validateDeveloperProjectBrief(value, context);
-  if (value.mode === "change") {
-    if (!value.revisionBundleRef) {
-      context.addIssue({
-        code: "custom",
-        path: ["revisionBundleRef"],
-        message: "change runs require an exact-saved revision bundle",
-      });
-    } else {
-      const revisionEvidence = value.evidence.find(
-        (evidence) => evidence.ref === value.revisionBundleRef,
-      );
-      if (revisionEvidence?.kind !== "intel") {
-        context.addIssue({
-          code: "custom",
-          path: ["revisionBundleRef"],
-          message: "revisionBundleRef must reference intel evidence",
-        });
-      }
-    }
-  } else if (value.revisionBundleRef) {
-    context.addIssue({
-      code: "custom",
-      path: ["revisionBundleRef"],
-      message: "baseline runs cannot contain a current-versus-candidate revision bundle",
-    });
-  }
+  validateSaveRevisionBundleReference({
+    ...value,
+    evidenceRefs: value.evidence,
+  }, context);
 });
 
 export const ResolvedPersonaSchema = z.object({
@@ -608,24 +413,19 @@ export const RunRecordCoreSchema = z.object({
   runId: RunIdSchema,
   targetId: CanonicalTargetIdSchema,
   topic: z.string().min(1).max(120),
-  subjectKind: SubjectKindSchema,
-  market: ConsultationTextSchema,
-  language: ConsultationTextSchema,
-  projectBrief: ProjectBriefObjectSchema.optional(),
-  mode: SimulationModeSchema,
-  selectedDomains: z.array(SimulationDomainSchema).min(1).max(6),
+  ...RunAudienceShape,
   recipe: z.object({
     id: z.literal(RUN_RECIPE_ID),
     path: z.literal("skills/game-review.md"),
     sha256: Sha256Schema,
   }).strict(),
   model: ModelInputSchema.extend({reportedByClient: z.literal(true)}).strict(),
-  scenarios: z.array(ScenarioSchema).min(1).max(8),
+  scenarios: ScenariosSchema,
   personas: z.array(ResolvedPersonaSchema).min(1).max(12),
   evidence: z.array(ResolvedEvidenceSchema).min(1).max(100),
-  revisionBundleRef: ReferenceIdSchema.optional(),
-  rounds: z.array(SimulationRoundSchema).min(1).max(100),
-  warnings: z.array(z.string().max(2_000)).max(100),
+  revisionBundleRef: RevisionBundleRefSchema,
+  rounds: SimulationRoundsSchema,
+  warnings: RunWarningsSchema,
   confidence: ConfidenceInputSchema.extend({reportedByClient: z.literal(true)}).strict(),
   simulationReadiness: SimulationReadinessSchema,
   finalEvaluationRef: ReferenceIdSchema,
@@ -638,43 +438,21 @@ const RunRecordBaseSchema = RunRecordCoreSchema.extend({
 }).strict();
 
 export const RunRecordSchema = RunRecordBaseSchema.superRefine((value, context) => {
-  validateRelations({
+  const relations = {
     ...value,
     personaIds: value.personas.map((persona) => persona.id),
     evidenceRefs: value.evidence,
-  }, context);
+  };
+  validateRunRelations(relations, context);
   validateDeveloperProjectBrief(value, context);
-  const finalEvaluation = value.evidence.find(
-    (item) => item.ref === value.finalEvaluationRef && item.kind === "evaluation",
-  );
-  if (
-    (value.subjectKind === "developer-concept" || value.subjectKind === "developer-project")
-    && finalEvaluation?.indieStrategyMode !== "detailed"
-  ) {
-    context.addIssue({
-      code: "custom",
-      path: ["finalEvaluationRef"],
-      message: "developer runs require a detailed Indie Survival Strategy",
-    });
-  }
-  if (value.mode === "change") {
-    const revisionEvidence = value.evidence.find(
-      (item) => item.ref === value.revisionBundleRef,
-    );
-    if (!value.revisionBundleRef || revisionEvidence?.kind !== "intel" || revisionEvidence.sourceTool !== "manual") {
-      context.addIssue({
-        code: "custom",
-        path: ["revisionBundleRef"],
-        message: "stored change runs require manual revision-bundle evidence",
-      });
-    }
-  } else if (value.revisionBundleRef) {
-    context.addIssue({
-      code: "custom",
-      path: ["revisionBundleRef"],
-      message: "stored baseline runs cannot contain a revision bundle",
-    });
-  }
+  validateStoredDeveloperEvaluation({
+    ...value,
+    evidenceRefs: value.evidence,
+  }, context);
+  validateStoredRevisionBundleReference({
+    ...value,
+    evidenceRefs: value.evidence,
+  }, context);
 });
 
 export const RunArtifactMetadataSchema = z.object({
@@ -683,11 +461,11 @@ export const RunArtifactMetadataSchema = z.object({
   id: RunIdSchema,
   runId: RunIdSchema,
   topic: z.string().min(1).max(120),
-  subjectKind: SubjectKindSchema,
-  market: ConsultationTextSchema,
-  language: ConsultationTextSchema,
-  mode: SimulationModeSchema,
-  selectedDomains: z.array(SimulationDomainSchema).min(1).max(6),
+  subjectKind: RunAudienceShape.subjectKind,
+  market: RunAudienceShape.market,
+  language: RunAudienceShape.language,
+  mode: RunAudienceShape.mode,
+  selectedDomains: RunAudienceShape.selectedDomains,
   savedAt: IsoDateTimeSchema,
   roundCount: z.number().int().positive(),
   evidenceCount: z.number().int().positive(),
