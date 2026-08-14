@@ -1,8 +1,20 @@
-import {basename, dirname} from "node:path";
+import {
+  link,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {basename, dirname, join} from "node:path";
 import {describe, expect, it, vi} from "vitest";
 import {writeTextFileAtomically} from "./atomic-write.js";
 
-const DESTINATION = "/workspace/data/item.json";
+const DESTINATION = join("workspace", "data", "item.json");
+const TEMPORARY = join(dirname(DESTINATION), ".item.json.fixed-id.tmp");
 
 function nodeError(code: string): Error & {code: string} {
   return Object.assign(new Error(code), {code});
@@ -50,7 +62,7 @@ describe("atomic text writes", () => {
     });
 
     expect(ops.rename).toHaveBeenCalledWith(
-      "/workspace/data/.item.json.fixed-id.tmp",
+      TEMPORARY,
       DESTINATION,
     );
     expect(ops.link).not.toHaveBeenCalled();
@@ -66,9 +78,7 @@ describe("atomic text writes", () => {
       overwrite: true,
       idFactory: () => "fixed-id",
     })).rejects.toThrow("atomic overwrite requires a rename operation");
-    expect(ops.unlink).toHaveBeenCalledWith(
-      "/workspace/data/.item.json.fixed-id.tmp",
-    );
+    expect(ops.unlink).toHaveBeenCalledWith(TEMPORARY);
   });
 
   it("maps destination collisions to the caller's domain message", async () => {
@@ -80,9 +90,7 @@ describe("atomic text writes", () => {
       alreadyExistsMessage: "persona already exists: player-one",
       idFactory: () => "fixed-id",
     })).rejects.toThrow("persona already exists: player-one");
-    expect(ops.unlink).toHaveBeenCalledWith(
-      "/workspace/data/.item.json.fixed-id.tmp",
-    );
+    expect(ops.unlink).toHaveBeenCalledWith(TEMPORARY);
   });
 
   it("does not replace the primary failure with a cleanup failure", async () => {
@@ -129,5 +137,26 @@ describe("atomic text writes", () => {
       alreadyExistsMessage: "item already exists",
       idFactory: () => "fixed-id",
     })).resolves.toBeUndefined();
+  });
+
+  it("repeatedly overwrites a real file without leaving temporary files", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "game-player-lens-atomic-"));
+    const destination = join(directory, "item.json");
+    try {
+      await writeFile(destination, "initial", "utf8");
+      for (let iteration = 0; iteration < 100; iteration += 1) {
+        await writeTextFileAtomically(destination, `payload-${iteration}`, {
+          fileOps: {writeFile, link, rename, unlink},
+          alreadyExistsMessage: "item already exists",
+          overwrite: true,
+          idFactory: () => `iteration-${iteration}`,
+        });
+      }
+
+      await expect(readFile(destination, "utf8")).resolves.toBe("payload-99");
+      await expect(readdir(directory)).resolves.toEqual(["item.json"]);
+    } finally {
+      await rm(directory, {recursive: true, force: true});
+    }
   });
 });

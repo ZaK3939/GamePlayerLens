@@ -19,7 +19,7 @@ async function read(path: string): Promise<string> {
 describe("public documentation", () => {
   it("keeps the README short and puts the quick start before background detail", async () => {
     const content = await read("README.md");
-    const lines = content.split("\n");
+    const lines = content.split(/\r?\n/u);
 
     expect(lines.length).toBeLessThanOrEqual(220);
     expect(lines.indexOf("## Quick start")).toBeGreaterThan(0);
