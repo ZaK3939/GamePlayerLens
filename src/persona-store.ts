@@ -10,6 +10,10 @@ import {
   type AtomicReplaceFile,
   writeTextFileAtomically,
 } from "./atomic-write.js";
+import {
+  type FileAccessCoordinator,
+  withFileAccess as coordinateFileAccess,
+} from "./file-access.js";
 import {PersonaSchema, type Persona} from "./persona-schemas.js";
 import {resolvePersonaPath, type PathResolver} from "./paths.js";
 
@@ -38,6 +42,7 @@ export interface PersonaStore {
 export interface PersonaStoreDependencies {
   fileOps?: Partial<PersonaFileOps>;
   replaceFile?: AtomicReplaceFile;
+  withFileAccess?: FileAccessCoordinator;
 }
 
 export function createPersonaStore(
@@ -45,6 +50,7 @@ export function createPersonaStore(
   dependencies: PersonaStoreDependencies = {},
 ): PersonaStore {
   const ops = {...nodeFileOps, ...dependencies.fileOps};
+  const withFileAccess = dependencies.withFileAccess ?? coordinateFileAccess;
 
   async function savePersona(
     input: unknown,
@@ -52,23 +58,28 @@ export function createPersonaStore(
   ): Promise<Persona> {
     const persona = PersonaSchema.parse(input);
     const destination = resolver.resolvePersonaPath(persona.id);
-    await writeTextFileAtomically(
+    await withFileAccess(
       destination,
-      `${JSON.stringify(persona, null, 2)}\n`,
-      {
-        fileOps: ops,
-        alreadyExistsMessage: `persona already exists: ${persona.id}`,
-        overwrite: opts.overwrite,
-        replaceFile: dependencies.replaceFile,
-      },
+      () => writeTextFileAtomically(
+        destination,
+        `${JSON.stringify(persona, null, 2)}\n`,
+        {
+          fileOps: ops,
+          alreadyExistsMessage: `persona already exists: ${persona.id}`,
+          overwrite: opts.overwrite,
+          replaceFile: dependencies.replaceFile,
+        },
+      ),
     );
     return persona;
   }
 
   async function loadPersona(id: string): Promise<Persona> {
     const path = resolver.resolvePersonaPath(id);
-    const raw = await ops.readFile(path, "utf8");
-    return PersonaSchema.parse(JSON.parse(raw) as unknown);
+    return withFileAccess(path, async () => {
+      const raw = await ops.readFile(path, "utf8");
+      return PersonaSchema.parse(JSON.parse(raw) as unknown);
+    });
   }
 
   async function listPersonas(): Promise<Persona[]> {

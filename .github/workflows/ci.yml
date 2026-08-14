@@ -32,3 +32,28 @@ jobs:
       - run: pnpm build
       - run: pnpm smoke:stdio
       - run: pnpm smoke:package
+
+  windows-storage-reliability:
+    name: windows-latest / Node.js 24 / storage reliability
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.34.5
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run the full test suite ten times
+        shell: pwsh
+        run: |
+          1..10 | ForEach-Object {
+            Write-Host "Reliability run $_/10"
+            pnpm test
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }

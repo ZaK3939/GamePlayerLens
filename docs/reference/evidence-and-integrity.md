@@ -107,7 +107,7 @@ Server-verified calibration is limited to matching past outcomes with complete h
 
 Display names are normalized to canonical IDs. Arbitrary paths, path traversal, root escapes through symlinks, unsupported image formats, credentialed URLs, and oversized payloads are rejected.
 
-Create-only saves publish through a same-directory hard link and never replace an existing artifact. Temporary-file cleanup retries transient filesystem locks; if cleanup still fails after publication, the error explicitly reports that the destination was already saved and must be read before retrying. Explicit overwrites use a queued, fsynced atomic replacement with bounded retries for locks such as Windows `EPERM`; failed writes remain errors and are never reported as successful saves.
+Create-only saves publish through a same-directory hard link and never replace an existing artifact. Temporary-file cleanup retries transient filesystem locks; if cleanup still fails after publication, the error explicitly reports that the destination was already saved and must be read before retrying. Reads and writes in one server process share a FIFO coordinator for each normalized path, so an overwrite never races a still-open evidence handle on Windows. Explicit overwrites then use a fsynced atomic replacement with bounded retries for filesystem locks outside that coordinator; failed writes remain errors and are never reported as successful saves. Different paths remain independent and can be processed concurrently.
 
 The server does not return configured secrets or absolute data-root paths. External warnings omit response bodies, query strings, keys, and other sensitive request details.
 

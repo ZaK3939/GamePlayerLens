@@ -11,6 +11,10 @@ import {
 } from "node:fs/promises";
 import {basename, dirname} from "node:path";
 import {writeTextFileAtomically} from "./atomic-write.js";
+import {
+  type FileAccessCoordinator,
+  withFileAccess as coordinateFileAccess,
+} from "./file-access.js";
 import {canonicalSha256, sha256} from "./integrity.js";
 import {
   buildCoverage,
@@ -79,6 +83,7 @@ export interface RunStoreOptions {
   clock?: () => Date;
   idFactory?: () => string;
   fileOps?: Partial<RunFileOps>;
+  withFileAccess?: FileAccessCoordinator;
 }
 
 export interface RunStore {
@@ -108,50 +113,53 @@ export function createRunStore(
   const ops = {...nodeFileOps, ...options.fileOps};
   const clock = options.clock ?? (() => new Date());
   const idFactory = options.idFactory ?? randomUUID;
+  const withFileAccess = options.withFileAccess ?? coordinateFileAccess;
   const probeId = "00000000-0000-4000-8000-000000000000";
 
   async function readRegularBytes(
     absolutePath: string,
     maxBytes: number,
   ): Promise<{bytes: Buffer; stats: Stats}> {
-    let handle: RunFileHandle;
-    try {
-      handle = await ops.open(
-        absolutePath,
-        constants.O_RDONLY | constants.O_NOFOLLOW,
-      );
-    } catch (error) {
-      if (isNodeError(error, "ELOOP")) {
-        throw new Error("symlink run evidence is not allowed", {cause: error});
+    return withFileAccess(absolutePath, async () => {
+      let handle: RunFileHandle;
+      try {
+        handle = await ops.open(
+          absolutePath,
+          constants.O_RDONLY | constants.O_NOFOLLOW,
+        );
+      } catch (error) {
+        if (isNodeError(error, "ELOOP")) {
+          throw new Error("symlink run evidence is not allowed", {cause: error});
+        }
+        if (isNodeError(error, "ENOENT")) {
+          throw new Error("run evidence does not exist", {cause: error});
+        }
+        throw new Error("run evidence could not be opened", {cause: error});
       }
-      if (isNodeError(error, "ENOENT")) {
-        throw new Error("run evidence does not exist", {cause: error});
+      try {
+        const stats = await handle.stat();
+        if (stats.isSymbolicLink()) throw new Error("symlink run evidence is not allowed");
+        if (!stats.isFile()) throw new Error("run evidence is not a regular file");
+        if (stats.size < 1 || stats.size > maxBytes) {
+          throw new Error("run evidence exceeds its allowed size");
+        }
+        const bytes = await handle.readFile();
+        const finalStats = await handle.stat();
+        if (
+          bytes.length !== stats.size
+          || finalStats.size !== stats.size
+          || finalStats.dev !== stats.dev
+          || finalStats.ino !== stats.ino
+          || finalStats.mtimeMs !== stats.mtimeMs
+          || finalStats.ctimeMs !== stats.ctimeMs
+        ) {
+          throw new Error("run evidence changed while reading");
+        }
+        return {bytes, stats};
+      } finally {
+        await handle.close();
       }
-      throw new Error("run evidence could not be opened", {cause: error});
-    }
-    try {
-      const stats = await handle.stat();
-      if (stats.isSymbolicLink()) throw new Error("symlink run evidence is not allowed");
-      if (!stats.isFile()) throw new Error("run evidence is not a regular file");
-      if (stats.size < 1 || stats.size > maxBytes) {
-        throw new Error("run evidence exceeds its allowed size");
-      }
-      const bytes = await handle.readFile();
-      const finalStats = await handle.stat();
-      if (
-        bytes.length !== stats.size
-        || finalStats.size !== stats.size
-        || finalStats.dev !== stats.dev
-        || finalStats.ino !== stats.ino
-        || finalStats.mtimeMs !== stats.mtimeMs
-        || finalStats.ctimeMs !== stats.ctimeMs
-      ) {
-        throw new Error("run evidence changed while reading");
-      }
-      return {bytes, stats};
-    } finally {
-      await handle.close();
-    }
+    });
   }
 
   const evidenceResolver = createRunEvidenceResolver(resolver, readRegularBytes);
@@ -176,10 +184,14 @@ export function createRunStore(
     resolved: ResolvedRunPath,
     serialized: string,
   ): Promise<void> {
-    await writeTextFileAtomically(resolved.absolutePath, serialized, {
-      fileOps: ops,
-      alreadyExistsMessage: `simulation run already exists: ${resolved.runId}`,
-    });
+    await withFileAccess(resolved.absolutePath, () => writeTextFileAtomically(
+      resolved.absolutePath,
+      serialized,
+      {
+        fileOps: ops,
+        alreadyExistsMessage: `simulation run already exists: ${resolved.runId}`,
+      },
+    ));
   }
 
   function metadata(

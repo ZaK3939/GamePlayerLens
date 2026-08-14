@@ -17,6 +17,10 @@ import {
 } from "./atomic-write.js";
 import {isActualCalendarDate} from "./calendar-date.js";
 import {assertCanonicalEvaluationMarkdown} from "./evaluation-markdown.js";
+import {
+  type FileAccessCoordinator,
+  withFileAccess as coordinateFileAccess,
+} from "./file-access.js";
 import type {JsonValue} from "./http.js";
 import type {
   PathResolver,
@@ -230,6 +234,7 @@ export interface ArtifactStoreDependencies {
   clock?: () => Date;
   fileOps?: Partial<ArtifactFileOps>;
   replaceFile?: AtomicReplaceFile;
+  withFileAccess?: FileAccessCoordinator;
 }
 
 export type OverwriteOption = boolean | {overwrite?: boolean};
@@ -320,6 +325,7 @@ export function createArtifactStore(
 ): ArtifactStore {
   const clock = dependencies.clock ?? (() => new Date());
   const ops = {...nodeFileOps, ...dependencies.fileOps};
+  const withFileAccess = dependencies.withFileAccess ?? coordinateFileAccess;
 
   function resolveProbe(kind: ArtifactKind): ResolvedIntelArtifactPath | ResolvedEvaluationPath {
     return kind === "intel"
@@ -342,7 +348,7 @@ export function createArtifactStore(
     return {path: dirname(resolved.absolutePath), targetId: resolved.targetId};
   }
 
-  async function atomicWrite(
+  async function writeUnlocked(
     destination: string,
     data: string,
     overwrite: boolean,
@@ -354,6 +360,18 @@ export function createArtifactStore(
       overwrite,
       replaceFile: dependencies.replaceFile,
     });
+  }
+
+  async function atomicWrite(
+    destination: string,
+    data: string,
+    overwrite: boolean,
+    artifactId: string,
+  ): Promise<void> {
+    await withFileAccess(
+      destination,
+      () => writeUnlocked(destination, data, overwrite, artifactId),
+    );
   }
 
   async function ensureIntelDestination(
@@ -384,40 +402,42 @@ export function createArtifactStore(
   }
 
   async function readRegularFile(path: string): Promise<{raw: string; stats: Stats}> {
-    let handle: ArtifactFileHandle;
-    try {
-      handle = await ops.open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    } catch (error) {
-      if (isNodeError(error, "ELOOP")) {
-        throw new Error("symlink artifacts are not allowed", {cause: error});
+    return withFileAccess(path, async () => {
+      let handle: ArtifactFileHandle;
+      try {
+        handle = await ops.open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+      } catch (error) {
+        if (isNodeError(error, "ELOOP")) {
+          throw new Error("symlink artifacts are not allowed", {cause: error});
+        }
+        if (isNodeError(error, "ENOENT")) {
+          throw new Error("artifact does not exist", {cause: error});
+        }
+        throw new Error("artifact could not be opened", {cause: error});
       }
-      if (isNodeError(error, "ENOENT")) {
-        throw new Error("artifact does not exist", {cause: error});
+      try {
+        const stats = await handle.stat();
+        if (stats.isSymbolicLink()) throw new Error("symlink artifacts are not allowed");
+        if (!stats.isFile()) throw new Error("artifact is not a regular file");
+        const raw = await handle.readFile({encoding: "utf8"});
+        const finalStats = await handle.stat();
+        if (
+          finalStats.dev !== stats.dev
+          || finalStats.ino !== stats.ino
+          || finalStats.size !== stats.size
+          || finalStats.mtimeMs !== stats.mtimeMs
+          || Buffer.byteLength(raw, "utf8") !== stats.size
+        ) {
+          throw new Error("artifact changed while reading");
+        }
+        return {raw, stats};
+      } catch (error) {
+        if (error instanceof Error && !("code" in error)) throw error;
+        throw new Error("artifact could not be read", {cause: error});
+      } finally {
+        await handle.close();
       }
-      throw new Error("artifact could not be opened", {cause: error});
-    }
-    try {
-      const stats = await handle.stat();
-      if (stats.isSymbolicLink()) throw new Error("symlink artifacts are not allowed");
-      if (!stats.isFile()) throw new Error("artifact is not a regular file");
-      const raw = await handle.readFile({encoding: "utf8"});
-      const finalStats = await handle.stat();
-      if (
-        finalStats.dev !== stats.dev
-        || finalStats.ino !== stats.ino
-        || finalStats.size !== stats.size
-        || finalStats.mtimeMs !== stats.mtimeMs
-        || Buffer.byteLength(raw, "utf8") !== stats.size
-      ) {
-        throw new Error("artifact changed while reading");
-      }
-      return {raw, stats};
-    } catch (error) {
-      if (error instanceof Error && !("code" in error)) throw error;
-      throw new Error("artifact could not be read", {cause: error});
-    } finally {
-      await handle.close();
-    }
+    });
   }
 
   function parseIntelRecord(
@@ -522,16 +542,19 @@ export function createArtifactStore(
       date = current.toISOString().slice(0, 10);
     }
     const resolved = await ensureEvaluationDestination(parsed.target, date, parsed.topic);
-    await atomicWrite(
-      resolved.absolutePath,
-      parsed.content,
-      overwriteEnabled(overwrite),
-      `${date}-${resolved.topicId}`,
-    );
-    const stats = await ops.lstat(resolved.absolutePath);
-    if (stats.isSymbolicLink() || !stats.isFile()) {
-      throw new Error("saved evaluation is not a regular file");
-    }
+    const stats = await withFileAccess(resolved.absolutePath, async () => {
+      await writeUnlocked(
+        resolved.absolutePath,
+        parsed.content,
+        overwriteEnabled(overwrite),
+        `${date}-${resolved.topicId}`,
+      );
+      const savedStats = await ops.lstat(resolved.absolutePath);
+      if (savedStats.isSymbolicLink() || !savedStats.isFile()) {
+        throw new Error("saved evaluation is not a regular file");
+      }
+      return savedStats;
+    });
     return evaluationMetadata(resolved, date, stats);
   }
 
