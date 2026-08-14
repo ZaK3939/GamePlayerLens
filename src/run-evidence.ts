@@ -8,7 +8,7 @@ import {
 import {assertCanonicalEvaluationMarkdown} from "./evaluation-markdown.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {sha256} from "./integrity.js";
-import {PersonaSchema} from "./personas.js";
+import {PersonaSchema} from "./persona-schemas.js";
 import {
   EvidenceReferenceInputSchema,
   ResolvedEvidenceSchema,

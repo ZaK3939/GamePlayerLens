@@ -9,7 +9,7 @@ import {
   listPersonas,
   loadPersona,
   type PersonaStore,
-} from "./personas.js";
+} from "./persona-store.js";
 
 export type KnowledgeResult =
   | {

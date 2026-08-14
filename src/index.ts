@@ -20,10 +20,12 @@ import {
 } from "./mcp-responses.js";
 import {
   MAX_DERIVATION_APPIDS,
-  MAX_REVIEWS_PER_POLARITY,
-  MIN_REVIEWS_PER_POLARITY,
   PERSONA_FOCUS_VALUES,
   PersonaSchema,
+} from "./persona-schemas.js";
+import {
+  MAX_REVIEWS_PER_POLARITY,
+  MIN_REVIEWS_PER_POLARITY,
 } from "./personas.js";
 import type {PathResolver} from "./paths.js";
 import {

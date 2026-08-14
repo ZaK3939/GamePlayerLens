@@ -4,7 +4,8 @@ import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vitest";
 import {createKnowledgeReader} from "./knowledge.js";
 import {createPathResolver} from "./paths.js";
-import {createPersonaStore, type Persona} from "./personas.js";
+import type {Persona} from "./persona-schemas.js";
+import {createPersonaStore} from "./persona-store.js";
 
 const roots: string[] = [];
 

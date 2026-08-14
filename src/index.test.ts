@@ -8,7 +8,8 @@ import {MAX_INLINE_IMAGE_BYTES, createImageService} from "./images.js";
 import {buildServer} from "./index.js";
 import {createKnowledgeReader} from "./knowledge.js";
 import {createPathResolver} from "./paths.js";
-import {createPersonaStore, type Persona} from "./personas.js";
+import type {Persona} from "./persona-schemas.js";
+import {createPersonaStore} from "./persona-store.js";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);

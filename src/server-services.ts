@@ -9,9 +9,11 @@ import {discoverGames} from "./discovery.js";
 import {createImageService, type ImageService} from "./images.js";
 import {createKnowledgeReader, type KnowledgeReader} from "./knowledge.js";
 import {
-  buildDerivationPack,
   createPersonaStore,
   type PersonaStore,
+} from "./persona-store.js";
+import {
+  buildDerivationPack,
 } from "./personas.js";
 import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
 import {createResultStore, type ResultStore} from "./results.js";

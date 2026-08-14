@@ -11,7 +11,8 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach, describe, expect, it} from "vitest";
 import {createArtifactStore} from "./artifacts.js";
-import {createPersonaStore, type Persona} from "./personas.js";
+import type {Persona} from "./persona-schemas.js";
+import {createPersonaStore} from "./persona-store.js";
 import {createPathResolver} from "./paths.js";
 import {
   MAX_RUN_BYTES,

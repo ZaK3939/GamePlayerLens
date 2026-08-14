@@ -6,9 +6,11 @@ import {createPathResolver} from "./paths.js";
 import {
   GeneratedPersonaSchema,
   PersonaSchema,
-  createPersonaDeriver,
-  createPersonaStore,
   type Persona,
+} from "./persona-schemas.js";
+import {createPersonaStore} from "./persona-store.js";
+import {
+  createPersonaDeriver,
 } from "./personas.js";
 import type {Review, ReviewOptions} from "./reviews.js";
 
