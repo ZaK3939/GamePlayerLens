@@ -40,7 +40,7 @@ import {
   ResultEnvelopeSchema,
   ResultHandleSchema,
 } from "./results.js";
-import {SaveRunInputBaseSchema} from "./runs.js";
+import {SaveRunInputBaseSchema} from "./run-schemas.js";
 import {
   createServerServices,
   type ServerServices,

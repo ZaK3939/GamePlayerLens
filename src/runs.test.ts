@@ -16,9 +16,9 @@ import {createPathResolver} from "./paths.js";
 import {
   MAX_RUN_BYTES,
   SaveRunInputSchema,
-  createRunStore,
   type SaveRunInput,
-} from "./runs.js";
+} from "./run-schemas.js";
+import {createRunStore} from "./runs.js";
 
 const roots: string[] = [];
 const NOW = new Date("2026-08-11T12:34:56.000Z");
