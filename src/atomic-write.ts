@@ -1,5 +1,6 @@
 import {randomUUID} from "node:crypto";
 import {basename, dirname, join} from "node:path";
+import {writeFile as replaceFileAtomically} from "atomically";
 
 export interface AtomicTextFileOps {
   writeFile(
@@ -8,15 +9,25 @@ export interface AtomicTextFileOps {
     options: {encoding: "utf8"; flag: "wx"},
   ): Promise<void>;
   link(existingPath: string, newPath: string): Promise<void>;
-  rename?(oldPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
 }
+
+export type AtomicReplaceFile = (path: string, data: string) => Promise<void>;
 
 interface AtomicTextWriteOptions {
   fileOps: AtomicTextFileOps;
   alreadyExistsMessage: string;
   overwrite?: boolean;
   idFactory?: () => string;
+  replaceFile?: AtomicReplaceFile;
+}
+
+export async function replaceTextFileAtomically(path: string, data: string): Promise<void> {
+  await replaceFileAtomically(path, data, {
+    encoding: "utf8",
+    fsync: true,
+    timeout: 7_500,
+  });
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -33,6 +44,11 @@ export async function writeTextFileAtomically(
   data: string,
   options: AtomicTextWriteOptions,
 ): Promise<void> {
+  if (options.overwrite === true) {
+    await (options.replaceFile ?? replaceTextFileAtomically)(destination, data);
+    return;
+  }
+
   const temporary = join(
     dirname(destination),
     `.${basename(destination)}.${(options.idFactory ?? randomUUID)()}.tmp`,
@@ -46,14 +62,6 @@ export async function writeTextFileAtomically(
       flag: "wx",
     });
     temporaryCreated = true;
-    if (options.overwrite === true) {
-      if (!options.fileOps.rename) {
-        throw new Error("atomic overwrite requires a rename operation");
-      }
-      await options.fileOps.rename(temporary, destination);
-      temporaryCreated = false;
-      return;
-    }
     try {
       await options.fileOps.link(temporary, destination);
     } catch (error) {

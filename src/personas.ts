@@ -22,8 +22,8 @@ export interface DerivationReview extends Review {
 
 export interface PersonaDerivationOptions {
   targetAppid?: number;
-  market?: string;
-  language?: string;
+  market: string;
+  language: string;
   focus?: PersonaFocus[];
   sourceRoles?: PersonaSourceRole[];
 }
@@ -246,11 +246,19 @@ const DEFAULT_PERSONA_FOCUS: PersonaFocus[] = [
 
 function normalizeDerivationOptions(
   uniqueAppids: number[],
-  input: PersonaDerivationOptions,
+  input: PersonaDerivationOptions | undefined,
 ): NormalizedPersonaDerivationOptions {
-  const market = input.market?.trim() || "Japan";
+  if (
+    !input
+    || typeof input.market !== "string"
+    || typeof input.language !== "string"
+  ) {
+    throw new TypeError("market and language are required");
+  }
+  const market = input.market.trim();
+  if (!market) throw new TypeError("market must be a non-empty string");
   if (market.length > 80) throw new TypeError("market must contain at most 80 characters");
-  const language = (input.language?.trim() || "japanese").toLowerCase();
+  const language = input.language.trim().toLowerCase();
   if (!/^[a-z][a-z0-9_-]{0,31}$/.test(language)) {
     throw new TypeError("language must be a Steam language code");
   }
@@ -364,7 +372,7 @@ export function createPersonaDeriver(
     appids: number[],
     count = 5,
     reviewsPerPolarity = DEFAULT_REVIEWS_PER_POLARITY,
-    inputOptions: PersonaDerivationOptions = {},
+    inputOptions?: PersonaDerivationOptions,
   ) => {
     if (!Number.isInteger(count) || count < 1 || count > 12) {
       throw new TypeError("count must be an integer from 1 to 12");

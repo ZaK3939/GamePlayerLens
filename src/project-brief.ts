@@ -336,4 +336,4 @@ export const SubjectKindSchema = z.enum([
   "developer-concept",
   "developer-project",
 ]);
-
+export type SubjectKind = z.infer<typeof SubjectKindSchema>;

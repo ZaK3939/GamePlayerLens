@@ -5,14 +5,16 @@ import {
   mkdir as nodeMkdir,
   open as nodeOpen,
   readdir as nodeReaddir,
-  rename as nodeRename,
   type FileHandle,
   unlink as nodeUnlink,
   writeFile as nodeWriteFile,
 } from "node:fs/promises";
 import {basename, dirname} from "node:path";
 import {z} from "zod";
-import {writeTextFileAtomically} from "./atomic-write.js";
+import {
+  type AtomicReplaceFile,
+  writeTextFileAtomically,
+} from "./atomic-write.js";
 import {isActualCalendarDate} from "./calendar-date.js";
 import {assertCanonicalEvaluationMarkdown} from "./evaluation-markdown.js";
 import type {JsonValue} from "./http.js";
@@ -202,7 +204,6 @@ export interface ArtifactFileOps {
     options: {encoding: "utf8"; flag: "wx"},
   ): Promise<void>;
   link(existingPath: string, newPath: string): Promise<void>;
-  rename(oldPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
   open(path: string, flags: number): Promise<ArtifactFileHandle>;
   readdir(path: string, options: {withFileTypes: true}): Promise<Dirent[]>;
@@ -219,7 +220,6 @@ const nodeFileOps: ArtifactFileOps = {
   mkdir: (path, options) => nodeMkdir(path, options),
   writeFile: (path, data, options) => nodeWriteFile(path, data, options),
   link: nodeLink,
-  rename: nodeRename,
   unlink: nodeUnlink,
   open: (path, flags) => nodeOpen(path, flags) as Promise<FileHandle>,
   readdir: (path, options) => nodeReaddir(path, options),
@@ -229,6 +229,7 @@ const nodeFileOps: ArtifactFileOps = {
 export interface ArtifactStoreDependencies {
   clock?: () => Date;
   fileOps?: Partial<ArtifactFileOps>;
+  replaceFile?: AtomicReplaceFile;
 }
 
 export type OverwriteOption = boolean | {overwrite?: boolean};
@@ -351,6 +352,7 @@ export function createArtifactStore(
       fileOps: ops,
       alreadyExistsMessage: `artifact already exists: ${artifactId}`,
       overwrite,
+      replaceFile: dependencies.replaceFile,
     });
   }
 

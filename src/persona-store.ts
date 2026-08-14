@@ -2,19 +2,20 @@ import {
   link as nodeLink,
   readFile as nodeReadFile,
   readdir as nodeReaddir,
-  rename as nodeRename,
   unlink as nodeUnlink,
   writeFile as nodeWriteFile,
 } from "node:fs/promises";
 import {dirname} from "node:path";
-import {writeTextFileAtomically} from "./atomic-write.js";
+import {
+  type AtomicReplaceFile,
+  writeTextFileAtomically,
+} from "./atomic-write.js";
 import {PersonaSchema, type Persona} from "./persona-schemas.js";
 import {resolvePersonaPath, type PathResolver} from "./paths.js";
 
 export interface PersonaFileOps {
   writeFile(path: string, data: string, options: {encoding: "utf8"; flag: "wx"}): Promise<void>;
   link(existingPath: string, newPath: string): Promise<void>;
-  rename(oldPath: string, newPath: string): Promise<void>;
   unlink(path: string): Promise<void>;
   readFile(path: string, encoding: "utf8"): Promise<string>;
   readdir(path: string): Promise<string[]>;
@@ -23,7 +24,6 @@ export interface PersonaFileOps {
 const nodeFileOps: PersonaFileOps = {
   writeFile: (path, data, options) => nodeWriteFile(path, data, options),
   link: nodeLink,
-  rename: nodeRename,
   unlink: nodeUnlink,
   readFile: nodeReadFile,
   readdir: (path) => nodeReaddir(path),
@@ -35,11 +35,16 @@ export interface PersonaStore {
   listPersonas(): Promise<Persona[]>;
 }
 
+export interface PersonaStoreDependencies {
+  fileOps?: Partial<PersonaFileOps>;
+  replaceFile?: AtomicReplaceFile;
+}
+
 export function createPersonaStore(
   resolver: Pick<PathResolver, "resolvePersonaPath">,
-  fileOps: Partial<PersonaFileOps> = {},
+  dependencies: PersonaStoreDependencies = {},
 ): PersonaStore {
-  const ops = {...nodeFileOps, ...fileOps};
+  const ops = {...nodeFileOps, ...dependencies.fileOps};
 
   async function savePersona(
     input: unknown,
@@ -54,6 +59,7 @@ export function createPersonaStore(
         fileOps: ops,
         alreadyExistsMessage: `persona already exists: ${persona.id}`,
         overwrite: opts.overwrite,
+        replaceFile: dependencies.replaceFile,
       },
     );
     return persona;
@@ -101,4 +107,3 @@ export function loadPersona(id: string): Promise<Persona> {
 export function listPersonas(): Promise<Persona[]> {
   return getRepositoryStore().listPersonas();
 }
-

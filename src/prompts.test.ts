@@ -1878,6 +1878,30 @@ describe("ui-blind-compare prompt arguments", () => {
 });
 
 describe("repository prompt recipes", () => {
+  it("injects only the requested subject and domain recipe sections", async () => {
+    const source = await skill("run-sim.md");
+    const result = buildRunSimPrompt(source, {
+      target: "Slot & Ember",
+      topic: "vertical slice repair decision",
+      subjectKind: "developer-project",
+      market: "Japan",
+      language: "japanese",
+      domains: "gameplay,ui,competition",
+      uiBenchmarkTask: "Stop one reel and explain the resulting combat state",
+    });
+    const compiled = result.slice(0, result.indexOf("--- END REPOSITORY RECIPE ---")).trimEnd();
+
+    expect(compiled).toContain("Developer subject contract");
+    expect(compiled).toContain("Gameplay domain contract");
+    expect(compiled).toContain("UI domain contract");
+    expect(compiled).toContain("Competition domain contract");
+    expect(compiled).not.toContain("Existing-game subject contract");
+    expect(compiled).not.toContain("Storefront domain contract");
+    expect(compiled).not.toContain("Price domain contract");
+    expect(compiled).not.toContain("Localization domain contract");
+    expect(Buffer.byteLength(compiled, "utf8")).toBeLessThan(16_000);
+  });
+
   it("scopes run-sim before evaluation and handles non-UI and UI paths", async () => {
     const content = await skill("run-sim.md");
 

@@ -13,6 +13,7 @@ export const RUN_RECIPE_ID = "run-sim.md";
 export const RunIdSchema = z.uuid();
 export const SimulationModeSchema = z.enum(["baseline", "change"]);
 export const SimulationDomainSchema = z.enum(EVALUATION_DOMAINS);
+export type SimulationDomain = z.infer<typeof SimulationDomainSchema>;
 const ReferenceIdSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/i);
 export const CanonicalTargetIdSchema = z.string()
   .min(1)

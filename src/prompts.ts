@@ -19,6 +19,8 @@ import {
   ProjectBriefSchema,
   SubjectKindSchema,
 } from "./project-brief.js";
+import {compileRunSimRecipe} from "./run-recipe.js";
+import type {SimulationDomain} from "./run-schemas.js";
 
 const DOMAIN_ORDER = [
   "gameplay",
@@ -313,7 +315,7 @@ export function buildRunSimPrompt(
     : undefined;
   const selectedDomains = parsed.domains === "auto"
     ? undefined
-    : parsed.domains.split(",");
+    : parsed.domains.split(",") as SimulationDomain[];
   const missingChangeInputs = parsed.mode === "change"
     ? (["currentState", "proposal"] as const).filter((field) => !parsed[field]?.trim())
     : undefined;
@@ -358,7 +360,11 @@ export function buildRunSimPrompt(
     ? PlaytestCohortObjectSchema.parse(JSON.parse(playtestCohort))
     : undefined;
 
-  return appendSerializedInput(recipe, {
+  const compiledRecipe = compileRunSimRecipe(recipe, {
+    subjectKind: parsed.subjectKind,
+    selectedDomains,
+  });
+  return appendSerializedInput(compiledRecipe, {
     ...promptInput,
     ...(structuredProjectBrief
       ? {

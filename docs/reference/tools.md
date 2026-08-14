@@ -12,7 +12,7 @@ GamePlayerLens exposes exactly 14 MCP tools and two prompts. All tools return a 
 | `steam_reviews` | Fetch recent reviews filtered by language, polarity, and minimum playtime |
 | `steam_timeline` | Fetch a current SteamSpy snapshot and optional ITAD price history |
 | `steam_updates` | Fetch official Steam announcements with update selection, classification evidence, highlights, and cadence |
-| `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions |
+| `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; `market` and `language` are required |
 | `save_persona` | Validate and atomically save a generated persona |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
@@ -23,7 +23,7 @@ GamePlayerLens exposes exactly 14 MCP tools and two prompts. All tools return a 
 
 ## Prompts
 
-- `run-sim` orchestrates intake, evidence collection, persona work, domain review, criticism, evaluation storage, and run storage.
+- `run-sim` orchestrates intake, evidence collection, persona work, domain review, criticism, evaluation storage, and run storage. Explicit domains receive only their domain recipe sections; `auto` receives all domain sections.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
 Prompt arguments are strings. Structured values such as `projectBrief`, `conceptTest`, `firstContactTest`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary.

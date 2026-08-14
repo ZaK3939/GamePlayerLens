@@ -114,7 +114,6 @@ async function getServerStatus(resolver: PathResolver) {
       obscuraPageCapture: {configured: Boolean(process.env.OBSCURA_PATH?.trim())},
     },
     capabilities: {toolCount: TOOL_COUNT, promptCount: PROMPT_COUNT},
-    legacyAudienceDefaults: {market: "Japan", language: "japanese"},
   };
 }
 
@@ -253,10 +252,9 @@ export function buildServer(
           .max(MAX_REVIEWS_PER_POLARITY)
           .optional(),
         targetAppid: AppidSchema.optional(),
-        market: z.string().trim().min(1).max(80).optional(),
+        market: z.string().trim().min(1).max(80),
         language: z.string().trim().toLowerCase()
-          .regex(/^[a-z][a-z0-9_-]{0,31}$/)
-          .optional(),
+          .regex(/^[a-z][a-z0-9_-]{0,31}$/),
         focus: z.array(z.enum(PERSONA_FOCUS_VALUES))
           .min(1)
           .max(PERSONA_FOCUS_VALUES.length)
@@ -288,18 +286,10 @@ export function buildServer(
         focus,
         sourceRoles,
       });
-      const defaultWarnings = [
-        ...(market === undefined
-          ? ["market omitted: legacy default Japan applied; pass market explicitly to avoid audience mismatch"]
-          : []),
-        ...(language === undefined
-          ? ["language omitted: legacy default japanese applied; pass a Steam language code explicitly"]
-          : []),
-      ];
       return trackedJsonEnvelope(
         services.resultStore,
         "derive_personas",
-        {...result, warnings: [...defaultWarnings, ...result.warnings]},
+        result,
       );
     },
   );

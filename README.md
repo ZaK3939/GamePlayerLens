@@ -79,7 +79,7 @@ GamePlayerLens will either return an intake question or guide the client through
 
 The two MCP prompts are:
 
-- `run-sim`: the primary workflow for evidence collection, review, criticism, and artifact storage.
+- `run-sim`: the primary workflow for evidence collection, review, criticism, and artifact storage. Its recipe is compiled from only the requested subject and domains; `auto` intentionally includes every domain contract.
 - `ui-blind-compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.
 
 The server currently exposes exactly 14 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.

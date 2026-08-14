@@ -14,6 +14,7 @@ import {createArtifactStore} from "./artifacts.js";
 import type {Persona} from "./persona-schemas.js";
 import {createPersonaStore} from "./persona-store.js";
 import {createPathResolver} from "./paths.js";
+import {compileRunSimRecipe} from "./run-recipe.js";
 import {
   MAX_RUN_BYTES,
   SaveRunInputSchema,
@@ -197,7 +198,10 @@ function persona(id = "jp-skeptic"): Persona {
   };
 }
 
-async function harness(clock: () => Date = () => NOW) {
+async function harness(
+  clock: () => Date = () => NOW,
+  recipe = "# run-sim\n\nEvidence-grounded simulation recipe.\n",
+) {
   const root = await mkdtemp(join(tmpdir(), "game-player-lens-runs-"));
   roots.push(root);
   await Promise.all([
@@ -209,7 +213,6 @@ async function harness(clock: () => Date = () => NOW) {
     "skills",
     "workspaces",
   ].map((directory) => mkdir(join(root, directory), {recursive: true})));
-  const recipe = "# run-sim\n\nEvidence-grounded simulation recipe.\n";
   await writeFile(join(root, "skills", "run-sim.md"), recipe);
   const resolver = createPathResolver(root);
   const artifacts = createArtifactStore(resolver, {clock});
@@ -753,6 +756,32 @@ describe("run input schema", () => {
 });
 
 describe("run store", () => {
+  it("seals and revalidates the exact subject/domain-compiled recipe", async () => {
+    const source = await readFile(new URL("../skills/run-sim.md", import.meta.url), "utf8");
+    const {resolver, store} = await harness(() => NOW, source);
+
+    await store.saveRun(runInput());
+    const initial = await store.readRun("Hades II", RUN_ID);
+    const compiled = compileRunSimRecipe(source, {
+      subjectKind: "existing-game",
+      selectedDomains: ["storefront", "ui"],
+    });
+    expect(initial.record.recipe.sha256).toBe(sha256(compiled));
+    expect(initial.integrity.status).toBe("verified");
+
+    await writeFile(
+      resolver.resolveSkillPath("run-sim.md"),
+      source.replace("UI domain contract", "Changed UI domain contract"),
+    );
+    const drifted = await store.readRun("Hades II", RUN_ID);
+    expect(drifted.integrity).toMatchObject({
+      status: "failed",
+      dependencies: expect.arrayContaining([
+        expect.objectContaining({type: "recipe", status: "mismatch"}),
+      ]),
+    });
+  });
+
   it("saves an immutable, hashed run and round-trips list/read metadata", async () => {
     const {recipe, resolver, store} = await harness();
 

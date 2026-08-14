@@ -88,7 +88,7 @@ export function createRunIntegrityAuditor(
       record.recipe.path,
       record.recipe.sha256,
       async () => {
-        const current = await resolveRecipe();
+        const current = await resolveRecipe(record.subjectKind, record.selectedDomains);
         return {path: current.path, sha256: current.sha256};
       },
     ));
@@ -150,4 +150,3 @@ export function createRunIntegrityAuditor(
 
   return auditRun;
 }
-

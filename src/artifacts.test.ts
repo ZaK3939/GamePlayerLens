@@ -288,25 +288,34 @@ describe("intel artifact store", () => {
       .toEqual({version: 2});
   });
 
-  it.each(["link", "rename"] as const)(
-    "cleans only its own temporary file when %s fails",
-    async (operation) => {
-      const resolver = await tempResolver();
-      const targetDirectory = join(resolver.root, "knowledge", "intel", "hades-ii");
-      await mkdir(targetDirectory);
-      await writeFile(join(targetDirectory, ".keep.tmp"), "keep");
-      const failure = vi.fn(async () => {
-        throw new Error(`${operation} failed`);
-      });
-      const fileOps: Partial<ArtifactFileOps> = {[operation]: failure};
-      const store = createArtifactStore(resolver, {clock: () => now, fileOps});
+  it("cleans only its own temporary file when create-only publication fails", async () => {
+    const resolver = await tempResolver();
+    const targetDirectory = join(resolver.root, "knowledge", "intel", "hades-ii");
+    await mkdir(targetDirectory);
+    await writeFile(join(targetDirectory, ".keep.tmp"), "keep");
+    const failure = vi.fn(async () => {
+      throw new Error("link failed");
+    });
+    const fileOps: Partial<ArtifactFileOps> = {link: failure};
+    const store = createArtifactStore(resolver, {clock: () => now, fileOps});
 
-      await expect(store.saveIntel(intel(), operation === "rename")).rejects.toThrow(
-        `${operation} failed`,
-      );
-      expect(await readdir(targetDirectory)).toEqual([".keep.tmp"]);
-    },
-  );
+    await expect(store.saveIntel(intel())).rejects.toThrow("link failed");
+    expect(await readdir(targetDirectory)).toEqual([".keep.tmp"]);
+  });
+
+  it("delegates overwrite cleanup to the resilient replacement boundary", async () => {
+    const resolver = await tempResolver();
+    const targetDirectory = join(resolver.root, "knowledge", "intel", "hades-ii");
+    await mkdir(targetDirectory);
+    await writeFile(join(targetDirectory, ".keep.tmp"), "keep");
+    const replaceFile = vi.fn(async () => {
+      throw new Error("replace failed");
+    });
+    const store = createArtifactStore(resolver, {clock: () => now, replaceFile});
+
+    await expect(store.saveIntel(intel(), true)).rejects.toThrow("replace failed");
+    expect(await readdir(targetDirectory)).toEqual([".keep.tmp"]);
+  });
 
   it("ignores unrelated hidden and temporary entries when listing", async () => {
     const resolver = await tempResolver();

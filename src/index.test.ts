@@ -1,5 +1,5 @@
 import {basename, join} from "node:path";
-import {mkdtemp, mkdir, rm, symlink, writeFile} from "node:fs/promises";
+import {mkdtemp, mkdir, readdir, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {Client, InMemoryTransport} from "@modelcontextprotocol/client";
 import {afterEach, describe, expect, it, vi} from "vitest";
@@ -273,7 +273,6 @@ describe("MCP server contract", () => {
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
           capabilities: {toolCount: 14, promptCount: 2},
-          legacyAudienceDefaults: {market: "Japan", language: "japanese"},
         },
         warnings: [],
       });
@@ -287,19 +286,14 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("warns when direct persona derivation applies legacy audience defaults", async () => {
+  it("rejects persona derivation without an explicit audience", async () => {
     const {client, server} = await createHarness();
     try {
       const result = await client.callTool({
         name: "derive_personas",
         arguments: {appids: [1145360]},
       });
-      expect(result.structuredContent).toMatchObject({
-        warnings: [
-          expect.stringContaining("legacy default Japan"),
-          expect.stringContaining("legacy default japanese"),
-        ],
-      });
+      expect(result.isError).toBe(true);
     } finally {
       await client.close();
       await server.close();
@@ -596,6 +590,8 @@ describe("MCP server contract", () => {
             },
             "required": [
               "appids",
+              "market",
+              "language",
             ],
             "reviewsPerPolarity": {
               "maximum": 25,
@@ -1611,6 +1607,114 @@ describe("MCP server contract", () => {
         arguments: {kind: "intel", target: "Hades II", id: "Snapshot"},
       });
       expect(second.structuredContent).toMatchObject({data: {payload: {version: 2}}});
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("keeps MCP overwrite artifacts readable under parallel save and read load", async () => {
+    const {client, resolver, server} = await createHarness();
+    const intelBase = {
+      kind: "intel",
+      target: "Hades II",
+      id: "Concurrent Snapshot",
+      sourceTool: "steam_fetch",
+      observedAt: "2026-08-10T08:09:10.000Z",
+    } as const;
+    const evaluationBase = {
+      kind: "evaluation",
+      target: "Hades II",
+      topic: "Concurrent Review",
+      date: "2026-08-11",
+    } as const;
+    try {
+      await Promise.all([
+        client.callTool({
+          name: "save_artifact",
+          arguments: {...intelBase, payload: {cycle: -1}},
+        }),
+        client.callTool({
+          name: "save_artifact",
+          arguments: {
+            ...evaluationBase,
+            content: evaluationMarkdown("concurrent-cycle--1"),
+          },
+        }),
+        client.callTool({name: "save_persona", arguments: {persona: persona()}}),
+      ]);
+
+      for (let cycle = 0; cycle < 5; cycle += 1) {
+        const writes = Array.from({length: 4}, (_, index) => cycle * 4 + index);
+        const results = await Promise.all(writes.flatMap((version) => [
+          client.callTool({
+            name: "save_artifact",
+            arguments: {...intelBase, payload: {cycle: version}, overwrite: true},
+          }),
+          client.callTool({
+            name: "save_artifact",
+            arguments: {
+              ...evaluationBase,
+              content: evaluationMarkdown(`concurrent-cycle-${version}`),
+              overwrite: true,
+            },
+          }),
+          client.callTool({
+            name: "save_persona",
+            arguments: {
+              persona: {...persona(), archetype: `MCP test user ${version}`},
+              overwrite: true,
+            },
+          }),
+          client.callTool({
+            name: "get_artifact",
+            arguments: {kind: "intel", target: "Hades II", id: "Concurrent Snapshot"},
+          }),
+        ]));
+        expect(results.every((result) => result.isError !== true)).toBe(true);
+      }
+
+      const [intel, evaluation, storedPersona] = await Promise.all([
+        client.callTool({
+          name: "get_artifact",
+          arguments: {kind: "intel", target: "Hades II", id: "Concurrent Snapshot"},
+        }),
+        client.callTool({
+          name: "get_artifact",
+          arguments: {
+            kind: "evaluation",
+            target: "Hades II",
+            id: "2026-08-11-concurrent-review",
+          },
+        }),
+        client.callTool({
+          name: "get_knowledge",
+          arguments: {kind: "personas", id: persona().id},
+        }),
+      ]);
+      const finalCycle = (intel.structuredContent?.data as {
+        payload: {cycle: number};
+      }).payload.cycle;
+      expect(Number.isInteger(finalCycle)).toBe(true);
+      expect(finalCycle).toBeGreaterThanOrEqual(0);
+      expect(finalCycle).toBeLessThan(20);
+      expect((evaluation.structuredContent?.data as {content: string}).content)
+        .toMatch(/concurrent-cycle-\d+/u);
+      expect(storedPersona.structuredContent).toMatchObject({
+        data: {
+          id: persona().id,
+          persona: {archetype: expect.stringMatching(/^MCP test user \d+$/u)},
+        },
+      });
+
+      const storageDirectories = [
+        resolver.resolveIntelArtifactPath("Hades II", "Concurrent Snapshot").absolutePath,
+        resolver.resolveEvaluationPath("Hades II", "2026-08-11", "Concurrent Review").absolutePath,
+        resolver.resolvePersonaPath(persona().id),
+      ].map((path) => join(path, ".."));
+      for (const directory of storageDirectories) {
+        expect((await readdir(directory)).some((name) => name.includes(".tmp"))).toBe(false);
+      }
     } finally {
       await client.close();
       await server.close();

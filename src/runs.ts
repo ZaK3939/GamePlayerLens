@@ -280,7 +280,7 @@ export function createRunStore(
       ...(parsed.projectBrief ? {projectBrief: parsed.projectBrief} : {}),
       mode: parsed.mode,
       selectedDomains: parsed.selectedDomains,
-      recipe: await resolveRecipe(),
+      recipe: await resolveRecipe(parsed.subjectKind, parsed.selectedDomains),
       model: {...parsed.model, reportedByClient: true},
       scenarios: parsed.scenarios,
       personas: await resolvePersonas(parsed.personaIds),

@@ -16,6 +16,7 @@ import type {Review, ReviewOptions} from "./reviews.js";
 
 const roots: string[] = [];
 const NOW = new Date("2026-08-11T12:34:56.000Z");
+const AUDIENCE = {market: "Japan", language: "japanese"} as const;
 
 async function tempResolver() {
   const root = await mkdtemp(join(tmpdir(), "steam-user-sim-personas-"));
@@ -168,18 +169,17 @@ describe("persona store", () => {
     expect((await store.loadPersona(persona().id)).archetype).toBe("changed");
   });
 
-  it("cleans up only its temporary file when rename fails", async () => {
+  it("delegates overwrite cleanup to the resilient replacement boundary", async () => {
     const resolver = await tempResolver();
     const unrelated = join(resolver.root, "knowledge", "personas", ".keep.tmp");
     await nodeWriteFile(unrelated, "keep");
-    const store = createPersonaStore(resolver, {
-      rename: vi.fn(async () => {
-        throw new Error("rename failed");
-      }),
+    const replaceFile = vi.fn(async () => {
+      throw new Error("replace failed");
     });
+    const store = createPersonaStore(resolver, {replaceFile});
 
     await expect(store.savePersona(persona(), {overwrite: true})).rejects.toThrow(
-      "rename failed",
+      "replace failed",
     );
     const files = await readdir(join(resolver.root, "knowledge", "personas"));
     expect(files).toEqual([".keep.tmp"]);
@@ -187,6 +187,16 @@ describe("persona store", () => {
 });
 
 describe("persona derivation pack", () => {
+  it("requires market and language before fetching persona evidence", async () => {
+    const fetchGame = vi.fn();
+    const fetchReviews = vi.fn();
+    const derive = createPersonaDeriver({fetchGame, fetchReviews});
+
+    await expect(derive([1145360])).rejects.toThrow("market and language are required");
+    expect(fetchGame).not.toHaveBeenCalled();
+    expect(fetchReviews).not.toHaveBeenCalled();
+  });
+
   it("fills Japanese shortages from all languages without duplicates", async () => {
     const fetchGame = vi.fn(async (appid: number) => ({
       data: {
@@ -215,7 +225,7 @@ describe("persona derivation pack", () => {
     });
     const derive = createPersonaDeriver({fetchGame, fetchReviews, now: () => NOW});
 
-    const result = await derive([1145360]);
+    const result = await derive([1145360], undefined, undefined, AUDIENCE);
     expect(result.data?.requestedCount).toBe(5);
     expect(result.data?.reviews).toHaveLength(50);
     expect(result.data?.reviews.slice(0, 4).map((item) => item.votedUp)).toEqual([
@@ -268,7 +278,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], 2, 3, {language: "all"});
+    })([1145360], 2, 3, {market: "Global", language: "all"});
 
     expect(result.data?.generationReadiness).toEqual({
       status: "blocked",
@@ -302,7 +312,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360], 3, 3, {language: "all"});
+    })([1145360], 3, 3, {market: "Global", language: "all"});
 
     expect(result.data?.generationReadiness).toEqual({
       status: "partial",
@@ -418,6 +428,7 @@ describe("persona derivation pack", () => {
       fetchReviews,
       now: () => NOW,
     })([10, 20, 30], 3, 3, {
+      ...AUDIENCE,
       sourceRoles: [
         {appid: 30, role: "reference"},
         {appid: 10, role: "target"},
@@ -451,9 +462,11 @@ describe("persona derivation pack", () => {
     const derive = createPersonaDeriver({fetchGame, fetchReviews});
 
     await expect(derive([10, 20], 3, 3, {
+      ...AUDIENCE,
       sourceRoles: [{appid: 10, role: "target"}],
     })).rejects.toThrow(/cover exactly/i);
     await expect(derive([10, 20], 3, 3, {
+      ...AUDIENCE,
       targetAppid: 10,
       sourceRoles: [
         {appid: 10, role: "competitor"},
@@ -481,7 +494,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([10], 1, 3, {targetAppid: 10});
+    })([10], 1, 3, {...AUDIENCE, targetAppid: 10});
     const coverage = (result.meta?.methodology as {
       appids: Array<{sample: {coverage: Record<string, unknown>}}>;
     }).appids[0]?.sample.coverage;
@@ -514,7 +527,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360]);
+    })([1145360], undefined, undefined, AUDIENCE);
 
     expect(fetchReviews).toHaveBeenCalledTimes(2);
     const sampling = (result.meta?.methodology as {
@@ -540,7 +553,7 @@ describe("persona derivation pack", () => {
       fetchGame,
       fetchReviews,
       now: () => NOW,
-    })([1145360]);
+    })([1145360], undefined, undefined, AUDIENCE);
 
     expect(result.data?.games).toEqual([]);
     expect(result.data?.reviews).toHaveLength(2);

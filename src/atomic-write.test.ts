@@ -3,7 +3,6 @@ import {
   mkdtemp,
   readFile,
   readdir,
-  rename,
   rm,
   unlink,
   writeFile,
@@ -24,7 +23,6 @@ function fileOps() {
   return {
     writeFile: vi.fn(async () => undefined),
     link: vi.fn(async () => undefined),
-    rename: vi.fn(async () => undefined),
     unlink: vi.fn(async () => undefined),
   };
 }
@@ -47,38 +45,42 @@ describe("atomic text writes", () => {
       flag: "wx",
     });
     expect(ops.link).toHaveBeenCalledWith(temporary, DESTINATION);
-    expect(ops.rename).not.toHaveBeenCalled();
     expect(ops.unlink).toHaveBeenCalledWith(temporary);
   });
 
-  it("publishes an allowed overwrite through rename", async () => {
+  it("delegates an allowed overwrite to the resilient replacement boundary", async () => {
     const ops = fileOps();
+    const replaceFile = vi.fn(async () => undefined);
 
     await writeTextFileAtomically(DESTINATION, "replacement", {
       fileOps: ops,
       alreadyExistsMessage: "item already exists",
       overwrite: true,
       idFactory: () => "fixed-id",
+      replaceFile,
     });
 
-    expect(ops.rename).toHaveBeenCalledWith(
-      TEMPORARY,
-      DESTINATION,
-    );
+    expect(replaceFile).toHaveBeenCalledWith(DESTINATION, "replacement");
+    expect(ops.writeFile).not.toHaveBeenCalled();
     expect(ops.link).not.toHaveBeenCalled();
+    expect(ops.unlink).not.toHaveBeenCalled();
   });
 
-  it("requires rename only when overwrite is requested", async () => {
-    const withRename = fileOps();
-    const {rename: _rename, ...ops} = withRename;
+  it("surfaces replacement failures without touching create-only operations", async () => {
+    const ops = fileOps();
+    const replaceFile = vi.fn(async () => {
+      throw nodeError("EPERM");
+    });
 
     await expect(writeTextFileAtomically(DESTINATION, "replacement", {
       fileOps: ops,
       alreadyExistsMessage: "item already exists",
       overwrite: true,
       idFactory: () => "fixed-id",
-    })).rejects.toThrow("atomic overwrite requires a rename operation");
-    expect(ops.unlink).toHaveBeenCalledWith(TEMPORARY);
+      replaceFile,
+    })).rejects.toThrow("EPERM");
+    expect(ops.writeFile).not.toHaveBeenCalled();
+    expect(ops.unlink).not.toHaveBeenCalled();
   });
 
   it("maps destination collisions to the caller's domain message", async () => {
@@ -146,7 +148,7 @@ describe("atomic text writes", () => {
       await writeFile(destination, "initial", "utf8");
       for (let iteration = 0; iteration < 100; iteration += 1) {
         await writeTextFileAtomically(destination, `payload-${iteration}`, {
-          fileOps: {writeFile, link, rename, unlink},
+          fileOps: {writeFile, link, unlink},
           alreadyExistsMessage: "item already exists",
           overwrite: true,
           idFactory: () => `iteration-${iteration}`,
