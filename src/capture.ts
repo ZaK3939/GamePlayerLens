@@ -396,7 +396,7 @@ export function createCaptureService(
         type: "png",
         fullPage: request.fullPage,
       });
-      const completed = await open(request.path, "r");
+      const completed = await open(request.path, "r+");
       try {
         await completed.sync();
       } finally {
