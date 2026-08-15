@@ -98,7 +98,11 @@ The read-only tool uses only runs whose integrity is currently verified. It deri
 - `review-without-new-stimulus`: the same build was reviewed without a new cited build-bound capture or UI reference, first-contact result, playtest, or direct experiment measurement;
 - `human-handoff-stall`: the same normalized human validation question appeared in consecutive reviews without a previously unseen human-evidence SHA-256 cited in that persona round's `stimulusEvidenceRefs`.
 
-`activeFindings` contains only unresolved conditions. `findingHistory` retains both active and resolved occurrences and records the run that satisfied each stop condition. Reassigning an already-seen human observation to a different question does not satisfy a stop condition; one newly captured human artifact may answer multiple questions only when each corresponding persona round cites it. The result card leads with the highest-priority active next action. It does not calculate a composite score, infer fun or demand, inspect unsaved `play-build` responses, or replace the next operation or human session. A finding means the stored iteration history repeated an evidence state; it is not a judgment of developer productivity or game quality.
+`activeFindings` contains only unresolved conditions. `findingHistory` retains both active and resolved occurrences and records the run that satisfied each stop condition. Reassigning an already-seen human observation to a different question does not satisfy a stop condition; one newly captured human artifact may answer multiple questions only when each corresponding persona round cites it.
+
+`latestReviewDecision` returns the newest analyzed run's verdict, decision, player problem, highest risk, next action, and success signal. `sourceEvaluation` binds that projection to the run evidence alias, target, artifact ID, and SHA-256. If a finding is active, follow the coach card before resuming this saved review action. The projection is not a new verdict and does not override the evaluation.
+
+The result card leads with the highest-priority active next action. It does not calculate a composite score, infer fun or demand, inspect unsaved `play-build` responses, or replace the next operation or human session. A finding means the stored iteration history repeated an evidence state; it is not a judgment of developer productivity or game quality.
 
 ## Discovery
 

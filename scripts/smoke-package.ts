@@ -167,6 +167,7 @@ try {
       && coachedHistoryJson.includes('"analyzedRunCount":0')
       && coachedHistoryJson.includes('"activeFindings":[]')
       && coachedHistoryJson.includes('"findingHistory":[]')
+      && coachedHistoryJson.includes('"latestReviewDecision":null')
       && coachedHistoryJson.includes('"highestPriorityFinding":null')
       && !coachedHistoryJson.includes('"findings":')
       && !/score/iu.test(coachedHistoryJson),

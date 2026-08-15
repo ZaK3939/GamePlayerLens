@@ -559,6 +559,7 @@ describe("MCP server contract", () => {
           analyzedRunCount: 0,
           activeFindings: [],
           findingHistory: [],
+          latestReviewDecision: null,
           card: {highestPriorityFinding: null},
         },
         warnings: [],

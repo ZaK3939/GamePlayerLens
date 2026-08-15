@@ -87,7 +87,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 | Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Audit | Decide whether a milestone or bounded revision should advance | structured Decision Card, immutable evidence run, prioritized backlog |
-| Coach | Detect review loops that did not add a build, direct stimulus, or human handoff | one deterministic finding card and a stop condition |
+| Coach | Detect review loops that did not add a build, direct stimulus, or human handoff | one deterministic finding card, its stop condition, and the latest saved review action |
 | Research | Collect current Steam, review, update, price, and competitor evidence when the selected decision requires it | `steam_brief`, provenance, supported decisions, gaps |
 
 The four MCP prompts are:

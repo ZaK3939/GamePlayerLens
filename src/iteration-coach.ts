@@ -64,6 +64,22 @@ export interface IterationCoachHistoryInput {
   limit?: number;
 }
 
+export interface LatestReviewDecision {
+  runId: string;
+  verdict: "GO" | "HOLD" | "NO-GO";
+  decision: IterationDecision;
+  playerProblem: string;
+  highestRisk: string;
+  nextAction: string;
+  successSignal: string;
+  sourceEvaluation: {
+    ref: string;
+    targetId: string;
+    id: string;
+    sha256: string;
+  };
+}
+
 export interface IterationCoachHistoryResult {
   data: IterationCoachAnalysis & {
     targetId: string | null;
@@ -73,6 +89,7 @@ export interface IterationCoachHistoryResult {
     excludedIntegrityRunCount: number;
     excludedUnreadableRunCount: number;
     window: {oldest: string; newest: string} | null;
+    latestReviewDecision: LatestReviewDecision | null;
     iterations: Array<{
       runId: string;
       savedAt: string;
@@ -439,6 +456,7 @@ export async function buildIterationCoachHistory(
   const listed = (await dependencies.runStore.listRuns(input.target)).slice(0, limit);
   const warnings: string[] = [];
   const snapshots: IterationSnapshot[] = [];
+  const reviewDecisions = new Map<string, LatestReviewDecision>();
   let ignoredNonDeveloperRunCount = 0;
   let excludedIntegrityRunCount = 0;
   let excludedUnreadableRunCount = 0;
@@ -486,6 +504,21 @@ export async function buildIterationCoachHistory(
         evaluationEvidence.targetId,
         evaluationEvidence.id,
       );
+      reviewDecisions.set(run.record.runId, {
+        runId: run.record.runId,
+        verdict: evaluation.developerSummary.verdict,
+        decision: evaluation.developerSummary.decision,
+        playerProblem: evaluation.decisionCard.playerProblem,
+        highestRisk: evaluation.developerSummary.highestRisk,
+        nextAction: evaluation.developerSummary.nextAction,
+        successSignal: evaluation.developerSummary.successSignal,
+        sourceEvaluation: {
+          ref: evaluationEvidence.ref,
+          targetId: evaluationEvidence.targetId,
+          id: evaluationEvidence.id,
+          sha256: evaluationEvidence.sha256,
+        },
+      });
 
       const citedRefs = new Set(run.record.rounds.flatMap(({evidenceRefs}) => evidenceRefs));
       const directStimulusHashes: string[] = [];
@@ -563,6 +596,9 @@ export async function buildIterationCoachHistory(
       excludedUnreadableRunCount,
       window: ordered.length > 0
         ? {oldest: ordered[0]!.savedAt, newest: ordered.at(-1)!.savedAt}
+        : null,
+      latestReviewDecision: ordered.length > 0
+        ? reviewDecisions.get(ordered.at(-1)!.runId) ?? null
         : null,
       iterations: evaluated.deltas,
       ...evaluated.analysis,

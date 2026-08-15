@@ -265,11 +265,8 @@ describe("iteration coach", () => {
       readIntel: async (_target: string, id: string) => ({
         payload: auditBundleEnvelope(id),
       }),
-      readEvaluation: async (_target: string, id: string) => ({
-        decisionCard: {
-          decision: id === "eval-a" ? "fix-now" : "investigate",
-        },
-      }),
+      readEvaluation: async (_target: string, id: string) =>
+        evaluationArtifact(id, id === "eval-a" ? "fix-now" : "investigate"),
     } as unknown as ArtifactStore;
 
     const result = await buildIterationCoachHistory(
@@ -293,6 +290,21 @@ describe("iteration coach", () => {
     expect(result.data.boundaries).toContainEqual(
       expect.stringMatching(/SHA-256 is new[\s\S]*same persona round/iu),
     );
+    expect(result.data.latestReviewDecision).toEqual({
+      runId: ids.second,
+      verdict: "HOLD",
+      decision: "investigate",
+      playerProblem: "The player cannot explain the observed result.",
+      highestRisk: "The next build may preserve the same player-facing failure.",
+      nextAction: "Operate the bounded task from eval-b.",
+      successSignal: "The player can explain the result in eval-b.",
+      sourceEvaluation: {
+        ref: "final-evaluation",
+        targetId: "project-nyx",
+        id: "eval-b",
+        sha256: "6".repeat(64),
+      },
+    });
   });
 
   it("binds human evidence only to the validation question in the citing persona round", async () => {
@@ -330,9 +342,8 @@ describe("iteration coach", () => {
           ? {data: humanMeasurement(), warnings: []}
           : auditBundleEnvelope(id),
       }),
-      readEvaluation: async () => ({
-        decisionCard: {decision: "investigate"},
-      }),
+      readEvaluation: async (_target: string, id: string) =>
+        evaluationArtifact(id, "investigate"),
     } as unknown as ArtifactStore;
 
     const result = await buildIterationCoachHistory(
@@ -376,9 +387,8 @@ describe("iteration coach", () => {
       readIntel: async (_target: string, id: string) => ({
         payload: auditBundleEnvelope(id),
       }),
-      readEvaluation: async () => ({
-        decisionCard: {decision: "investigate"},
-      }),
+      readEvaluation: async (_target: string, id: string) =>
+        evaluationArtifact(id, "investigate"),
     } as unknown as ArtifactStore;
 
     const result = await buildIterationCoachHistory(
@@ -499,6 +509,40 @@ function auditBundleEnvelope(bundleId: string) {
     meta: {
       observedAt: "2026-08-14T09:00:00Z",
       resultHandle: "00000000-0000-4000-8000-000000000010",
+    },
+  };
+}
+
+function evaluationArtifact(
+  id: string,
+  decision: "fix-now" | "test-next-build" | "investigate" | "defer",
+) {
+  const verdict = "HOLD" as const;
+  const highestRisk = "The next build may preserve the same player-facing failure.";
+  const nextAction = `Operate the bounded task from ${id}.`;
+  const successSignal = `The player can explain the result in ${id}.`;
+  return {
+    decisionCard: {
+      verdict,
+      decision,
+      proven: ["Observed result [E-1]"],
+      unproven: ["Player comprehension is unproven"],
+      highestRisk,
+      playerProblem: "The player cannot explain the observed result.",
+      nextValidations: [{
+        test: nextAction,
+        successSignal,
+        guardrail: "Do not add content before the task is readable.",
+      }],
+      confidence: "medium",
+      revisitCondition: "Revisit after the bounded operation.",
+    },
+    developerSummary: {
+      verdict,
+      decision,
+      highestRisk,
+      nextAction,
+      successSignal,
     },
   };
 }
