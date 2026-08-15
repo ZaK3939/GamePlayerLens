@@ -8,6 +8,7 @@ Read `workflowRouting` and `intakeDiagnostics` first.
 
 - `repair-first`: do not open the build, call Steam tools, derive personas, run an audit, or save artifacts. Return only the Repair First Card below.
 - `needs-input`: ask once for every missing field and stop.
+- `needs-personas`: do not operate yet. Return the Lens Preparation Request below so the caller can prepare saved, question-relevant personas.
 - `play-build`: operate exactly the declared build, task, controls, start state, end state, and time limit.
 
 ## Repair First Card
@@ -22,11 +23,26 @@ Read `workflowRouting` and `intakeDiagnostics` first.
 - Focused regression: the smallest technical check after repair
 - Re-enter when: the supplied re-entry condition
 
+## Lens Preparation Request
+
+- Route: `PREPARE LENSES`
+- Player task and target response question
+- Missing input: saved `personaIds`
+- Required source fit: target, direct / adjacent competitor with three match axes, or a bounded system reference
+- Re-enter when: call `play-build` with `playerLensMode=grounded-personas` and the saved IDs
+
+This request does not invent personas or select a popular game as a substitute for source fit.
+
 ## Operation contract
 
 Use an available browser or desktop-control capability to operate the build. Merely reading source, watching a static frame, or loading the page is not play. If operation is unavailable or the build cannot reach the start state, return an operation blocker and stop; do not substitute Steam research.
 
-Do one neutral first-use pass. If `personaIds` are supplied, read only those saved personas with `get_knowledge` and replay the same observed stimulus through each lens. Do not derive new personas, search Steam, choose competitors, run `audit-project`, or persist artifacts in this workflow. Capture observations when available, but useful output does not depend on storage ceremony.
+Honor `playerLensMode` explicitly:
+
+- `neutral`: do one neutral first-use pass. `personaIds` are invalid in this mode.
+- `grounded-personas`: do the neutral pass first, read only the supplied saved personas with `get_knowledge`, then replay the same observed stimulus through every lens. Never change the build, task, start state, evidence class, or exposure between lenses.
+
+Do not derive personas, search Steam, choose competitors, run `audit-project`, or persist artifacts inside this prompt. The caller prepares personas before re-entry. Capture observations when available, but useful output does not depend on storage ceremony.
 
 Keep these classes separate:
 
@@ -72,12 +88,12 @@ The observed after-state, feedback, and player options can be reward signals. Fe
 
 When `coreClaim` is absent, keep the heading and write only `Core claim: undeclared; observed responses are reported without an intended-delivery judgment.`
 
-### Player Lens Reactions
+### Virtual Player Panel — Player Lens Reactions
 
-| Lens | Grounded memory | First noticed | Expected | Likely interpretation | Next choice | Confidence | Human falsifier |
+| Lens | Grounded memory | First noticed | Expected | Predicted response | Next choice | Confidence | Human falsifier |
 |---|---|---|---|---|---|---|---|
 
-Without explicit persona IDs, include only `neutral-operation` and do not invent a demographic or review voice.
+In `neutral` mode, include only `neutral-operation` and do not invent a demographic or review voice. In `grounded-personas` mode, every row must cite saved review memory relevant to this player task. The panel is a set of differentiated hypotheses, not a vote, population estimate, or market share.
 
 ### Build Handoff
 

@@ -75,6 +75,7 @@ const EXPECTED_PLAY_BUILD_ARGUMENTS = [
   "endState",
   "coreClaim",
   "timeLimitMinutes",
+  "playerLensMode",
   "personaIds",
   "knownBlockers",
 ];
@@ -282,6 +283,27 @@ try {
       && repairContent.text.includes('"steam-research"')
       && !repairContent.text.includes("auditSnapshotBundle"),
     "play-build did not short-circuit known blockers",
+  );
+
+  const virtualPlayerPrompt = await client.getPrompt({
+    name: "play-build",
+    arguments: {
+      target: "Stdio Virtual Player Fixture",
+      buildUrl: "http://127.0.0.1:4173/play",
+      buildId: "lens-001",
+      task: "Complete one delivery and read the result",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "The arrival result is visible",
+      playerLensMode: "grounded-personas",
+    },
+  });
+  const virtualPlayerContent = virtualPlayerPrompt.messages[0]?.content;
+  assert(
+    virtualPlayerContent?.type === "text"
+      && virtualPlayerContent.text.includes('"status": "needs-personas"')
+      && virtualPlayerContent.text.includes("Virtual Player Panel"),
+    "play-build did not require grounded personas for a virtual-player panel",
   );
 
   const corePrompt = await client.getPrompt({
@@ -842,6 +864,7 @@ try {
     playtestCohortRoundTrip: true,
     iterationCoachRoundTrip: true,
     legalAuditRoundTrip: true,
+    virtualPlayerRouting: true,
     liveSearch,
     liveBrief,
     liveBriefBytes,

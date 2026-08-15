@@ -600,7 +600,7 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.2.0"},
+          server: {name: "game-player-lens", version: "0.3.0"},
           storage: {location: "repository-root", writable: true},
           integrations: {
             itadPriceHistory: {configured: expect.any(Boolean)},
@@ -3035,6 +3035,7 @@ describe("MCP server contract", () => {
         "endState",
         "coreClaim",
         "timeLimitMinutes",
+        "playerLensMode",
         "personaIds",
         "knownBlockers",
       ]);

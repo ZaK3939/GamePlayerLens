@@ -1,4 +1,4 @@
 interface:
   display_name: "GamePlayerLens"
-  short_description: "Turn one game build into the next testable decision"
-  default_prompt: "Use $game-player-lens to operate one player task, challenge the riskiest assumption, and choose the next build."
+  short_description: "Test one game build through grounded virtual players"
+  default_prompt: "Use $game-player-lens to operate one player task, build relevant virtual player lenses when needed, and choose the next testable build."

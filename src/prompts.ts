@@ -293,11 +293,22 @@ export const PlayBuildPromptArgumentsSchema = z.object({
     "JSON object declaring the theme, distinctive system, intended experience, reward, proof moment, and optional amplifier",
   ),
   timeLimitMinutes: BuildProbeDurationSchema.optional(),
+  playerLensMode: z.enum(["neutral", "grounded-personas"]).default("neutral").describe(
+    "Use neutral for observation only, or grounded-personas to replay the same observed stimulus through saved review-grounded personas",
+  ),
   personaIds: PersonaIdsSchema.optional(),
   knownBlockers: KnownBlockersTextSchema.optional().describe(
     "One known execution blocker per line in intended repair order",
   ),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.playerLensMode === "neutral" && value.personaIds) {
+    context.addIssue({
+      code: "custom",
+      path: ["personaIds"],
+      message: "personaIds require playerLensMode=grounded-personas",
+    });
+  }
+});
 
 export type GameReviewPromptArguments = z.input<typeof GameReviewPromptArgumentsSchema>;
 export type ReviewChangePromptArguments = z.input<
@@ -576,9 +587,16 @@ export function buildPlayBuildPrompt(
     "startState",
     "endState",
   ] as const;
-  const missingFields = repairFirst
+  const missingOperationFields = repairFirst
     ? []
     : requiredOperationFields.filter((field) => !parsed[field]?.trim());
+  const needsPersonas = !repairFirst
+    && parsed.playerLensMode === "grounded-personas"
+    && !parsed.personaIds;
+  const missingFields = [
+    ...missingOperationFields,
+    ...(needsPersonas ? ["personaIds" as const] : []),
+  ];
   const structuredCoreClaim = parsed.coreClaim
     ? CorePlayClaimObjectSchema.parse(JSON.parse(parsed.coreClaim))
     : undefined;
@@ -603,13 +621,19 @@ export function buildPlayBuildPrompt(
     intakeDiagnostics: {
       status: repairFirst
         ? "repair-first"
-        : missingFields.length === 0 ? "ready" : "needs-input",
+        : missingOperationFields.length > 0
+          ? "needs-input"
+          : needsPersonas ? "needs-personas" : "ready",
       missingFields,
       nextAction: repairFirst
         ? workflowRouting.nextAction
-        : missingFields.length === 0
-          ? "Operate only the bounded build task and return a Player Probe Card."
-          : "Ask for all missing operation fields in one concise question.",
+        : missingOperationFields.length > 0
+          ? "Ask for all missing operation fields in one concise question."
+          : needsPersonas
+            ? "Prepare and save relevant grounded personas, then call play-build with playerLensMode=grounded-personas and their personaIds."
+            : parsed.playerLensMode === "grounded-personas"
+              ? "Operate the bounded task once neutrally, then replay the same observed stimulus through only the saved personas."
+              : "Operate only the bounded build task and return a Player Probe Card.",
     },
   });
 }

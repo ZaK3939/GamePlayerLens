@@ -1954,6 +1954,7 @@ describe("play-build prompt", () => {
       startState: "At the dock before construction",
       endState: "Delivery result is visible",
       timeLimitMinutes: "12",
+      playerLensMode: "grounded-personas",
       personaIds: "cautious-builder, risk-taker,cautious-builder",
     });
     const result = buildPlayBuildPrompt(playBuildRecipe, parsed);
@@ -1961,8 +1962,49 @@ describe("play-build prompt", () => {
     expect(parsed.buildUrl).toBe("http://127.0.0.1:4173/play#debug");
     expect(result).toContain('"route": "play-build"');
     expect(result).toContain('"status": "ready"');
+    expect(result).toContain('"playerLensMode": "grounded-personas"');
     expect(result).toContain('"personaIds": [\n    "cautious-builder",\n    "risk-taker"\n  ]');
     expect(result).toContain('"testerType": "ai-operated"');
+  });
+
+  it("routes a requested virtual-player panel to persona preparation before operation", () => {
+    const result = buildPlayBuildPrompt(playBuildRecipe, {
+      target: "Project Nyx",
+      buildUrl: "http://127.0.0.1:4173/play",
+      buildId: "build-042",
+      task: "Complete one delivery",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "Delivery result is visible",
+      playerLensMode: "grounded-personas",
+    });
+
+    expect(result).toContain('"playerLensMode": "grounded-personas"');
+    expect(result).toContain('"status": "needs-personas"');
+    expect(result).toContain('"missingFields": [\n      "personaIds"\n    ]');
+    expect(result).toMatch(/prepare[\s\S]*grounded[\s\S]*persona/i);
+    expect(result).not.toContain('"status": "ready"');
+  });
+
+  it("keeps neutral operation explicit and rejects persona IDs in neutral mode", () => {
+    const result = buildPlayBuildPrompt(playBuildRecipe, {
+      target: "Project Nyx",
+      buildUrl: "http://127.0.0.1:4173/play",
+      buildId: "build-042",
+      task: "Complete one delivery",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "Delivery result is visible",
+      playerLensMode: "neutral",
+    });
+
+    expect(result).toContain('"playerLensMode": "neutral"');
+    expect(result).toContain('"status": "ready"');
+    expect(() => PlayBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      playerLensMode: "neutral",
+      personaIds: "cautious-builder",
+    })).toThrow(/playerLensMode/i);
   });
 
   it("normalizes a compact core claim for experience-reward delivery tracing", () => {

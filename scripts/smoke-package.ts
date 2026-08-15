@@ -91,6 +91,8 @@ for (const runtimePath of [
   join(repositoryRoot, "knowledge", "rubrics", "experiment.md"),
   join(repositoryRoot, "knowledge", "rubrics", "indie-survival-strategy.md"),
   join(repositoryRoot, "skills", "game-review.md"),
+  join(repositoryRoot, "skills", "game-player-lens", "SKILL.md"),
+  join(repositoryRoot, "skills", "game-player-lens", "agents", "openai.yaml"),
   join(repositoryRoot, "skills", "game-legal-audit", "SKILL.md"),
   join(repositoryRoot, "skills", "game-legal-audit", "agents", "openai.yaml"),
 ]) {
@@ -285,6 +287,27 @@ try {
       && repairContent.text.includes('"steam-research"')
       && !repairContent.text.includes("auditSnapshotBundle"),
     "packaged play-build did not short-circuit known blockers",
+  );
+
+  const virtualPlayerPrompt = await client.getPrompt({
+    name: "play-build",
+    arguments: {
+      target: "Package Virtual Player Fixture",
+      buildUrl: "http://127.0.0.1:4173/play",
+      buildId: "lens-001",
+      task: "Complete one delivery and read the result",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "The arrival result is visible",
+      playerLensMode: "grounded-personas",
+    },
+  });
+  const virtualPlayerContent = virtualPlayerPrompt.messages[0]?.content;
+  assert(
+    virtualPlayerContent?.type === "text"
+      && virtualPlayerContent.text.includes('"status": "needs-personas"')
+      && virtualPlayerContent.text.includes("Virtual Player Panel"),
+    "packaged play-build did not require grounded personas for a virtual-player panel",
   );
 
   const corePrompt = await client.getPrompt({
@@ -1548,6 +1571,7 @@ try {
     experimentLoopRoundTrip,
     iterationCoachRoundTrip,
     legalAuditRoundTrip,
+    virtualPlayerRouting: true,
     liveBrief,
     liveUpdates,
     liveExactSave,

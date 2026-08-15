@@ -860,6 +860,7 @@ describe("MCP prompt source recipes", () => {
     const metadata = await read("skills/game-player-lens/agents/openai.yaml");
 
     expect(content).toContain("name: game-player-lens");
+    expect(content).toMatch(/description:[^\n]*(virtual player|player persona)/i);
     expect(content).not.toContain("TODO");
     expect(content).toContain("get_status");
     expect(content).toMatch(/skill[\s\S]*does not install[\s\S]*MCP/i);
@@ -872,6 +873,11 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/Canvas|WebGL/);
     expect(content).toMatch(/screenshot[\s\S]*reproduction[\s\S]*severity[\s\S]*subsystem/i);
     expect(content).toMatch(/same player task[\s\S]*(compile|unit test)[\s\S]*not[\s\S]*(behavior|proof)/i);
+    expect(content).toMatch(/Prepare grounded player lenses[\s\S]*neutral[\s\S]*derive_personas[\s\S]*save_persona[\s\S]*grounded-personas/i);
+    expect(content).toMatch(/known blocker[\s\S]*(do not|never)[\s\S]*(derive|prepare)[\s\S]*persona/i);
+    expect(content).toMatch(/competitor[\s\S]*three[\s\S]*match axes/i);
+    expect(content).toMatch(/UI[\s\S]*stimulus[\s\S]*not[\s\S]*(trait|personality)/i);
+    expect(content).toMatch(/Virtual Player Panel[\s\S]*grounded memory[\s\S]*predicted response[\s\S]*human falsifier/i);
     for (const prompt of [
       "play-build",
       "review-change",
@@ -882,6 +888,18 @@ describe("MCP prompt source recipes", () => {
       expect(content).toContain(`\`${prompt}\``);
     }
     expect(metadata).toContain("$game-player-lens");
+    expect(metadata).toMatch(/virtual player/i);
+  });
+
+  it("makes neutral and grounded virtual-player operation explicit", async () => {
+    const content = await read("skills/play-build.md");
+
+    expect(content).toContain("playerLensMode");
+    expect(content).toContain("needs-personas");
+    expect(content).toContain("Virtual Player Panel");
+    expect(content).toMatch(/neutral[\s\S]*grounded-personas/i);
+    expect(content).toMatch(/same observed stimulus/i);
+    expect(content).toMatch(/not[\s\S]*(population|market share)/i);
   });
 
   it("packages a bounded legal issue-spotting skill with private-source and counsel gates", async () => {

@@ -27,7 +27,7 @@ GamePlayerLens exposes exactly 17 MCP tools and five prompts. All tools return a
 ## Prompts
 
 - `audit-game-legal` reads a verified `legal_source_plan` handle through the packaged `game-legal-audit` skill. It performs source-grounded issue spotting, preserves `cannot-assess`, and never claims legal advice or clearance.
-- `play-build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. Its optional `coreClaim` adds a Core Delivery Trace. It returns a Player Probe Card and a compact Build Handoff; it never starts Steam research, persona derivation, a full audit, or mandatory persistence.
+- `play-build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. `playerLensMode=neutral` performs observation only. `playerLensMode=grounded-personas` requires saved persona IDs and replays the same observed stimulus as a Virtual Player Panel. Its optional `coreClaim` adds a Core Delivery Trace. It returns a Player Probe Card and a compact Build Handoff; it never starts Steam research, persona derivation, a full audit, or mandatory persistence.
 - `review-change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
 - `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`. Supplying `knownBlockers` short-circuits a premature audit to Repair First without requiring the full intake.
 - `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
@@ -36,7 +36,7 @@ GamePlayerLens exposes exactly 17 MCP tools and five prompts. All tools return a
 
 Prompt arguments are strings. Structured values such as `coreClaim`, `projectBrief`, `conceptTest`, `auditSnapshotBundle`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary. `coreClaim` declares a one-sentence promise, theme, distinctive system, intended experience, one of the six reward families, intended reward, proof moment, and optional amplifier. First-contact input goes through `record_first_contact`; pass its result handle as `firstContactResultHandle`.
 
-`knownBlockers` is newline-separated in intended repair order. When non-empty, its Repair First route takes the first blocker while preserving the rest and takes precedence over missing build or audit fields. `personaIds` is a comma-separated list of already saved personas; `play-build` never derives personas implicitly.
+`knownBlockers` is newline-separated in intended repair order. When non-empty, its Repair First route takes the first blocker while preserving the rest and takes precedence over missing build or audit fields. `personaIds` is a comma-separated list of already saved personas and is valid only with `playerLensMode=grounded-personas`. Without those IDs the prompt returns `needs-personas`; `play-build` never derives personas implicitly.
 
 ## Game legal audit
 

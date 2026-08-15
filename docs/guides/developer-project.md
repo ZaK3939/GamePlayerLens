@@ -27,11 +27,12 @@ Start with `play-build` when a playable URL exists. Use `review-change` for one 
   "startState": "At the dock before construction",
   "endState": "The arrival result is visible",
   "timeLimitMinutes": "12",
+  "playerLensMode": "grounded-personas",
   "personaIds": "cautious-builder,risk-taker"
 }
 ```
 
-The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, grounded lens reactions, and one Build Handoff with a human falsifier. It does not return a milestone verdict or automatically run Steam research.
+Use `playerLensMode=neutral` without persona IDs for observation only. Use `playerLensMode=grounded-personas` for a virtual-player panel; saved `personaIds` are then required. The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, a Virtual Player Panel, and one Build Handoff with a human falsifier. It does not return a milestone verdict or automatically run Steam research.
 
 If the client cannot operate the build, it reports an operation blocker. Loading a page, reading source, or viewing one static frame is not play.
 

@@ -1,6 +1,6 @@
 # GamePlayerLens
 
-GamePlayerLens is an operation-first player-lens and evidence-review MCP server for game teams. Its shortest loop is `play build → form grounded player hypotheses → make the smallest change → ask a human to falsify them`. Milestone auditing remains available after the build produces useful evidence. It combines direct build operation, review-derived player memories, UI stimuli, human observations, and—only when the decision needs them—Steam and competitor data to answer four questions:
+GamePlayerLens is an operation-first, review-grounded virtual-player and evidence-review MCP server for game teams. Its shortest loop is `play build → form grounded player hypotheses → make the smallest change → ask a human to falsify them`. Milestone auditing remains available after the build produces useful evidence. It combines direct build operation, review-derived player memories, UI stimuli, human observations, and—only when the decision needs them—Steam and competitor data to answer four questions:
 
 - What happened when one bounded player task was operated?
 - How might different grounded player lenses interpret that response?
@@ -11,11 +11,13 @@ Review-derived personas remain part of the process, but they are evidence-ground
 
 ## Quick start
 
-Install the agent-facing decision router from GitHub. Preview the repository's skills first, then add only GamePlayerLens:
+From the game repository that should use GamePlayerLens, install the verified v0.3.0 Agent Skill and confirm that the project can see it:
 
 ```bash
-npx skills add ZaK3939/GamePlayerLens --list
-npx skills add ZaK3939/GamePlayerLens --skill game-player-lens
+cd /path/to/your-game
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.0/skills/game-player-lens --list
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.0/skills/game-player-lens --skill game-player-lens
+npx skills list
 ```
 
 Add `-a codex`, `-a claude-code`, or another supported agent when automatic detection is not appropriate. This installs the Agent Skill; it does not install or register the MCP server that supplies data, storage, and prompts.
@@ -23,7 +25,7 @@ Add `-a codex`, `-a claude-code`, or another supported agent when automatic dete
 Run that server from source. Requirements are a supported Node.js LTS release (22 or newer) and pnpm 10 or newer:
 
 ```bash
-git clone https://github.com/ZaK3939/GamePlayerLens.git
+git clone --branch v0.3.0 --depth 1 https://github.com/ZaK3939/GamePlayerLens.git
 cd GamePlayerLens
 pnpm install --frozen-lockfile
 pnpm build
@@ -42,7 +44,7 @@ Register the built CLI in the MCP configuration used by your client, replacing t
 }
 ```
 
-The clone also includes `.mcp.json` for repository-local development. Enable the server, restart the client, and call `get_status` with no arguments. It reports whether the data directory is writable and whether the optional ITAD and Obscura integrations are configured, without returning secrets or absolute paths. CI verifies the complete build, test, stdio, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
+The clone also includes `.mcp.json` for repository-local development. Enable the server and restart the client. Verify both layers independently: **Skill check:** invoke `$game-player-lens` from the game repository. **MCP check:** call `get_status` with no arguments. It reports whether the data directory is writable and whether optional integrations are configured, without returning secrets or absolute paths. CI verifies the complete build, test, stdio, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
 
 For a playable development build, start with `play-build` rather than a full audit:
 
@@ -55,9 +57,12 @@ For a playable development build, start with `play-build` rather than a full aud
   "controls": "Keyboard and mouse",
   "startState": "At the dock before construction",
   "endState": "The delivery result is visible",
+  "playerLensMode": "neutral",
   "timeLimitMinutes": "12"
 }
 ```
+
+For a virtual-player panel, operate this exact task in `neutral` mode first. Then derive and save personas from reviews selected for the observed question, and repeat it with `playerLensMode=grounded-personas` plus their `personaIds`. The same build stimulus is replayed through differentiated evidence-grounded lenses; their predictions remain hypotheses until people falsify or support them.
 
 When the immediate question is whether the playable core lands, add the optional `coreClaim`. It declares the theme plus distinctive system, intended experience and reward, proof moment, and optional amplifier. `play-build` then returns a Core Delivery Trace alongside the Action → Response Trace. Omit it for neutral operation; GamePlayerLens will not infer the intended core from genre labels, visual resemblance, or the build's appearance.
 
@@ -68,6 +73,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Goal | Start here | Guide |
 |---|---|---|
 | Operate one build task through player lenses | `play-build` with build, task, controls, and start/end state | [Developer projects](docs/guides/developer-project.md) |
+| Build a grounded virtual-player panel | neutral `play-build` → `derive_personas` / `save_persona` → grounded `play-build` on the same task | [Developer projects](docs/guides/developer-project.md#run-evidence-grounded-player-lens-rounds) |
 | Repair already-known execution blockers | `play-build` with `target` and newline-separated `knownBlockers` | [Developer projects](docs/guides/developer-project.md#repair-first-routing) |
 | Review one proposed revision | `review-change` with `currentState`, `proposal`, and `revisionBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a concept, prototype, vertical slice, or milestone | `audit-project`; active projects also require an `auditSnapshotBundle` | [Developer projects](docs/guides/developer-project.md) |
@@ -86,7 +92,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Route | Stop known blockers before research or audit | Repair First Card and re-entry condition |
 | Play | Operate one bounded task in a playable build | Action → Response Trace |
 | Trace the core | Compare declared theme/system and experience/reward delivery with one operation | Core Delivery Trace and one primary drift |
-| Hypothesize | Replay the same observed stimulus through explicit grounded personas | Player Lens Reactions with confidence and human falsifier |
+| Hypothesize | Replay the same observed stimulus through explicit grounded personas | Virtual Player Panel with confidence and human falsifier |
 | Fix | Choose the smallest change and the least costly delivery topology that can alter the next operation | compact Build Handoff with change, invariants, task, success signal, and guardrail |
 | Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
