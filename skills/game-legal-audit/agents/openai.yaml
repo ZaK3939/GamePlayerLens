@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game Legal Audit"
+  short_description: "Audit game engine, asset, and release license risks"
+  default_prompt: "Use $game-legal-audit to audit this game release and identify license evidence gaps."

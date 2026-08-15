@@ -15,6 +15,7 @@ const EXPECTED_TOOLS = [
   "get_artifact",
   "get_knowledge",
   "get_status",
+  "legal_source_plan",
   "record_first_contact",
   "save_artifact",
   "save_persona",
@@ -27,7 +28,13 @@ const EXPECTED_TOOLS = [
   "steam_updates",
   "ui_capture",
 ];
-const EXPECTED_PROMPTS = ["audit-project", "play-build", "review-change", "ui-blind-compare"];
+const EXPECTED_PROMPTS = [
+  "audit-game-legal",
+  "audit-project",
+  "play-build",
+  "review-change",
+  "ui-blind-compare",
+];
 const EXPECTED_REVIEW_CHANGE_ARGUMENTS = [
   "target",
   "topic",
@@ -140,10 +147,73 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
-      && statusJson.includes('"toolCount":16')
-      && statusJson.includes('"promptCount":4')
+      && statusJson.includes('"toolCount":17')
+      && statusJson.includes('"promptCount":5')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",
+  );
+
+  const legalPlan = await client.callTool({
+    name: "legal_source_plan",
+    arguments: {
+      target: "stdio-legal-fixture",
+      releaseId: "steam-build-2026-08-15",
+      releaseDescription: "Commercial Steam build for Windows and macOS",
+      releaseInventoryEvidenceId: "release-inventory",
+      decision: "commercial-release",
+      jurisdictions: ["JP"],
+      financialEligibilityEvidenceId: "financial-evidence",
+      engines: [{
+        provider: "unreal",
+        version: "5.7",
+        usage: "interactive-game",
+        licenseTier: "standard-eula",
+        termsAcceptedAt: "2026-08-01",
+        evidenceIds: ["engine-eula"],
+      }],
+      materials: [{
+        materialId: "environment-kit",
+        category: "3d-asset",
+        source: "fab",
+        licenseName: "Fab Standard License",
+        licenseUrl: "https://www.fab.com/eula",
+        acquiredAt: "2026-07-01",
+        licensee: "studio",
+        uses: ["compiled-game"],
+        evidenceIds: ["fab-receipt", "fab-license-snapshot"],
+      }],
+      distributionChannels: [{
+        channel: "steam",
+        agreementEvidenceId: "steam-distribution-agreement",
+      }],
+    },
+  });
+  assert(legalPlan.isError !== true, "legal_source_plan returned a tool error");
+  const legalPlanHandle = (
+    legalPlan.structuredContent?.meta as {resultHandle?: unknown} | undefined
+  )?.resultHandle;
+  assert(typeof legalPlanHandle === "string", "legal_source_plan returned no result handle");
+  assert(
+    JSON.stringify(legalPlan.structuredContent).includes('"status":"ready-for-source-review"'),
+    "legal_source_plan did not return a source-review-ready fixture",
+  );
+  const legalPrompt = await client.getPrompt({
+    name: "audit-game-legal",
+    arguments: {
+      sourcePlanResultHandle: legalPlanHandle,
+      evidenceArtifactIds: "engine-eula,fab-license-snapshot",
+      focus: "Can this exact Steam build ship?",
+    },
+  });
+  const legalPromptContent = legalPrompt.messages[0]?.content;
+  assert(legalPromptContent?.type === "text", "audit-game-legal did not return text");
+  assert(
+    legalPromptContent.type === "text"
+      && legalPromptContent.text.includes("# Game legal audit")
+      && legalPromptContent.text.includes('"sourceTool": "legal_source_plan"')
+      && legalPromptContent.text.includes('"status": "ready-for-source-review"')
+      && legalPromptContent.text.includes('"releaseId": "steam-build-2026-08-15"'),
+    "audit-game-legal did not preserve the verified legal source plan",
   );
 
   const coachedHistory = await client.callTool({
@@ -766,6 +836,7 @@ try {
     playtestPromptRoundTrip: true,
     playtestCohortRoundTrip: true,
     iterationCoachRoundTrip: true,
+    legalAuditRoundTrip: true,
     liveSearch,
     liveBrief,
     liveBriefBytes,

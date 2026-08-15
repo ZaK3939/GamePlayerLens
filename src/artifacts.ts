@@ -50,6 +50,7 @@ export const SourceToolSchema = z.enum([
   "steam_reviews",
   "steam_timeline",
   "steam_updates",
+  "legal_source_plan",
   "derive_personas",
   "record_first_contact",
   "ui_capture",

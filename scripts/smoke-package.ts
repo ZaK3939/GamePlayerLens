@@ -91,6 +91,8 @@ for (const runtimePath of [
   join(repositoryRoot, "knowledge", "rubrics", "experiment.md"),
   join(repositoryRoot, "knowledge", "rubrics", "indie-survival-strategy.md"),
   join(repositoryRoot, "skills", "game-review.md"),
+  join(repositoryRoot, "skills", "game-legal-audit", "SKILL.md"),
+  join(repositoryRoot, "skills", "game-legal-audit", "agents", "openai.yaml"),
 ]) {
   await access(runtimePath);
 }
@@ -128,15 +130,22 @@ let playtestPromptRoundTrip = false;
 let playtestCohortRoundTrip = false;
 let experimentLoopRoundTrip = false;
 let iterationCoachRoundTrip = false;
+let legalAuditRoundTrip = false;
 try {
   await client.connect(transport);
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 16, "packaged CLI did not expose sixteen tools");
+  assert(tools.length === 17, "packaged CLI did not expose seventeen tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
-      === JSON.stringify(["audit-project", "play-build", "review-change", "ui-blind-compare"]),
+      === JSON.stringify([
+        "audit-game-legal",
+        "audit-project",
+        "play-build",
+        "review-change",
+        "ui-blind-compare",
+      ]),
     "packaged CLI did not expose the review prompt surface",
   );
 
@@ -146,8 +155,8 @@ try {
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
-      && statusJson.includes('"toolCount":16')
-      && statusJson.includes('"promptCount":4')
+      && statusJson.includes('"toolCount":17')
+      && statusJson.includes('"promptCount":5')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
         && statusJson.includes(process.env.ITAD_API_KEY))
@@ -174,6 +183,89 @@ try {
     "packaged coach_history did not preserve its empty-history and no-score contract",
   );
   iterationCoachRoundTrip = true;
+
+  const legalPlan = await client.callTool({
+    name: "legal_source_plan",
+    arguments: {
+      target: "package-legal-fixture",
+      releaseId: "steam-build-2026-08-15",
+      releaseDescription: "Commercial Steam build for Windows and macOS",
+      releaseInventoryEvidenceId: "release-inventory",
+      decision: "commercial-release",
+      jurisdictions: ["JP"],
+      financialEligibilityEvidenceId: "financial-evidence",
+      engines: [{
+        provider: "unreal",
+        version: "5.7",
+        usage: "interactive-game",
+        licenseTier: "standard-eula",
+        termsAcceptedAt: "2026-08-01",
+        evidenceIds: ["engine-eula"],
+      }],
+      materials: [{
+        materialId: "environment-kit",
+        category: "3d-asset",
+        source: "fab",
+        licenseName: "Fab Standard License",
+        licenseUrl: "https://www.fab.com/eula",
+        acquiredAt: "2026-07-01",
+        licensee: "studio",
+        uses: ["compiled-game"],
+        evidenceIds: ["fab-receipt", "fab-license-snapshot"],
+      }],
+      distributionChannels: [{
+        channel: "steam",
+        agreementEvidenceId: "steam-distribution-agreement",
+      }],
+    },
+  });
+  assert(legalPlan.isError !== true, "packaged legal_source_plan returned a tool error");
+  const legalPlanData = legalPlan.structuredContent?.data as {
+    readiness?: {status?: unknown};
+  } | undefined;
+  const legalPlanHandle = (
+    legalPlan.structuredContent?.meta as {resultHandle?: unknown} | undefined
+  )?.resultHandle;
+  assert(
+    legalPlanData?.readiness?.status === "ready-for-source-review"
+      && typeof legalPlanHandle === "string",
+    "packaged legal_source_plan did not return a ready exact-save handle",
+  );
+  const legalPrompt = await client.getPrompt({
+    name: "audit-game-legal",
+    arguments: {
+      sourcePlanResultHandle: legalPlanHandle,
+      evidenceArtifactIds: "engine-eula,fab-license-snapshot",
+      focus: "Can this exact Steam build ship?",
+    },
+  });
+  const legalPromptContent = legalPrompt.messages[0]?.content;
+  assert(
+    legalPromptContent?.type === "text"
+      && legalPromptContent.text.includes("# Game legal audit")
+      && legalPromptContent.text.includes('"sourceTool": "legal_source_plan"')
+      && legalPromptContent.text.includes('"status": "ready-for-source-review"')
+      && legalPromptContent.text.includes('"releaseId": "steam-build-2026-08-15"'),
+    "packaged audit-game-legal did not preserve the verified source plan",
+  );
+  const savedLegalPlan = await client.callTool({
+    name: "save_artifact",
+    arguments: {
+      kind: "intel",
+      target: "package-legal-fixture",
+      id: "legal-source-plan-2026-08-15",
+      resultHandle: legalPlanHandle,
+    },
+  });
+  assert(savedLegalPlan.isError !== true, "packaged legal source plan exact-save failed");
+  const savedLegalPlanData = savedLegalPlan.structuredContent?.data as {
+    sourceTool?: unknown;
+  } | undefined;
+  assert(
+    savedLegalPlanData?.sourceTool === "legal_source_plan",
+    "packaged legal source plan lost its source provenance",
+  );
+  legalAuditRoundTrip = true;
 
   const repairPrompt = await client.getPrompt({
     name: "play-build",
@@ -1450,6 +1542,7 @@ try {
     packageRunRoundTrip,
     experimentLoopRoundTrip,
     iterationCoachRoundTrip,
+    legalAuditRoundTrip,
     liveBrief,
     liveUpdates,
     liveExactSave,

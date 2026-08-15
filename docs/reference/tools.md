@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 16 MCP tools and four prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 17 MCP tools and five prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -12,6 +12,7 @@ GamePlayerLens exposes exactly 16 MCP tools and four prompts. All tools return a
 | `steam_reviews` | Fetch recent reviews filtered by language, polarity, and minimum playtime |
 | `steam_timeline` | Fetch a current SteamSpy snapshot and optional ITAD price history |
 | `steam_updates` | Fetch official Steam announcements with update selection, classification evidence, highlights, and cadence |
+| `legal_source_plan` | Build an exact-saveable release-specific intake and controlling-source plan for engines, assets, components, and distribution agreements |
 | `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; audience, research questions, and an explicit source-fit selection are required |
 | `save_persona` | Validate a generated persona against an exact `derive_personas` result handle and atomically save its server grounding |
 | `record_first_contact` | Normalize a compact pseudonymous first-contact test with a fixed unaided question protocol and return an exact-save handle |
@@ -25,6 +26,7 @@ GamePlayerLens exposes exactly 16 MCP tools and four prompts. All tools return a
 
 ## Prompts
 
+- `audit-game-legal` reads a verified `legal_source_plan` handle through the packaged `game-legal-audit` skill. It performs source-grounded issue spotting, preserves `cannot-assess`, and never claims legal advice or clearance.
 - `play-build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. Its optional `coreClaim` adds a Core Delivery Trace. It returns a Player Probe Card and never starts Steam research, persona derivation, a full audit, or mandatory persistence.
 - `review-change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
 - `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`. Supplying `knownBlockers` short-circuits a premature audit to Repair First without requiring the full intake.
@@ -36,11 +38,24 @@ Prompt arguments are strings. Structured values such as `coreClaim`, `projectBri
 
 `knownBlockers` is newline-separated. When non-empty, its Repair First route takes precedence over missing build or audit fields. `personaIds` is a comma-separated list of already saved personas; `play-build` never derives personas implicitly.
 
+## Game legal audit
+
+Use this workflow for one concrete decision such as a demo release, commercial release, port, publisher handoff, asset reuse, or team transfer:
+
+1. Call `legal_source_plan` with an exact release/build ID and description, an evidence artifact for its exported asset/plugin/dependency inventory, the jurisdictions, engine versions and license routes, every shipped licensed material or package and intended use, and every distribution channel.
+2. Exact-save its `meta.resultHandle` with `save_artifact(kind=intel)`.
+3. Supply the current evidence artifacts named by the plan. Private agreements remain user-supplied evidence; the workflow must not search for leaked copies or replace them with public summaries.
+4. Call `audit-game-legal` with the same result handle. It automatically carries the evidence IDs recorded by the plan; use comma-separated `evidenceArtifactIds` only for supplemental evidence.
+
+`ready-for-source-review` means only that source review can begin. It does not establish permission. The prompt requires current official public pages, exact item licenses and receipts, the publishing entity's accepted private agreements, jurisdiction-specific primary law when relevant, and qualified counsel for material unresolved questions.
+
+The bundled source registry routes Unity Editor and Asset Store terms, Unreal Engine and Epic Content terms, Fab licensing, and Steam Direct public rules to their official hosts. These URLs are discovery anchors, not frozen legal authority: refresh them during every audit and record the effective date, controlling section, and access time. Marketplace-wide terms do not prove the entitlement or special terms for an individual asset.
+
 ## Partial success and provenance
 
 External fetches preserve successful source data when another endpoint fails. Always retain `warnings`; they are part of the evidence envelope.
 
-Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, and `record_first_contact` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact, pass the same handle to the review prompt first so it can include the normalized observations and expose the exact-save pointer.
+Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, `record_first_contact`, and `legal_source_plan` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact and legal review, pass the same handle to the corresponding prompt first so it can include the normalized evidence and exact-save pointer.
 
 For persona generation, every requested appid needs an explicit `sourceRoles` entry linked to one of one-to-three `researchQuestions`. Each question has one-to-twelve `evidenceSignals` of 2–80 characters. The server applies Unicode/case normalization, removes reviews containing none of the signals mapped to their source, and records the matched question IDs and signals. A competitor source must be direct or adjacent and declare at least three fit axes. A reference source is limited to `system-reference`; visual references and market-success anchors belong in their own evidence ledgers, not persona voice. Pass the same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field, research question, audience, and source-selection field with the cached result, then stores a SHA-256 binding to that result. Every saved voice must support an observed pattern whose evidence entry explains its relevance, and its matched question ID must equal the pattern's question. These deterministic checks expose and enforce a lexical relevance boundary; they do not prove the broader interpretation is true.
 

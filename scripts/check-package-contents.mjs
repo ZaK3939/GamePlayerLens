@@ -71,7 +71,13 @@ try {
       ...internalPaths.map((path) => `internal path: ${path}`),
     ].join("\n"));
   }
-  for (const required of ["dist/cli.js", "skills/game-review.md", "README.md"]) {
+  for (const required of [
+    "dist/cli.js",
+    "skills/game-review.md",
+    "skills/game-legal-audit/SKILL.md",
+    "skills/game-legal-audit/agents/openai.yaml",
+    "README.md",
+  ]) {
     if (!paths.includes(required)) throw new Error(`npm package is missing ${required}`);
   }
   process.stdout.write(`${JSON.stringify({ok: true, files: paths.length, internalFiles: 0})}\n`);

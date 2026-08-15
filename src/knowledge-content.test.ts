@@ -835,4 +835,18 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/felt reward[\s\S]*human report/i);
     expect(content).toMatch(/coreClaim[\s\S]*undeclared[\s\S]*infer/i);
   });
+
+  it("packages a bounded legal issue-spotting skill with private-source and counsel gates", async () => {
+    const content = await read("skills/game-legal-audit/SKILL.md");
+    const metadata = await read("skills/game-legal-audit/agents/openai.yaml");
+
+    expect(content).toContain("Legal Risk Card");
+    expect(content).toContain("private-agreement");
+    expect(content).toContain("cannot-assess");
+    expect(content).toContain("COUNSEL REQUIRED");
+    expect(content).toContain("not legal advice or legal clearance");
+    expect(content).toMatch(/Re-fetch each[\s\S]*official-public/);
+    expect(content).not.toContain("TODO");
+    expect(metadata).toContain("$game-legal-audit");
+  });
 });

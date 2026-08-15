@@ -69,6 +69,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 | Review one proposed revision | `review-change` with `currentState`, `proposal`, and `revisionBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a concept, prototype, vertical slice, or milestone | `audit-project`; active projects also require an `auditSnapshotBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a released Steam game | `steam_search` → `steam_brief`, then `audit-project` | [Existing games](docs/guides/existing-game.md) |
+| Spot engine, asset, component, and storefront license risks for one release | `legal_source_plan` → exact-save → `audit-game-legal` | [Tool reference](docs/reference/tools.md#game-legal-audit) |
 | Compare UI quality | Either review prompt with the `ui` domain and a concrete `uiBenchmarkTask` | [Existing games: UI comparison](docs/guides/existing-game.md#ui-comparison) |
 | Record a first-contact observation | `record_first_contact`, then pass its handle to either review prompt | [Developer projects](docs/guides/developer-project.md#first-contact-test) |
 | Record a playtest or revision | Either review prompt with `playtestSession` or `playtestCohort` | [Experiments and playtests](docs/reference/experiments.md) |
@@ -87,11 +88,13 @@ If known execution blockers already prevent that task, pass one per line as `kno
 | Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Audit | Decide whether a milestone or bounded revision should advance | structured Decision Card, immutable evidence run, prioritized backlog |
+| Legal issue spotting | Bind one release to current public terms, exact item licenses, and supplied private agreements | Legal Risk Card, source register, missing evidence, counsel handoff |
 | Coach | Detect review loops that did not add a build, direct stimulus, or human handoff | one deterministic finding card, its stop condition, and the latest saved review action |
 | Research | Collect current Steam, review, update, price, and competitor evidence when the selected decision requires it | `steam_brief`, provenance, supported decisions, gaps |
 
-The four MCP prompts are:
+The five MCP prompts are:
 
+- `audit-game-legal`: reads an exact `legal_source_plan` result through the bundled `game-legal-audit` skill and produces a source-cited, release-scoped risk review. It never promises legal clearance.
 - `play-build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card with Action → Response and optional Core Delivery traces, not a milestone verdict.
 - `review-change`: the daily current-versus-candidate revision review. It fixes `mode=change`, requires a revision bundle, and prioritizes changed findings.
 - `audit-project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
@@ -99,7 +102,7 @@ The four MCP prompts are:
 
 `play-build` never returns GO / HOLD / NO-GO. The two decision prompts lead with a compact Decision Check: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations.
 
-The server currently exposes exactly 16 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
+The server currently exposes exactly 17 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
 
 ## What it does not prove
 
@@ -116,6 +119,7 @@ GamePlayerLens deliberately refuses several shortcuts:
 - A prediction run is not an executed experiment.
 - A player lens's predicted feeling or continuation decision is not a human report or population rate.
 - Iteration coaching detects repeated evidence state; it does not grade effort, game quality, fun, or commercial potential.
+- A legal source plan or AI issue-spotting review is not legal advice, ownership proof, non-infringement assurance, or release clearance.
 
 Missing evidence remains missing. It is never silently converted to zero, success, or an industry average. Read [Evidence and integrity](docs/reference/evidence-and-integrity.md) for the complete interpretation rules.
 
@@ -175,7 +179,7 @@ Evidence collection and review for released Steam games remain the strongest val
 
 - [Developer projects](docs/guides/developer-project.md): Project Briefs, concept tests, first-contact evidence, and moment-to-moment experience reviews.
 - [Existing games](docs/guides/existing-game.md): Steam triage, domains, competitor selection, updates, localization, price, and UI comparison.
-- [Tool reference](docs/reference/tools.md): all 16 tools, result handles, image capture, iteration coaching, and immutable artifact semantics.
+- [Tool reference](docs/reference/tools.md): all 17 tools, legal issue spotting, result handles, image capture, iteration coaching, and immutable artifact semantics.
 - [Evidence and integrity](docs/reference/evidence-and-integrity.md): coverage, provenance, persona boundaries, canonical evaluations, and immutable runs.
 - [Experiments and playtests](docs/reference/experiments.md): sessions, cohorts, retest lineage, prediction runs, measurements, and outcomes.
 - [Dogfood data policy](docs/dogfood/README.md): how private raw research is separated from publishable summaries.

@@ -13,6 +13,7 @@ export type CaptureImageExtension = "png" | "jpg";
 
 const PERSONA_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 const KNOWLEDGE_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
+const SKILL_ID = /^(?:[a-z0-9][a-z0-9._-]{0,127}\.md|[a-z0-9][a-z0-9-]{0,63}\/SKILL\.md)$/i;
 const EVALUATION_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EXTENSIONS: Record<KnowledgeKind, ReadonlySet<string>> = {
@@ -239,11 +240,7 @@ function createSplitPathResolver(
 
     resolveSkillPath(id) {
       if (
-        basename(id) !== id
-        || id === "."
-        || id === ".."
-        || id.startsWith(".")
-        || !KNOWLEDGE_ID.test(id)
+        !SKILL_ID.test(id)
         || extensionOf(id) !== ".md"
       ) {
         throw new Error("invalid skill id");

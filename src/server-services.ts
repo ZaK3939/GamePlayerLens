@@ -8,6 +8,7 @@ import {createCaptureService} from "./capture.js";
 import {discoverGames} from "./discovery.js";
 import {createImageService, type ImageService} from "./images.js";
 import {createKnowledgeReader, type KnowledgeReader} from "./knowledge.js";
+import {buildLegalSourcePlan} from "./legal.js";
 import {
   createPersonaStore,
   type PersonaStore,
@@ -32,6 +33,7 @@ export interface ServerServices {
   fetchReviews: typeof fetchReviews;
   fetchTimeline: typeof fetchTimeline;
   fetchUpdates: typeof fetchUpdates;
+  buildLegalSourcePlan: typeof buildLegalSourcePlan;
   buildDerivationPack: typeof buildDerivationPack;
   savePersona: PersonaStore["savePersona"];
   captureUrl: ReturnType<typeof createCaptureService>;
@@ -57,6 +59,7 @@ export function createServerServices(
     fetchReviews,
     fetchTimeline,
     fetchUpdates,
+    buildLegalSourcePlan,
     buildDerivationPack,
     savePersona: personaStore.savePersona,
     captureUrl: createCaptureService({resolver}),

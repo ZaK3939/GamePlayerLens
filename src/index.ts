@@ -17,6 +17,12 @@ import {
   jsonEnvelope,
   trackedJsonEnvelope,
 } from "./mcp-responses.js";
+import {LegalSourcePlanInputSchema} from "./legal.js";
+import {
+  buildGameLegalAuditPrompt,
+  GameLegalAuditPromptArgumentsSchema,
+  resolveLegalSourcePlanEvidence,
+} from "./legal-prompt.js";
 import {buildIterationCoachHistory} from "./iteration-coach.js";
 import {
   GeneratedPersonaSchema,
@@ -58,8 +64,8 @@ import {
 
 const SERVER_NAME = "game-player-lens";
 const SERVER_VERSION = "0.2.0";
-const TOOL_COUNT = 16;
-const PROMPT_COUNT = 4;
+const TOOL_COUNT = 17;
+const PROMPT_COUNT = 5;
 
 const AppidSchema = z.number().int().positive();
 const ReviewTypeSchema = z.enum(["all", "positive", "negative"]);
@@ -246,6 +252,27 @@ export function buildServer(
       services.resultStore,
       "steam_updates",
       await services.fetchUpdates(appid, {scope, limit, contentChars, before}),
+    ),
+  );
+
+  server.registerTool(
+    "legal_source_plan",
+    {
+      title: "Game legal source plan",
+      description: "Build an exact-saveable, release-specific source and intake plan for game engines, assets, components, and distribution agreements; this is issue-spotting support, not legal advice or clearance",
+      inputSchema: LegalSourcePlanInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) => trackedJsonEnvelope(
+      services.resultStore,
+      "legal_source_plan",
+      services.buildLegalSourcePlan(input),
     ),
   );
 
@@ -613,6 +640,30 @@ export function buildServer(
           text: buildUiBlindComparePrompt(
             await services.readSkill("ui-blind-compare.md"),
             arguments_,
+          ),
+        },
+      }],
+    }),
+  );
+
+  server.registerPrompt(
+    "audit-game-legal",
+    {
+      description: "Audit a specific game release for engine, asset, component, and distribution-license evidence risks without claiming legal clearance",
+      argsSchema: GameLegalAuditPromptArgumentsSchema,
+    },
+    async (arguments_) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: buildGameLegalAuditPrompt(
+            await services.readSkill("game-legal-audit/SKILL.md"),
+            arguments_,
+            resolveLegalSourcePlanEvidence(
+              services.resultStore,
+              arguments_.sourcePlanResultHandle,
+            ),
           ),
         },
       }],

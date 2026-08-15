@@ -207,6 +207,8 @@ async function createHarness(overrides: BuildServerOverrides = {}) {
       resolver.resolveSkillPath(id);
       return id === "game-review.md"
         ? runRecipe
+        : id === "game-legal-audit/SKILL.md"
+          ? "# Game legal audit\n"
         : "# Test UI recipe\n";
     },
     ...overrides,
@@ -454,7 +456,7 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly sixteen tools and four review prompts", async () => {
+  it("exposes exactly seventeen tools and five review prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -463,6 +465,7 @@ describe("MCP server contract", () => {
         "get_artifact",
         "get_knowledge",
         "get_status",
+        "legal_source_plan",
         "record_first_contact",
         "save_artifact",
         "save_persona",
@@ -476,11 +479,101 @@ describe("MCP server contract", () => {
         "ui_capture",
       ]);
       expect((await client.listPrompts()).prompts.map((prompt) => prompt.name).sort()).toEqual([
+        "audit-game-legal",
         "audit-project",
         "play-build",
         "review-change",
         "ui-blind-compare",
       ]);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("grounds a legal audit prompt in an exact-saveable source plan", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const planned = await client.callTool({
+        name: "legal_source_plan",
+        arguments: {
+          target: "slot-and-ember",
+          releaseId: "steam-build-2026-08-15",
+          releaseDescription: "Commercial Steam build for Windows and macOS",
+          releaseInventoryEvidenceId: "release-inventory",
+          decision: "commercial-release",
+          jurisdictions: ["JP"],
+          financialEligibilityEvidenceId: "financial-evidence",
+          engines: [{
+            provider: "unreal",
+            version: "5.7",
+            usage: "interactive-game",
+            licenseTier: "standard-eula",
+            termsAcceptedAt: "2026-08-01",
+            evidenceIds: ["engine-eula"],
+          }],
+          materials: [{
+            materialId: "forge-environment",
+            category: "3d-asset",
+            source: "fab",
+            licenseName: "Fab Standard License",
+            licenseUrl: "https://www.fab.com/eula",
+            acquiredAt: "2026-07-01",
+            licensee: "studio",
+            uses: ["compiled-game"],
+            evidenceIds: ["fab-receipt", "fab-license-snapshot"],
+          }],
+          distributionChannels: [{
+            channel: "steam",
+            agreementEvidenceId: "steam-distribution-agreement",
+          }],
+        },
+      });
+      expect(planned.isError).not.toBe(true);
+      expect(planned.structuredContent?.data).toMatchObject({
+        target: "slot-and-ember",
+        releaseScope: {
+          releaseId: "steam-build-2026-08-15",
+          engines: [{provider: "unreal", version: "5.7"}],
+        },
+        readiness: {status: "ready-for-source-review"},
+      });
+      const resultHandle = (planned.structuredContent?.meta as {resultHandle?: unknown})
+        ?.resultHandle;
+      expect(resultHandle).toEqual(expect.any(String));
+
+      const prompt = await client.getPrompt({
+        name: "audit-game-legal",
+        arguments: {
+          sourcePlanResultHandle: resultHandle as string,
+          evidenceArtifactIds: "engine-eula, fab-license-snapshot",
+          focus: "Can this exact Steam build ship?",
+        },
+      });
+      const text = promptText(prompt);
+      expect(text).toContain("# Game legal audit");
+      expect(text).toContain("--- END REPOSITORY SKILL ---");
+      expect(text).toContain('"sourceTool": "legal_source_plan"');
+      expect(text).toContain('"status": "ready-for-source-review"');
+      expect(text).toContain('"releaseId": "steam-build-2026-08-15"');
+      expect(text).toContain('"materialId": "forge-environment"');
+      expect(text).toContain('"evidenceArtifactIds": [');
+      expect(text).toContain('"release-inventory"');
+      expect(text).toContain('"fab-receipt"');
+
+      const saved = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "slot-and-ember",
+          id: "legal-source-plan-2026-08-15",
+          resultHandle,
+        },
+      });
+      expect(saved.isError).not.toBe(true);
+      expect(saved.structuredContent?.data).toMatchObject({
+        sourceTool: "legal_source_plan",
+      });
     } finally {
       await client.close();
       await server.close();
@@ -510,7 +603,7 @@ describe("MCP server contract", () => {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
-          capabilities: {toolCount: 16, promptCount: 4},
+          capabilities: {toolCount: 17, promptCount: 5},
         },
         warnings: [],
       });
@@ -1347,7 +1440,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(16);
+      expect(tools).toHaveLength(17);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),

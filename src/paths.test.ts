@@ -72,12 +72,16 @@ describe("safe paths", () => {
     );
   });
 
-  it("resolves only basename markdown skill files", () => {
+  it("resolves flat recipes and installable skill entrypoints", () => {
     const resolver = createPathResolver(root);
     expect(resolver.resolveSkillPath("game-review.md"))
       .toMatch(/skills[/\\]game-review\.md$/);
+    expect(resolver.resolveSkillPath("game-legal-audit/SKILL.md"))
+      .toMatch(/skills[/\\]game-legal-audit[/\\]SKILL\.md$/);
     expect(() => resolver.resolveSkillPath("../game-review.md")).toThrow();
     expect(() => resolver.resolveSkillPath("game-review.txt")).toThrow();
+    expect(() => resolver.resolveSkillPath("game-legal-audit/references/source.md")).toThrow();
+    expect(() => resolver.resolveSkillPath("game-legal-audit/../game-review.md")).toThrow();
   });
 
   it("rejects existing symlinks that escape the knowledge root", () => {
