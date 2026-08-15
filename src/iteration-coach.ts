@@ -21,6 +21,7 @@ export interface IterationSnapshot {
   buildKey: string;
   decision: IterationDecision;
   directStimulusHashes: string[];
+  citedHumanEvidenceHashes: string[];
   humanValidations: Array<{
     question: string;
     humanEvidenceHashes: string[];
@@ -145,7 +146,7 @@ function finding(
       severity: "important",
       runIds: [previous.runId, current.runId],
       facts,
-      whyItMatters: "The same build was reviewed again without a new capture, playtest, first-contact result, or direct measurement.",
+      whyItMatters: "The same build was reviewed again without a new build-bound image, playtest, first-contact result, or direct measurement.",
       nextAction: "Stop review work and generate one new direct stimulus by operating the build or testing it with a person.",
       resolvedWhen: "The next verified run contains a new build identity or a new direct-stimulus SHA-256.",
     };
@@ -204,7 +205,7 @@ function evaluateIterationHistory(input: readonly IterationSnapshot[]): {
   let activeReview: {historyIndex: number; buildKey: string} | undefined;
   let activeHuman: {historyIndex: number; unresolvedQuestions: Set<string>} | undefined;
   const seenDirectByBuild = new Map<string, Set<string>>();
-  const seenHumanByQuestion = new Map<string, Set<string>>();
+  const seenHumanEvidence = new Set<string>();
   const deltas: IterationDelta[] = [];
 
   function activate(value: IterationCoachFinding): number {
@@ -230,12 +231,17 @@ function evaluateIterationHistory(input: readonly IterationSnapshot[]): {
     const previousValidations = previous
       ? validationsByQuestion(previous)
       : new Map<string, Set<string>>();
+    const currentHumanEvidence = new Set([
+      ...current.citedHumanEvidenceHashes,
+      ...[...currentValidations.values()].flatMap((hashes) => [...hashes]),
+    ]);
+    const novelHumanEvidence = new Set(
+      novelValues(currentHumanEvidence, seenHumanEvidence),
+    );
     const novelHumanByQuestion = new Map<string, string[]>();
-    const novelHumanEvidence = new Set<string>();
     for (const [question, hashes] of currentValidations) {
-      const novel = novelValues(hashes, seenHumanByQuestion.get(question) ?? new Set());
+      const novel = [...hashes].filter((hash) => novelHumanEvidence.has(hash));
       novelHumanByQuestion.set(question, novel);
-      novel.forEach((hash) => novelHumanEvidence.add(hash));
     }
 
     deltas.push({
@@ -320,11 +326,7 @@ function evaluateIterationHistory(input: readonly IterationSnapshot[]): {
 
     current.directStimulusHashes.forEach((hash) => seenDirect.add(hash));
     seenDirectByBuild.set(current.buildKey, seenDirect);
-    for (const [question, hashes] of currentValidations) {
-      const seenHuman = seenHumanByQuestion.get(question) ?? new Set<string>();
-      hashes.forEach((hash) => seenHuman.add(hash));
-      seenHumanByQuestion.set(question, seenHuman);
-    }
+    currentHumanEvidence.forEach((hash) => seenHumanEvidence.add(hash));
   }
 
   const activeFindings = findingHistory.filter(({status}) => status === "active").sort(
@@ -399,16 +401,29 @@ function evidenceClass(payload: unknown): {direct: boolean; human: boolean} {
   return {direct: false, human: false};
 }
 
-function buildKey(payload: unknown, mode: "baseline" | "change"): string | undefined {
+function buildBinding(
+  payload: unknown,
+  mode: "baseline" | "change",
+): {key: string; artifactRefs: ReadonlySet<string>} | undefined {
   if (mode === "change") {
     const bundle = RevisionBundleEnvelopeSchema.safeParse(payload);
     return bundle.success
-      ? `${bundle.data.data.candidate.gitCommitSha}:${bundle.data.data.candidate.buildId}`
+      ? {
+          key: `${bundle.data.data.candidate.gitCommitSha}:${bundle.data.data.candidate.buildId}`,
+          artifactRefs: new Set(
+            bundle.data.data.candidate.artifacts.map(({evidenceRef}) => evidenceRef),
+          ),
+        }
       : undefined;
   }
   const bundle = AuditSnapshotBundleEnvelopeSchema.safeParse(payload);
   return bundle.success
-    ? `${bundle.data.data.gitCommitSha}:${bundle.data.data.buildId}`
+    ? {
+        key: `${bundle.data.data.gitCommitSha}:${bundle.data.data.buildId}`,
+        artifactRefs: new Set(
+          bundle.data.data.artifacts.map(({evidenceRef}) => evidenceRef),
+        ),
+      }
     : undefined;
 }
 
@@ -460,8 +475,8 @@ export async function buildIterationCoachHistory(
         bundleEvidence.targetId,
         bundleEvidence.id,
       );
-      const identity = buildKey(bundleRecord.payload, run.record.mode);
-      if (!identity) throw new Error("build bundle identity is invalid");
+      const binding = buildBinding(bundleRecord.payload, run.record.mode);
+      if (!binding) throw new Error("build bundle identity is invalid");
 
       const evaluationEvidence = run.record.evidence.find(
         ({ref, kind}) => ref === run.record.finalEvaluationRef && kind === "evaluation",
@@ -474,6 +489,7 @@ export async function buildIterationCoachHistory(
 
       const citedRefs = new Set(run.record.rounds.flatMap(({evidenceRefs}) => evidenceRefs));
       const directStimulusHashes: string[] = [];
+      const citedHumanEvidenceHashes: string[] = [];
       const evidenceClasses = new Map<string, {
         sha256: string;
         human: boolean;
@@ -481,7 +497,9 @@ export async function buildIterationCoachHistory(
       for (const evidence of run.record.evidence) {
         if (!citedRefs.has(evidence.ref)) continue;
         if (evidence.kind === "capture" || evidence.kind === "ui-reference") {
-          directStimulusHashes.push(evidence.sha256);
+          if (binding.artifactRefs.has(evidence.ref)) {
+            directStimulusHashes.push(evidence.sha256);
+          }
           evidenceClasses.set(evidence.ref, {
             sha256: evidence.sha256,
             human: false,
@@ -499,14 +517,16 @@ export async function buildIterationCoachHistory(
           human: classification.human,
         });
         if (classification.direct) directStimulusHashes.push(evidence.sha256);
+        if (classification.human) citedHumanEvidenceHashes.push(evidence.sha256);
       }
 
       snapshots.push({
         runId: run.record.runId,
         savedAt: run.record.savedAt,
-        buildKey: identity,
+        buildKey: binding.key,
         decision: evaluation.decisionCard.decision,
         directStimulusHashes: unique(directStimulusHashes),
+        citedHumanEvidenceHashes: unique(citedHumanEvidenceHashes),
         humanValidations: run.record.rounds.flatMap((round) => {
           if (!round.playerSimulation) return [];
           return [{
@@ -548,8 +568,8 @@ export async function buildIterationCoachHistory(
       ...evaluated.analysis,
       boundaries: [
         "Only verified stored developer-project runs inside the requested window are analyzed.",
-        "A direct stimulus is a cited capture, UI reference, first-contact test, playtest, or direct experiment measurement; it does not prove fun.",
-        "Human evidence answers a validation question only when the same persona round cites it as stimulus evidence.",
+        "A direct stimulus is a cited build-bound capture or UI reference, first-contact test, playtest, or direct experiment measurement; competitor images outside the active snapshot do not count and no stimulus proves fun.",
+        "Human evidence answers a validation question only when its SHA-256 is new inside the analysis window and the same persona round cites it as stimulus evidence.",
         "Findings describe repeated development behavior, not game quality, player population rates, demand, or retention.",
       ],
     },

@@ -18,6 +18,7 @@ function snapshot(
     buildKey: "a".repeat(40) + ":build-001",
     decision: "investigate",
     directStimulusHashes: ["1".repeat(64)],
+    citedHumanEvidenceHashes: [],
     humanValidations: [],
     ...overrides,
   };
@@ -160,6 +161,39 @@ describe("iteration coach", () => {
     expect(result.activeFindings.map(({id}) => id)).toContain("human-handoff-stall");
   });
 
+  it("does not treat old human evidence as new when it is reassigned to the repeated question", () => {
+    const repeatedQuestion = "Can the player explain why the support failed?";
+    const existingHumanEvidence = "3".repeat(64);
+    const result = analyzeIterationHistory([
+      snapshot("run-a", "2026-08-14T10:00:00Z", {
+        citedHumanEvidenceHashes: [existingHumanEvidence],
+        humanValidations: [{question: repeatedQuestion, humanEvidenceHashes: []}],
+      }),
+      snapshot("run-b", "2026-08-14T11:00:00Z", {
+        buildKey: "b".repeat(40) + ":build-002",
+        directStimulusHashes: ["2".repeat(64)],
+        humanValidations: [{question: repeatedQuestion, humanEvidenceHashes: []}],
+      }),
+      snapshot("run-c", "2026-08-14T12:00:00Z", {
+        buildKey: "c".repeat(40) + ":build-003",
+        directStimulusHashes: ["4".repeat(64)],
+        humanValidations: [{
+          question: repeatedQuestion,
+          humanEvidenceHashes: [existingHumanEvidence],
+        }],
+      }),
+    ]);
+
+    expect(result.status).toBe("findings");
+    expect(result.activeFindings).toEqual([
+      expect.objectContaining({
+        id: "human-handoff-stall",
+        status: "active",
+        resolvedByRunId: null,
+      }),
+    ]);
+  });
+
   it("resolves a human handoff only when the repeated question cites new human evidence", () => {
     const question = "Can the player explain why the support failed?";
     const result = analyzeIterationHistory([
@@ -256,6 +290,9 @@ describe("iteration coach", () => {
       novelDirectStimulusCount: 0,
       novelHumanEvidenceCount: 0,
     });
+    expect(result.data.boundaries).toContainEqual(
+      expect.stringMatching(/SHA-256 is new[\s\S]*same persona round/iu),
+    );
   });
 
   it("binds human evidence only to the validation question in the citing persona round", async () => {
@@ -310,6 +347,51 @@ describe("iteration coach", () => {
       novelDirectStimulusCount: 1,
       novelHumanEvidenceCount: 1,
     });
+  });
+
+  it("does not count an unbound competitor image as a new build stimulus", async () => {
+    const firstId = "00000000-0000-4000-8000-000000000008";
+    const secondId = "00000000-0000-4000-8000-000000000009";
+    const first = runRecord(firstId, "2026-08-14T10:00:00Z", "bundle-first", "eval-first");
+    const second = runRecord(secondId, "2026-08-14T11:00:00Z", "bundle-second", "eval-second");
+    second.evidence.push({
+      ref: "competitor-reference",
+      kind: "ui-reference",
+      id: "competitor-reference",
+      sha256: "8".repeat(64),
+    });
+    second.rounds[0]!.evidenceRefs.push("competitor-reference");
+    second.rounds[0]!.playerSimulation!.stimulusEvidenceRefs.push("competitor-reference");
+    second.rounds[0]!.playerSimulation!.reflection.humanValidationQuestion =
+      "Can the player identify the next action?";
+    const records = new Map([[firstId, first], [secondId, second]]);
+    const runStore = {
+      listRuns: async () => [{id: secondId}, {id: firstId}],
+      readRun: async (_target: string, id: string) => ({
+        record: records.get(id),
+        integrity: {status: "verified"},
+      }),
+    } as unknown as RunStore;
+    const artifactStore = {
+      readIntel: async (_target: string, id: string) => ({
+        payload: auditBundleEnvelope(id),
+      }),
+      readEvaluation: async () => ({
+        decisionCard: {decision: "investigate"},
+      }),
+    } as unknown as ArtifactStore;
+
+    const result = await buildIterationCoachHistory(
+      {runStore, artifactStore},
+      {target: "Project Nyx", limit: 2},
+    );
+
+    expect(result.data.iterations[1]).toMatchObject({
+      novelDirectStimulusCount: 0,
+    });
+    expect(result.data.activeFindings.map(({id}) => id)).toContain(
+      "review-without-new-stimulus",
+    );
   });
 
   it("excludes unreadable and failed-integrity runs instead of coaching from them", async () => {
