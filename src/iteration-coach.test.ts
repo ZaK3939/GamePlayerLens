@@ -1,9 +1,9 @@
 import {describe, expect, it} from "vitest";
 import {
   analyzeIterationHistory,
-  buildIterationCoachHistory,
   type IterationSnapshot,
-} from "./iteration-coach.js";
+} from "./iteration-coach-analysis.js";
+import {buildIterationCoachHistory} from "./iteration-coach.js";
 import type {ArtifactStore} from "./artifacts.js";
 import type {RunStore} from "./runs.js";
 
