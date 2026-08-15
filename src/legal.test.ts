@@ -13,6 +13,7 @@ function completeUnrealInput() {
     releaseDescription: "Windows and macOS commercial Steam build",
     plannedReleaseDate: "2026-09-15",
     releaseInventoryEvidenceId: "steam-build-inventory",
+    evidenceAccessMode: "redacted-artifacts" as const,
     decision: "commercial-release" as const,
     jurisdictions: ["JP", "US"],
     financialEligibilityEvidenceId: "finance-eligibility-2026-q3",
@@ -52,6 +53,7 @@ describe("game legal source planning", () => {
       releaseDescription: "Windows and macOS commercial Steam build",
       plannedReleaseDate: "2026-09-15",
       releaseInventoryEvidenceId: "steam-build-inventory",
+      evidenceAccessMode: "redacted-artifacts",
       engines: [{provider: "unreal", version: "5.7"}],
       materials: [{materialId: "forge-environment", uses: ["compiled-game"]}],
       distributionChannels: [{channel: "steam"}],
@@ -78,6 +80,7 @@ describe("game legal source planning", () => {
       target: "unity-demo",
       releaseId: "public-demo-1",
       releaseDescription: "Public Windows demo distributed on Steam",
+      evidenceAccessMode: "metadata-only",
       decision: "demo-release",
       jurisdictions: ["JP"],
       engines: [{
@@ -156,5 +159,10 @@ describe("game legal source planning", () => {
       licenseUrl: "https://user:secret@example.com/license",
     }];
     expect(() => LegalSourcePlanInputSchema.parse(input)).toThrow(/credential-free HTTPS/);
+  });
+
+  it("requires an explicit evidence processing mode", () => {
+    const {evidenceAccessMode: _, ...input} = completeUnrealInput();
+    expect(() => LegalSourcePlanInputSchema.parse(input)).toThrow(/evidenceAccessMode/);
   });
 });

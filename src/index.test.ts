@@ -501,6 +501,7 @@ describe("MCP server contract", () => {
           releaseId: "steam-build-2026-08-15",
           releaseDescription: "Commercial Steam build for Windows and macOS",
           releaseInventoryEvidenceId: "release-inventory",
+          evidenceAccessMode: "redacted-artifacts",
           decision: "commercial-release",
           jurisdictions: ["JP"],
           financialEligibilityEvidenceId: "financial-evidence",
@@ -560,6 +561,8 @@ describe("MCP server contract", () => {
       expect(text).toContain('"evidenceArtifactIds": [');
       expect(text).toContain('"release-inventory"');
       expect(text).toContain('"fab-receipt"');
+      expect(text).toContain('"contentAccessAllowed": true');
+      expect(text).toContain('"fullDocumentAccessAllowed": false');
 
       const saved = await client.callTool({
         name: "save_artifact",

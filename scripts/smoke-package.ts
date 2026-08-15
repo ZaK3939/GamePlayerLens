@@ -191,6 +191,7 @@ try {
       releaseId: "steam-build-2026-08-15",
       releaseDescription: "Commercial Steam build for Windows and macOS",
       releaseInventoryEvidenceId: "release-inventory",
+      evidenceAccessMode: "redacted-artifacts",
       decision: "commercial-release",
       jurisdictions: ["JP"],
       financialEligibilityEvidenceId: "financial-evidence",
@@ -245,7 +246,8 @@ try {
       && legalPromptContent.text.includes("# Game legal audit")
       && legalPromptContent.text.includes('"sourceTool": "legal_source_plan"')
       && legalPromptContent.text.includes('"status": "ready-for-source-review"')
-      && legalPromptContent.text.includes('"releaseId": "steam-build-2026-08-15"'),
+      && legalPromptContent.text.includes('"releaseId": "steam-build-2026-08-15"')
+      && legalPromptContent.text.includes('"fullDocumentAccessAllowed": false'),
     "packaged audit-game-legal did not preserve the verified source plan",
   );
   const savedLegalPlan = await client.callTool({

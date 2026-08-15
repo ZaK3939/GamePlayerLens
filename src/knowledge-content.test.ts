@@ -845,6 +845,10 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("cannot-assess");
     expect(content).toContain("COUNSEL REQUIRED");
     expect(content).toContain("not legal advice or legal clearance");
+    expect(content).toContain("evidenceAccessPolicy");
+    expect(content).toContain("metadata-only");
+    expect(content).toContain("redacted-artifacts");
+    expect(content).toContain("approved-environment");
     expect(content).toMatch(/Re-fetch each[\s\S]*official-public/);
     expect(content).not.toContain("TODO");
     expect(metadata).toContain("$game-legal-audit");

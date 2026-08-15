@@ -157,6 +157,8 @@ Every artifact and persona ID is create-only. To revise evidence, save a new ID 
 
 Display names are normalized to safe IDs. Arbitrary paths, traversal, symlink escapes, credentials in URLs, and unbounded payloads are rejected. See [Evidence and integrity](docs/reference/evidence-and-integrity.md) for size limits, canonical evaluation rules, and run verification.
 
+Legal evidence requires an explicit processing mode. `metadata-only` keeps artifact contents unread, `redacted-artifacts` limits the client to approved excerpts, and `approved-environment` records the user's authorization decision before full-document access. GamePlayerLens never treats that declaration as proof of authority or legal clearance.
+
 Unicode display names are canonicalized before storage, including composed and decomposed forms commonly encountered on macOS. Repository and packaged operation use the same storage contract on Linux, Windows, and macOS.
 
 ## Verification

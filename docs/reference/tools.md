@@ -42,12 +42,18 @@ Prompt arguments are strings. Structured values such as `coreClaim`, `projectBri
 
 Use this workflow for one concrete decision such as a demo release, commercial release, port, publisher handoff, asset reuse, or team transfer:
 
-1. Call `legal_source_plan` with an exact release/build ID and description, an evidence artifact for its exported asset/plugin/dependency inventory, the jurisdictions, engine versions and license routes, every shipped licensed material or package and intended use, and every distribution channel.
+1. Call `legal_source_plan` with an exact release/build ID and description, an evidence artifact for its exported asset/plugin/dependency inventory, the jurisdictions, engine versions and license routes, every shipped licensed material or package and intended use, every distribution channel, and an explicit `evidenceAccessMode`.
 2. Exact-save its `meta.resultHandle` with `save_artifact(kind=intel)`.
 3. Supply the current evidence artifacts named by the plan. Private agreements remain user-supplied evidence; the workflow must not search for leaked copies or replace them with public summaries.
 4. Call `audit-game-legal` with the same result handle. It automatically carries the evidence IDs recorded by the plan; use comma-separated `evidenceArtifactIds` only for supplemental evidence.
 
 `ready-for-source-review` means only that source review can begin. It does not establish permission. The prompt requires current official public pages, exact item licenses and receipts, the publishing entity's accepted private agreements, jurisdiction-specific primary law when relevant, and qualified counsel for material unresolved questions.
+
+`evidenceAccessMode` prevents silent disclosure through the AI client:
+
+- `metadata-only`: artifact contents are never read; their permissions and obligations remain `cannot-assess`.
+- `redacted-artifacts`: only copies explicitly prepared and approved for the client may be read; findings are limited to those excerpts.
+- `approved-environment`: full artifacts may be read only after the user has confirmed that the processing environment is authorized. This declaration does not prove authorization.
 
 The bundled source registry routes Unity Editor and Asset Store terms, Unreal Engine and Epic Content terms, Fab licensing, and Steam Direct public rules to their official hosts. These URLs are discovery anchors, not frozen legal authority: refresh them during every audit and record the effective date, controlling section, and access time. Marketplace-wide terms do not prove the entitlement or special terms for an individual asset.
 

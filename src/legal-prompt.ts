@@ -44,6 +44,31 @@ export interface LegalSourcePlanEvidence {
   };
 }
 
+function evidenceAccessPolicy(mode: LegalSourcePlan["releaseScope"]["evidenceAccessMode"]) {
+  if (mode === "metadata-only") {
+    return {
+      mode,
+      contentAccessAllowed: false,
+      fullDocumentAccessAllowed: false,
+      requiredHandling: "Do not call get_artifact for evidenceArtifactIds. Treat document contents, permissions, and obligations as cannot-assess.",
+    } as const;
+  }
+  if (mode === "redacted-artifacts") {
+    return {
+      mode,
+      contentAccessAllowed: true,
+      fullDocumentAccessAllowed: false,
+      requiredHandling: "Call get_artifact only for copies explicitly redacted and approved for this AI client. Limit every conclusion to the supplied excerpts.",
+    } as const;
+  }
+  return {
+    mode,
+    contentAccessAllowed: true,
+    fullDocumentAccessAllowed: true,
+    requiredHandling: "Call get_artifact only within the user-approved processing environment. Preserve confidentiality and the bounded review scope.",
+  } as const;
+}
+
 export function resolveLegalSourcePlanEvidence(
   store: Pick<ResultStore, "get">,
   resultHandle: string,
@@ -102,6 +127,7 @@ export function buildGameLegalAuditPrompt(
       sourcePlan: context.sourcePlan,
       evidenceTarget: context.sourcePlan.target,
       evidenceArtifactIds,
+      evidenceAccessPolicy: evidenceAccessPolicy(releaseScope.evidenceAccessMode),
       focus: parsed.focus ?? null,
     }, null, 2),
     "--- END INPUT DATA (JSON) ---",

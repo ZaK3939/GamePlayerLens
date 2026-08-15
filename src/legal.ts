@@ -39,6 +39,12 @@ export const LegalDecisionSchema = z.enum([
   "other",
 ]);
 
+export const LegalEvidenceAccessModeSchema = z.enum([
+  "metadata-only",
+  "redacted-artifacts",
+  "approved-environment",
+]);
+
 export const LegalEngineSchema = z.object({
   provider: z.enum(["unity", "unreal", "godot", "custom", "other"]),
   version: BoundedTextSchema,
@@ -121,6 +127,7 @@ export const LegalSourcePlanInputSchema = z.object({
   releaseDescription: BoundedTextSchema,
   plannedReleaseDate: z.iso.date().optional(),
   releaseInventoryEvidenceId: EvidenceIdSchema.optional(),
+  evidenceAccessMode: LegalEvidenceAccessModeSchema,
   decision: LegalDecisionSchema,
   jurisdictions: z.array(CountryCodeSchema).min(1).max(10),
   financialEligibilityEvidenceId: EvidenceIdSchema.optional(),
@@ -159,6 +166,7 @@ export const LegalReleaseScopeSchema = z.object({
   releaseDescription: BoundedTextSchema,
   plannedReleaseDate: z.iso.date().nullable(),
   releaseInventoryEvidenceId: EvidenceIdSchema.nullable(),
+  evidenceAccessMode: LegalEvidenceAccessModeSchema,
   financialEligibilityEvidenceId: EvidenceIdSchema.nullable(),
   engines: z.array(LegalEngineSchema).min(1).max(5),
   materials: z.array(LegalMaterialSchema).max(250),
@@ -514,6 +522,7 @@ export function buildLegalSourcePlan(
       releaseDescription: parsed.releaseDescription,
       plannedReleaseDate: parsed.plannedReleaseDate ?? null,
       releaseInventoryEvidenceId: parsed.releaseInventoryEvidenceId ?? null,
+      evidenceAccessMode: parsed.evidenceAccessMode,
       financialEligibilityEvidenceId: parsed.financialEligibilityEvidenceId ?? null,
       engines: parsed.engines,
       materials: parsed.materials,
@@ -554,6 +563,11 @@ export function buildLegalSourcePlan(
       "This source plan is issue-spotting support, not legal advice or a legal clearance.",
       "Official terms can change; re-fetch each public source and record its effective date and accessedAt during every audit.",
       "Use qualified counsel for material, disputed, custom, private, or jurisdiction-dependent questions.",
+      parsed.evidenceAccessMode === "metadata-only"
+        ? "Evidence content access is disabled; artifact contents and private terms must remain unreviewed and cannot-assess."
+        : parsed.evidenceAccessMode === "redacted-artifacts"
+          ? "Only artifacts explicitly prepared as safe redacted copies may be read; do not generalize excerpts to the full agreement."
+          : "The caller declared an approved processing environment; this declaration does not prove authorization or remove confidentiality obligations.",
     ],
     meta: {observedAt: data.observedAt},
   };
