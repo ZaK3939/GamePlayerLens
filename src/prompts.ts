@@ -13,6 +13,8 @@ import {
   buildFirstContactTestDiagnostics,
   buildPlaytestCohortDiagnostics,
   buildPlaytestSessionDiagnostics,
+} from "./playtest-diagnostics.js";
+import {
   ConceptTestObjectSchema,
   ConceptTestSchema,
   FirstContactTestObjectSchema,

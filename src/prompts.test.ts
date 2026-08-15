@@ -4,6 +4,8 @@ import {describe, expect, it} from "vitest";
 import {
   buildPlaytestCohortDiagnostics,
   buildPlaytestSessionDiagnostics,
+} from "./playtest-diagnostics.js";
+import {
   FirstContactTestObjectSchema,
   PlaytestCohortObjectSchema,
   PlaytestSessionObjectSchema,
