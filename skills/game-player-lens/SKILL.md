@@ -1,0 +1,78 @@
+---
+name: game-player-lens
+description: Turn an indie game's playable build or milestone into one evidence-grounded next decision using the GamePlayerLens MCP. Use when a developer asks what to fix next, wants an AI-operated play probe, needs a risky product assumption challenged before implementation, compares current and candidate builds or UI, researches relevant Steam competitors or reviews, or decides whether a vertical slice, demo, or release should advance. Do not use for engine API implementation or as a replacement for human fun or demand tests.
+---
+
+# GamePlayerLens
+
+Move one indie game decision forward. Prefer a live build, one player task, one risky assumption, the smallest playable change, and a neutral human falsifier over a broad report.
+
+## Connection gate
+
+1. Find the GamePlayerLens MCP server and call `get_status`.
+2. If it is unavailable, do not imitate its tools or claim that evidence was saved. Explain that this skill supplies agent guidance but does not install the MCP server. Point the developer to the repository README for the source build and MCP configuration.
+3. Continue when storage is writable. Treat missing ITAD or Obscura configuration as a warning unless the chosen task needs that integration.
+
+## Choose the smallest route
+
+| Current need | Route |
+|---|---|
+| A known blocker prevents play | `play-build` with `knownBlockers`; repair the first blocker |
+| A playable build has one bounded player task | `play-build` |
+| A candidate must be compared with current behavior | `review-change` |
+| A vertical slice, demo, release, or other milestone needs a gate | `audit-project` |
+| UI stimuli are ready for an identity-hidden comparison | `ui-blind-compare` |
+| One release needs license issue spotting | `legal_source_plan`, exact-save, then `audit-game-legal` |
+
+Use Steam, competitor, review, persona, and update tools only when their evidence can change the current decision. Match competitors by the relevant mechanic, player task, genre, release freshness, and market question; popularity or review percentage alone is insufficient. Do not turn a playable-build question into a whole-game audit.
+
+## Developer Decision Challenge
+
+Challenge intent only when the next playable question or product tradeoff is ambiguous.
+
+- Inspect the repository, build, and available evidence before asking the developer.
+- Ask one dependent intent question per turn. Do not ask the developer technical implementation questions that repository evidence or established practice can answer.
+- Use this four-part form:
+
+  - **Question:** the unresolved product or player-outcome choice.
+  - **Recommended answer:** the best current choice.
+  - **Why:** observed evidence and the assumption being made.
+  - **Cost if wrong:** time, rework, or player harm caused by a mistaken choice.
+
+- Stop when the intended player behavior, one task, success or kill signal, and invariants are explicit enough to execute.
+- If a known blocker already prevents the task, skip the challenge and run the repair-first route. Do not interview the developer about a defect that can already be reproduced.
+
+The developer challenge may recommend a direction. The later Human falsifier must be neutral and must never reveal a leading recommendation or the developer's recommended answer.
+
+## Operate before interpreting
+
+1. Start the real build and perform the declared task from its declared start state.
+2. Record player action, visible or audible response, transition, end state, and recovery behavior.
+3. For Canvas or WebGL findings, capture a screenshot before making a visual claim.
+4. Report each defect with reproduction steps, player-visible effect, severity, and likely subsystem. Keep code ownership unassigned unless source evidence identifies it.
+5. Use review-grounded personas to produce questions and response hypotheses, never invented testimony. Do not claim fun, frustration, demand, retention, or purchase intent without an eligible human observation.
+
+## Close the loop after a change
+
+Re-run the same player task under the same relevant build conditions and invariants. A successful compile or unit test is necessary evidence, but it is not behavior proof. Compare the live action-response trace against one success signal and one regression guardrail.
+
+If the behavior still fails, choose the smallest bounded repair supported by the new observation. Do not respond to a reproducible build failure with more market research.
+
+## Output contract
+
+Keep daily development output compact:
+
+1. **Findings first:** at most three, ordered by player impact, with direct evidence.
+2. **Developer Decision Challenge:** include only if an unresolved product choice blocks execution.
+3. **Build Handoff:** smallest change, keep-unchanged invariants, execution mode, same player task, success signal, and guardrail.
+4. **Human falsifier:** one neutral task or question that could disprove the player hypothesis. Do not include a leading cue or recommended answer.
+
+Use GO, HOLD, or NO-GO only for `review-change` or `audit-project`. A daily `play-build` loop ends with the next executable build decision, not a ceremonial verdict.
+
+## Boundaries
+
+- Prefer fixing and replaying a known defect over collecting more evidence about why it might matter.
+- A predicted player response is a hypothesis, even when it is grounded in a real Steam review.
+- AI operation can test controls, state transitions, rendering, causality, and recovery. It cannot substitute for a person's felt reward, comprehension, replay intent, or willingness to buy.
+- A static screenshot cannot prove motion, latency, input feel, audio timing, or hidden state.
+- A milestone review cannot compensate for a missing playable build or missing human observation.

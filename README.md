@@ -11,35 +11,38 @@ Review-derived personas remain part of the process, but they are evidence-ground
 
 ## Quick start
 
-Requirements: a supported Node.js LTS release (22 or newer) and pnpm 10 or newer. CI verifies the complete build, test, stdio, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
+Install the agent-facing decision router from GitHub. Preview the repository's skills first, then add only GamePlayerLens:
 
 ```bash
-pnpm install
+npx skills add ZaK3939/GamePlayerLens --list
+npx skills add ZaK3939/GamePlayerLens --skill game-player-lens
+```
+
+Add `-a codex`, `-a claude-code`, or another supported agent when automatic detection is not appropriate. This installs the Agent Skill; it does not install or register the MCP server that supplies data, storage, and prompts.
+
+Run that server from source. Requirements are a supported Node.js LTS release (22 or newer) and pnpm 10 or newer:
+
+```bash
+git clone https://github.com/ZaK3939/GamePlayerLens.git
+cd GamePlayerLens
+pnpm install --frozen-lockfile
 pnpm build
-pnpm smoke:stdio
 ```
 
-The repository includes `.mcp.json`, which starts the stdio server with `pnpm tsx src/index.ts`. Enable the `game-player-lens` server in your MCP client, then restart the client.
-
-To use the packaged CLI instead:
-
-```bash
-pnpm pack
-npm install --global ./game-player-lens-0.2.0.tgz
-game-player-lens
-```
+Register the built CLI in the MCP configuration used by your client, replacing the path with the clone's absolute path:
 
 ```json
 {
   "mcpServers": {
     "game-player-lens": {
-      "command": "game-player-lens"
+      "command": "node",
+      "args": ["/absolute/path/to/GamePlayerLens/dist/cli.js"]
     }
   }
 }
 ```
 
-After connecting, call `get_status` with no arguments. It reports whether the data directory is writable and whether the optional ITAD and Obscura integrations are configured, without returning secrets or absolute paths.
+The clone also includes `.mcp.json` for repository-local development. Enable the server, restart the client, and call `get_status` with no arguments. It reports whether the data directory is writable and whether the optional ITAD and Obscura integrations are configured, without returning secrets or absolute paths. CI verifies the complete build, test, stdio, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
 
 For a playable development build, start with `play-build` rather than a full audit:
 

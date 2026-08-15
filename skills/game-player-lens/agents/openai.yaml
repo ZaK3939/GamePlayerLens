@@ -1,0 +1,4 @@
+interface:
+  display_name: "GamePlayerLens"
+  short_description: "Turn one game build into the next testable decision"
+  default_prompt: "Use $game-player-lens to operate one player task, challenge the riskiest assumption, and choose the next build."

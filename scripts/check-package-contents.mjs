@@ -74,6 +74,8 @@ try {
   for (const required of [
     "dist/cli.js",
     "skills/game-review.md",
+    "skills/game-player-lens/SKILL.md",
+    "skills/game-player-lens/agents/openai.yaml",
     "skills/game-legal-audit/SKILL.md",
     "skills/game-legal-audit/agents/openai.yaml",
     "README.md",

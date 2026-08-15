@@ -77,4 +77,16 @@ describe("public documentation", () => {
     expect(workflow).toContain("macos-26 arm64 / Node.js 24 / storage reliability");
     expect(workflow.match(/Verify Apple Silicon runner/gu)).toHaveLength(2);
   });
+
+  it("separates universal skill installation from MCP server setup", async () => {
+    const readme = await read("README.md");
+
+    expect(readme).toContain("npx skills add ZaK3939/GamePlayerLens --list");
+    expect(readme).toContain("npx skills add ZaK3939/GamePlayerLens --skill game-player-lens");
+    expect(readme).toMatch(/installs[\s\S]*skill[\s\S]*does not install[\s\S]*MCP server/i);
+    expect(readme).toContain("git clone https://github.com/ZaK3939/GamePlayerLens.git");
+    expect(readme).toContain('"command": "node"');
+    expect(readme).toContain('"args": ["/absolute/path/to/GamePlayerLens/dist/cli.js"]');
+    expect(readme).not.toContain("npx game-player-lens");
+  });
 });

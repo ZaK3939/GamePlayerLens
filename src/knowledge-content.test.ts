@@ -855,6 +855,35 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/Remaining blockers[\s\S]*serial repair/i);
   });
 
+  it("packages an installable decision router that pressure-tests one indie build question", async () => {
+    const content = await read("skills/game-player-lens/SKILL.md");
+    const metadata = await read("skills/game-player-lens/agents/openai.yaml");
+
+    expect(content).toContain("name: game-player-lens");
+    expect(content).not.toContain("TODO");
+    expect(content).toContain("get_status");
+    expect(content).toMatch(/skill[\s\S]*does not install[\s\S]*MCP/i);
+    expect(content).toMatch(/inspect[\s\S]*(repository|build|evidence)[\s\S]*before[\s\S]*ask/i);
+    expect(content).toMatch(/one[\s\S]*intent question[\s\S]*Recommended answer[\s\S]*Cost if wrong/i);
+    expect(content).toMatch(/do not ask[\s\S]*technical/i);
+    expect(content).toMatch(/known blocker[\s\S]*skip[\s\S]*(grill|challenge)/i);
+    expect(content).toMatch(/Developer Decision Challenge[\s\S]*Human falsifier/i);
+    expect(content).toMatch(/Human falsifier[\s\S]*(leading|recommended answer)/i);
+    expect(content).toMatch(/Canvas|WebGL/);
+    expect(content).toMatch(/screenshot[\s\S]*reproduction[\s\S]*severity[\s\S]*subsystem/i);
+    expect(content).toMatch(/same player task[\s\S]*(compile|unit test)[\s\S]*not[\s\S]*(behavior|proof)/i);
+    for (const prompt of [
+      "play-build",
+      "review-change",
+      "audit-project",
+      "ui-blind-compare",
+      "audit-game-legal",
+    ]) {
+      expect(content).toContain(`\`${prompt}\``);
+    }
+    expect(metadata).toContain("$game-player-lens");
+  });
+
   it("packages a bounded legal issue-spotting skill with private-source and counsel gates", async () => {
     const content = await read("skills/game-legal-audit/SKILL.md");
     const metadata = await read("skills/game-legal-audit/agents/openai.yaml");
