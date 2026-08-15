@@ -11,12 +11,12 @@ Review-derived personas remain part of the process, but they are evidence-ground
 
 ## Quick start
 
-From the game repository that should use GamePlayerLens, install the verified v0.3.0 Agent Skill and confirm that the project can see it:
+From the game repository that should use GamePlayerLens, install the verified v0.3.1 Agent Skill and confirm that the project can see it:
 
 ```bash
 cd /path/to/your-game
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.0/skills/game-player-lens --list
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.0/skills/game-player-lens --skill game-player-lens
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.1/skills/game-player-lens --list
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.1/skills/game-player-lens --skill game-player-lens
 npx skills list
 ```
 
@@ -25,7 +25,7 @@ Add `-a codex`, `-a claude-code`, or another supported agent when automatic dete
 Run that server from source. Requirements are a supported Node.js LTS release (22 or newer) and pnpm 10 or newer:
 
 ```bash
-git clone --branch v0.3.0 --depth 1 https://github.com/ZaK3939/GamePlayerLens.git
+git clone --branch v0.3.1 --depth 1 https://github.com/ZaK3939/GamePlayerLens.git
 cd GamePlayerLens
 pnpm install --frozen-lockfile
 pnpm build

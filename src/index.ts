@@ -63,7 +63,7 @@ import {
 } from "./server-services.js";
 
 const SERVER_NAME = "game-player-lens";
-const SERVER_VERSION = "0.3.0";
+const SERVER_VERSION = "0.3.1";
 const TOOL_COUNT = 17;
 const PROMPT_COUNT = 5;
 

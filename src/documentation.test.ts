@@ -82,10 +82,10 @@ describe("public documentation", () => {
     const readme = await read("README.md");
 
     expect(readme).toContain("cd /path/to/your-game");
-    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.0/skills/game-player-lens");
+    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.1/skills/game-player-lens");
     expect(readme).toContain("npx skills list");
     expect(readme).toMatch(/installs[\s\S]*skill[\s\S]*does not install[\s\S]*MCP server/i);
-    expect(readme).toContain("git clone --branch v0.3.0 --depth 1 https://github.com/ZaK3939/GamePlayerLens.git");
+    expect(readme).toContain("git clone --branch v0.3.1 --depth 1 https://github.com/ZaK3939/GamePlayerLens.git");
     expect(readme).toContain('"command": "node"');
     expect(readme).toContain('"args": ["/absolute/path/to/GamePlayerLens/dist/cli.js"]');
     expect(readme).toMatch(/Skill check[\s\S]*\$game-player-lens[\s\S]*MCP check[\s\S]*get_status/i);

@@ -600,7 +600,7 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.3.0"},
+          server: {name: "game-player-lens", version: "0.3.1"},
           storage: {location: "repository-root", writable: true},
           integrations: {
             itadPriceHistory: {configured: expect.any(Boolean)},
