@@ -13,10 +13,12 @@ Read `workflowRouting` and `intakeDiagnostics` first.
 ## Repair First Card
 
 - Route: `REPAIR FIRST`
-- Why now: how the declared blocker prevents the player task
+- Why now: how the active blocker prevents a useful player probe
 - Known blockers: list the supplied blockers without inventing more
-- Smallest repair: the smallest build change that removes them
-- Delivery route: `single-change`; do not fan out PoCs while the declared blocker prevents the common player task
+- Active blocker: use the first supplied blocker because input order declares repair priority; do not infer a different priority or assume separate blockers share one root cause
+- Smallest repair: the smallest build change for the active blocker
+- Remaining blockers: preserve every other declared blocker for later serial repair
+- Execution: `single owner`; do not fan out experiments while the declared blocker prevents the common player task
 - Focused regression: the smallest technical check after repair
 - Re-enter when: the supplied re-entry condition
 
@@ -77,34 +79,29 @@ When `coreClaim` is absent, keep the heading and write only `Core claim: undecla
 
 Without explicit persona IDs, include only `neutral-operation` and do not invent a demographic or review voice.
 
-### Smallest Playable Change
+### Build Handoff
 
-- Player problem
-- Smallest change
-- Success signal observable in the next build
-- Guardrail
+Choose the least costly mode that can change the next observed operation. Exploration may be parallel; integration is serial. Do not invent repository structure, team members, or model performance.
 
-### Delivery Handoff
-
-Choose one route. Exploration may be parallel; integration is serial; verification is independent.
-
-- `single-change` is the default. Use one owner when one observed problem has one smallest falsifiable change. Do not create a workflow merely because agents are available.
-- `parallel-poc` is allowed only when the observation leaves 2–5 materially different causal hypotheses that can be built independently. Give every candidate one changed variable, the same shared invariants, the same bounded player task, and the same success signal. Reject near-duplicate variants and do not merge losing PoCs.
-- `specialist-production` is allowed only when a chosen playable direction crosses separable disciplines and each lane can own a disjoint artifact. Name one feature/integration owner for the player-facing moment. Work touching the same scene, prefab, map, Blueprint, binary asset, project setting, input map, or shader graph is serial under that owner.
+- `solo` is the default for one bounded, falsifiable change. It means one owner and does not require a multi-agent workflow.
+- `parallel-experiment` is allowed only when the observation leaves 2–5 materially different causal hypotheses that can be built independently. Give each candidate one changed variable, the same shared invariants, the same player task, and the same success signal. Isolate candidates in separate branches or copies, reject near-duplicates, and discard rather than merge losing experiments.
+- `specialist-production` is allowed only after a playable direction is selected and separable disciplines can own disjoint artifacts. Changes to the same scene, prefab, map, Blueprint, binary asset, project setting, input map, or shader graph are serial under one owner.
 
 Return:
 
-- Route and why its coordination cost is earned
-- Changed variable and shared invariants; for `parallel-poc`, list 2–5 candidate IDs
-- Artifact ownership by lane and the single integration owner; write `single owner` when no safe boundary exists
-- Worker capability required for each lane; choose a model from observed role-specific eval evidence, not preference or brand reputation
-- Independent verifier, which must not be the producing worker or the integration owner
-- Done when: build and focused tests pass, the same player task is operated, the success signal and guardrail are captured, relevant performance or receipt contracts hold, the independent verifier passes it, the Human Handoff is ready, and any new external asset has license evidence
-
-### Human Handoff
-
-- One question that only a person can answer
-- One behavior or unaided statement that would support the hypothesis
-- One result that would falsify it
+- Player problem
+- Next change
+- Keep unchanged
+- Delivery mode and why its coordination cost is earned
+- For `parallel-experiment`, list 2–5 candidate IDs, each changed variable, and the shared invariants
+- Artifact ownership and integration owner only when source or team evidence was observed; otherwise write `artifact ownership: unassigned`
+- Worker capability required; unless role-specific eval evidence was supplied or observed, write `model assignment: unassigned` and do not name a model
+- Same player task
+- Success signal
+- Regression guardrail
+- Verification: focused tests and the same player task. Write `independent review: passed` only after a different actor reviews the result; otherwise write `independent review: missing`. Deterministic checks do not turn a missing independent review into a passed one.
+- Human question, one behavior or unaided statement that would support the hypothesis, and one result that would falsify it
+- Re-enter when the next build runs the same task and captures both the success signal and regression guardrail
+- License evidence only when the change introduces a new external asset
 
 Do not output GO / HOLD / NO-GO. Those belong to `review-change` or milestone `audit-project` after useful build evidence exists.

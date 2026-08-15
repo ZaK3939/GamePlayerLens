@@ -31,19 +31,19 @@ Start with `play-build` when a playable URL exists. Use `review-change` for one 
 }
 ```
 
-The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, grounded lens reactions, the smallest playable change, a Delivery Handoff, and one human falsifier. It does not return a milestone verdict or automatically run Steam research.
+The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, grounded lens reactions, and one Build Handoff with a human falsifier. It does not return a milestone verdict or automatically run Steam research.
 
 If the client cannot operate the build, it reports an operation blocker. Loading a page, reading source, or viewing one static frame is not play.
 
 ### Deliver the next build
 
-The Delivery Handoff keeps orchestration proportional to the observed uncertainty:
+The Build Handoff keeps orchestration proportional to the observed uncertainty:
 
-- `single-change` is the default for one bounded fix.
-- `parallel-poc` is limited to 2–5 materially different hypotheses. Every candidate changes one variable while keeping the same player task, success signal, and declared invariants; losing PoCs are discarded rather than merged.
+- `solo` is the default for one bounded fix and requires no multi-agent workflow.
+- `parallel-experiment` is limited to 2–5 materially different hypotheses. Every isolated candidate changes one variable while keeping the same player task, success signal, and declared invariants; losing experiments are discarded rather than merged.
 - `specialist-production` is reserved for a selected direction with disjoint artifact ownership. One feature/integration owner serializes changes to the same Unity scene or prefab, Unreal map or Blueprint, binary asset, project setting, input map, or shader graph.
 
-Worker models are selected from observed role-specific results, not a universal preference. The producing worker and integration owner cannot serve as the independent verifier. Completion requires a runnable build, focused tests, operation of the same player task, captured success and guardrail signals, relevant performance contracts, human handoff readiness, and license evidence for newly introduced external assets.
+The handoff names the player problem, next change, invariants, same player task, success signal, regression guardrail, and one human question. Artifact ownership remains `unassigned` without observed repository or team evidence. Model assignment remains `unassigned` without role-specific evaluation evidence. A different actor may provide independent review; otherwise its status remains `missing` while focused tests and the repeated player task still provide explicit verification. License evidence is required only when the change introduces a new external asset.
 
 ### Trace one core claim
 
@@ -70,7 +70,7 @@ Visual similarity, matching tags, camera, enemy counts, or an upgrade menu do no
 
 ### Repair-first routing
 
-When known execution defects already prevent a useful operation, declare them instead of assembling audit evidence:
+When known execution defects already prevent a useful operation, declare them in intended repair order instead of assembling audit evidence:
 
 ```json
 {
@@ -79,7 +79,7 @@ When known execution defects already prevent a useful operation, declare them in
 }
 ```
 
-This route returns a Repair First Card and blocks build operation, Steam research, persona derivation, full audit, and artifact saving. Re-enter through `play-build` after a new build can execute the task. `audit-project` accepts the same `knownBlockers` escape route when a premature milestone audit was requested.
+This route repairs the first declared blocker, preserves the others for later serial repair, and blocks build operation, Steam research, persona derivation, full audit, and artifact saving. Re-enter through `play-build` after a new build can execute the task. `audit-project` accepts the same `knownBlockers` escape route when a premature milestone audit was requested.
 
 The route is explicit rather than inferred from source code. Do not omit a known blocker merely to force a player simulation.
 

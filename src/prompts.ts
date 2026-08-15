@@ -181,7 +181,7 @@ const GameReviewPromptArgumentShape = {
   ),
   specification: z.string().max(50_000).optional(),
   knownBlockers: KnownBlockersTextSchema.optional().describe(
-    "One known execution blocker per line; declared blockers route developer work to repair-first",
+    "One known execution blocker per line in intended repair order; declared blockers route developer work to repair-first",
   ),
   projectBrief: ProjectBriefSchema.optional().describe(
     "JSON object containing declared concept origin, project stage, core experience, and production constraints",
@@ -294,7 +294,9 @@ export const PlayBuildPromptArgumentsSchema = z.object({
   ),
   timeLimitMinutes: BuildProbeDurationSchema.optional(),
   personaIds: PersonaIdsSchema.optional(),
-  knownBlockers: KnownBlockersTextSchema.optional(),
+  knownBlockers: KnownBlockersTextSchema.optional().describe(
+    "One known execution blocker per line in intended repair order",
+  ),
 }).strict();
 
 export type GameReviewPromptArguments = z.input<typeof GameReviewPromptArgumentsSchema>;

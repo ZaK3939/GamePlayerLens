@@ -836,18 +836,23 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/coreClaim[\s\S]*undeclared[\s\S]*infer/i);
   });
 
-  it("hands the observed player problem to a bounded game-production route", async () => {
+  it("hands the observed player problem to an indie-sized build route", async () => {
     const content = await read("skills/play-build.md");
 
-    expect(content).toContain("Delivery Handoff");
-    expect(content).toContain("single-change");
-    expect(content).toContain("parallel-poc");
+    expect(content).toContain("Build Handoff");
+    expect(content).not.toContain("Delivery Handoff");
+    expect(content).toContain("solo");
+    expect(content).toContain("parallel-experiment");
     expect(content).toContain("specialist-production");
-    expect(content).toMatch(/parallel-poc[\s\S]*2[–-]5[\s\S]*changed variable[\s\S]*shared invariants/i);
-    expect(content).toMatch(/artifact ownership[\s\S]*integration owner/i);
+    expect(content).toMatch(/parallel-experiment[\s\S]*2[–-]5[\s\S]*changed variable[\s\S]*shared invariants/i);
+    expect(content).toMatch(/Keep unchanged[\s\S]*same player task[\s\S]*success signal[\s\S]*regression guardrail/i);
     expect(content).toMatch(/same (?:scene|prefab|map|Blueprint|binary)/i);
-    expect(content).toMatch(/independent verifier[\s\S]*human handoff/i);
-    expect(content).toMatch(/model[\s\S]*role[\s\S]*(evidence|eval|observed)/i);
+    expect(content).toMatch(/artifact ownership[\s\S]*unassigned/i);
+    expect(content).toMatch(/model assignment[\s\S]*unassigned/i);
+    expect(content).toMatch(/independent review[\s\S]*missing/i);
+    expect(content).toMatch(/Human question[\s\S]*support[\s\S]*falsif/i);
+    expect(content).toMatch(/Active blocker[\s\S]*first supplied[\s\S]*do not infer[\s\S]*root cause/i);
+    expect(content).toMatch(/Remaining blockers[\s\S]*serial repair/i);
   });
 
   it("packages a bounded legal issue-spotting skill with private-source and counsel gates", async () => {
