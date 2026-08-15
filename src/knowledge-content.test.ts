@@ -836,6 +836,20 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/coreClaim[\s\S]*undeclared[\s\S]*infer/i);
   });
 
+  it("hands the observed player problem to a bounded game-production route", async () => {
+    const content = await read("skills/play-build.md");
+
+    expect(content).toContain("Delivery Handoff");
+    expect(content).toContain("single-change");
+    expect(content).toContain("parallel-poc");
+    expect(content).toContain("specialist-production");
+    expect(content).toMatch(/parallel-poc[\s\S]*2[–-]5[\s\S]*changed variable[\s\S]*shared invariants/i);
+    expect(content).toMatch(/artifact ownership[\s\S]*integration owner/i);
+    expect(content).toMatch(/same (?:scene|prefab|map|Blueprint|binary)/i);
+    expect(content).toMatch(/independent verifier[\s\S]*human handoff/i);
+    expect(content).toMatch(/model[\s\S]*role[\s\S]*(evidence|eval|observed)/i);
+  });
+
   it("packages a bounded legal issue-spotting skill with private-source and counsel gates", async () => {
     const content = await read("skills/game-legal-audit/SKILL.md");
     const metadata = await read("skills/game-legal-audit/agents/openai.yaml");

@@ -16,6 +16,7 @@ Read `workflowRouting` and `intakeDiagnostics` first.
 - Why now: how the declared blocker prevents the player task
 - Known blockers: list the supplied blockers without inventing more
 - Smallest repair: the smallest build change that removes them
+- Delivery route: `single-change`; do not fan out PoCs while the declared blocker prevents the common player task
 - Focused regression: the smallest technical check after repair
 - Re-enter when: the supplied re-entry condition
 
@@ -82,6 +83,23 @@ Without explicit persona IDs, include only `neutral-operation` and do not invent
 - Smallest change
 - Success signal observable in the next build
 - Guardrail
+
+### Delivery Handoff
+
+Choose one route. Exploration may be parallel; integration is serial; verification is independent.
+
+- `single-change` is the default. Use one owner when one observed problem has one smallest falsifiable change. Do not create a workflow merely because agents are available.
+- `parallel-poc` is allowed only when the observation leaves 2–5 materially different causal hypotheses that can be built independently. Give every candidate one changed variable, the same shared invariants, the same bounded player task, and the same success signal. Reject near-duplicate variants and do not merge losing PoCs.
+- `specialist-production` is allowed only when a chosen playable direction crosses separable disciplines and each lane can own a disjoint artifact. Name one feature/integration owner for the player-facing moment. Work touching the same scene, prefab, map, Blueprint, binary asset, project setting, input map, or shader graph is serial under that owner.
+
+Return:
+
+- Route and why its coordination cost is earned
+- Changed variable and shared invariants; for `parallel-poc`, list 2–5 candidate IDs
+- Artifact ownership by lane and the single integration owner; write `single owner` when no safe boundary exists
+- Worker capability required for each lane; choose a model from observed role-specific eval evidence, not preference or brand reputation
+- Independent verifier, which must not be the producing worker or the integration owner
+- Done when: build and focused tests pass, the same player task is operated, the success signal and guardrail are captured, relevant performance or receipt contracts hold, the independent verifier passes it, the Human Handoff is ready, and any new external asset has license evidence
 
 ### Human Handoff
 

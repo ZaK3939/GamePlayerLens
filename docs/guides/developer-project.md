@@ -31,9 +31,19 @@ Start with `play-build` when a playable URL exists. Use `review-change` for one 
 }
 ```
 
-The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, grounded lens reactions, the smallest playable change, and one human falsifier. It does not return a milestone verdict or automatically run Steam research.
+The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, grounded lens reactions, the smallest playable change, a Delivery Handoff, and one human falsifier. It does not return a milestone verdict or automatically run Steam research.
 
 If the client cannot operate the build, it reports an operation blocker. Loading a page, reading source, or viewing one static frame is not play.
+
+### Deliver the next build
+
+The Delivery Handoff keeps orchestration proportional to the observed uncertainty:
+
+- `single-change` is the default for one bounded fix.
+- `parallel-poc` is limited to 2–5 materially different hypotheses. Every candidate changes one variable while keeping the same player task, success signal, and declared invariants; losing PoCs are discarded rather than merged.
+- `specialist-production` is reserved for a selected direction with disjoint artifact ownership. One feature/integration owner serializes changes to the same Unity scene or prefab, Unreal map or Blueprint, binary asset, project setting, input map, or shader graph.
+
+Worker models are selected from observed role-specific results, not a universal preference. The producing worker and integration owner cannot serve as the independent verifier. Completion requires a runnable build, focused tests, operation of the same player task, captured success and guardrail signals, relevant performance contracts, human handoff readiness, and license evidence for newly introduced external assets.
 
 ### Trace one core claim
 

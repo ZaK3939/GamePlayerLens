@@ -313,6 +313,9 @@ try {
       && coreContent.text.includes('"coreClaim": {')
       && coreContent.text.includes('"evidenceClass": "declared-design-hypothesis"')
       && coreContent.text.includes('"feltRewardRequiresHumanReport": true')
+      && coreContent.text.includes("### Delivery Handoff")
+      && coreContent.text.includes("`parallel-poc`")
+      && coreContent.text.includes("`specialist-production`")
       && !coreContent.text.includes('"coreClaim": "{'),
     "play-build did not normalize and bound the declared core claim",
   );

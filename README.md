@@ -84,7 +84,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 | Play | Operate one bounded task in a playable build | Action → Response Trace |
 | Trace the core | Compare declared theme/system and experience/reward delivery with one operation | Core Delivery Trace and one primary drift |
 | Hypothesize | Replay the same observed stimulus through explicit grounded personas | Player Lens Reactions with confidence and human falsifier |
-| Fix | Choose the smallest change that can alter the next operation | player problem, change, success signal, guardrail |
+| Fix | Choose the smallest change and the least costly delivery topology that can alter the next operation | player problem, change, success signal, guardrail, Delivery Handoff |
 | Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Audit | Decide whether a milestone or bounded revision should advance | structured Decision Card, immutable evidence run, prioritized backlog |
@@ -95,7 +95,7 @@ If known execution blockers already prevent that task, pass one per line as `kno
 The five MCP prompts are:
 
 - `audit-game-legal`: reads an exact `legal_source_plan` result through the bundled `game-legal-audit` skill and produces a source-cited, release-scoped risk review. It never promises legal clearance.
-- `play-build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card with Action → Response and optional Core Delivery traces, not a milestone verdict.
+- `play-build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card with Action → Response, optional Core Delivery traces, and a bounded Delivery Handoff, not a milestone verdict.
 - `review-change`: the daily current-versus-candidate revision review. It fixes `mode=change`, requires a revision bundle, and prioritizes changed findings.
 - `audit-project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
 - `ui-blind-compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.
