@@ -27,7 +27,7 @@ The evaluation's Selected Domains must exactly match the run's `selectedDomains`
 
 ## Canonical evaluation
 
-`save_artifact(kind=evaluation)` validates the canonical report rather than accepting arbitrary prose. It checks required sections, ordering, non-empty content, data coverage, Evidence Index structure, and detailed indie-strategy sections when applicable. The Decision Card must contain one valid verdict and decision, one to three evidence-linked Proven entries, one to three explicitly missing Unproven entries, one highest risk, one player problem, one to three structured next validations, confidence, and a revisit condition. Domain findings require a `Blocker`, `Important`, or `Suggestion` severity. Unfilled template markers and token completion text are rejected.
+`save_evaluation` validates the canonical report rather than accepting arbitrary prose. It checks required sections, ordering, non-empty content, data coverage, Evidence Index structure, and detailed indie-strategy sections when applicable. The Decision Card must contain one valid verdict and decision, one to three evidence-linked Proven entries, one to three explicitly missing Unproven entries, one highest risk, one player problem, one to three structured next validations, confidence, and a revisit condition. Domain findings require a `Blocker`, `Important`, or `Suggestion` severity. Unfilled template markers and token completion text are rejected.
 
 A successful evaluation save returns that validated card as structured `decisionCard` data and a five-field `developerSummary` containing verdict, decision, highest risk, next action, and success signal. These are deterministic projections of the saved Markdown, not an independent server judgment.
 

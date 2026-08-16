@@ -106,7 +106,7 @@
 
 ## 9. 再現性と calibration ゲート
 
-- 最終 evaluation の保存後に、同じ `save_artifact` の kind=`run` で immutable な run artifact を保存できない場合は完了として扱わない。
+- 最終 evaluation の保存後に、`save_run` で immutable な run artifact を保存できない場合は完了として扱わない。
 - run artifact に Mode と全 scenario、Selected Domains、使用した persona ID、全 independent pass の連続した rounds、warning、最終 evaluation 参照がなければ差し戻す。change で現状または変更案の round が欠ける場合、選択領域に対応する round がない場合も差し戻す。
 - 各`scenario × Selected Domain`と各`persona × scenario`のroundが1件以上なければ差し戻す。保存された構造coverageが100%でも、Data Coverage Matrixのmissingを解消したことにはしない。
 - `finalEvaluationRef`はsynthesis後に生成されるため、いずれかのroundの`evidenceRefs`に含まれていれば循環参照として差し戻す。final evaluation以外のevidenceがどのroundにも使われていない場合も差し戻す。

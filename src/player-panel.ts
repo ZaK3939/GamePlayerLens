@@ -155,6 +155,31 @@ export type PlayerPanelInput = z.infer<typeof PlayerPanelInputSchema>;
 export type PlayerPanelRecord = z.infer<typeof PlayerPanelRecordSchema>;
 export type PersonaLoader = (id: string) => Promise<Persona>;
 
+const PLAYER_PANEL_REQUIRED_FIELDS = [
+  "target",
+  "observedAt",
+  "buildId",
+  "task",
+  "startState",
+  "endState",
+  "outcome",
+  "stimulus",
+  "neutral",
+  "coreClarity",
+  "lenses",
+] as const;
+
+export interface PlayerPanelValidationResult {
+  ready: boolean;
+  missingTopLevelFields: string[];
+  issues: Array<{
+    stage: "schema" | "grounding";
+    path: string;
+    message: string;
+  }>;
+  nextAction: string;
+}
+
 function evidenceKey(sourceAppid: number, recommendationId: string): string {
   return `${sourceAppid}:${recommendationId}`;
 }
@@ -250,4 +275,50 @@ export async function buildPlayerPanelRecord(
       "Core clarity findings describe this observed stimulus and do not by themselves explain sales performance.",
     ],
   });
+}
+
+export async function validatePlayerPanelDraft(
+  candidate: unknown,
+  loadPersona: PersonaLoader,
+): Promise<PlayerPanelValidationResult> {
+  const object = candidate && typeof candidate === "object" && !Array.isArray(candidate)
+    ? candidate as Record<string, unknown>
+    : {};
+  const missingTopLevelFields = PLAYER_PANEL_REQUIRED_FIELDS.filter(
+    (field) => object[field] === undefined,
+  );
+  const parsed = PlayerPanelInputSchema.safeParse(candidate);
+  if (!parsed.success) {
+    return {
+      ready: false,
+      missingTopLevelFields,
+      issues: parsed.error.issues.map((issue) => ({
+        stage: "schema" as const,
+        path: issue.path.length > 0 ? issue.path.map(String).join(".") : "$",
+        message: issue.message,
+      })),
+      nextAction: "Fill every reported field and call validate_player_panel again.",
+    };
+  }
+
+  try {
+    await buildPlayerPanelRecord(parsed.data, loadPersona);
+    return {
+      ready: true,
+      missingTopLevelFields: [],
+      issues: [],
+      nextAction: "Call record_player_panel with the same input.",
+    };
+  } catch (error) {
+    return {
+      ready: false,
+      missingTopLevelFields: [],
+      issues: [{
+        stage: "grounding",
+        path: "lenses",
+        message: error instanceof Error ? error.message : String(error),
+      }],
+      nextAction: "Correct the persona, research-question, or review grounding and validate again.",
+    };
+  }
 }

@@ -15,7 +15,7 @@ stageはmutable status fieldを持たない設計とし、次のartifact chain�
 
 ここで`observed`はOutcome artifactが記録されたstage名であり、個々のmetricが観測済みという意味ではありません。metricの測定状態はresultの`status`だけで判断します。
 
-ExperimentSpec、ExperimentMeasurement、ExperimentOutcomeは`save_artifact(kind=intel, sourceTool=manual)`で保存します。artifact storeはcreate-onlyで同じcanonical IDの再利用を拒否します。run integrityとOutcome validatorが照合するexact SHA-256も保証境界に含めます。
+ExperimentSpec、ExperimentMeasurement、ExperimentOutcomeは`save_intel(sourceTool=manual)`で保存します。artifact storeはcreate-onlyで同じcanonical IDの再利用を拒否します。run integrityとOutcome validatorが照合するexact SHA-256も保証境界に含めます。
 
 ## 2. ExperimentSpec
 

@@ -10,17 +10,25 @@ import {
 } from "./smoke-support.js";
 
 const EXPECTED_TOOLS = [
+  "audit_game_legal",
+  "audit_project",
   "coach_history",
   "derive_personas",
   "get_artifact",
   "get_knowledge",
   "get_status",
   "legal_source_plan",
+  "play_build",
   "record_first_contact",
   "record_player_panel",
   "report_agent_experience",
-  "save_artifact",
+  "review_change",
+  "save_capture",
+  "save_evaluation",
+  "save_intel",
   "save_persona",
+  "save_result",
+  "save_run",
   "steam_brief",
   "steam_discover",
   "steam_fetch",
@@ -29,7 +37,9 @@ const EXPECTED_TOOLS = [
   "steam_timeline",
   "steam_updates",
   "summarize_agent_experience",
+  "ui_blind_compare",
   "ui_capture",
+  "validate_player_panel",
 ];
 const EXPECTED_PROMPTS = [
   "audit-game-legal",
@@ -151,8 +161,10 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
-      && statusJson.includes('"toolCount":20')
-      && statusJson.includes('"promptCount":5')
+      && statusJson.includes('"toolCount":30')
+      && statusJson.includes('"instanceId":"storage-')
+      && statusJson.includes('"workflowToolCount":5')
+      && statusJson.includes('"promptShortcutCount":5')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",
   );

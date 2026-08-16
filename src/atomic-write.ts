@@ -11,8 +11,36 @@ export interface AtomicTextFileOps {
   unlink(path: string): Promise<void>;
 }
 
+export interface AtomicBinaryFileOps {
+  writeFile(
+    path: string,
+    data: Uint8Array,
+    options: {flag: "wx"; flush: true},
+  ): Promise<void>;
+  link(existingPath: string, newPath: string): Promise<void>;
+  unlink(path: string): Promise<void>;
+}
+
 interface AtomicTextWriteOptions {
   fileOps: AtomicTextFileOps;
+  alreadyExistsMessage: string;
+  idFactory?: () => string;
+  publishRetryTimeoutMs?: number;
+  cleanupRetryTimeoutMs?: number;
+}
+
+interface AtomicBinaryWriteOptions {
+  fileOps: AtomicBinaryFileOps;
+  alreadyExistsMessage: string;
+  idFactory?: () => string;
+  publishRetryTimeoutMs?: number;
+  cleanupRetryTimeoutMs?: number;
+}
+
+interface AtomicPublicationOptions {
+  writeTemporary(path: string): Promise<void>;
+  link: AtomicTextFileOps["link"];
+  unlink: AtomicTextFileOps["unlink"];
   alreadyExistsMessage: string;
   idFactory?: () => string;
   publishRetryTimeoutMs?: number;
@@ -101,10 +129,9 @@ async function linkTemporaryWithRetry(
   }
 }
 
-export async function writeTextFileAtomically(
+async function publishFileAtomically(
   destination: string,
-  data: string,
-  options: AtomicTextWriteOptions,
+  options: AtomicPublicationOptions,
 ): Promise<void> {
   const temporary = join(
     dirname(destination),
@@ -114,15 +141,11 @@ export async function writeTextFileAtomically(
   let operationFailed = false;
 
   try {
-    await options.fileOps.writeFile(temporary, data, {
-      encoding: "utf8",
-      flag: "wx",
-      flush: true,
-    });
+    await options.writeTemporary(temporary);
     temporaryCreated = true;
     try {
       await linkTemporaryWithRetry(
-        options.fileOps.link,
+        options.link,
         temporary,
         destination,
         options.publishRetryTimeoutMs ?? DEFAULT_PUBLISH_RETRY_TIMEOUT_MS,
@@ -140,7 +163,7 @@ export async function writeTextFileAtomically(
     if (temporaryCreated) {
       try {
         await unlinkTemporaryWithRetry(
-          options.fileOps.unlink,
+          options.unlink,
           temporary,
           options.cleanupRetryTimeoutMs ?? DEFAULT_CLEANUP_RETRY_TIMEOUT_MS,
         );
@@ -149,4 +172,37 @@ export async function writeTextFileAtomically(
       }
     }
   }
+}
+
+export async function writeTextFileAtomically(
+  destination: string,
+  data: string,
+  options: AtomicTextWriteOptions,
+): Promise<void> {
+  return publishFileAtomically(destination, {
+    ...options,
+    link: options.fileOps.link,
+    unlink: options.fileOps.unlink,
+    writeTemporary: (temporary) => options.fileOps.writeFile(temporary, data, {
+      encoding: "utf8",
+      flag: "wx",
+      flush: true,
+    }),
+  });
+}
+
+export async function writeBinaryFileAtomically(
+  destination: string,
+  data: Uint8Array,
+  options: AtomicBinaryWriteOptions,
+): Promise<void> {
+  return publishFileAtomically(destination, {
+    ...options,
+    link: options.fileOps.link,
+    unlink: options.fileOps.unlink,
+    writeTemporary: (temporary) => options.fileOps.writeFile(temporary, data, {
+      flag: "wx",
+      flush: true,
+    }),
+  });
 }

@@ -3,6 +3,7 @@ import type {Persona} from "./persona-schemas.js";
 import {
   buildPlayerPanelRecord,
   PlayerPanelInputSchema,
+  validatePlayerPanelDraft,
 } from "./player-panel.js";
 
 const NOW = "2026-08-17T10:00:00.000Z";
@@ -194,5 +195,45 @@ describe("player panel records", () => {
 
     await expect(buildPlayerPanelRecord(input(), async () => saved))
       .rejects.toThrow(/does not ground research question.*failure-causality/i);
+  });
+
+  it("returns actionable missing fields for an incomplete panel without throwing", async () => {
+    const validation = await validatePlayerPanelDraft({}, async () => persona());
+
+    expect(validation.ready).toBe(false);
+    expect(validation.missingTopLevelFields).toEqual([
+      "target",
+      "observedAt",
+      "buildId",
+      "task",
+      "startState",
+      "endState",
+      "outcome",
+      "stimulus",
+      "neutral",
+      "coreClarity",
+      "lenses",
+    ]);
+    expect(validation.issues).toContainEqual(expect.objectContaining({
+      path: "target",
+      stage: "schema",
+    }));
+  });
+
+  it("checks saved persona grounding in dry-run mode without saving a result", async () => {
+    await expect(validatePlayerPanelDraft(input(), async () => persona())).resolves.toMatchObject({
+      ready: true,
+      missingTopLevelFields: [],
+      issues: [],
+      nextAction: "Call record_player_panel with the same input.",
+    });
+
+    await expect(validatePlayerPanelDraft(input(), async () => {
+      throw new Error("persona unavailable");
+    })).resolves.toMatchObject({
+      ready: false,
+      missingTopLevelFields: [],
+      issues: [{stage: "grounding", path: "lenses", message: expect.stringContaining("could not be loaded")}],
+    });
   });
 });

@@ -123,14 +123,49 @@ const doctorProcess = await execFileAsync(doctorCommand, doctorArguments, {
 });
 const doctorReport = JSON.parse(doctorProcess.stdout) as {
   ok?: unknown;
-  capabilities?: {toolCount?: unknown; promptCount?: unknown};
+  storage?: {instanceId?: unknown};
+  capabilities?: {
+    toolCount?: unknown;
+    workflowToolCount?: unknown;
+    promptShortcutCount?: unknown;
+  };
 };
 assert(
   doctorReport.ok === true
-    && doctorReport.capabilities?.toolCount === 20
-    && doctorReport.capabilities.promptCount === 5
+    && doctorReport.capabilities?.toolCount === 30
+    && doctorReport.capabilities.workflowToolCount === 5
+    && doctorReport.capabilities.promptShortcutCount === 5
     && !doctorProcess.stdout.includes(dataRoot),
   "packaged CLI doctor did not report safe readiness metadata",
+);
+
+const docsListArguments = cliArgument ? ["docs", "list"] : [cliPath, "docs", "list"];
+const docsListProcess = await execFileAsync(doctorCommand, docsListArguments, {cwd: foreignCwd});
+const docsList = JSON.parse(docsListProcess.stdout) as {documents?: Array<{name?: unknown}>};
+assert(
+  docsList.documents?.some((document) => document.name === "developer-project") === true,
+  "packaged CLI did not expose its version-matched agent documentation index",
+);
+const docsShowArguments = cliArgument
+  ? ["docs", "show", "developer-project"]
+  : [cliPath, "docs", "show", "developer-project"];
+const docsShowProcess = await execFileAsync(doctorCommand, docsShowArguments, {cwd: foreignCwd});
+assert(
+  docsShowProcess.stdout.includes("# Reviewing a developer project"),
+  "packaged CLI could not read its bundled developer workflow",
+);
+const helpArguments = cliArgument ? ["--help"] : [cliPath, "--help"];
+const helpProcess = await execFileAsync(doctorCommand, helpArguments, {cwd: foreignCwd});
+assert(
+  helpProcess.stdout.includes("game-player-lens docs list"),
+  "packaged CLI help did not lead coding agents to bundled documentation",
+);
+const versionArguments = cliArgument ? ["--version"] : [cliPath, "--version"];
+const versionProcess = await execFileAsync(doctorCommand, versionArguments, {cwd: foreignCwd});
+assert(
+  versionProcess.stdout.includes("game-player-lens 0.6.0")
+    && versionProcess.stdout.includes("game-player-lens docs list"),
+  "packaged CLI version output did not include its version and agent documentation route",
 );
 
 const transport = new StdioClientTransport({
@@ -163,7 +198,7 @@ try {
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 20, "packaged CLI did not expose twenty tools");
+  assert(tools.length === 30, "packaged CLI did not expose thirty tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
       === JSON.stringify([
@@ -178,18 +213,61 @@ try {
 
   const status = await client.callTool({name: "get_status", arguments: {}});
   const statusJson = JSON.stringify(status.structuredContent);
+  const statusData = status.structuredContent?.data as {
+    storage?: {instanceId?: unknown};
+  } | undefined;
   assert(status.isError !== true, "packaged CLI could not report status");
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
-      && statusJson.includes('"toolCount":20')
-      && statusJson.includes('"promptCount":5')
+      && statusJson.includes('"toolCount":30')
+      && statusJson.includes('"instanceId":"storage-')
+      && statusJson.includes('"localCaptureImport":{"available":true')
+      && statusData?.storage?.instanceId === doctorReport.storage?.instanceId
+      && statusJson.includes('"workflowToolCount":5')
+      && statusJson.includes('"promptShortcutCount":5')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
         && statusJson.includes(process.env.ITAD_API_KEY))
       && !(process.env.OBSCURA_PATH?.trim()
         && statusJson.includes(process.env.OBSCURA_PATH)),
     "packaged get_status exposed sensitive configuration or returned incomplete readiness metadata",
+  );
+
+  const panelPreflight = await client.callTool({
+    name: "validate_player_panel",
+    arguments: {candidate: {}},
+  });
+  assert(
+    panelPreflight.isError !== true
+      && (panelPreflight.structuredContent?.data as {ready?: unknown} | undefined)?.ready === false,
+    "packaged player-panel preflight did not return actionable missing input",
+  );
+
+  const importedCapture = await client.callTool({
+    name: "save_capture",
+    arguments: {
+      id: "package-local-capture",
+      source: {
+        kind: "base64",
+        mimeType: "image/png",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+4V7nWQAAAABJRU5ErkJggg==",
+      },
+    },
+  });
+  assert(
+    importedCapture.isError !== true
+      && typeof (importedCapture.structuredContent?.data as {sha256?: unknown} | undefined)?.sha256 === "string",
+    "packaged CLI could not import caller-provided capture evidence",
+  );
+  const importedCaptureRead = await client.callTool({
+    name: "get_artifact",
+    arguments: {kind: "capture", id: "package-local-capture"},
+  });
+  assert(
+    importedCaptureRead.isError !== true
+      && importedCaptureRead.content.some((item) => item.type === "image"),
+    "packaged CLI could not read imported capture evidence as MCP ImageContent",
   );
 
   const feedbackBase = {
@@ -320,9 +398,9 @@ try {
     "packaged audit-game-legal did not preserve the verified source plan",
   );
   const savedLegalPlan = await client.callTool({
-    name: "save_artifact",
+    name: "save_result",
     arguments: {
-      kind: "intel",
+
       target: "package-legal-fixture",
       id: "legal-source-plan-2026-08-15",
       resultHandle: legalPlanHandle,
@@ -354,6 +432,23 @@ try {
       && repairContent.text.includes('"steam-research"')
       && !repairContent.text.includes("auditSnapshotBundle"),
     "packaged play-build did not short-circuit known blockers",
+  );
+  const repairTool = await client.callTool({
+    name: "play_build",
+    arguments: {
+      target: "Package Repair Fixture",
+      knownBlockers: "Steering force is reversed\nStress feedback is binary",
+    },
+  });
+  const repairToolData = repairTool.structuredContent?.data as {
+    workflow?: unknown;
+    instructions?: unknown;
+  } | undefined;
+  assert(
+    repairTool.isError !== true
+      && repairToolData?.workflow === "play-build"
+      && repairToolData.instructions === repairContent.text,
+    "packaged agent-callable play_build diverged from its prompt shortcut",
   );
 
   const virtualPlayerPrompt = await client.getPrompt({
@@ -848,9 +943,9 @@ try {
     },
   } as const;
   const personaDerivation = await client.callTool({
-    name: "save_artifact",
+    name: "save_intel",
     arguments: {
-      kind: "intel",
+
       target: "Package Smoke Game",
       id: "Persona Derivation Fixture",
       sourceTool: "derive_personas",
@@ -939,9 +1034,9 @@ try {
     "packaged player panel did not bind exact saved persona evidence",
   );
   const savedPlayerPanel = await client.callTool({
-    name: "save_artifact",
+    name: "save_result",
     arguments: {
-      kind: "intel",
+
       target: "Package Smoke Game",
       id: "Grounded Player Panel",
       resultHandle: playerPanelHandle,
@@ -950,7 +1045,6 @@ try {
   assert(savedPlayerPanel.isError !== true, "packaged CLI could not exact-save a player panel");
   playerPanelRoundTrip = true;
   const experimentSpecArguments = {
-    kind: "intel",
     target: "Package Smoke Game",
     id: "Experiment Package Smoke 001 Spec",
     sourceTool: "manual",
@@ -1006,12 +1100,12 @@ try {
     },
   } as const;
   const experimentSpec = await client.callTool({
-    name: "save_artifact",
+    name: "save_intel",
     arguments: experimentSpecArguments,
   });
   assert(experimentSpec.isError !== true, "packaged CLI could not pre-register experiment spec");
   const duplicateExperimentSpec = await client.callTool({
-    name: "save_artifact",
+    name: "save_intel",
     arguments: experimentSpecArguments,
   });
   assert(
@@ -1019,9 +1113,9 @@ try {
     "packaged CLI allowed experiment spec replacement without overwrite",
   );
   const intel = await client.callTool({
-    name: "save_artifact",
+    name: "save_intel",
     arguments: {
-      kind: "intel",
+
       target: "Package Smoke Game",
       id: "Playtest Protocol Fixture",
       sourceTool: "manual",
@@ -1038,9 +1132,9 @@ try {
   });
   assert(intel.isError !== true, "packaged CLI could not save run intel");
   const evaluation = await client.callTool({
-    name: "save_artifact",
+    name: "save_evaluation",
     arguments: {
-      kind: "evaluation",
+
       target: "Package Smoke Game",
       topic: "Package Run",
       date: "2026-08-11",
@@ -1049,9 +1143,9 @@ try {
   });
   assert(evaluation.isError !== true, "packaged CLI could not save run evaluation");
   const run = await client.callTool({
-    name: "save_artifact",
+    name: "save_run",
     arguments: {
-      kind: "run",
+
       target: "Package Smoke Game",
       topic: "Package run",
       subjectKind: "existing-game",
@@ -1269,7 +1363,6 @@ try {
   packageRunRoundTrip = true;
 
   const experimentOutcomeArguments = {
-    kind: "intel",
     target: "Package Smoke Game",
     id: "Experiment Package Smoke 001 Outcome",
     sourceTool: "manual",
@@ -1323,12 +1416,12 @@ try {
     },
   } as const;
   const experimentOutcome = await client.callTool({
-    name: "save_artifact",
+    name: "save_intel",
     arguments: experimentOutcomeArguments,
   });
   assert(experimentOutcome.isError !== true, "packaged CLI could not save experiment outcome");
   const duplicateExperimentOutcome = await client.callTool({
-    name: "save_artifact",
+    name: "save_intel",
     arguments: experimentOutcomeArguments,
   });
   assert(
@@ -1380,7 +1473,7 @@ try {
   );
 
   const nextExperimentSpec = await client.callTool({
-    name: "save_artifact",
+    name: "save_intel",
     arguments: {
       ...experimentSpecArguments,
       id: "Experiment Package Smoke 002 Spec",
@@ -1397,9 +1490,9 @@ try {
   });
   assert(nextExperimentSpec.isError !== true, "packaged CLI could not save next experiment spec");
   const nextRun = await client.callTool({
-    name: "save_artifact",
+    name: "save_run",
     arguments: {
-      kind: "run",
+
       target: "Package Smoke Game",
       topic: "Package calibration readback",
       subjectKind: "existing-game",
@@ -1607,9 +1700,9 @@ try {
     assert(typeof resultHandle === "string", "steam_brief result handle is missing");
 
     const saved = await client.callTool({
-      name: "save_artifact",
+      name: "save_result",
       arguments: {
-        kind: "intel",
+
         target: "Hades",
         id: "Live Brief Exact",
         resultHandle,
@@ -1667,9 +1760,9 @@ try {
     );
     assert(typeof updateHandle === "string", "steam_updates result handle is missing");
     const savedUpdates = await client.callTool({
-      name: "save_artifact",
+      name: "save_result",
       arguments: {
-        kind: "intel",
+
         target: "Hades",
         id: "Live Updates Exact",
         resultHandle: updateHandle,

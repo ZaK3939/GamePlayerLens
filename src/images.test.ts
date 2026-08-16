@@ -56,6 +56,7 @@ describe("image content", () => {
         sizeBytes: MAX_INLINE_IMAGE_BYTES,
         modifiedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
         imageIncluded: true,
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       },
       warnings: [],
       imageContent: {
@@ -95,6 +96,7 @@ describe("image content", () => {
         sizeBytes: JPEG_BYTES.length,
         modifiedAt: expect.any(String),
         imageIncluded: true,
+        sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
       },
       warnings: [],
       imageContent: {

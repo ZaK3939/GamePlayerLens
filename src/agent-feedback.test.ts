@@ -12,11 +12,11 @@ function input(overrides: Record<string, unknown> = {}) {
     surface: "mcp" as const,
     stage: "invoke" as const,
     outcome: "confusion" as const,
-    signalKey: "save-artifact-handle-ambiguity",
+    signalKey: "save-result-handle-ambiguity",
     sessionId: "session-a",
     userIntent: "Preserve the exact player-panel result.",
-    task: "Save the record_player_panel result through save_artifact.",
-    relatedTool: "save_artifact",
+    task: "Save the record_player_panel result through save_result.",
+    relatedTool: "save_result",
     summary: "It was unclear whether sourceTool and observedAt were required with resultHandle.",
     attemptedRecovery: "Retried with only target, id, and resultHandle.",
     guessedFields: ["sourceTool", "observedAt"],
@@ -34,7 +34,7 @@ describe("agent experience feedback", () => {
       {
         clock: () => NOW,
         idFactory: () => "11111111-1111-4111-8111-111111111111",
-        productVersion: "0.5.0",
+        productVersion: "0.6.0",
       },
     );
 
@@ -43,12 +43,12 @@ describe("agent experience feedback", () => {
       artifactType: "agent-experience-feedback",
       feedbackId: "11111111-1111-4111-8111-111111111111",
       product: "game-player-lens",
-      productVersion: "0.5.0",
+      productVersion: "0.6.0",
       reportedAt: NOW.toISOString(),
       surface: "mcp",
       outcome: "confusion",
-      signalKey: "save-artifact-handle-ambiguity",
-      relatedTool: "save_artifact",
+      signalKey: "save-result-handle-ambiguity",
+      relatedTool: "save_result",
     });
     expect(record).not.toHaveProperty("privacyConfirmed");
     expect(record.privacy).toMatch(/no raw prompt/i);
@@ -88,7 +88,7 @@ describe("agent experience feedback", () => {
         {
           clock: () => NOW,
           idFactory: () => "11111111-1111-4111-8111-111111111111",
-          productVersion: "0.5.0",
+          productVersion: "0.6.0",
         },
       ),
       createAgentExperienceFeedbackRecord(
@@ -101,7 +101,7 @@ describe("agent experience feedback", () => {
         {
           clock: () => new Date("2026-08-17T12:05:00.000Z"),
           idFactory: () => "22222222-2222-4222-8222-222222222222",
-          productVersion: "0.5.0",
+          productVersion: "0.6.0",
         },
       ),
       createAgentExperienceFeedbackRecord(
@@ -118,7 +118,7 @@ describe("agent experience feedback", () => {
         {
           clock: () => new Date("2026-08-17T12:10:00.000Z"),
           idFactory: () => "33333333-3333-4333-8333-333333333333",
-          productVersion: "0.5.0",
+          productVersion: "0.6.0",
         },
       ),
     ];
@@ -129,10 +129,10 @@ describe("agent experience feedback", () => {
     expect(summary.outcomeCounts).toMatchObject({confusion: 1, "gave-up": 1, success: 1});
     expect(summary.issueCandidates).toEqual([
       expect.objectContaining({
-        signalKey: "save-artifact-handle-ambiguity",
+        signalKey: "save-result-handle-ambiguity",
         reportCount: 2,
         distinctSessionCount: 2,
-        productVersions: ["0.5.0"],
+        productVersions: ["0.6.0"],
         readyForIssueDraft: true,
         requiresUserApproval: true,
         automaticPullRequestAllowed: false,
@@ -147,7 +147,7 @@ describe("agent experience feedback", () => {
         {
           clock: () => new Date(NOW.getTime() + index * 1_000),
           idFactory: () => `${suffix.repeat(8)}-${suffix.repeat(4)}-4${suffix.repeat(3)}-8${suffix.repeat(3)}-${suffix.repeat(12)}`,
-          productVersion: "0.5.0",
+          productVersion: "0.6.0",
         },
       ));
 

@@ -84,7 +84,7 @@ game reviewの`playtestSession`は1回のbounded sessionを時系列の原本と
 - completed以外は`stopReason`を必須にし、失敗・blocker・中断を成功へ丸めない。
 - build、task、controlsとprompt protocolの完全一致はprovenanceだけを示し、体験の同等性やqualityを証明しない。
 
-入力がある場合は`playtestSessionEvidence.resultHandle`を使い、モデルによる転記を挟まず`save_artifact(kind=intel)`へexact-saveします。handleがない、期限切れ、保存失敗のsessionを完全保存済みと主張しません。
+入力がある場合は`playtestSessionEvidence.resultHandle`を使い、モデルによる転記を挟まず`save_result`へexact-saveします。handleがない、期限切れ、保存失敗のsessionを完全保存済みと主張しません。
 
 ### Lightweight retest lineage
 
@@ -121,7 +121,7 @@ cohort内でparent sessionも見つかるretestは、`retestComparisons.internal
 
 ## 7. playtest provenance
 
-`playtestSession`入力は前節のresultHandleでexact-saveします。prompt外で受け取ったrecordingやlogだけを保存する場合は、検証済みsessionと混同せず`save_artifact(kind=intel, sourceTool=manual)`でprovenanceを保存します。
+`playtestSession`入力は前節のresultHandleでexact-saveします。prompt外で受け取ったrecordingやlogだけを保存する場合は、検証済みsessionと混同せず`save_intel(sourceTool=manual)`でprovenanceを保存します。
 
 - build ID、URLまたは配布経路の非機密識別子
 - session開始・終了時刻とduration

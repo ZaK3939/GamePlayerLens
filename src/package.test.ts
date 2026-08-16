@@ -19,7 +19,7 @@ describe("npm package contract", () => {
     ) as {include?: string[]; exclude?: string[]};
 
     expect(manifest.name).toBe("game-player-lens");
-    expect(manifest.version).toBe("0.5.0");
+    expect(manifest.version).toBe("0.6.0");
     expect(manifest.private).toBe(false);
     expect(manifest.bin).toEqual({"game-player-lens": "dist/cli.js"});
     expect(manifest.engines?.node).toBe(">=22");

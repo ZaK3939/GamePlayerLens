@@ -488,7 +488,7 @@ describe("playtest rubric", () => {
     expect(rubric).toMatch(/playtestSessionEvidence\.resultHandle[\s\S]*exact-save/);
     expect(rubric).toMatch(/Action[\s\S]*response[\s\S]*rewardSignal/);
     expect(rubric).toMatch(/AI[\s\S]*humanReport[\s\S]*(禁止|受理しない)/);
-    expect(recipe).toMatch(/playtestSessionEvidence\.resultHandle[\s\S]*save_artifact/);
+    expect(recipe).toMatch(/playtestSessionEvidence\.resultHandle[\s\S]*save_result/);
     expect(recipe).toMatch(/one bounded session[\s\S]*(completion rate|retention|需要)/);
   });
 
@@ -511,7 +511,7 @@ describe("playtest rubric", () => {
     expect(rubric).toMatch(/sessionCount[\s\S]*uniqueHumanParticipantCount[\s\S]*repeatHumanParticipantCount/);
     expect(rubric).toMatch(/AI[\s\S]*human[\s\S]*(分離|混ぜない)/);
     expect(rubric).toMatch(/件数[\s\S]*(率|rate)[\s\S]*(禁止|変換しない)/);
-    expect(recipe).toMatch(/playtestCohortEvidence\.resultHandle[\s\S]*save_artifact/);
+    expect(recipe).toMatch(/playtestCohortEvidence\.resultHandle[\s\S]*save_result/);
     expect(recipe).toMatch(/playtestSession[\s\S]*playtestCohort[\s\S]*(同時|一方)/);
     expect(template).toContain("Playtest Cohort Summary");
     expect(rubric).toMatch(/retestComparisons[\s\S]*mismatchedFields/);
@@ -667,7 +667,7 @@ describe("MCP prompt source recipes", () => {
       "save_persona",
       "ui_capture",
       "get_knowledge",
-      "save_artifact",
+      "save_result",
       "get_artifact",
     ]) {
       expect(content).toContain(`\`${tool}\``);
@@ -696,7 +696,7 @@ describe("MCP prompt source recipes", () => {
     const content = await read("skills/game-review.md");
     const experiment = await read("knowledge/rubrics/experiment.md");
 
-    expect(content).toContain("kind=`run`");
+    expect(content).toContain("`save_run`");
     expect(content).toContain("scenario");
     expect(content).toContain("rounds");
     expect(content).toContain("finalEvaluationRef");
@@ -770,7 +770,7 @@ describe("MCP prompt source recipes", () => {
     const recipeContent = await read("skills/game-review.md");
     const criticContent = await read("knowledge/rubrics/harsh-critic.md");
 
-    expect(recipeContent).toMatch(/conceptTest[\s\S]*save_artifact[\s\S]*manual/);
+    expect(recipeContent).toMatch(/conceptTest[\s\S]*save_result[\s\S]*manual/);
     expect(recipeContent).toMatch(/understoodTheme[\s\S]*themeSystemFit[\s\S]*understoodAction[\s\S]*understoodReward[\s\S]*interest[\s\S]*別/);
     expect(recipeContent).toMatch(/themeSystemFitReason[\s\S]*要求/);
     expect(recipeContent).toMatch(/participant count[\s\S]*conversion[\s\S]*変換しない/);
@@ -781,7 +781,7 @@ describe("MCP prompt source recipes", () => {
     const content = await read("skills/game-review.md");
 
     expect(content).toMatch(/record_first_contact[\s\S]*firstContactResultHandle/);
-    expect(content).toMatch(/firstContactTestEvidence\.resultHandle[\s\S]*save_artifact/);
+    expect(content).toMatch(/firstContactTestEvidence\.resultHandle[\s\S]*save_result/);
     expect(content).toMatch(/theme[\s\S]*action[\s\S]*reward[\s\S]*immediateReject/);
     expect(content).toMatch(/bounded sample[\s\S]*(conversion|需要)[\s\S]*(証明しない|変換しない)/);
   });
@@ -883,19 +883,19 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/competitor[\s\S]*three[\s\S]*match axes/i);
     expect(content).toMatch(/UI[\s\S]*stimulus[\s\S]*not[\s\S]*(trait|personality)/i);
     expect(content).toMatch(/Virtual Player Panel[\s\S]*grounded memory[\s\S]*predicted response[\s\S]*human falsifier/i);
-    expect(content).toMatch(/record_player_panel[\s\S]*persona SHA-256[\s\S]*save_artifact/i);
+    expect(content).toMatch(/record_player_panel[\s\S]*persona SHA-256[\s\S]*save_result/i);
     expect(content).toMatch(/report_agent_experience[\s\S]*once[\s\S]*not report every tool call/i);
     expect(content).toMatch(/summarize_agent_experience[\s\S]*never cite[\s\S]*game evidence/i);
     expect(content).toMatch(/privacyConfirmed[\s\S]*raw prompts[\s\S]*credentials/i);
     expect(content).toMatch(/user approval[\s\S]*GitHub issue[\s\S]*pull request/i);
-    for (const prompt of [
-      "play-build",
-      "review-change",
-      "audit-project",
-      "ui-blind-compare",
-      "audit-game-legal",
+    for (const workflowTool of [
+      "play_build",
+      "review_change",
+      "audit_project",
+      "ui_blind_compare",
+      "audit_game_legal",
     ]) {
-      expect(content).toContain(`\`${prompt}\``);
+      expect(content).toContain(`\`${workflowTool}\``);
     }
     expect(metadata).toContain("$game-player-lens");
     expect(metadata).toMatch(/virtual player/i);
@@ -909,7 +909,7 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("Virtual Player Panel");
     expect(content).toMatch(/neutral[\s\S]*grounded-personas/i);
     expect(content).toMatch(/same observed stimulus/i);
-    expect(content).toMatch(/record_player_panel[\s\S]*save_artifact/i);
+    expect(content).toMatch(/record_player_panel[\s\S]*save_result/i);
     expect(content).toMatch(/not[\s\S]*(population|market share)/i);
   });
 

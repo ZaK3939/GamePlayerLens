@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 20 MCP tools and five prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 30 MCP tools and five optional prompt shortcuts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -16,41 +16,53 @@ GamePlayerLens exposes exactly 20 MCP tools and five prompts. All tools return a
 | `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; audience, research questions, and an explicit source-fit selection are required |
 | `save_persona` | Validate a generated persona against an exact `derive_personas` result handle and atomically save its server grounding |
 | `record_first_contact` | Normalize a compact pseudonymous first-contact test with a fixed unaided question protocol and return an exact-save handle |
+| `validate_player_panel` | Dry-run an incomplete or complete player-panel candidate and return missing fields or grounding errors without saving |
 | `record_player_panel` | Validate one shared operated-build stimulus and grounded lens hypotheses against exact saved persona memory, research questions, and persona SHA-256, then return an exact-save handle |
 | `report_agent_experience` | Explicitly record one agent success, partial result, failure, confusion, parameter guess, give-up, or feature request as an immutable local artifact |
 | `summarize_agent_experience` | Aggregate explicit local agent feedback and identify repeated signals with distinct caller-provided session IDs that are eligible for a user-approved issue draft |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
+| `save_capture` | Import a validated PNG/JPEG from a project-relative path or bounded base64 into immutable capture evidence |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
 | `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
 | `coach_history` | Detect repeated review without a new build, direct stimulus, or human handoff across verified developer-project runs |
 | `steam_discover` | Find SteamSpy tag/genre candidates or intersect up to four values |
-| `save_artifact` | Save intel JSON, canonical evaluation Markdown, or an immutable review run |
+| `save_result` | Exact-save one short-lived tool result handle as intel without model transcription |
+| `save_intel` | Save bounded caller-authored JSON intel |
+| `save_evaluation` | Validate and save canonical review Markdown |
+| `save_run` | Validate, hash, and seal an immutable review run |
 | `get_artifact` | List or read intel, evaluations, runs, captures, and UI references |
+| `play_build` | Return the operation-first build workflow to an agent |
+| `review_change` | Return the current-versus-candidate workflow to an agent |
+| `audit_project` | Return the milestone audit workflow to an agent |
+| `ui_blind_compare` | Return the identity-hidden UI comparison workflow to an agent |
+| `audit_game_legal` | Return the release-scoped legal issue-spotting workflow to an agent |
 
-## Prompts
+## Workflow tools and prompt shortcuts
 
-- `audit-game-legal` reads a verified `legal_source_plan` handle through the packaged `game-legal-audit` skill. It performs source-grounded issue spotting, preserves `cannot-assess`, and never claims legal advice or clearance.
-- `play-build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. `playerLensMode=neutral` performs observation only. `playerLensMode=grounded-personas` requires saved persona IDs and replays the same observed stimulus as a Virtual Player Panel. Its optional `coreClaim` adds a Core Delivery Trace. It returns a Player Probe Card and a compact Build Handoff; it never starts Steam research, persona derivation, a full audit, or mandatory persistence.
-- `review-change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
-- `audit-project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`. Supplying `knownBlockers` short-circuits a premature audit to Repair First without requiring the full intake.
-- `ui-blind-compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
+Agents call the underscore-named workflow tools above. Clients that expose MCP prompts may also offer the matching hyphenated names as user-invoked shortcuts. The tool and prompt paths share one renderer and return identical instructions for the same input; prompt support is not required to reach a workflow.
 
-`play-build` is intentionally separate from the two decision prompts. It operates one task, distinguishes observed responses from persona hypotheses, traces an optional declared core, and recommends `solo`, bounded `parallel-experiment`, or `specialist-production` for the next build. Missing repository, team, model-evaluation, or independent-review evidence remains `unassigned` or `missing`; the prompt does not invent an organization. The decision prompts orchestrate evidence collection, domain review, criticism, evaluation storage, and run storage. They lead with a compact Decision Check before detailed findings.
+- `audit_game_legal` reads a verified `legal_source_plan` handle through the packaged `game-legal-audit` skill. It performs source-grounded issue spotting, preserves `cannot-assess`, and never claims legal advice or clearance.
+- `play_build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. `playerLensMode=neutral` performs observation only. `playerLensMode=grounded-personas` requires saved persona IDs and replays the same observed stimulus as a Virtual Player Panel. Its optional `coreClaim` adds a Core Delivery Trace. It returns a Player Probe Card and a compact Build Handoff; it never starts Steam research, persona derivation, a full audit, or mandatory persistence.
+- `review_change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
+- `audit_project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`. Supplying `knownBlockers` short-circuits a premature audit to Repair First without requiring the full intake.
+- `ui_blind_compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
 
-Prompt arguments are strings. Structured values such as `coreClaim`, `projectBrief`, `conceptTest`, `auditSnapshotBundle`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP prompt boundary. `coreClaim` declares a one-sentence promise, theme, distinctive system, intended experience, one of the six reward families, intended reward, proof moment, and optional amplifier. First-contact input goes through `record_first_contact`; pass its result handle as `firstContactResultHandle`.
+`play_build` is intentionally separate from the two decision workflows. It operates one task, distinguishes observed responses from persona hypotheses, traces an optional declared core, and recommends `solo`, bounded `parallel-experiment`, or `specialist-production` for the next build. Missing repository, team, model-evaluation, or independent-review evidence remains `unassigned` or `missing`; the workflow does not invent an organization. The decision workflows orchestrate evidence collection, domain review, criticism, evaluation storage, and run storage. They lead with a compact Decision Check before detailed findings.
 
-`knownBlockers` is newline-separated in intended repair order. When non-empty, its Repair First route takes the first blocker while preserving the rest and takes precedence over missing build or audit fields. `personaIds` is a comma-separated list of already saved personas and is valid only with `playerLensMode=grounded-personas`. Without those IDs the prompt returns `needs-personas`; `play-build` never derives personas implicitly.
+Workflow arguments are strings. Structured values such as `coreClaim`, `projectBrief`, `conceptTest`, `auditSnapshotBundle`, `playtestSession`, and `playtestCohort` are JSON-encoded strings at the MCP boundary. `coreClaim` declares a one-sentence promise, theme, distinctive system, intended experience, one of the six reward families, intended reward, proof moment, and optional amplifier. First-contact input goes through `record_first_contact`; pass its result handle as `firstContactResultHandle`.
+
+`knownBlockers` is newline-separated in intended repair order. When non-empty, its Repair First route takes the first blocker while preserving the rest and takes precedence over missing build or audit fields. `personaIds` is a comma-separated list of already saved personas and is valid only with `playerLensMode=grounded-personas`. Without those IDs the workflow returns `needs-personas`; `play_build` never derives personas implicitly.
 
 ## Game legal audit
 
 Use this workflow for one concrete decision such as a demo release, commercial release, port, publisher handoff, asset reuse, or team transfer:
 
 1. Call `legal_source_plan` with an exact release/build ID and description, an evidence artifact for its exported asset/plugin/dependency inventory, the jurisdictions, engine versions and license routes, every shipped licensed material or package and intended use, every distribution channel, and an explicit `evidenceAccessMode`.
-2. Exact-save its `meta.resultHandle` with `save_artifact(kind=intel)`.
+2. Exact-save its `meta.resultHandle` with `save_result`.
 3. Supply the current evidence artifacts named by the plan. Private agreements remain user-supplied evidence; the workflow must not search for leaked copies or replace them with public summaries.
-4. Call `audit-game-legal` with the same result handle. It automatically carries the evidence IDs recorded by the plan; use comma-separated `evidenceArtifactIds` only for supplemental evidence.
+4. Call `audit_game_legal` with the same result handle. It automatically carries the evidence IDs recorded by the plan; use comma-separated `evidenceArtifactIds` only for supplemental evidence.
 
-`ready-for-source-review` means only that source review can begin. It does not establish permission. The prompt requires current official public pages, exact item licenses and receipts, the publishing entity's accepted private agreements, jurisdiction-specific primary law when relevant, and qualified counsel for material unresolved questions.
+`ready-for-source-review` means only that source review can begin. It does not establish permission. The workflow requires current official public pages, exact item licenses and receipts, the publishing entity's accepted private agreements, jurisdiction-specific primary law when relevant, and qualified counsel for material unresolved questions.
 
 `evidenceAccessMode` prevents silent disclosure through the AI client:
 
@@ -64,7 +76,7 @@ The bundled source registry routes Unity Editor and Asset Store terms, Unreal En
 
 External fetches preserve successful source data when another endpoint fails. Always retain `warnings`; they are part of the evidence envelope.
 
-Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, `record_first_contact`, `record_player_panel`, and `legal_source_plan` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact and legal review, pass the same handle to the corresponding prompt first so it can include the normalized evidence and exact-save pointer.
+Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, `record_first_contact`, `record_player_panel`, and `legal_source_plan` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_result` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact and legal review, pass the same handle to the corresponding workflow first so it can include the normalized evidence and exact-save pointer.
 
 For persona generation, every requested appid needs an explicit `sourceRoles` entry linked to one of one-to-three `researchQuestions`. Each question has one-to-twelve `evidenceSignals` of 2–80 characters. The server applies Unicode/case normalization, removes reviews containing none of the signals mapped to their source, and records the matched question IDs and signals. A competitor source must be direct or adjacent and declare at least three fit axes. A reference source is limited to `system-reference`; visual references and market-success anchors belong in their own evidence ledgers, not persona voice. Pass the same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field, research question, audience, and source-selection field with the cached result, then stores a SHA-256 binding to that result. Every saved voice must support an observed pattern whose evidence entry explains its relevance, and its matched question ID must equal the pattern's question. These deterministic checks expose and enforce a lexical relevance boundary; they do not prove the broader interpretation is true.
 
@@ -103,7 +115,7 @@ For persona generation, every requested appid needs an explicit `sourceRoles` en
 
 Allowed match axes are `repeated-action`, `decision-cadence`, `system-response`, `reward-structure`, `player-problem`, `session-shape`, `platform-controls`, and `audience-expectation`.
 
-After the neutral and grounded `play-build` passes, call `record_player_panel`. Its `stimulus` is shared by every lens rather than copied per persona. Each lens selects one saved persona research question and one-to-three exact review references. The server rejects unknown personas, review IDs absent from the persona, review evidence unrelated to the selected research question, and duplicate persona lenses. The returned record embeds the exact review text and persona SHA-256. Its `coreClarity` keeps `distinctiveness`, `communication`, and `sceneLegibility` separate; each is an observation about this stimulus, not a sales explanation.
+After the neutral and grounded `play_build` passes, call `validate_player_panel` as a non-persisting preflight, then call `record_player_panel` once it reports `ready=true`. Its `stimulus` is shared by every lens rather than copied per persona. Each lens selects one saved persona research question and one-to-three exact review references. The server rejects unknown personas, review IDs absent from the persona, review evidence unrelated to the selected research question, and duplicate persona lenses. The returned record embeds the exact review text and persona SHA-256. Its `coreClarity` keeps `distinctiveness`, `communication`, and `sceneLegibility` separate; each is an observation about this stimulus, not a sales explanation.
 
 The result store retains only the most recent 32 handles in the current MCP process. Handles expire when that process ends.
 
@@ -136,7 +148,7 @@ The read-only tool uses only runs whose integrity is currently verified. It deri
 
 `latestReviewDecision` returns the newest analyzed run's verdict, decision, player problem, highest risk, next action, and success signal. `sourceEvaluation` binds that projection to the run evidence alias, target, artifact ID, and SHA-256. If a finding is active, follow the coach card before resuming this saved review action. The projection is not a new verdict and does not override the evaluation.
 
-The result card leads with the highest-priority active next action. It does not calculate a composite score, infer fun or demand, inspect unsaved `play-build` responses, or replace the next operation or human session. A finding means the stored iteration history repeated an evidence state; it is not a judgment of developer productivity or game quality.
+The result card leads with the highest-priority active next action. It does not calculate a composite score, infer fun or demand, inspect unsaved `play_build` responses, or replace the next operation or human session. A finding means the stored iteration history repeated an evidence state; it is not a judgment of developer productivity or game quality.
 
 ## Discovery
 
@@ -156,7 +168,7 @@ The result card leads with the highest-priority active next action. It does not 
 
 ## Image capture
 
-The default `ui_capture` source type is `page`, which uses Obscura to capture a credential-free HTTP(S) page as PNG. If capture is unavailable, the tool returns a manual placement path under `knowledge/ui-references/`.
+The default `ui_capture` source type is `page`, which uses Obscura to capture a credential-free HTTP(S) page as PNG. Use `save_capture` for a screenshot already produced while operating a local build; Obscura is not required. `source.kind=project-file` accepts only a PNG/JPEG path relative to `GAME_PLAYER_LENS_PROJECT_ROOT` (or the server working directory when unset), rejects symlinks and traversal, verifies the signature, and stores immutable bytes. `source.kind=base64` accepts a bounded PNG/JPEG payload. Both return the capture ID and SHA-256 needed by evidence references.
 
 Use `sourceType=steam-image` for a JPEG URL returned by `steam_fetch.screenshots`:
 
@@ -172,11 +184,13 @@ Direct image fetches are limited to `steamstatic.com` and its subdomains. Creden
 
 ## Artifact writes
 
-`save_artifact` supports three artifact kinds:
+Persistence uses one named tool per mode:
 
-- `kind=intel`: exact-save a result handle or directly save a validated JSON envelope.
-- `kind=evaluation`: save Markdown that passes the canonical report structure and evidence checks, then return its structured `decisionCard` and compact `developerSummary`.
-- `kind=run`: seal the review context, dependencies, structured virtual-player and reviewer rounds, warnings, confidence, and final evaluation in an immutable run record.
+- `save_result`: exact-save a result handle.
+- `save_intel`: directly save validated caller-authored JSON.
+- `save_evaluation`: save Markdown that passes the canonical report structure and evidence checks, then return its structured `decisionCard` and compact `developerSummary`.
+- `save_run`: seal the review context, dependencies, structured virtual-player and reviewer rounds, warnings, confidence, and final evaluation in an immutable run record.
+- `save_capture`: import image bytes as capture evidence.
 
 All intel, evaluation, run, and persona IDs are immutable. Reusing an existing ID is rejected. Save every revision under a new ID and connect it through an audit snapshot, revision bundle, or experiment lineage.
 
@@ -190,7 +204,7 @@ All intel, evaluation, run, and persona IDs are immutable. Reusing an existing I
 | `evaluation` | `target` and `id` | saved Markdown, metadata, structured Decision Card, and developer summary |
 | `run` | `target` and `id` | run metadata, record, and integrity report |
 | `capture`, `ui-reference` | no `id` | image metadata list |
-| `capture`, `ui-reference` | `id` | metadata and valid `ImageContent` when at most 6 MiB |
+| `capture`, `ui-reference` | `id` | metadata, SHA-256, and valid `ImageContent` when at most 6 MiB; oversized images return metadata and a warning without a hash or inline bytes |
 
 An `id` without `target` is invalid for target-scoped artifacts. A `target` is invalid for image artifacts.
 
@@ -204,10 +218,10 @@ knowledge/intel/captures/{captureId}.{png|jpg}
 knowledge/ui-references/{referenceId}.png
 ```
 
-Direct repository execution uses the repository as the data root. The packaged CLI uses `GAME_PLAYER_LENS_HOME`, or `~/.game-player-lens/` when unset. Tool responses always return paths relative to that data root.
+Direct repository execution uses the repository as the data root. The packaged CLI uses `GAME_PLAYER_LENS_HOME`, or `~/.game-player-lens/` when unset. Tool responses always return paths relative to that data root. `get_status` and `doctor` also return a non-secret hashed `storage.instanceId`, allowing the two layers to confirm that they address the same store without exposing its absolute path.
 
 ## Client requirements
 
-The client must support MCP tools, MCP prompts, and standard MCP `ImageContent`. Filesystem access, subagents, and custom image tools are optional.
+The client must support MCP tools. MCP prompts are optional shortcuts. Standard MCP `ImageContent` is needed to display stored images; filesystem access, subagents, and custom image tools are optional.
 
 A browser-capable client may operate an HTTP(S) build. A client without browser or desktop control must use a user recording, consecutive captures, an input log, or a moderated session and state the limitation. The MCP server itself does not execute arbitrary native game files.

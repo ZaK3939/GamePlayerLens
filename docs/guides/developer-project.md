@@ -11,16 +11,16 @@ Do not ask for a general verdict on the whole game. Choose the next decision tha
 - Should the team build the next content wave or repair the current slice?
 - Does a proposed UI change improve one concrete player task?
 
-Start with `play-build` when a playable URL exists. Use `review-change` for one explicit current-to-proposed revision after both sides have useful evidence. Use `audit-project` only for the current milestone as a whole. The prompt name fixes the workflow; callers do not pass a `mode` argument.
+Start with `play_build` when a playable URL exists. Use `review_change` for one explicit current-to-proposed revision after both sides have useful evidence. Use `audit_project` only for the current milestone as a whole. The workflow name fixes the mode; callers do not pass a `mode` argument.
 
 ## Operation-first daily loop
 
-`play-build` needs no Project Brief, market, competitor set, audit bundle, or saved run. Give it one bounded operation:
+`play_build` needs no Project Brief, market, competitor set, audit bundle, or saved run. Give it one bounded operation:
 
 ```json
 {
   "target": "Project Nyx",
-  "buildUrl": "http://127.0.0.1:4173/play",
+  "buildUrl": "http://localhost:4173/play",
   "buildId": "prototype-042",
   "task": "Build one vehicle, carry one load, and read the arrival result",
   "controls": "Keyboard and mouse",
@@ -33,6 +33,8 @@ Start with `play-build` when a playable URL exists. Use `review-change` for one 
 ```
 
 Use `playerLensMode=neutral` without persona IDs for observation only. Use `playerLensMode=grounded-personas` for a virtual-player panel; saved `personaIds` are then required. The client operates the task once without a persona, then replays the same observed stimulus through only the explicitly named saved personas. It returns a compact Player Probe Card containing an Action → Response Trace, a Virtual Player Panel, and one Build Handoff with a human falsifier. It does not return a milestone verdict or automatically run Steam research.
+
+When operation produces a local PNG or JPEG, call `save_capture` with either `source.kind=project-file` and a path relative to the game project root, or `source.kind=base64`. The result is immutable capture evidence with an ID and SHA-256 that can be cited by player-panel and audit evidence references. Obscura is needed only when GamePlayerLens itself must acquire a page image; it is not required to preserve an image the caller already captured. Set `GAME_PLAYER_LENS_PROJECT_ROOT` in the MCP environment when its process working directory is not the game repository.
 
 If the client cannot operate the build, it reports an operation blocker. Loading a page, reading source, or viewing one static frame is not play.
 
@@ -80,7 +82,7 @@ When known execution defects already prevent a useful operation, declare them in
 }
 ```
 
-This route repairs the first declared blocker, preserves the others for later serial repair, and blocks build operation, Steam research, persona derivation, full audit, and artifact saving. Re-enter through `play-build` after a new build can execute the task. `audit-project` accepts the same `knownBlockers` escape route when a premature milestone audit was requested.
+This route repairs the first declared blocker, preserves the others for later serial repair, and blocks build operation, Steam research, persona derivation, full audit, and artifact saving. Re-enter through `play_build` after a new build can execute the task. `audit_project` accepts the same `knownBlockers` escape route when a premature milestone audit was requested.
 
 The route is explicit rather than inferred from source code. Do not omit a known blocker merely to force a player simulation.
 
@@ -99,11 +101,11 @@ The tool reads verified `developer-project` runs and compares consecutive build 
 
 `activeFindings` contains current unresolved conditions; `findingHistory` preserves conditions that a later run resolved. `latestReviewDecision` projects the newest verified evaluation's verdict, player problem, highest risk, next action, and success signal together with its run ID and exact evaluation evidence identity. When a finding is active, perform the coach card's action first; after its stop condition is met, resume the concrete work in `latestReviewDecision` without reopening the full Markdown report.
 
-This is a retrospective guardrail, not the daily loop. It sees only saved review runs, not an unsaved `play-build` response, local source edits, or a play session that was never preserved. The latest decision is a deterministic projection of the saved evaluation, not a new coach judgment. The tool returns no development score and makes no claim about fun, retention, demand, or team performance.
+This is a retrospective guardrail, not the daily loop. It sees only saved review runs, not an unsaved `play_build` response, local source edits, or a play session that was never preserved. The latest decision is a deterministic projection of the saved evaluation, not a new coach judgment. The tool returns no development score and makes no claim about fun, retention, demand, or team performance.
 
-## Minimal `audit-project` request
+## Minimal `audit_project` request
 
-All prompt arguments are strings. `projectBrief` and `auditSnapshotBundle` are JSON objects encoded as strings by the MCP client. An active `developer-project` audit requires both.
+All workflow arguments are strings. `projectBrief` and `auditSnapshotBundle` are JSON objects encoded as strings by the MCP client. An active `developer-project` audit requires both.
 
 ```json
 {
@@ -118,7 +120,7 @@ All prompt arguments are strings. `projectBrief` and `auditSnapshotBundle` are J
 }
 ```
 
-For a proposed revision, call `review-change` with the same audience and scope fields plus `currentState`, `proposal`, and an exact revision bundle:
+For a proposed revision, call `review_change` with the same audience and scope fields plus `currentState`, `proposal`, and an exact revision bundle:
 
 ```json
 {
@@ -158,7 +160,7 @@ Save the current build, capture, receipt, and test-result evidence under new imm
 }
 ```
 
-The prompt exposes `auditSnapshotBundleEvidence.resultHandle`. Exact-save it as intel, include that alias as the run's `auditSnapshotBundleRef`, and include every bound artifact in run evidence. The server rejects missing refs and kind or hash mismatches.
+The workflow exposes `auditSnapshotBundleEvidence.resultHandle`. Exact-save it with `save_result`, include that alias as the run's `auditSnapshotBundleRef`, and include every bound artifact in run evidence. The server rejects missing refs and kind or hash mismatches.
 
 This proves that the audit run used the declared immutable bundle and artifact bytes. It does not independently prove that the declared Git commit produced those files; a build pipeline must emit or attest that provenance before submission.
 
@@ -199,7 +201,7 @@ Save the current and candidate artifacts first, then compute the SHA-256 of the 
 }
 ```
 
-The prompt exposes `revisionBundleEvidence.resultHandle`. Save it immediately as intel and use that evidence alias as the change run's `revisionBundleRef`. The run must also include every artifact alias named inside the bundle. The server rejects reused commits, shared current/candidate evidence refs, missing refs, kind mismatches, and SHA-256 mismatches.
+The workflow exposes `revisionBundleEvidence.resultHandle`. Save it immediately with `save_result` and use that evidence alias as the change run's `revisionBundleRef`. The run must also include every artifact alias named inside the bundle. The server rejects reused commits, shared current/candidate evidence refs, missing refs, kind mismatches, and SHA-256 mismatches.
 
 `market` fixes the audience context. `language` uses a Steam language code such as `japanese` or `english`. GamePlayerLens does not silently begin a Japan/Japanese review when either is absent.
 
@@ -271,7 +273,7 @@ When UI is selected, each persona round must identify a captured target or refer
 
 These cards are evidence-grounded behavioral hypotheses. They are useful for finding differentiated reactions and choosing a test. They do not prove fun, purchase intent, retention, or segment size until compared with human observations.
 
-For the daily grounded panel, use one shared operated-build trace for every lens. Call `record_player_panel` after producing the neutral summary and persona hypotheses. It validates each cited review against the saved persona and selected research question, binds the persona SHA-256, and records three independent clarity checks: whether the repeated mechanism is distinctive, whether the exposure communicates it, and whether the main play state is legible. Exact-save its result handle immediately. A failed grounding check is an evidence gap; do not keep an unchecked prose panel as a substitute.
+For the daily grounded panel, use one shared operated-build trace for every lens. Call `validate_player_panel` while assembling the candidate; it reports missing paths and grounding failures without persistence. Once `ready=true`, send the same candidate to `record_player_panel`. It validates each cited review against the saved persona and selected research question, binds the persona SHA-256, and records three independent clarity checks: whether the repeated mechanism is distinctive, whether the exposure communicates it, and whether the main play state is legible. Exact-save its result handle with `save_result` immediately. A failed grounding check is an evidence gap; do not keep an unchecked prose panel as a substitute.
 
 ## Review the shortest emotional loop
 
@@ -305,7 +307,7 @@ For a revision, supply all of `parentStimulusId`, `changeSummary`, `changedVaria
 
 ### First-contact test
 
-Call `record_first_contact` for a real first viewport, store surface, screenshot sequence, trailer, or demo entry. It accepts the asset and exposure conditions plus pseudonymous participant observations, and fixes four unaided questions and the presentation order server-side. Pass the returned `meta.resultHandle` as `firstContactResultHandle` to `audit-project` or `review-change`; the prompt exposes it for immediate exact-save.
+Call `record_first_contact` for a real first viewport, store surface, screenshot sequence, trailer, or demo entry. It accepts the asset and exposure conditions plus pseudonymous participant observations, and fixes four unaided questions and the presentation order server-side. Pass the returned `meta.resultHandle` as `firstContactResultHandle` to `audit_project` or `review_change`; the workflow exposes it for immediate `save_result`.
 
 Record visual-quality response, theme comprehension, theme appeal, action and reward comprehension, try intent, and immediate rejection separately. The helper reduces intake work, but it does not turn a small cohort into representative evidence.
 

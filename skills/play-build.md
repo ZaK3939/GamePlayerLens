@@ -9,7 +9,7 @@ Read `workflowRouting` and `intakeDiagnostics` first.
 - `repair-first`: do not open the build, call Steam tools, derive personas, run an audit, or save artifacts. Return only the Repair First Card below.
 - `needs-input`: ask once for every missing field and stop.
 - `needs-personas`: do not operate yet. Return the Lens Preparation Request below so the caller can prepare saved, question-relevant personas.
-- `play-build`: operate exactly the declared build, task, controls, start state, end state, and time limit.
+- `play_build`: operate exactly the declared build, task, controls, start state, end state, and time limit.
 
 ## Repair First Card
 
@@ -29,7 +29,7 @@ Read `workflowRouting` and `intakeDiagnostics` first.
 - Player task and target response question
 - Missing input: saved `personaIds`
 - Required source fit: target, direct / adjacent competitor with three match axes, or a bounded system reference
-- Re-enter when: call `play-build` with `playerLensMode=grounded-personas` and the saved IDs
+- Re-enter when: call `play_build` with `playerLensMode=grounded-personas` and the saved IDs
 
 This request does not invent personas or select a popular game as a substitute for source fit.
 
@@ -42,7 +42,7 @@ Honor `playerLensMode` explicitly:
 - `neutral`: do one neutral first-use pass. `personaIds` are invalid in this mode.
 - `grounded-personas`: do the neutral pass first, read only the supplied saved personas with `get_knowledge`, then replay the same observed stimulus through every lens. Never change the build, task, start state, evidence class, or exposure between lenses.
 
-Do not derive personas, search Steam, choose competitors, run `audit-project`, or persist artifacts inside this prompt. The caller prepares personas before re-entry. Capture observations when available, but useful output does not depend on storage ceremony.
+Do not derive personas, search Steam, choose competitors, run `audit_project`, or persist artifacts inside this prompt. The caller prepares personas before re-entry. Capture observations when available, but useful output does not depend on storage ceremony.
 
 Keep these classes separate:
 
@@ -107,7 +107,7 @@ Distinctiveness is the observed repeated `action → response → consequence`, 
 
 In `neutral` mode, include only `neutral-operation` and do not invent a demographic or review voice. In `grounded-personas` mode, every row must cite saved review memory relevant to this player task. The panel is a set of differentiated hypotheses, not a vote, population estimate, or market share.
 
-After writing a grounded panel, call `record_player_panel` with the single shared Action → Response stimulus, the neutral summary, all three Core Clarity checks, and one row per saved persona. Use its returned `resultHandle` immediately with `save_artifact(kind=intel)`. Do not manually reconstruct the saved payload. If persona, review, or research-question grounding fails validation, report the exact evidence gap instead of returning an ungrounded panel.
+After writing a grounded panel, preflight it with `validate_player_panel`, then call `record_player_panel` with the single shared Action → Response stimulus, the neutral summary, all three Core Clarity checks, and one row per saved persona. Use its returned `resultHandle` immediately with `save_result`. Do not manually reconstruct the saved payload. If persona, review, or research-question grounding fails validation, report the exact evidence gap instead of returning an ungrounded panel.
 
 ### Build Handoff
 
@@ -134,4 +134,4 @@ Return:
 - Re-enter when the next build runs the same task and captures both the success signal and regression guardrail
 - License evidence only when the change introduces a new external asset
 
-Do not output GO / HOLD / NO-GO. Those belong to `review-change` or milestone `audit-project` after useful build evidence exists.
+Do not output GO / HOLD / NO-GO. Those belong to `review_change` or milestone `audit_project` after useful build evidence exists.

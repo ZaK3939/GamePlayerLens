@@ -1,6 +1,7 @@
 import {join, resolve} from "node:path";
 import {describe, expect, it} from "vitest";
 import {buildDoctorReport, resolveDataRoot} from "./cli.js";
+import {listCliDocuments, readCliDocument} from "./cli-docs.js";
 import type {PathResolver} from "./paths.js";
 
 describe("packaged CLI data home", () => {
@@ -36,17 +37,46 @@ describe("packaged CLI data home", () => {
       ok: true,
       command: "doctor",
       node: {version: "v24.7.0", minimumMajor: 22, supported: true},
-      server: {name: "game-player-lens", version: "0.5.0"},
-      storage: {location: "external-data-home", writable: true},
+      server: {name: "game-player-lens", version: "0.6.0"},
+      storage: {
+        location: "external-data-home",
+        instanceId: expect.stringMatching(/^storage-[a-f0-9]{16}$/),
+        writable: true,
+      },
       integrations: {
         itadPriceHistory: {configured: true},
         obscuraPageCapture: {configured: true},
+        localCaptureImport: {
+          available: true,
+          projectRootConfigured: false,
+          modes: ["project-file", "base64"],
+        },
       },
-      capabilities: {toolCount: 20, promptCount: 5},
+      capabilities: {
+        toolCount: 30,
+        workflowToolCount: 5,
+        promptShortcutCount: 5,
+      },
+      documentation: {
+        listCommand: "game-player-lens docs list",
+        showCommand: "game-player-lens docs show <name>",
+      },
       nextStep: "Register the same command as an MCP server, restart the client, then call get_status.",
     });
     expect(JSON.stringify(report)).not.toContain("/private/");
     expect(JSON.stringify(report)).not.toContain("secret");
+  });
+
+  it("lists bundled agent-readable documents and reads an exact topic", async () => {
+    const listing = listCliDocuments();
+    expect(listing.documents).toContainEqual({
+      name: "tools",
+      description: expect.stringContaining("MCP tool"),
+    });
+    await expect(readCliDocument(resolve("."), "tools"))
+      .resolves.toContain("# Tool reference");
+    await expect(readCliDocument(resolve("."), "missing"))
+      .rejects.toThrow(/docs list/i);
   });
 
   it("fails doctor readiness for an unsupported Node release or unwritable storage", async () => {

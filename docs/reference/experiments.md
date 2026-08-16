@@ -2,9 +2,9 @@
 
 GamePlayerLens separates direct operation, human reports, predictions, measurements, and decisions. Passing a technical test is not evidence of fun, and a participant report is not a population metric.
 
-Use `play-build` before this heavier evidence loop when the immediate question is whether one playable task works. Its Player Probe Card is an AI-operated observation and hypothesis handoff, not a stored human session or experiment result. Known execution blockers route to repair before a playtest protocol is assembled.
+Use `play_build` before this heavier evidence loop when the immediate question is whether one playable task works. Its Player Probe Card is an AI-operated observation and hypothesis handoff, not a stored human session or experiment result. Known execution blockers route to repair before a playtest protocol is assembled.
 
-When `play-build` receives a `coreClaim`, its Core Delivery Trace compares the declared experience, reward, amplifier, and proof moment with signals observed during that operation. The declaration is design intent, not player evidence. An observed response may show that a reward was signaled; only a human report can establish that the reward was felt.
+When `play_build` receives a `coreClaim`, its Core Delivery Trace compares the declared experience, reward, amplifier, and proof moment with signals observed during that operation. The declaration is design intent, not player evidence. An observed response may show that a reward was signaled; only a human report can establish that the reward was felt.
 
 ## A bounded playtest session
 
@@ -38,9 +38,9 @@ System output and effects are operational observations. `feltReward`, failure at
 
 ## Session input
 
-Pass the completed session as the JSON-encoded `playtestSession` prompt argument. A human session uses a pseudonymous `participantId` and may include `humanReport`. AI-operated sessions store only operation and observation.
+Pass the completed session as the JSON-encoded `playtestSession` workflow argument. A human session uses a pseudonymous `participantId` and may include `humanReport`. AI-operated sessions store only operation and observation.
 
-Non-completed outcomes require a stop reason. The prompt returns `playtestSessionEvidence.resultHandle`; exact-save it as `playtest-session-<sessionId>`.
+Non-completed outcomes require a stop reason. The workflow returns `playtestSessionEvidence.resultHandle`; exact-save it with `save_result` as `playtest-session-<sessionId>`.
 
 One session does not become a completion rate, fun score, retention estimate, or demand estimate.
 
@@ -85,7 +85,7 @@ Use this sequence when a proposal needs a predefined success criterion and guard
 4. `ExperimentOutcome`: reference the spec, prediction run, and raw measurement hashes; record resolved, failed, or missing criteria without changing the registered rule.
 5. Next `ExperimentSpec`: reference the accepted parent outcome and state what was learned or rejected.
 
-Specs, measurements, and outcomes use `save_artifact(kind=intel, sourceTool=manual)`. Every stage uses a new immutable artifact ID.
+Specs, measurements, and outcomes use `save_intel(sourceTool=manual)`. Every stage uses a new immutable artifact ID.
 
 ## Missing outcomes
 

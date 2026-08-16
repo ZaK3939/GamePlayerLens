@@ -456,21 +456,29 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly twenty tools and five review prompts", async () => {
+  it("exposes exactly thirty tools and five review prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
+        "audit_game_legal",
+        "audit_project",
         "coach_history",
         "derive_personas",
         "get_artifact",
         "get_knowledge",
         "get_status",
         "legal_source_plan",
+        "play_build",
         "record_first_contact",
         "record_player_panel",
         "report_agent_experience",
-        "save_artifact",
+        "review_change",
+        "save_capture",
+        "save_evaluation",
+        "save_intel",
         "save_persona",
+        "save_result",
+        "save_run",
         "steam_brief",
         "steam_discover",
         "steam_fetch",
@@ -479,7 +487,9 @@ describe("MCP server contract", () => {
         "steam_timeline",
         "steam_updates",
         "summarize_agent_experience",
+        "ui_blind_compare",
         "ui_capture",
+        "validate_player_panel",
       ]);
       expect((await client.listPrompts()).prompts.map((prompt) => prompt.name).sort()).toEqual([
         "audit-game-legal",
@@ -568,9 +578,9 @@ describe("MCP server contract", () => {
       expect(text).toContain('"fullDocumentAccessAllowed": false');
 
       const saved = await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "slot-and-ember",
           id: "legal-source-plan-2026-08-15",
           resultHandle,
@@ -603,13 +613,26 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.5.0"},
-          storage: {location: "repository-root", writable: true},
+          server: {name: "game-player-lens", version: "0.6.0"},
+          storage: {
+            location: "repository-root",
+            instanceId: expect.stringMatching(/^storage-[a-f0-9]{16}$/),
+            writable: true,
+          },
           integrations: {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
+            localCaptureImport: {
+              available: true,
+              projectRootConfigured: false,
+              modes: ["project-file", "base64"],
+            },
           },
-          capabilities: {toolCount: 20, promptCount: 5},
+          capabilities: {
+            toolCount: 30,
+            workflowToolCount: 5,
+            promptShortcutCount: 5,
+          },
         },
         warnings: [],
       });
@@ -677,10 +700,10 @@ describe("MCP server contract", () => {
         surface: "mcp",
         stage: "invoke",
         outcome: "confusion",
-        signalKey: "save-artifact-handle-ambiguity",
+        signalKey: "save-result-handle-ambiguity",
         userIntent: "Save one exact player-panel result.",
-        task: "Call save_artifact with a record_player_panel result handle.",
-        relatedTool: "save_artifact",
+        task: "Call save_result with a record_player_panel result handle.",
+        relatedTool: "save_result",
         summary: "The exact-save parameter combination was unclear.",
         attemptedRecovery: "Retried with only target, id, and resultHandle.",
         guessedFields: ["sourceTool"],
@@ -702,7 +725,7 @@ describe("MCP server contract", () => {
       expect(first.structuredContent?.data).toMatchObject({
         record: {
           artifactType: "agent-experience-feedback",
-          productVersion: "0.5.0",
+          productVersion: "0.6.0",
           sessionId: "mcp-session-a",
         },
         artifact: {sourceTool: "report_agent_experience"},
@@ -718,7 +741,7 @@ describe("MCP server contract", () => {
         reportCount: 2,
         excludedInvalidArtifactCount: 0,
         issueCandidates: [{
-          signalKey: "save-artifact-handle-ambiguity",
+            signalKey: "save-result-handle-ambiguity",
           distinctSessionCount: 2,
           readyForIssueDraft: true,
           requiresUserApproval: true,
@@ -740,7 +763,7 @@ describe("MCP server contract", () => {
       });
       expect(stored.structuredContent?.data).toMatchObject({
         sourceTool: "report_agent_experience",
-        payload: {signalKey: "save-artifact-handle-ambiguity"},
+        payload: {signalKey: "save-result-handle-ambiguity"},
       });
     } finally {
       await client.close();
@@ -1416,7 +1439,7 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("publishes bounded steam_discover and exact-save artifact schemas", async () => {
+  it("publishes bounded discovery and named artifact-save schemas", async () => {
     const {client, server} = await createHarness();
     try {
       const tools = Object.fromEntries(
@@ -1440,37 +1463,13 @@ describe("MCP server contract", () => {
         maxItems: 50,
       });
 
-      const save = tools.save_artifact!.inputSchema as Record<string, unknown>;
-      expect(save.properties).toBeUndefined();
-      const branches = (save.oneOf ?? save.anyOf) as Array<Record<string, unknown>>;
-      expect(branches).toHaveLength(4);
-      expect(branches.map((branch) => {
-        const kind = schemaProperty(branch, "kind");
-        return {
-          kind: kind.const ?? (kind.enum as unknown[])?.[0],
-          fields: Object.keys(branch.properties as object),
-          required: branch.required,
-        };
-      })).toEqual([
-        {
-          kind: "intel",
-          fields: ["kind", "target", "id", "sourceTool", "observedAt", "payload"],
-          required: ["kind", "target", "id", "sourceTool", "payload"],
-        },
-        {
-          kind: "intel",
-          fields: ["kind", "target", "id", "resultHandle"],
-          required: ["kind", "target", "id", "resultHandle"],
-        },
-        {
-          kind: "evaluation",
-          fields: ["kind", "target", "topic", "date", "content"],
-          required: ["kind", "target", "topic", "content"],
-        },
-        {
-          kind: "run",
-          fields: [
-            "kind",
+      const schemas = [
+        ["save_result", ["target", "id", "resultHandle"], ["target", "id", "resultHandle"]],
+        ["save_intel", ["target", "id", "sourceTool", "observedAt", "payload"], ["target", "id", "sourceTool", "payload"]],
+        ["save_evaluation", ["target", "topic", "date", "content"], ["target", "topic", "content"]],
+        [
+          "save_run",
+          [
             "target",
             "topic",
             "subjectKind",
@@ -1490,8 +1489,7 @@ describe("MCP server contract", () => {
             "confidence",
             "finalEvaluationRef",
           ],
-          required: [
-            "kind",
+          [
             "target",
             "topic",
             "subjectKind",
@@ -1508,8 +1506,14 @@ describe("MCP server contract", () => {
             "confidence",
             "finalEvaluationRef",
           ],
-        },
-      ]);
+        ],
+      ] as const;
+      for (const [name, fields, required] of schemas) {
+        const schema = tools[name]!.inputSchema as Record<string, unknown>;
+        expect(Object.keys(schema.properties as object)).toEqual(fields);
+        expect(schema.required).toEqual(required);
+        expect(schema.additionalProperties).toBe(false);
+      }
 
       expect(tools.get_artifact!.description).toBe(
         "For intel/evaluation/run, omit target to list targets, use target without id to list item metadata, and use target+id to read the saved record; run reads also verify the record seal and current recipe/persona/evidence SHA-256 integrity. An id without target is invalid. For capture/ui-reference, target is invalid, omit id to list image metadata, and use id to read metadata plus optional MCP ImageContent.",
@@ -1524,7 +1528,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(20);
+      expect(tools).toHaveLength(30);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),
@@ -1592,9 +1596,9 @@ describe("MCP server contract", () => {
       expect(handle).toEqual(expect.any(String));
 
       const saved = await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "Hades II",
           id: "Exact Search Result",
           resultHandle: handle,
@@ -1622,17 +1626,17 @@ describe("MCP server contract", () => {
 
   it("rejects unknown, malformed, and mixed result-handle saves", async () => {
     const {client, server} = await createHarness();
-    const base = {kind: "intel", target: "Hades II", id: "Exact Result"};
+    const base = {target: "Hades II", id: "Exact Result"};
     try {
-      await expectToolError(client, "save_artifact", {
+      await expectToolError(client, "save_result", {
         ...base,
         resultHandle: "11111111-1111-4111-8111-111111111111",
       });
-      await expectToolError(client, "save_artifact", {
+      await expectToolError(client, "save_result", {
         ...base,
         resultHandle: "not-a-handle",
       });
-      await expectToolError(client, "save_artifact", {
+      await expectToolError(client, "save_result", {
         ...base,
         resultHandle: "11111111-1111-4111-8111-111111111111",
         sourceTool: "steam_search",
@@ -1705,9 +1709,9 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const intel = await client.callTool({
-        name: "save_artifact",
+        name: "save_intel",
         arguments: {
-          kind: "intel",
+
           target: "Hádès II",
           id: "Price Snapshot",
           sourceTool: "steam_fetch",
@@ -1722,9 +1726,9 @@ describe("MCP server contract", () => {
       });
 
       const evaluation = await client.callTool({
-        name: "save_artifact",
+        name: "save_evaluation",
         arguments: {
-          kind: "evaluation",
+
           target: "Hádès II",
           topic: "Store Page",
           date: "2026-08-11",
@@ -1799,9 +1803,9 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const saved = await client.callTool({
-        name: "save_artifact",
+        name: "save_intel",
         arguments: {
-          kind: "intel",
+
           target: "Hades",
           id: "Manual Provenance",
           sourceTool: "manual",
@@ -1835,7 +1839,7 @@ describe("MCP server contract", () => {
     }
   });
 
-  it("seals and replays a simulation run through save_artifact and get_artifact", async () => {
+  it("seals and replays a simulation run through save_run and get_artifact", async () => {
     const {artifactStore, client, resolver, server} = await createHarness();
     try {
       const derivationResultHandle = await derivePersonaHandle(client);
@@ -1844,18 +1848,18 @@ describe("MCP server contract", () => {
         arguments: {persona: persona(), derivationResultHandle},
       });
       await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "Hades II",
           id: "Persona Derivation",
           resultHandle: derivationResultHandle,
         },
       });
       await client.callTool({
-        name: "save_artifact",
+        name: "save_intel",
         arguments: {
-          kind: "intel",
+
           target: "Hades II",
           id: "Store Profile",
           sourceTool: "steam_fetch",
@@ -1864,9 +1868,9 @@ describe("MCP server contract", () => {
         },
       });
       await client.callTool({
-        name: "save_artifact",
+        name: "save_intel",
         arguments: {
-          kind: "intel",
+
           target: "Hades II",
           id: "Candidate Store Profile",
           sourceTool: "manual",
@@ -1881,9 +1885,9 @@ describe("MCP server contract", () => {
         resolver.resolveIntelArtifactPath("Hades II", "Candidate Store Profile").absolutePath,
       ));
       await client.callTool({
-        name: "save_artifact",
+        name: "save_intel",
         arguments: {
-          kind: "intel",
+
           target: "Hades II",
           id: "Revision Bundle",
           sourceTool: "manual",
@@ -1920,9 +1924,9 @@ describe("MCP server contract", () => {
         },
       });
       await client.callTool({
-        name: "save_artifact",
+        name: "save_evaluation",
         arguments: {
-          kind: "evaluation",
+
           target: "Hades II",
           topic: "Store Promise",
           date: "2026-08-11",
@@ -1931,9 +1935,9 @@ describe("MCP server contract", () => {
       });
 
       const saved = await client.callTool({
-        name: "save_artifact",
+        name: "save_run",
         arguments: {
-          kind: "run",
+
           target: "Hades II",
           topic: "Store promise",
           subjectKind: "existing-game",
@@ -2196,15 +2200,14 @@ describe("MCP server contract", () => {
   it("keeps artifacts immutable and requires a new ID for revisions", async () => {
     const {client, server} = await createHarness();
     const base = {
-      kind: "intel",
       target: "Hades II",
       id: "Snapshot",
       sourceTool: "steam_fetch",
       observedAt: "2026-08-10T08:09:10.000Z",
     };
     try {
-      await client.callTool({name: "save_artifact", arguments: {...base, payload: {version: 1}}});
-      await expectToolError(client, "save_artifact", {...base, payload: {version: 2}});
+      await client.callTool({name: "save_intel", arguments: {...base, payload: {version: 1}}});
+      await expectToolError(client, "save_intel", {...base, payload: {version: 2}});
 
       const first = await client.callTool({
         name: "get_artifact",
@@ -2213,7 +2216,7 @@ describe("MCP server contract", () => {
       expect(first.structuredContent).toMatchObject({data: {payload: {version: 1}}});
 
       const revised = await client.callTool({
-        name: "save_artifact",
+        name: "save_intel",
         arguments: {...base, id: "Snapshot v2", payload: {version: 2}},
       });
       expect(revised.isError).not.toBe(true);
@@ -2234,9 +2237,9 @@ describe("MCP server contract", () => {
       const versions = Array.from({length: 20}, (_, index) => index);
       const results = await Promise.all(versions.flatMap((version) => [
           client.callTool({
-            name: "save_artifact",
+            name: "save_intel",
             arguments: {
-              kind: "intel",
+
               target: "Hades II",
               id: `Concurrent Snapshot ${version}`,
               sourceTool: "steam_fetch",
@@ -2245,9 +2248,9 @@ describe("MCP server contract", () => {
             },
           }),
           client.callTool({
-            name: "save_artifact",
+            name: "save_evaluation",
             arguments: {
-              kind: "evaluation",
+
               target: "Hades II",
               topic: `Concurrent Review ${version}`,
               date: "2026-08-11",
@@ -2306,19 +2309,29 @@ describe("MCP server contract", () => {
   });
 
   it.each([
-    {kind: "intel", target: "Game", id: "x", sourceTool: "steam_fetch", observedAt: "bad", payload: {}},
-    {kind: "intel", target: "Game", id: "x", sourceTool: "unknown", observedAt: NOW.toISOString(), payload: {}},
-    {kind: "intel", target: "Game", id: "x", sourceTool: "steam_fetch", observedAt: NOW.toISOString(), payload: {}, content: "wrong branch"},
-    {kind: "evaluation", target: "Game", topic: "", content: "body"},
-    {kind: "evaluation", target: "Game", topic: "Topic", date: "2026-02-30", content: "body"},
-    {kind: "evaluation", target: "Game", topic: "Topic", content: ""},
-    {kind: "intel", target: "../escape", id: "x", sourceTool: "steam_fetch", observedAt: NOW.toISOString(), payload: {}},
-    {kind: "evaluation", target: "Game", topic: "../../escape", content: "body"},
-    {kind: "capture", target: "Game", id: "x"},
-  ])("rejects invalid save_artifact input: %j", async (arguments_) => {
+    {target: "Game", id: "x", sourceTool: "steam_fetch", observedAt: "bad", payload: {}},
+    {target: "Game", id: "x", sourceTool: "unknown", observedAt: NOW.toISOString(), payload: {}},
+    {target: "Game", id: "x", sourceTool: "steam_fetch", observedAt: NOW.toISOString(), payload: {}, content: "wrong tool"},
+    {target: "../escape", id: "x", sourceTool: "steam_fetch", observedAt: NOW.toISOString(), payload: {}},
+  ])("rejects invalid save_intel input: %j", async (arguments_) => {
     const {client, server} = await createHarness();
     try {
-      await expectToolError(client, "save_artifact", arguments_);
+      await expectToolError(client, "save_intel", arguments_);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it.each([
+    {target: "Game", topic: "", content: "body"},
+    {target: "Game", topic: "Topic", date: "2026-02-30", content: "body"},
+    {target: "Game", topic: "Topic", content: ""},
+    {target: "Game", topic: "../../escape", content: "body"},
+  ])("rejects invalid save_evaluation input: %j", async (arguments_) => {
+    const {client, server} = await createHarness();
+    try {
+      await expectToolError(client, "save_evaluation", arguments_);
     } finally {
       await client.close();
       await server.close();
@@ -2497,6 +2510,53 @@ describe("MCP server contract", () => {
       expect(resultText(result)).not.toContain(encoded);
       expect(JSON.stringify(result.structuredContent)).not.toContain(encoded);
       expect(JSON.stringify(result.structuredContent)).not.toContain("imageContent");
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("saves a caller-provided local screenshot into capture evidence without Obscura", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const bytes = pngBytes(32);
+      const saved = await client.callTool({
+        name: "save_capture",
+        arguments: {
+          id: "local-freeze-frame",
+          source: {
+            kind: "base64",
+            mimeType: "image/png",
+            data: bytes.toString("base64"),
+          },
+        },
+      });
+
+      expect(saved.isError).not.toBe(true);
+      expect(saved.structuredContent).toMatchObject({
+        data: {
+          artifactType: "capture",
+          id: "local-freeze-frame",
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+          evidenceReference: {kind: "capture", id: "local-freeze-frame"},
+        },
+        warnings: [],
+      });
+      expect(saved.content).toContainEqual(expect.objectContaining({
+        type: "image",
+        data: bytes.toString("base64"),
+        mimeType: "image/png",
+      }));
+
+      const read = await client.callTool({
+        name: "get_artifact",
+        arguments: {kind: "capture", id: "local-freeze-frame"},
+      });
+      expect(read.isError).not.toBe(true);
+      expect(read.content).toContainEqual(expect.objectContaining({
+        type: "image",
+        data: bytes.toString("base64"),
+      }));
     } finally {
       await client.close();
       await server.close();
@@ -2786,9 +2846,9 @@ describe("MCP server contract", () => {
       ]).size).toBe(3);
 
       const saved = await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "Project Nyx",
           id: "Concept Test Pitch Card V3",
           resultHandle: evidence.resultHandle,
@@ -2826,9 +2886,9 @@ describe("MCP server contract", () => {
       });
 
       const savedFirstContact = await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "Project Nyx",
           id: "First Contact Store Viewport V2",
           resultHandle: firstContactEvidence.resultHandle,
@@ -2865,9 +2925,9 @@ describe("MCP server contract", () => {
       });
 
       const savedPlaytest = await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "Project Nyx",
           id: "playtest-session-playtest-build-042-p03",
           resultHandle: playtestEvidence.resultHandle,
@@ -3025,9 +3085,9 @@ describe("MCP server contract", () => {
       });
 
       const saved = await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "Project Nyx",
           id: "playtest-cohort-mcp-cohort-01",
           resultHandle: evidence.resultHandle,
@@ -3167,6 +3227,69 @@ describe("MCP server contract", () => {
     }
   });
 
+  it("exposes every prompt workflow as an agent-callable tool with identical instructions", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const tools = (await client.listTools()).tools.map(({name}) => name);
+      expect(tools).toEqual(expect.arrayContaining([
+        "play_build",
+        "review_change",
+        "audit_project",
+        "ui_blind_compare",
+        "audit_game_legal",
+      ]));
+
+      const arguments_ = {
+        target: "Project Nyx",
+        buildUrl: "http://localhost:4173/play",
+        buildId: "nyx-local-web",
+        task: "Start one run and observe the first complete action-result loop.",
+        controls: "Keyboard and mouse",
+        startState: "Title screen",
+        endState: "First result is visible",
+      };
+      const prompt = await client.getPrompt({name: "play-build", arguments: arguments_});
+      const promptContent = prompt.messages[0]?.content;
+      if (promptContent?.type !== "text") throw new Error("play-build prompt did not return text");
+
+      const tool = await client.callTool({name: "play_build", arguments: arguments_});
+      expect(tool.isError).not.toBe(true);
+      expect(tool.content[0]).toEqual({type: "text", text: promptContent.text});
+      expect(tool.structuredContent).toMatchObject({
+        data: {workflow: "play-build", instructions: promptContent.text},
+        warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("exposes one named save tool per persistence mode instead of an overloaded union", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const tools = Object.fromEntries(
+        (await client.listTools()).tools.map((tool) => [tool.name, tool.inputSchema]),
+      );
+      expect(Object.keys(tools)).toEqual(expect.arrayContaining([
+        "save_result",
+        "save_intel",
+        "save_evaluation",
+        "save_run",
+      ]));
+      expect(tools).not.toHaveProperty("save_artifact");
+      expect(tools.save_result).toMatchObject({required: ["target", "id", "resultHandle"]});
+      expect(tools.save_intel).toMatchObject({
+        required: ["target", "id", "sourceTool", "payload"],
+      });
+      expect(tools.save_evaluation).toMatchObject({required: ["target", "topic", "content"]});
+      expect(tools.save_run).toMatchObject({required: expect.arrayContaining(["target"])});
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   it("routes known build blockers to repair before operation or research", async () => {
     const {client, server} = await createHarness();
     try {
@@ -3300,9 +3423,9 @@ describe("MCP server contract", () => {
       const resultHandle = (panel.structuredContent?.meta as {resultHandle: string})
         .resultHandle;
       const saved = await client.callTool({
-        name: "save_artifact",
+        name: "save_result",
         arguments: {
-          kind: "intel",
+
           target: "Project Nyx",
           id: "player-panel-build-042",
           resultHandle,
@@ -3312,6 +3435,32 @@ describe("MCP server contract", () => {
       expect(saved.structuredContent?.data).toMatchObject({
         sourceTool: "record_player_panel",
       });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("dry-runs an incomplete player panel without creating a result handle", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const result = await client.callTool({
+        name: "validate_player_panel",
+        arguments: {candidate: {}},
+      });
+
+      expect(result.isError).not.toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        data: {
+          ready: false,
+          missingTopLevelFields: expect.arrayContaining(["target", "stimulus", "lenses"]),
+          issues: expect.arrayContaining([
+            expect.objectContaining({stage: "schema", path: "target"}),
+          ]),
+        },
+        warnings: [],
+      });
+      expect(result.structuredContent?.meta).toBeUndefined();
     } finally {
       await client.close();
       await server.close();

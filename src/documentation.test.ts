@@ -82,15 +82,19 @@ describe("public documentation", () => {
     const readme = await read("README.md");
 
     expect(readme).toContain("cd /path/to/your-game");
-    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.5.0/skills/game-player-lens");
+    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.0/skills/game-player-lens");
     expect(readme).toContain("npx skills list");
     expect(readme).toMatch(/installs[\s\S]*skill[\s\S]*does not install[\s\S]*MCP server/i);
-    expect(readme).toContain("npx --yes --package=github:ZaK3939/GamePlayerLens#v0.5.0 game-player-lens doctor");
+    expect(readme).toContain("npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.0 game-player-lens doctor");
     expect(readme).toContain('"command": "npx"');
-    expect(readme).toContain('"--package=github:ZaK3939/GamePlayerLens#v0.5.0"');
+    expect(readme).toContain('"--package=github:ZaK3939/GamePlayerLens#v0.6.0"');
     expect(readme).toMatch(/Skill check[\s\S]*\$game-player-lens[\s\S]*MCP check[\s\S]*get_status/i);
     expect(readme).toContain("Node.js 22 or newer");
     expect(readme).toMatch(/doctor[\s\S]*storage is not ready/i);
+    expect(readme).toContain("game-player-lens docs list");
+    expect(readme).toContain("game-player-lens docs show <name>");
+    expect(readme).toContain('"buildUrl": "http://localhost:4173/play"');
+    expect(readme).not.toContain('"buildUrl": "http://127.0.0.1:4173/play"');
   });
 
   it("documents explicit local agent feedback without automatic GitHub mutation", async () => {

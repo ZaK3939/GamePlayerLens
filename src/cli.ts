@@ -6,9 +6,11 @@ import {dirname, isAbsolute, join, resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {serveStdio} from "@modelcontextprotocol/server/stdio";
 import {buildServer} from "./index.js";
+import {CLI_AGENT_HELP, listCliDocuments, readCliDocument} from "./cli-docs.js";
 import {initializePackagedPaths} from "./paths.js";
 import {
   getServerStatus,
+  SERVER_VERSION,
   type StatusEnvironment,
   type WritableCheck,
 } from "./status.js";
@@ -75,6 +77,10 @@ export async function buildDoctorReport(
     command: "doctor" as const,
     node: {version, minimumMajor, supported},
     ...status,
+    documentation: {
+      listCommand: "game-player-lens docs list",
+      showCommand: "game-player-lens docs show <name>",
+    },
     nextStep,
   };
 }
@@ -100,7 +106,28 @@ export async function runCli(args = process.argv.slice(2)): Promise<void> {
     if (!report.ok) process.exitCode = 1;
     return;
   }
-  throw new Error("usage: game-player-lens [doctor]");
+  if (args.length === 2 && args[0] === "docs" && args[1] === "list") {
+    process.stdout.write(`${JSON.stringify(listCliDocuments(), null, 2)}\n`);
+    return;
+  }
+  if (args.length === 3 && args[0] === "docs" && args[1] === "show") {
+    process.stdout.write(await readCliDocument(resolvePackageRoot(), args[2]!));
+    return;
+  }
+  if (args.length === 1 && (args[0] === "--version" || args[0] === "-v")) {
+    process.stdout.write(`game-player-lens ${SERVER_VERSION}\n${CLI_AGENT_HELP}\n`);
+    return;
+  }
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "-h")) {
+    process.stdout.write([
+      "Usage: game-player-lens [doctor | docs list | docs show <name>]",
+      "Run with no arguments to start the MCP stdio server.",
+      CLI_AGENT_HELP,
+      "",
+    ].join("\n"));
+    return;
+  }
+  throw new Error(`usage: game-player-lens [doctor | docs list | docs show <name>]\n${CLI_AGENT_HELP}`);
 }
 
 function isDirectExecution(): boolean {

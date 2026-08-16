@@ -11,6 +11,7 @@ import {
   type ImageArtifactKind,
 } from "./artifacts.js";
 import type {FetchResult} from "./http.js";
+import {sha256 as hashBytes} from "./integrity.js";
 import type {
   CaptureImageExtension,
   PathResolver,
@@ -63,6 +64,7 @@ export interface ImageMetadata {
 
 export interface ImageReadResult extends ImageMetadata {
   imageIncluded: boolean;
+  sha256?: string;
 }
 
 export interface ImageFetchResult<T> extends FetchResult<T> {
@@ -74,6 +76,7 @@ export interface InlineImageResult {
   sizeBytes: number;
   modifiedAt: string;
   imageIncluded: boolean;
+  sha256?: string;
   imageContent?: ImageContent;
   warnings: string[];
 }
@@ -270,6 +273,7 @@ export function createImageService(
         sizeBytes: stats.size,
         modifiedAt: stats.mtime.toISOString(),
         imageIncluded: true,
+        sha256: hashBytes(bytes),
         imageContent: {
           type: "image",
           data: encodeBase64(bytes),
@@ -365,6 +369,7 @@ export function createImageService(
         sizeBytes: inline.sizeBytes,
         modifiedAt: inline.modifiedAt,
         imageIncluded: inline.imageIncluded,
+        ...(inline.sha256 ? {sha256: inline.sha256} : {}),
       },
       warnings: inline.warnings,
       ...(inline.imageContent ? {imageContent: inline.imageContent} : {}),

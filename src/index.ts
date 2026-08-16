@@ -10,6 +10,7 @@ import {
   SaveIntelInputSchema,
 } from "./artifacts.js";
 import {SteamDeveloperBriefInputSchema} from "./brief.js";
+import {CaptureImportInputSchema} from "./capture-import.js";
 import {
   AgentExperienceFeedbackInputSchema,
   AgentExperienceSummaryInputSchema,
@@ -18,12 +19,11 @@ import {
   imageEnvelope,
   jsonEnvelope,
   trackedJsonEnvelope,
+  workflowEnvelope,
 } from "./mcp-responses.js";
 import {LegalSourcePlanInputSchema} from "./legal.js";
 import {
-  buildGameLegalAuditPrompt,
   GameLegalAuditPromptArgumentsSchema,
-  resolveLegalSourcePlanEvidence,
 } from "./legal-prompt.js";
 import {buildIterationCoachHistory} from "./iteration-coach.js";
 import {
@@ -44,18 +44,14 @@ import {
 } from "./personas.js";
 import {
   AuditProjectPromptArgumentsSchema,
-  buildAuditProjectPrompt,
-  buildPlayBuildPrompt,
-  buildReviewChangePrompt,
-  buildUiBlindComparePrompt,
   ReviewChangePromptArgumentsSchema,
   PlayBuildPromptArgumentsSchema,
   UiBlindComparePromptArgumentsSchema,
 } from "./prompts.js";
-import {trackReviewPromptEvidence} from "./review-prompt-evidence.js";
 import {
   buildPlayerPanelRecord,
   PlayerPanelInputSchema,
+  validatePlayerPanelDraft,
 } from "./player-panel.js";
 import {
   ResultEnvelopeSchema,
@@ -68,11 +64,10 @@ import {
 } from "./server-services.js";
 import {
   getServerStatus,
-  PROMPT_COUNT,
   SERVER_NAME,
   SERVER_VERSION,
-  TOOL_COUNT,
 } from "./status.js";
+import {createWorkflowContent} from "./workflow-content.js";
 
 const AppidSchema = z.number().int().positive();
 const ReviewTypeSchema = z.enum(["all", "positive", "negative"]);
@@ -84,27 +79,15 @@ const DiscoveryInputSchema = z.object({
   excludeAppids: z.array(z.number().int().positive()).max(50).optional(),
   limit: z.number().int().min(1).max(50).optional(),
 }).strict();
-const SaveArtifactInputSchema = z.union([
-  z.object({
-    kind: z.literal("intel"),
-    ...SaveIntelInputSchema.shape,
-    payload: JsonValueSchema,
-  }).strict(),
-  z.object({
-    kind: z.literal("intel"),
-    target: z.string().min(1),
-    id: z.string().min(1),
-    resultHandle: ResultHandleSchema,
-  }).strict(),
-  z.object({
-    kind: z.literal("evaluation"),
-    ...SaveEvaluationInputSchema.shape,
-  }).strict(),
-  z.object({
-    kind: z.literal("run"),
-    ...SaveRunInputBaseSchema.shape,
-  }).strict(),
-]);
+const SaveResultInputSchema = z.object({
+  target: z.string().min(1),
+  id: z.string().min(1),
+  resultHandle: ResultHandleSchema,
+}).strict();
+const SaveIntelToolInputSchema = z.object({
+  ...SaveIntelInputSchema.shape,
+  payload: JsonValueSchema,
+}).strict();
 const GetArtifactInputSchema = z.object({
   kind: AnyArtifactKindSchema,
   target: z.string().min(1).optional(),
@@ -113,6 +96,12 @@ const GetArtifactInputSchema = z.object({
 const CoachHistoryInputSchema = z.object({
   target: z.string().trim().min(1).max(120),
   limit: z.number().int().min(2).max(20).optional(),
+}).strict();
+const PlayerPanelDraftInputSchema = z.object({
+  candidate: JsonValueSchema.refine(
+    (value) => Boolean(value && typeof value === "object" && !Array.isArray(value)),
+    "candidate must be a JSON object",
+  ),
 }).strict();
 
 export function buildServer(
@@ -123,6 +112,7 @@ export function buildServer(
     {name: SERVER_NAME, version: SERVER_VERSION},
     {capabilities: {tools: {}, prompts: {}}},
   );
+  const workflows = createWorkflowContent(services);
 
   server.registerTool(
     "steam_search",
@@ -376,6 +366,26 @@ export function buildServer(
   );
 
   server.registerTool(
+    "validate_player_panel",
+    {
+      title: "Validate a virtual-player panel draft",
+      description: "Dry-run an incomplete or complete record_player_panel input, return field-level schema and persona-grounding issues, and save nothing",
+      inputSchema: PlayerPanelDraftInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({candidate}) => jsonEnvelope({
+      data: await validatePlayerPanelDraft(candidate, services.loadPersona),
+      warnings: [],
+    }),
+  );
+
+  server.registerTool(
     "ui_capture",
     {
       description: "Capture a page through Obscura, or securely download a Steam Store screenshot from steamstatic.com",
@@ -394,6 +404,23 @@ export function buildServer(
     async ({url, name, sourceType, viewport, fullPage}) => imageEnvelope(
       await services.captureUrl(url, {name, sourceType, viewport, fullPage}),
     ),
+  );
+
+  server.registerTool(
+    "save_capture",
+    {
+      title: "Save local build capture",
+      description: "Import one immutable PNG or JPEG from base64 or a project-root-relative file and return its capture evidence reference and SHA-256; does not require Obscura",
+      inputSchema: CaptureImportInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) => imageEnvelope(await services.captureImport(input)),
   );
 
   server.registerTool(
@@ -493,56 +520,100 @@ export function buildServer(
   );
 
   server.registerTool(
-    "save_artifact",
+    "save_result",
     {
-      description: "Atomically save intel from an exact ephemeral resultHandle (preferred) or a caller-provided payload, save evaluation Markdown, or seal an immutable review run with hashed evidence",
-      inputSchema: SaveArtifactInputSchema,
+      title: "Save an exact tool result",
+      description: "Persist one short-lived resultHandle exactly as normalized intel without model transcription",
+      inputSchema: SaveResultInputSchema,
       outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
     },
-    async (input) => {
-      if (input.kind === "intel") {
-        if ("resultHandle" in input) {
-          const {target, id, resultHandle} = input;
-          const cached = services.resultStore.get(resultHandle);
-          return jsonEnvelope({
-            data: await services.artifactStore.saveIntel({
-              target,
-              id,
-              sourceTool: cached.sourceTool,
-              observedAt: cached.observedAt,
-              payload: cached.payload,
-            }),
-            warnings: [],
-          });
-        }
-        const {kind: _kind, ...artifact} = input;
-        return jsonEnvelope({
-          data: await services.artifactStore.saveIntel(artifact),
-          warnings: [],
-        });
-      }
-      if (input.kind === "evaluation") {
-        const {kind: _kind, ...artifact} = input;
-        const metadata = await services.artifactStore.saveEvaluation(artifact);
-        const saved = await services.artifactStore.readEvaluation(
-          artifact.target,
-          metadata.id,
-        );
-        return jsonEnvelope({
-          data: {
-            metadata,
-            decisionCard: saved.decisionCard,
-            developerSummary: saved.developerSummary,
-          },
-          warnings: [],
-        });
-      }
-      const {kind: _kind, ...run} = input;
+    async ({target, id, resultHandle}) => {
+      const cached = services.resultStore.get(resultHandle);
       return jsonEnvelope({
-        data: await services.runStore.saveRun(run),
+        data: await services.artifactStore.saveIntel({
+          target,
+          id,
+          sourceTool: cached.sourceTool,
+          observedAt: cached.observedAt,
+          payload: cached.payload,
+        }),
         warnings: [],
       });
     },
+  );
+
+  server.registerTool(
+    "save_intel",
+    {
+      title: "Save caller-authored intel",
+      description: "Persist one bounded caller-authored JSON evidence record; use save_result for tool output",
+      inputSchema: SaveIntelToolInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) => jsonEnvelope({
+      data: await services.artifactStore.saveIntel(input),
+      warnings: [],
+    }),
+  );
+
+  server.registerTool(
+    "save_evaluation",
+    {
+      title: "Save a canonical evaluation",
+      description: "Validate and persist canonical evaluation Markdown, then return its Decision Card and developer summary",
+      inputSchema: SaveEvaluationInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) => {
+      const metadata = await services.artifactStore.saveEvaluation(input);
+      const saved = await services.artifactStore.readEvaluation(input.target, metadata.id);
+      return jsonEnvelope({
+        data: {
+          metadata,
+          decisionCard: saved.decisionCard,
+          developerSummary: saved.developerSummary,
+        },
+        warnings: [],
+      });
+    },
+  );
+
+  server.registerTool(
+    "save_run",
+    {
+      title: "Seal an immutable review run",
+      description: "Validate, hash, and persist one evidence-linked review run",
+      inputSchema: SaveRunInputBaseSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) => jsonEnvelope({
+      data: await services.runStore.saveRun(input),
+      warnings: [],
+    }),
   );
 
   server.registerTool(
@@ -600,6 +671,79 @@ export function buildServer(
     },
   );
 
+  const workflowToolAnnotations = {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  } as const;
+
+  server.registerTool(
+    "play_build",
+    {
+      title: "Operate one bounded game build task",
+      description: "Agent-callable form of the play-build workflow; returns the same complete instructions as the MCP prompt",
+      inputSchema: PlayBuildPromptArgumentsSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: workflowToolAnnotations,
+    },
+    async (input) => workflowEnvelope("play-build", await workflows.playBuild(input)),
+  );
+
+  server.registerTool(
+    "review_change",
+    {
+      title: "Review one game revision",
+      description: "Agent-callable form of the review-change workflow; returns the same complete instructions as the MCP prompt",
+      inputSchema: ReviewChangePromptArgumentsSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: workflowToolAnnotations,
+    },
+    async (input) => workflowEnvelope("review-change", await workflows.reviewChange(input)),
+  );
+
+  server.registerTool(
+    "audit_project",
+    {
+      title: "Audit one game milestone",
+      description: "Agent-callable form of the audit-project workflow; returns the same complete instructions as the MCP prompt",
+      inputSchema: AuditProjectPromptArgumentsSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: workflowToolAnnotations,
+    },
+    async (input) => workflowEnvelope("audit-project", await workflows.auditProject(input)),
+  );
+
+  server.registerTool(
+    "ui_blind_compare",
+    {
+      title: "Blindly compare game UI",
+      description: "Agent-callable form of the ui-blind-compare workflow; returns the same complete instructions as the MCP prompt",
+      inputSchema: UiBlindComparePromptArgumentsSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: workflowToolAnnotations,
+    },
+    async (input) => workflowEnvelope(
+      "ui-blind-compare",
+      await workflows.uiBlindCompare(input),
+    ),
+  );
+
+  server.registerTool(
+    "audit_game_legal",
+    {
+      title: "Audit one game release for legal evidence risks",
+      description: "Agent-callable form of the audit-game-legal workflow; returns the same complete instructions as the MCP prompt",
+      inputSchema: GameLegalAuditPromptArgumentsSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: workflowToolAnnotations,
+    },
+    async (input) => workflowEnvelope(
+      "audit-game-legal",
+      await workflows.auditGameLegal(input),
+    ),
+  );
+
   server.registerPrompt(
     "play-build",
     {
@@ -611,10 +755,7 @@ export function buildServer(
         role: "user" as const,
         content: {
           type: "text" as const,
-          text: buildPlayBuildPrompt(
-            await services.readSkill("play-build.md"),
-            arguments_,
-          ),
+          text: await workflows.playBuild(arguments_),
         },
       }],
     }),
@@ -627,17 +768,12 @@ export function buildServer(
       argsSchema: ReviewChangePromptArgumentsSchema,
     },
     async (arguments_) => {
-      const reviewInput = {...arguments_, mode: "change" as const};
       return {
         messages: [{
           role: "user" as const,
           content: {
             type: "text" as const,
-            text: buildReviewChangePrompt(
-              await services.readSkill("game-review.md"),
-              arguments_,
-              trackReviewPromptEvidence(services.resultStore, reviewInput),
-            ),
+            text: await workflows.reviewChange(arguments_),
           },
         }],
       };
@@ -651,17 +787,12 @@ export function buildServer(
       argsSchema: AuditProjectPromptArgumentsSchema,
     },
     async (arguments_) => {
-      const reviewInput = {...arguments_, mode: "baseline" as const};
       return {
         messages: [{
           role: "user" as const,
           content: {
             type: "text" as const,
-            text: buildAuditProjectPrompt(
-              await services.readSkill("game-review.md"),
-              arguments_,
-              trackReviewPromptEvidence(services.resultStore, reviewInput),
-            ),
+            text: await workflows.auditProject(arguments_),
           },
         }],
       };
@@ -679,10 +810,7 @@ export function buildServer(
         role: "user" as const,
         content: {
           type: "text" as const,
-          text: buildUiBlindComparePrompt(
-            await services.readSkill("ui-blind-compare.md"),
-            arguments_,
-          ),
+          text: await workflows.uiBlindCompare(arguments_),
         },
       }],
     }),
@@ -699,14 +827,7 @@ export function buildServer(
         role: "user" as const,
         content: {
           type: "text" as const,
-          text: buildGameLegalAuditPrompt(
-            await services.readSkill("game-legal-audit/SKILL.md"),
-            arguments_,
-            resolveLegalSourcePlanEvidence(
-              services.resultStore,
-              arguments_.sourcePlanResultHandle,
-            ),
-          ),
+          text: await workflows.auditGameLegal(arguments_),
         },
       }],
     }),

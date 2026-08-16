@@ -12,7 +12,7 @@
 - Focused regression: 修正後に通す最小test
 - Re-enter when: `workflowRouting.reentryCondition`
 
-面白さ、需要、player感情、競合比較を推測しません。新しいplayable buildが条件を満たした後に`play-build`へ進みます。
+面白さ、需要、player感情、競合比較を推測しません。新しいplayable buildが条件を満たした後に`play_build`へ進みます。
 <!-- GPL:end -->
 
 <!-- GPL:section core -->
@@ -25,8 +25,8 @@ Steamデータ、保存済み証拠、persona、直接観測で評価します�
 - 必須: `target`、`topic`、`subjectKind`、`domains`は最低1領域、`market`、Steam `language`。Japan / japaneseへ補完しません。
 - `intakeDiagnostics.status=needs-input`なら全`missingFields`を一度に質問し、toolと保存を待ちます。`ready`は品質合格ではありません。
 - changeは`currentState` / `proposal` / `revisionBundle`必須で、不足は評価開始前にまとめて質問します。developer-project auditは`auditSnapshotBundle`必須。Git SHA、build ID、artifact ref / SHA-256を固定します。
-- Selected Domainsと選択理由を固定します。例えばprice / competitionのみなら`ui_capture`と`ui-blind-compare`を実行せず、UI gateはN/Aで不合格理由にしないものとします。
-- archiveはclient-side extractionで展開します。`get_status`では書込可否と連携状態だけを確認し、秘密や絶対pathを求めません。
+- Selected Domainsと選択理由を固定します。例えばprice / competitionのみなら`ui_capture`と`ui_blind_compare`を実行せず、UI gateはN/Aで不合格理由にしないものとします。
+- archiveはclient-side extractionで展開し、展開物をworkflow dataとして扱います。`get_status`では書込可否と連携状態だけを確認し、秘密や絶対pathを求めません。
 
 ## Review response contract
 
@@ -35,10 +35,10 @@ Steamデータ、保存済み証拠、persona、直接観測で評価します�
 ## Evidence contract
 
 - `data` / `warnings` / `meta`を分け、日時、source、repo-relative pathをEvidence Indexへ残します。
-- `meta.resultHandle`は直ちに`save_artifact(kind=intel, target, id, resultHandle)`でexact-saveし、payloadを再serialize、統合、抜粋しません。
+- `meta.resultHandle`は直ちに`save_result(target, id, resultHandle)`でexact-saveし、payloadを再serialize、統合、抜粋しません。
 - `revisionBundleEvidence.resultHandle` / `auditSnapshotBundleEvidence.resultHandle`もexact-saveし、対応run refと全bound artifactのkind / SHA-256をserver検証します。
 - 履歴は`get_artifact`、rubricは`get_knowledge`。`steam_search` / `steam_discover` / `steam_fetch` / `steam_reviews` / `steam_timeline` / `steam_updates`を役割別に使い、Steam Sonarの`referenceLinks.steamSonar`だけを証拠にしません。
-- `derive_personas`へmarket / language、具体的な`evidenceSignals`を持つ1〜3 researchQuestions、全appidのsourceRolesを渡します。competitorはdirect / adjacentかつ最低3一致軸、referenceはsystem-referenceのみ。resultHandleを`save_artifact`してEvidence Indexへ追加し、`generationAllowed=false`なら停止、`generationReadiness.supportedCount`を守り、同じreview voiceをpersona間で再利用しません。同じ`derivationResultHandle`で`save_persona`します。
+- `derive_personas`へmarket / language、具体的な`evidenceSignals`を持つ1〜3 researchQuestions、全appidのsourceRolesを渡します。competitorはdirect / adjacentかつ最低3一致軸、referenceはsystem-referenceのみ。resultHandleを`save_result`してEvidence Indexへ追加し、`generationAllowed=false`なら停止、`generationReadiness.supportedCount`を守り、同じreview voiceをpersona間で再利用しません。同じ`derivationResultHandle`で`save_persona`します。
 - 領域はsubagent、利用できないclientはsequential independent passで分離し、主張をEvidence IDかsource_appid / recommendation_idへ接続します。
 
 ## Evidence-grounded player-lens review
@@ -49,8 +49,8 @@ Steamデータ、保存済み証拠、persona、直接観測で評価します�
 
 1. baselineは現状、changeは同条件の現状 / 候補。observed / reported-zero / estimated / missing / N/Aを分けます。
 2. `review-eval.md`と`evidence-coverage.md`でDecision Card、Coverage rate、Direct observation rate、blocking missingを固定し、harsh-criticで再審査します。
-3. `save_artifact(kind=evaluation)`をimmutable IDで保存し、structured `decisionCard` / `developerSummary`とrepo-relative pathを確認します。
-4. kind=`run`には全`scenario × Selected Domain`、`persona × scenario`、analysis evidenceを使った`rounds`を渡します。`finalEvaluationRef`をroundの`evidenceRefs`に含めず、changeは`revisionBundleRef`、developer-project auditは`auditSnapshotBundleRef`も渡します。
+3. `save_evaluation`をimmutable IDで保存し、structured `decisionCard` / `developerSummary`とrepo-relative pathを確認します。
+4. `save_run`には全`scenario × Selected Domain`、`persona × scenario`、analysis evidenceを使った`rounds`を渡します。`finalEvaluationRef`をroundの`evidenceRefs`に含めず、changeは`revisionBundleRef`、developer-project auditは`auditSnapshotBundleRef`も渡します。
 5. model / confidenceは`reportedByClient=true`、通常`calibrationStatus=not-calibrated`。readbackで`integrity.status=verified`、recipe SHA-256、`simulationReadiness` / `simulationReadinessStatus`を確認します。`status=rehearsal`ではpopulation rate、market share、causal lift、retention impactを禁止します。
 
 prospective測定をtopicで明示した場合だけ`experiment.md`を読み、そこに定義されたspec → prediction → measurement → outcomeの保存契約を実行します。通常reviewにはその手順を展開しません。
@@ -78,9 +78,9 @@ Concept Origin RouteではconceptOriginを推測しません。Known Frame / imi
 
 topicがconcept、prototype、vertical slice、pitch、storefront、trailer、demo、Next Fest、wishlist、launch、marketing、roadmap、studio survivalに関係する時は`indie-survival-strategy.md`を読みます。Indie Strategy Card、Core Experience Map、Concept Origin Route、Reward Mechanism Trace、Moment-to-Moment Experience Loop、Mechanism Transfer Map、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Concept Test Trace、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Capability Reinvestment Gate、Repair Backlog、最大3件のExperiment Queue、Survival Scenariosを作ります。wishlist単独を面白さ、売上、Steam visibilityの証明にしません。Steamworks、Next Fest等は公式資料の現在仕様を確認しaccessedAtを残します。
 
-`conceptTest`がある場合、`conceptTestEvidence.resultHandle`を`save_artifact(kind=intel, target, id, resultHandle)`でmanual原本としてexact-saveします。`understoodTheme`、`themeSystemFit`、`understoodAction`、`understoodReward`、`interest`を別々に読みます。themeSystemFit=no / unclearでは`themeSystemFitReason`を要求します。participant countをconversion、需要、購入率へ変換しないものとします。
+`conceptTest`がある場合、`conceptTestEvidence.resultHandle`を`save_result(target, id, resultHandle)`でmanual原本としてexact-saveします。`understoodTheme`、`themeSystemFit`、`understoodAction`、`understoodReward`、`interest`を別々に読みます。themeSystemFit=no / unclearでは`themeSystemFitReason`を要求します。participant countをconversion、需要、購入率へ変換しないものとします。
 
-first contactは`record_first_contact`で無誘導質問を固定し、返された`firstContactResultHandle`をpromptへ渡します。promptの`firstContactTestEvidence.resultHandle`を`save_artifact`でexact-saveし、theme、action、reward、visual quality、try intent、`immediateReject`を分離します。このbounded sampleはconversionや需要を証明しないものとします。
+first contactは`record_first_contact`で無誘導質問を固定し、返された`firstContactResultHandle`をworkflowへ渡します。workflowの`firstContactTestEvidence.resultHandle`を`save_result`でexact-saveし、theme、action、reward、visual quality、try intent、`immediateReject`を分離します。このbounded sampleはconversionや需要を証明しないものとします。
 <!-- GPL:end -->
 
 <!-- GPL:section domain:gameplay -->
@@ -90,11 +90,11 @@ gameplayはプレイヤーから見えるコアループ、目標、入力、sys
 
 最短loopをanticipation → commit → resolution → recoveryとして観測し、3秒のfirst-glance、time to first meaningful action、decision tension / choice reason、difficulty ramp、fair failure / telegraph / counterplay / failure attribution、success amplifier / felt reward、novelty cadence、replay pull、subtractionを記録します。creator self-playとhuman player evidenceを分けます。
 
-`playtestSession`と`playtestCohort`は同時に渡さず、単発またはcohortの一方を使います。`playtestSessionEvidence.resultHandle`を`save_artifact`し、id=`playtest-session-<sessionId>`でexact-saveします。Action、system response、friction、rewardSignal、humanReportを分離し、AI-operated sessionに人間の感情を補完しません。one bounded sessionをcompletion rate、retention、需要へ変換しません。
+`playtestSession`と`playtestCohort`は同時に渡さず、単発またはcohortの一方を使います。`playtestSessionEvidence.resultHandle`を`save_result`し、id=`playtest-session-<sessionId>`でexact-saveします。Action、system response、friction、rewardSignal、humanReportを分離し、AI-operated sessionに人間の感情を補完しません。one bounded sessionをcompletion rate、retention、需要へ変換しません。
 
 retestでは`playtest-session-<sessionId>`の`parentSessionId`を`get_artifact`で読みます。parentとcurrentのtask、executionEnvironment、controls、cohort / participant、start state、tester type、observation sourceを比較します。変更変数が複数または親がmissingならcausal attributionはunresolvedです。
 
-cohortでは`playtestCohortEvidence.resultHandle`を`save_artifact`して原本を保存します。session / unique human / repeat exposure、AI / human、outcome、human report、friction、rewardを件数で分離し、率を作りません。`internalComparisons`のprotocol mismatchと`evidenceTransition`を記録し、`externalParentReadbacks`は各IDを`get_artifact`して検証します。
+cohortでは`playtestCohortEvidence.resultHandle`を`save_result`して原本を保存します。session / unique human / repeat exposure、AI / human、outcome、human report、friction、rewardを件数で分離し、率を作りません。`internalComparisons`のprotocol mismatchと`evidenceTransition`を記録し、`externalParentReadbacks`は各IDを`get_artifact`して検証します。
 
 完了時はbuild ID、task、start/end state、controls、executionEnvironment、Action → response log、rewardSignal、人間代表性の限界、lineageをevaluationとrun evidenceへ残します。
 <!-- GPL:end -->
@@ -110,7 +110,7 @@ storefrontは説明、capsule、trailer、最初のscreenshots、first viewport�
 <!-- GPL:section domain:ui -->
 ## UI domain contract
 
-UI選択時は`uiBenchmarkTask`にplayer目的、platform、control method、開始状態、完了状態を固定します。不足ならgateへ戻ります。`ui_capture`または`get_artifact(kind=capture / ui-reference)`で全画像を読み、`ui-blind-compare`と`ui-quality-gap.md`を使います。
+UI選択時は`uiBenchmarkTask`にplayer目的、platform、control method、開始状態、完了状態を固定します。不足ならgateへ戻ります。`ui_capture`または`get_artifact(kind=capture / ui-reference)`で全画像を読み、`ui_blind_compare`と`ui-quality-gap.md`を使います。
 
 Game UI Database、Interface In Game等の`uiReferenceUrls`は最大8件の入口です。bulk scrapingを行わず、taskに近い2〜4本を選び、release、platform、genre / system、viewport、source URL、accessedAtをprovenance artifactとしてsourceTool=`manual`で保存します。人気や高評価だけでreferenceを選びません。
 

@@ -52,3 +52,14 @@ export function imageEnvelope(result: ImageFetchResult<unknown>) {
       : response.content,
   };
 }
+
+export function workflowEnvelope(workflow: string, instructions: string) {
+  const structuredContent = ResultEnvelopeSchema.parse({
+    data: {workflow, instructions},
+    warnings: [],
+  });
+  return {
+    content: [{type: "text" as const, text: instructions}],
+    structuredContent,
+  };
+}

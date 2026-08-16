@@ -12,7 +12,7 @@ Use this workflow for a released game, an Early Access title, or a public store 
 
 `steam_brief` is a bounded first pass. It preserves source-specific provenance and partial success; it is not a replacement for every specialized tool and it does not operate the game build.
 
-## Full `audit-project` request
+## Full `audit_project` request
 
 ```json
 {
@@ -26,7 +26,7 @@ Use this workflow for a released game, an Early Access title, or a public store 
 }
 ```
 
-Use `review-change` with `currentState`, `proposal`, and the exact `revisionBundle` described in the [developer-project guide](developer-project.md#revision-bundle). `domains` is a required comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
+Use `review_change` with `currentState`, `proposal`, and the exact `revisionBundle` described in the [developer-project guide](developer-project.md#revision-bundle). `domains` is a required comma-separated selection from `gameplay`, `storefront`, `ui`, `price`, `localization`, and `competition`.
 
 ## Domain boundaries
 

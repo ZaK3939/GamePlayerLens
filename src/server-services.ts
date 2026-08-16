@@ -9,6 +9,10 @@ import {
 } from "./artifacts.js";
 import {createDeveloperBriefFetcher} from "./brief.js";
 import {createCaptureService} from "./capture.js";
+import {
+  createCaptureImportService,
+  resolveCaptureImportRoot,
+} from "./capture-import.js";
 import {discoverGames} from "./discovery.js";
 import {createImageService, type ImageService} from "./images.js";
 import {createKnowledgeReader, type KnowledgeReader} from "./knowledge.js";
@@ -43,6 +47,7 @@ export interface ServerServices {
   savePersona: PersonaStore["savePersona"];
   loadPersona: PersonaStore["loadPersona"];
   captureUrl: ReturnType<typeof createCaptureService>;
+  captureImport: ReturnType<typeof createCaptureImportService>;
   readKnowledge: KnowledgeReader;
   readSkill(id: string): Promise<string>;
   artifactStore: ArtifactStore;
@@ -58,7 +63,10 @@ export function createServerServices(
   const resolver = overrides.resolver ?? initializeRepositoryPaths();
   const personaStore = createPersonaStore(resolver);
   const {buildDeveloperBrief, ...serviceOverrides} = overrides;
-  const defaults: Omit<ServerServices, "buildDeveloperBrief" | "agentExperience"> = {
+  const defaults: Omit<
+    ServerServices,
+    "buildDeveloperBrief" | "agentExperience" | "captureImport"
+  > = {
     resolver,
     searchGames,
     discoverGames,
@@ -81,6 +89,11 @@ export function createServerServices(
   const services = {...defaults, ...serviceOverrides, resolver};
   return {
     ...services,
+    captureImport: overrides.captureImport ?? createCaptureImportService({
+      resolver,
+      projectRoot: resolveCaptureImportRoot(),
+      imageService: services.imageService,
+    }),
     agentExperience: overrides.agentExperience ?? createAgentExperienceFeedbackService(
       services.artifactStore,
       {productVersion: SERVER_VERSION},
