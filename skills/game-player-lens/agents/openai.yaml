@@ -1,4 +1,4 @@
 interface:
   display_name: "GamePlayerLens"
-  short_description: "Test one game build through grounded virtual players"
-  default_prompt: "Use $game-player-lens to operate one player task, build relevant virtual player lenses when needed, and choose the next testable build."
+  short_description: "Test games with virtual players and agent feedback"
+  default_prompt: "Use $game-player-lens to operate one player task through grounded virtual players, choose the next testable build, and report meaningful agent friction or success."

@@ -884,6 +884,10 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/UI[\s\S]*stimulus[\s\S]*not[\s\S]*(trait|personality)/i);
     expect(content).toMatch(/Virtual Player Panel[\s\S]*grounded memory[\s\S]*predicted response[\s\S]*human falsifier/i);
     expect(content).toMatch(/record_player_panel[\s\S]*persona SHA-256[\s\S]*save_artifact/i);
+    expect(content).toMatch(/report_agent_experience[\s\S]*once[\s\S]*not report every tool call/i);
+    expect(content).toMatch(/summarize_agent_experience[\s\S]*never cite[\s\S]*game evidence/i);
+    expect(content).toMatch(/privacyConfirmed[\s\S]*raw prompts[\s\S]*credentials/i);
+    expect(content).toMatch(/user approval[\s\S]*GitHub issue[\s\S]*pull request/i);
     for (const prompt of [
       "play-build",
       "review-change",

@@ -11,6 +11,10 @@ import {
 } from "./artifacts.js";
 import {SteamDeveloperBriefInputSchema} from "./brief.js";
 import {
+  AgentExperienceFeedbackInputSchema,
+  AgentExperienceSummaryInputSchema,
+} from "./agent-feedback.js";
+import {
   imageEnvelope,
   jsonEnvelope,
   trackedJsonEnvelope,
@@ -449,6 +453,43 @@ export function buildServer(
       },
       input,
     )),
+  );
+
+  server.registerTool(
+    "report_agent_experience",
+    {
+      title: "Report GamePlayerLens agent experience",
+      description: "Explicitly report one success, partial result, failure, confusion, parameter guess, give-up, or feature request about the GamePlayerLens Skill, MCP, or onboarding; saves locally and never transmits externally",
+      inputSchema: AgentExperienceFeedbackInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) => jsonEnvelope({
+      data: await services.agentExperience.report(input),
+      warnings: [],
+    }),
+  );
+
+  server.registerTool(
+    "summarize_agent_experience",
+    {
+      title: "Summarize GamePlayerLens agent experience",
+      description: "Aggregate explicit local agent feedback and identify repeated signals with distinct caller-provided session IDs that are eligible for a user-approved GitHub issue draft; never creates issues or pull requests",
+      inputSchema: AgentExperienceSummaryInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (input) => jsonEnvelope(await services.agentExperience.summarize(input)),
   );
 
   server.registerTool(

@@ -456,7 +456,7 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly eighteen tools and five review prompts", async () => {
+  it("exposes exactly twenty tools and five review prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -468,6 +468,7 @@ describe("MCP server contract", () => {
         "legal_source_plan",
         "record_first_contact",
         "record_player_panel",
+        "report_agent_experience",
         "save_artifact",
         "save_persona",
         "steam_brief",
@@ -477,6 +478,7 @@ describe("MCP server contract", () => {
         "steam_search",
         "steam_timeline",
         "steam_updates",
+        "summarize_agent_experience",
         "ui_capture",
       ]);
       expect((await client.listPrompts()).prompts.map((prompt) => prompt.name).sort()).toEqual([
@@ -601,13 +603,13 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.4.0"},
+          server: {name: "game-player-lens", version: "0.5.0"},
           storage: {location: "repository-root", writable: true},
           integrations: {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
-          capabilities: {toolCount: 18, promptCount: 5},
+          capabilities: {toolCount: 20, promptCount: 5},
         },
         warnings: [],
       });
@@ -662,6 +664,84 @@ describe("MCP server contract", () => {
         warnings: [],
       });
       expect(JSON.stringify(result.structuredContent)).not.toMatch(/score/i);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("stores explicit agent experience locally and gates issue drafting on distinct sessions", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const base = {
+        surface: "mcp",
+        stage: "invoke",
+        outcome: "confusion",
+        signalKey: "save-artifact-handle-ambiguity",
+        userIntent: "Save one exact player-panel result.",
+        task: "Call save_artifact with a record_player_panel result handle.",
+        relatedTool: "save_artifact",
+        summary: "The exact-save parameter combination was unclear.",
+        attemptedRecovery: "Retried with only target, id, and resultHandle.",
+        guessedFields: ["sourceTool"],
+        wouldReuse: "yes",
+        recommendation: "recommend",
+        privacyConfirmed: true,
+      };
+      const first = await client.callTool({
+        name: "report_agent_experience",
+        arguments: {...base, sessionId: "mcp-session-a"},
+      });
+      const second = await client.callTool({
+        name: "report_agent_experience",
+        arguments: {...base, sessionId: "mcp-session-b"},
+      });
+
+      expect(first.isError).not.toBe(true);
+      expect(second.isError).not.toBe(true);
+      expect(first.structuredContent?.data).toMatchObject({
+        record: {
+          artifactType: "agent-experience-feedback",
+          productVersion: "0.5.0",
+          sessionId: "mcp-session-a",
+        },
+        artifact: {sourceTool: "report_agent_experience"},
+        externalTransmission: false,
+      });
+
+      const summary = await client.callTool({
+        name: "summarize_agent_experience",
+        arguments: {},
+      });
+      expect(summary.isError).not.toBe(true);
+      expect(summary.structuredContent?.data).toMatchObject({
+        reportCount: 2,
+        excludedInvalidArtifactCount: 0,
+        issueCandidates: [{
+          signalKey: "save-artifact-handle-ambiguity",
+          distinctSessionCount: 2,
+          readyForIssueDraft: true,
+          requiresUserApproval: true,
+          automaticPullRequestAllowed: false,
+        }],
+      });
+
+      const artifactId = (
+        first.structuredContent?.data as {artifact?: {id?: unknown}} | undefined
+      )?.artifact?.id;
+      expect(artifactId).toEqual(expect.any(String));
+      const stored = await client.callTool({
+        name: "get_artifact",
+        arguments: {
+          kind: "intel",
+          target: "GamePlayerLens Agent Experience",
+          id: artifactId,
+        },
+      });
+      expect(stored.structuredContent?.data).toMatchObject({
+        sourceTool: "report_agent_experience",
+        payload: {signalKey: "save-artifact-handle-ambiguity"},
+      });
     } finally {
       await client.close();
       await server.close();
@@ -1444,7 +1524,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(18);
+      expect(tools).toHaveLength(20);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),

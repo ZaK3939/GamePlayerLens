@@ -87,6 +87,14 @@ The stored response remains a model-generated hypothesis. `exposure=ai-operated`
 - `matchesEnglishCopy` reports normalized exact equality only; it does not explain fallback behavior or translation quality.
 - Update cadence is descriptive and does not prove update quality or retention impact.
 
+## Agent-experience feedback
+
+Agent-experience reports describe how an agent experienced GamePlayerLens itself. They are kept outside game evidence and never support claims about player enjoyment, demand, retention, or commercial readiness. Collection is explicit: GamePlayerLens does not silently capture tool calls, prompts, arguments, or sessions.
+
+Each report is create-only, version-bound, and may include a caller-provided pseudonymous session ID. Repeated signal keys support triage, not truth. At least two distinct session IDs are required before the deterministic summary marks a signal eligible for an issue draft; distinct caller-provided IDs do not prove independent agents or users. Eligibility does not verify the bug, authorize a GitHub mutation, or allow an automatic pull request. Reproduction and user approval remain separate gates.
+
+Reports reject credential-like text, credentialed URLs, and common absolute-path forms. The reporter must attest that raw prompts, credentials, personal identifiers, source code, and proprietary artifacts were omitted.
+
 ## Immutable runs
 
 A run seals:

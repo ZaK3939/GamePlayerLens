@@ -36,13 +36,13 @@ describe("packaged CLI data home", () => {
       ok: true,
       command: "doctor",
       node: {version: "v24.7.0", minimumMajor: 22, supported: true},
-      server: {name: "game-player-lens", version: "0.4.0"},
+      server: {name: "game-player-lens", version: "0.5.0"},
       storage: {location: "external-data-home", writable: true},
       integrations: {
         itadPriceHistory: {configured: true},
         obscuraPageCapture: {configured: true},
       },
-      capabilities: {toolCount: 18, promptCount: 5},
+      capabilities: {toolCount: 20, promptCount: 5},
       nextStep: "Register the same command as an MCP server, restart the client, then call get_status.",
     });
     expect(JSON.stringify(report)).not.toContain("/private/");

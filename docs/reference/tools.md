@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 18 MCP tools and five prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 20 MCP tools and five prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -17,6 +17,8 @@ GamePlayerLens exposes exactly 18 MCP tools and five prompts. All tools return a
 | `save_persona` | Validate a generated persona against an exact `derive_personas` result handle and atomically save its server grounding |
 | `record_first_contact` | Normalize a compact pseudonymous first-contact test with a fixed unaided question protocol and return an exact-save handle |
 | `record_player_panel` | Validate one shared operated-build stimulus and grounded lens hypotheses against exact saved persona memory, research questions, and persona SHA-256, then return an exact-save handle |
+| `report_agent_experience` | Explicitly record one agent success, partial result, failure, confusion, parameter guess, give-up, or feature request as an immutable local artifact |
+| `summarize_agent_experience` | Aggregate explicit local agent feedback and identify repeated signals with distinct caller-provided session IDs that are eligible for a user-approved issue draft |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
 | `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
@@ -104,6 +106,14 @@ Allowed match axes are `repeated-action`, `decision-cadence`, `system-response`,
 After the neutral and grounded `play-build` passes, call `record_player_panel`. Its `stimulus` is shared by every lens rather than copied per persona. Each lens selects one saved persona research question and one-to-three exact review references. The server rejects unknown personas, review IDs absent from the persona, review evidence unrelated to the selected research question, and duplicate persona lenses. The returned record embeds the exact review text and persona SHA-256. Its `coreClarity` keeps `distinctiveness`, `communication`, and `sceneLegibility` separate; each is an observation about this stimulus, not a sales explanation.
 
 The result store retains only the most recent 32 handles in the current MCP process. Handles expire when that process ends.
+
+## Agent experience feedback
+
+Use `report_agent_experience` once at the end of a meaningful GamePlayerLens workflow, or when a failure, confusion, guess, give-up, or missing capability changes the result. This is feedback about the Skill, MCP, or onboarding—not about the game or its players. Supply a stable kebab-case `signalKey`; a pseudonymous `sessionId` distinguishes caller-reported sessions without storing a user or agent identity. A guess names the guessed fields, a terminal failure records attempted recovery, and a feature request names the missing capability.
+
+The report is saved immediately beneath the dedicated `gameplayerlens-agent-experience` intel target. No exact-save follow-up is needed. The input rejects credential-like text, credentialed URLs, and absolute paths, and requires an explicit privacy attestation. Do not include raw user prompts, proprietary game artifacts, source code, credentials, or personal identifiers.
+
+`summarize_agent_experience` reads only those explicit records. It reports outcome, surface, stage, reuse, recommendation, and pseudonymous-session coverage without producing an agent-readiness score. Non-success reports sharing a `signalKey` become `readyForIssueDraft` only after at least two distinct session IDs. Those IDs are caller-provided and do not prove independent agents or users. Even then, the result requires reproduction and user approval; it never creates a GitHub issue or authorizes an automatic pull request. GamePlayerLens does not silently collect tool calls, arguments, intent, or sessions.
 
 ## Iteration coaching
 

@@ -1,5 +1,9 @@
 import {readFile} from "node:fs/promises";
 import {
+  createAgentExperienceFeedbackService,
+  type AgentExperienceFeedbackService,
+} from "./agent-feedback.js";
+import {
   createArtifactStore,
   type ArtifactStore,
 } from "./artifacts.js";
@@ -18,6 +22,7 @@ import {
 } from "./personas.js";
 import {initializeRepositoryPaths, type PathResolver} from "./paths.js";
 import {createResultStore, type ResultStore} from "./results.js";
+import {SERVER_VERSION} from "./status.js";
 import {fetchReviews} from "./reviews.js";
 import {createRunStore, type RunStore} from "./runs.js";
 import {fetchGame, searchGames} from "./steam.js";
@@ -44,6 +49,7 @@ export interface ServerServices {
   runStore: RunStore;
   imageService: ImageService;
   resultStore: ResultStore;
+  agentExperience: AgentExperienceFeedbackService;
 }
 
 export function createServerServices(
@@ -52,7 +58,7 @@ export function createServerServices(
   const resolver = overrides.resolver ?? initializeRepositoryPaths();
   const personaStore = createPersonaStore(resolver);
   const {buildDeveloperBrief, ...serviceOverrides} = overrides;
-  const defaults: Omit<ServerServices, "buildDeveloperBrief"> = {
+  const defaults: Omit<ServerServices, "buildDeveloperBrief" | "agentExperience"> = {
     resolver,
     searchGames,
     discoverGames,
@@ -75,6 +81,10 @@ export function createServerServices(
   const services = {...defaults, ...serviceOverrides, resolver};
   return {
     ...services,
+    agentExperience: overrides.agentExperience ?? createAgentExperienceFeedbackService(
+      services.artifactStore,
+      {productVersion: SERVER_VERSION},
+    ),
     buildDeveloperBrief: buildDeveloperBrief ?? createDeveloperBriefFetcher({
       fetchGame: services.fetchGame,
       fetchReviews: services.fetchReviews,

@@ -11,12 +11,12 @@ Review-derived personas remain part of the process, but they are evidence-ground
 
 ## Quick start
 
-From the game repository that should use GamePlayerLens, install the version-pinned v0.4.0 Agent Skill and confirm that the project can see it:
+From the game repository that should use GamePlayerLens, install the version-pinned v0.5.0 Agent Skill and confirm that the project can see it:
 
 ```bash
 cd /path/to/your-game
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.4.0/skills/game-player-lens --list
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.4.0/skills/game-player-lens --skill game-player-lens
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.5.0/skills/game-player-lens --list
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.5.0/skills/game-player-lens --skill game-player-lens
 npx skills list
 ```
 
@@ -25,7 +25,7 @@ Add `-a codex`, `-a claude-code`, or another supported agent when automatic dete
 The Skill does not install the MCP server. With Node.js 22 or newer, run the version-pinned server doctor directly from GitHub before editing client configuration:
 
 ```bash
-npx --yes --package=github:ZaK3939/GamePlayerLens#v0.4.0 game-player-lens doctor
+npx --yes --package=github:ZaK3939/GamePlayerLens#v0.5.0 game-player-lens doctor
 ```
 
 The doctor returns JSON, never secrets or absolute paths, and exits unsuccessfully when Node or storage is not ready. Register that same pinned package in the MCP configuration used by your client:
@@ -37,7 +37,7 @@ The doctor returns JSON, never secrets or absolute paths, and exits unsuccessful
       "command": "npx",
       "args": [
         "--yes",
-        "--package=github:ZaK3939/GamePlayerLens#v0.4.0",
+        "--package=github:ZaK3939/GamePlayerLens#v0.5.0",
         "game-player-lens"
       ]
     }
@@ -85,6 +85,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Record a first-contact observation | `record_first_contact`, then pass its handle to either review prompt | [Developer projects](docs/guides/developer-project.md#first-contact-test) |
 | Record a playtest or revision | Either review prompt with `playtestSession` or `playtestCohort` | [Experiments and playtests](docs/reference/experiments.md) |
 | Detect repeated review without new evidence | `coach_history` after at least two saved developer-project runs | [Developer projects](docs/guides/developer-project.md#coach-the-iteration-history) |
+| Report or inspect agent friction with GamePlayerLens itself | `report_agent_experience` / `summarize_agent_experience` | [Tool reference](docs/reference/tools.md#agent-experience-feedback) |
 | Read previous evidence or reviews | `get_artifact` | [Tool reference](docs/reference/tools.md) |
 
 ## What GamePlayerLens does
@@ -102,6 +103,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Legal issue spotting | Bind one release to current public terms, exact item licenses, and supplied private agreements | Legal Risk Card, source register, missing evidence, counsel handoff |
 | Coach | Detect review loops that did not add a build, direct stimulus, or human handoff | one deterministic finding card, its stop condition, and the latest saved review action |
 | Research | Collect current Steam, review, update, price, and competitor evidence when the selected decision requires it | `steam_brief`, provenance, supported decisions, gaps |
+| Learn | Preserve explicit agent success and friction without hidden telemetry | local feedback records and evidence-gated issue candidates |
 
 The five MCP prompts are:
 
@@ -113,7 +115,13 @@ The five MCP prompts are:
 
 `play-build` never returns GO / HOLD / NO-GO. The two decision prompts lead with a compact Decision Check: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations.
 
-The server currently exposes exactly 18 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
+The server currently exposes exactly 20 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
+
+## Agent experience feedback
+
+`report_agent_experience` lets an agent explicitly record a meaningful success, partial result, failure, confusion, parameter guess, give-up, or feature request about the Skill, MCP, or onboarding. Reports are create-only local artifacts. GamePlayerLens does not silently record tool calls, prompts, or sessions and does not transmit these reports to an external analytics service.
+
+`summarize_agent_experience` groups those reports by a stable signal key. A signal becomes eligible for issue review only after reports carry at least two distinct pseudonymous session IDs. IDs are caller-provided and do not prove independent agents or users. This never creates a GitHub issue or pull request: reproduction and user approval remain required.
 
 ## What it does not prove
 
@@ -166,6 +174,8 @@ knowledge/ui-references/{referenceId}.png
 
 Every artifact and persona ID is create-only. To revise evidence, save a new ID and bind that revision in the next audit or change bundle. The server never replaces a published file; this removes the Windows overwrite-rename path that could fail under antivirus or file-indexer locks.
 
+Agent-experience feedback is stored separately under the canonical `gameplayerlens-agent-experience` intel target. It rejects credential-like text and absolute paths; reporters must also attest that they did not include raw prompts or proprietary artifacts.
+
 Display names are normalized to safe IDs. Arbitrary paths, traversal, symlink escapes, credentials in URLs, and unbounded payloads are rejected. See [Evidence and integrity](docs/reference/evidence-and-integrity.md) for size limits, canonical evaluation rules, and run verification.
 
 Legal evidence requires an explicit processing mode. `metadata-only` keeps artifact contents unread, `redacted-artifacts` limits the client to approved excerpts, and `approved-environment` records the user's authorization decision before full-document access. GamePlayerLens never treats that declaration as proof of authority or legal clearance.
@@ -192,7 +202,7 @@ Evidence collection and review for released Steam games remain the strongest val
 
 - [Developer projects](docs/guides/developer-project.md): Project Briefs, concept tests, first-contact evidence, and moment-to-moment experience reviews.
 - [Existing games](docs/guides/existing-game.md): Steam triage, domains, competitor selection, updates, localization, price, and UI comparison.
-- [Tool reference](docs/reference/tools.md): all 18 tools, validated player panels, legal issue spotting, result handles, image capture, iteration coaching, and immutable artifact semantics.
+- [Tool reference](docs/reference/tools.md): all 20 tools, validated player panels, local agent feedback, legal issue spotting, result handles, image capture, iteration coaching, and immutable artifact semantics.
 - [Evidence and integrity](docs/reference/evidence-and-integrity.md): coverage, provenance, persona boundaries, canonical evaluations, and immutable runs.
 - [Experiments and playtests](docs/reference/experiments.md): sessions, cohorts, retest lineage, prediction runs, measurements, and outcomes.
 - [Dogfood data policy](docs/dogfood/README.md): how private raw research is separated from publishable summaries.

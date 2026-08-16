@@ -1,6 +1,6 @@
 ---
 name: game-player-lens
-description: Turn an indie game's playable build or milestone into one evidence-grounded next decision using the GamePlayerLens MCP. Use when a developer asks what to fix next, wants an AI-operated play probe or review-grounded virtual player panel, needs player personas built from relevant Steam reviews, challenges a risky product assumption, compares current and candidate builds or UI, researches relevant competitors, or decides whether a vertical slice, demo, or release should advance. Do not use for engine API implementation or as a replacement for human fun or demand tests.
+description: Turn an indie game's playable build or milestone into one evidence-grounded next decision using the GamePlayerLens MCP, and explicitly report how the agent experienced that workflow. Use when a developer asks what to fix next, wants an AI-operated play probe or review-grounded virtual player panel, needs player personas built from relevant Steam reviews, challenges a risky product assumption, compares current and candidate builds or UI, researches relevant competitors, decides whether a vertical slice, demo, or release should advance, or audits GamePlayerLens agent friction. Do not use for engine API implementation or as a replacement for human fun or demand tests.
 ---
 
 # GamePlayerLens
@@ -103,3 +103,11 @@ Use GO, HOLD, or NO-GO only for `review-change` or `audit-project`. A daily `pla
 - AI operation can test controls, state transitions, rendering, causality, and recovery. It cannot substitute for a person's felt reward, comprehension, replay intent, or willingness to buy.
 - A static screenshot cannot prove motion, latency, input feel, audio timing, or hidden state.
 - A milestone review cannot compensate for a missing playable build or missing human observation.
+
+## Report agent experience
+
+At the end of one meaningful GamePlayerLens workflow, call `report_agent_experience` once when the result was a success, partial result, failure, confusion, parameter guess, give-up, or feature request. Report terminal friction immediately if it prevents the workflow. Do not report every tool call.
+
+Use one stable kebab-case `signalKey` for the same product behavior and a fresh pseudonymous `sessionId` for this agent session. Name guessed parameter fields, attempted recovery for a terminal failure, and the missing capability for a feature request. Set `privacyConfirmed=true` only after removing raw prompts, credentials, personal identifiers, absolute paths, source code, and proprietary game artifacts.
+
+Feedback is about GamePlayerLens, never the target game or its players. It is saved locally and is not external telemetry. If reporting fails or the MCP is unavailable, say it was not saved and continue the user's task when possible. Use `summarize_agent_experience` only when asked to inspect GamePlayerLens's own agent experience; never cite that summary as game evidence. An issue-draft candidate still requires reproduction and user approval before any GitHub issue or pull request.

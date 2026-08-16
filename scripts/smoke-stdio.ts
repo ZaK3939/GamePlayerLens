@@ -18,6 +18,7 @@ const EXPECTED_TOOLS = [
   "legal_source_plan",
   "record_first_contact",
   "record_player_panel",
+  "report_agent_experience",
   "save_artifact",
   "save_persona",
   "steam_brief",
@@ -27,6 +28,7 @@ const EXPECTED_TOOLS = [
   "steam_search",
   "steam_timeline",
   "steam_updates",
+  "summarize_agent_experience",
   "ui_capture",
 ];
 const EXPECTED_PROMPTS = [
@@ -149,7 +151,7 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
-      && statusJson.includes('"toolCount":18')
+      && statusJson.includes('"toolCount":20')
       && statusJson.includes('"promptCount":5')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",

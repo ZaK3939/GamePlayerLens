@@ -127,7 +127,7 @@ const doctorReport = JSON.parse(doctorProcess.stdout) as {
 };
 assert(
   doctorReport.ok === true
-    && doctorReport.capabilities?.toolCount === 18
+    && doctorReport.capabilities?.toolCount === 20
     && doctorReport.capabilities.promptCount === 5
     && !doctorProcess.stdout.includes(dataRoot),
   "packaged CLI doctor did not report safe readiness metadata",
@@ -157,12 +157,13 @@ let experimentLoopRoundTrip = false;
 let iterationCoachRoundTrip = false;
 let legalAuditRoundTrip = false;
 let playerPanelRoundTrip = false;
+let agentFeedbackRoundTrip = false;
 try {
   await client.connect(transport);
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 18, "packaged CLI did not expose eighteen tools");
+  assert(tools.length === 20, "packaged CLI did not expose twenty tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
       === JSON.stringify([
@@ -181,7 +182,7 @@ try {
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
-      && statusJson.includes('"toolCount":18')
+      && statusJson.includes('"toolCount":20')
       && statusJson.includes('"promptCount":5')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
@@ -190,6 +191,48 @@ try {
         && statusJson.includes(process.env.OBSCURA_PATH)),
     "packaged get_status exposed sensitive configuration or returned incomplete readiness metadata",
   );
+
+  const feedbackBase = {
+    surface: "mcp",
+    stage: "invoke",
+    outcome: "confusion",
+    signalKey: "package-smoke-feedback-fixture",
+    userIntent: "Verify packaged agent feedback collection.",
+    task: "Record and summarize one synthetic package feedback signal.",
+    relatedTool: "report_agent_experience",
+    summary: "Synthetic fixture checks local immutable feedback persistence.",
+    attemptedRecovery: "Read the tool schema and retried with bounded fields.",
+    guessedFields: ["signalKey"],
+    wouldReuse: "yes",
+    recommendation: "recommend",
+    privacyConfirmed: true,
+  } as const;
+  for (const sessionId of ["package-session-a", "package-session-b"]) {
+    const feedback = await client.callTool({
+      name: "report_agent_experience",
+      arguments: {...feedbackBase, sessionId},
+    });
+    assert(feedback.isError !== true, "packaged CLI could not persist agent feedback");
+    assert(
+      JSON.stringify(feedback.structuredContent).includes('"externalTransmission":false'),
+      "packaged agent feedback did not preserve its local-only contract",
+    );
+  }
+  const feedbackSummary = await client.callTool({
+    name: "summarize_agent_experience",
+    arguments: {},
+  });
+  const feedbackSummaryJson = JSON.stringify(feedbackSummary.structuredContent);
+  assert(
+    feedbackSummary.isError !== true
+      && feedbackSummaryJson.includes('"reportCount":2')
+      && feedbackSummaryJson.includes('"distinctSessionCount":2')
+      && feedbackSummaryJson.includes('"readyForIssueDraft":true')
+      && feedbackSummaryJson.includes('"requiresUserApproval":true')
+      && feedbackSummaryJson.includes('"automaticPullRequestAllowed":false'),
+    "packaged CLI did not aggregate agent feedback with the issue safety gate",
+  );
+  agentFeedbackRoundTrip = true;
 
   const coachedHistory = await client.callTool({
     name: "coach_history",
@@ -1674,6 +1717,7 @@ try {
     iterationCoachRoundTrip,
     legalAuditRoundTrip,
     playerPanelRoundTrip,
+    agentFeedbackRoundTrip,
     virtualPlayerRouting: true,
     liveBrief,
     liveUpdates,

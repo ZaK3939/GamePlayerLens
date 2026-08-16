@@ -3,8 +3,8 @@ import {access} from "node:fs/promises";
 import type {PathResolver} from "./paths.js";
 
 export const SERVER_NAME = "game-player-lens";
-export const SERVER_VERSION = "0.4.0";
-export const TOOL_COUNT = 18;
+export const SERVER_VERSION = "0.5.0";
+export const TOOL_COUNT = 20;
 export const PROMPT_COUNT = 5;
 
 export interface StatusEnvironment {

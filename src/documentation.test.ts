@@ -82,14 +82,25 @@ describe("public documentation", () => {
     const readme = await read("README.md");
 
     expect(readme).toContain("cd /path/to/your-game");
-    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.4.0/skills/game-player-lens");
+    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.5.0/skills/game-player-lens");
     expect(readme).toContain("npx skills list");
     expect(readme).toMatch(/installs[\s\S]*skill[\s\S]*does not install[\s\S]*MCP server/i);
-    expect(readme).toContain("npx --yes --package=github:ZaK3939/GamePlayerLens#v0.4.0 game-player-lens doctor");
+    expect(readme).toContain("npx --yes --package=github:ZaK3939/GamePlayerLens#v0.5.0 game-player-lens doctor");
     expect(readme).toContain('"command": "npx"');
-    expect(readme).toContain('"--package=github:ZaK3939/GamePlayerLens#v0.4.0"');
+    expect(readme).toContain('"--package=github:ZaK3939/GamePlayerLens#v0.5.0"');
     expect(readme).toMatch(/Skill check[\s\S]*\$game-player-lens[\s\S]*MCP check[\s\S]*get_status/i);
     expect(readme).toContain("Node.js 22 or newer");
     expect(readme).toMatch(/doctor[\s\S]*storage is not ready/i);
+  });
+
+  it("documents explicit local agent feedback without automatic GitHub mutation", async () => {
+    const readme = await read("README.md");
+    const tools = await read("docs/reference/tools.md");
+    const integrity = await read("docs/reference/evidence-and-integrity.md");
+
+    expect(readme).toMatch(/report_agent_experience[\s\S]*create-only local artifacts/i);
+    expect(readme).toMatch(/two distinct pseudonymous session IDs[\s\S]*do not prove independent[\s\S]*never creates a GitHub issue/i);
+    expect(tools).toMatch(/does not silently collect tool calls[\s\S]*arguments[\s\S]*sessions/i);
+    expect(integrity).toMatch(/outside game evidence[\s\S]*user approval/i);
   });
 });
