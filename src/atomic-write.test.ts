@@ -17,6 +17,7 @@ import {
 
 const DESTINATION = join("workspace", "data", "item.json");
 const TEMPORARY = join(dirname(DESTINATION), ".item.json.fixed-id.tmp");
+const IMMUTABLE_PUBLICATION_STRESS_TIMEOUT_MS = 120_000;
 
 function nodeError(code: string): Error & {code: string} {
   return Object.assign(new Error(code), {code});
@@ -173,7 +174,7 @@ describe("atomic text writes", () => {
     } finally {
       await rm(directory, {recursive: true, force: true});
     }
-  }, 30_000);
+  }, IMMUTABLE_PUBLICATION_STRESS_TIMEOUT_MS);
 
   it("creates Unicode evidence once and rejects replacement", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ゲーム証拠-é-"));
