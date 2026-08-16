@@ -19,7 +19,7 @@ describe("npm package contract", () => {
     ) as {include?: string[]; exclude?: string[]};
 
     expect(manifest.name).toBe("game-player-lens");
-    expect(manifest.version).toBe("0.3.1");
+    expect(manifest.version).toBe("0.4.0");
     expect(manifest.private).toBe(false);
     expect(manifest.bin).toEqual({"game-player-lens": "dist/cli.js"});
     expect(manifest.engines?.node).toBe(">=22");
@@ -34,7 +34,8 @@ describe("npm package contract", () => {
     ]);
     expect(manifest.scripts?.build).toBe("node scripts/clean-dist.mjs && tsc");
     expect(manifest.scripts?.["check:package"]).toBeDefined();
-    expect(manifest.scripts?.prepack).toBe("pnpm build");
+    expect(manifest.scripts?.prepare).toBe("npm run build");
+    expect(manifest.scripts?.prepack).toBeUndefined();
     expect(manifest.scripts?.["smoke:package"]).toBeDefined();
     expect(tsconfig.include).toEqual(["src/**/*.ts"]);
     expect(tsconfig.exclude).toEqual([

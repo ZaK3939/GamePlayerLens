@@ -827,6 +827,7 @@ describe("MCP prompt source recipes", () => {
 
   it("traces the playable core as experience, reward, and amplification without inventing feeling", async () => {
     const content = await read("skills/play-build.md");
+    const clarity = await read("knowledge/rubrics/core-clarity.md");
 
     expect(content).toContain("Core Delivery Trace");
     expect(content).toMatch(/theme[\s\S]*distinctive system[\s\S]*fit/i);
@@ -834,6 +835,10 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/surface[\s\S]*action[\s\S]*system response[\s\S]*reward/i);
     expect(content).toMatch(/felt reward[\s\S]*human report/i);
     expect(content).toMatch(/coreClaim[\s\S]*undeclared[\s\S]*infer/i);
+    expect(content).toMatch(/Core Clarity Check[\s\S]*Distinctiveness[\s\S]*Communication[\s\S]*Scene legibility/i);
+    expect(clarity).toMatch(/action → system response → readable consequence/i);
+    expect(clarity).toMatch(/genre combinations[\s\S]*not a distinctive system/i);
+    expect(clarity).toMatch(/static image[\s\S]*cannot prove motion/i);
   });
 
   it("hands the observed player problem to an indie-sized build route", async () => {
@@ -878,6 +883,7 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/competitor[\s\S]*three[\s\S]*match axes/i);
     expect(content).toMatch(/UI[\s\S]*stimulus[\s\S]*not[\s\S]*(trait|personality)/i);
     expect(content).toMatch(/Virtual Player Panel[\s\S]*grounded memory[\s\S]*predicted response[\s\S]*human falsifier/i);
+    expect(content).toMatch(/record_player_panel[\s\S]*persona SHA-256[\s\S]*save_artifact/i);
     for (const prompt of [
       "play-build",
       "review-change",
@@ -899,6 +905,7 @@ describe("MCP prompt source recipes", () => {
     expect(content).toContain("Virtual Player Panel");
     expect(content).toMatch(/neutral[\s\S]*grounded-personas/i);
     expect(content).toMatch(/same observed stimulus/i);
+    expect(content).toMatch(/record_player_panel[\s\S]*save_artifact/i);
     expect(content).toMatch(/not[\s\S]*(population|market share)/i);
   });
 

@@ -51,6 +51,8 @@ Keep these classes separate:
 - Hypothesis: likely interpretation, friction, next choice, or feeling. Never write it as a human report.
 - Missing: controller feel, hidden state, human enjoyment, demand, retention, or anything this operation cannot observe.
 
+For a playable core question, apply `knowledge/rubrics/core-clarity.md`. Keep three diagnoses separate: whether the repeated mechanism is distinctive, whether that mechanism is communicated by the exposure, and whether the main play state is visually legible. Do not turn one unclear screen into a claim about sales.
+
 If `coreClaim` is present, it is declared design intent. Trace whether the operated build delivers it; do not treat the declaration as player evidence. If `coreClaim` is undeclared, write `Core claim: undeclared` and do not infer the intended theme, distinctive system, experience, reward, or proof moment from genre labels or appearance.
 
 Reject surface copying. A similar visual, tag, enemy count, camera, or upgrade menu is not a transferred play mechanism. When a grounded memory mentions a known game, keep its source action → system response → reward separate from the target observation and state the meaningful difference or mark it missing.
@@ -88,12 +90,24 @@ The observed after-state, feedback, and player options can be reward signals. Fe
 
 When `coreClaim` is absent, keep the heading and write only `Core claim: undeclared; observed responses are reported without an intended-delivery judgment.`
 
+### Core Clarity Check
+
+| Axis | Status | Concrete finding | Evidence IDs |
+|---|---|---|---|
+| Distinctiveness | `visible`, `partial`, `not-observed`, or `not-assessable` | | |
+| Communication | | | |
+| Scene legibility | | | |
+
+Distinctiveness is the observed repeated `action → response → consequence`, not a genre combination or item count. Communication asks whether that mechanism is shown rather than merely named. Scene legibility asks whether actor, target, threat, HUD, state change, result, and next action can be separated in the observed play state.
+
 ### Virtual Player Panel — Player Lens Reactions
 
 | Lens | Grounded memory | First noticed | Expected | Predicted response | Next choice | Confidence | Human falsifier |
 |---|---|---|---|---|---|---|---|
 
 In `neutral` mode, include only `neutral-operation` and do not invent a demographic or review voice. In `grounded-personas` mode, every row must cite saved review memory relevant to this player task. The panel is a set of differentiated hypotheses, not a vote, population estimate, or market share.
+
+After writing a grounded panel, call `record_player_panel` with the single shared Action → Response stimulus, the neutral summary, all three Core Clarity checks, and one row per saved persona. Use its returned `resultHandle` immediately with `save_artifact(kind=intel)`. Do not manually reconstruct the saved payload. If persona, review, or research-question grounding fails validation, report the exact evidence gap instead of returning an ungrounded panel.
 
 ### Build Handoff
 

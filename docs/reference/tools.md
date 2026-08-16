@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 17 MCP tools and five prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 18 MCP tools and five prompts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -16,6 +16,7 @@ GamePlayerLens exposes exactly 17 MCP tools and five prompts. All tools return a
 | `derive_personas` | Build a traceable review pack, schema, generation limits, and persona instructions; audience, research questions, and an explicit source-fit selection are required |
 | `save_persona` | Validate a generated persona against an exact `derive_personas` result handle and atomically save its server grounding |
 | `record_first_contact` | Normalize a compact pseudonymous first-contact test with a fixed unaided question protocol and return an exact-save handle |
+| `record_player_panel` | Validate one shared operated-build stimulus and grounded lens hypotheses against exact saved persona memory, research questions, and persona SHA-256, then return an exact-save handle |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
 | `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
@@ -61,7 +62,7 @@ The bundled source registry routes Unity Editor and Asset Store terms, Unreal En
 
 External fetches preserve successful source data when another endpoint fails. Always retain `warnings`; they are part of the evidence envelope.
 
-Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, `record_first_contact`, and `legal_source_plan` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact and legal review, pass the same handle to the corresponding prompt first so it can include the normalized evidence and exact-save pointer.
+Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, `record_first_contact`, `record_player_panel`, and `legal_source_plan` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_artifact(kind=intel)` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact and legal review, pass the same handle to the corresponding prompt first so it can include the normalized evidence and exact-save pointer.
 
 For persona generation, every requested appid needs an explicit `sourceRoles` entry linked to one of one-to-three `researchQuestions`. Each question has one-to-twelve `evidenceSignals` of 2–80 characters. The server applies Unicode/case normalization, removes reviews containing none of the signals mapped to their source, and records the matched question IDs and signals. A competitor source must be direct or adjacent and declare at least three fit axes. A reference source is limited to `system-reference`; visual references and market-success anchors belong in their own evidence ledgers, not persona voice. Pass the same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field, research question, audience, and source-selection field with the cached result, then stores a SHA-256 binding to that result. Every saved voice must support an observed pattern whose evidence entry explains its relevance, and its matched question ID must equal the pattern's question. These deterministic checks expose and enforce a lexical relevance boundary; they do not prove the broader interpretation is true.
 
@@ -99,6 +100,8 @@ For persona generation, every requested appid needs an explicit `sourceRoles` en
 ```
 
 Allowed match axes are `repeated-action`, `decision-cadence`, `system-response`, `reward-structure`, `player-problem`, `session-shape`, `platform-controls`, and `audience-expectation`.
+
+After the neutral and grounded `play-build` passes, call `record_player_panel`. Its `stimulus` is shared by every lens rather than copied per persona. Each lens selects one saved persona research question and one-to-three exact review references. The server rejects unknown personas, review IDs absent from the persona, review evidence unrelated to the selected research question, and duplicate persona lenses. The returned record embeds the exact review text and persona SHA-256. Its `coreClarity` keeps `distinctiveness`, `communication`, and `sceneLegibility` separate; each is an observation about this stimulus, not a sales explanation.
 
 The result store retains only the most recent 32 handles in the current MCP process. Handles expire when that process ends.
 

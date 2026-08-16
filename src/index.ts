@@ -1,5 +1,3 @@
-import {constants} from "node:fs";
-import {access} from "node:fs/promises";
 import {resolve} from "node:path";
 import {pathToFileURL} from "node:url";
 import {McpServer} from "@modelcontextprotocol/server";
@@ -40,7 +38,6 @@ import {
   MAX_REVIEWS_PER_POLARITY,
   MIN_REVIEWS_PER_POLARITY,
 } from "./personas.js";
-import type {PathResolver} from "./paths.js";
 import {
   AuditProjectPromptArgumentsSchema,
   buildAuditProjectPrompt,
@@ -53,6 +50,10 @@ import {
 } from "./prompts.js";
 import {trackReviewPromptEvidence} from "./review-prompt-evidence.js";
 import {
+  buildPlayerPanelRecord,
+  PlayerPanelInputSchema,
+} from "./player-panel.js";
+import {
   ResultEnvelopeSchema,
   ResultHandleSchema,
 } from "./results.js";
@@ -61,11 +62,13 @@ import {
   createServerServices,
   type ServerServices,
 } from "./server-services.js";
-
-const SERVER_NAME = "game-player-lens";
-const SERVER_VERSION = "0.3.1";
-const TOOL_COUNT = 17;
-const PROMPT_COUNT = 5;
+import {
+  getServerStatus,
+  PROMPT_COUNT,
+  SERVER_NAME,
+  SERVER_VERSION,
+  TOOL_COUNT,
+} from "./status.js";
 
 const AppidSchema = z.number().int().positive();
 const ReviewTypeSchema = z.enum(["all", "positive", "negative"]);
@@ -107,30 +110,6 @@ const CoachHistoryInputSchema = z.object({
   target: z.string().trim().min(1).max(120),
   limit: z.number().int().min(2).max(20).optional(),
 }).strict();
-
-async function getServerStatus(resolver: PathResolver) {
-  let writable = true;
-  try {
-    await access(resolver.root, constants.W_OK);
-  } catch {
-    writable = false;
-  }
-
-  return {
-    server: {name: SERVER_NAME, version: SERVER_VERSION},
-    storage: {
-      location: resolver.root === resolver.assetRoot
-        ? "repository-root"
-        : "external-data-home",
-      writable,
-    },
-    integrations: {
-      itadPriceHistory: {configured: Boolean(process.env.ITAD_API_KEY?.trim())},
-      obscuraPageCapture: {configured: Boolean(process.env.OBSCURA_PATH?.trim())},
-    },
-    capabilities: {toolCount: TOOL_COUNT, promptCount: PROMPT_COUNT},
-  };
-}
 
 export function buildServer(
   overrides: Partial<ServerServices> = {},
@@ -365,6 +344,28 @@ export function buildServer(
           data: record,
           warnings: [],
           meta: {observedAt: record.testedAt},
+        },
+      );
+    },
+  );
+
+  server.registerTool(
+    "record_player_panel",
+    {
+      title: "Record grounded virtual-player panel",
+      description: "Validate one shared operated-build stimulus against exact saved persona memory, bind each hypothesis to its persona SHA-256 and research question, and return an exact-save result handle",
+      inputSchema: PlayerPanelInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async (input) => {
+      const record = await buildPlayerPanelRecord(input, services.loadPersona);
+      return trackedJsonEnvelope(
+        services.resultStore,
+        "record_player_panel",
+        {
+          data: record,
+          warnings: [],
+          meta: {observedAt: record.observedAt},
         },
       );
     },

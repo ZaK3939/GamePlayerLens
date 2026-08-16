@@ -36,6 +36,7 @@ export interface ServerServices {
   buildLegalSourcePlan: typeof buildLegalSourcePlan;
   buildDerivationPack: typeof buildDerivationPack;
   savePersona: PersonaStore["savePersona"];
+  loadPersona: PersonaStore["loadPersona"];
   captureUrl: ReturnType<typeof createCaptureService>;
   readKnowledge: KnowledgeReader;
   readSkill(id: string): Promise<string>;
@@ -62,6 +63,7 @@ export function createServerServices(
     buildLegalSourcePlan,
     buildDerivationPack,
     savePersona: personaStore.savePersona,
+    loadPersona: personaStore.loadPersona,
     captureUrl: createCaptureService({resolver}),
     readKnowledge: createKnowledgeReader(resolver, personaStore),
     readSkill: (id) => readFile(resolver.resolveSkillPath(id), "utf8"),

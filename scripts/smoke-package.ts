@@ -1,6 +1,8 @@
+import {execFile} from "node:child_process";
 import {access, mkdir, mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {dirname, join, resolve} from "node:path";
+import {promisify} from "node:util";
 import {fileURLToPath} from "node:url";
 import {Client} from "@modelcontextprotocol/client";
 import {StdioClientTransport} from "@modelcontextprotocol/client/stdio";
@@ -10,6 +12,8 @@ import {
   playtestCohortFixture,
   stringEnvironment,
 } from "./smoke-support.js";
+
+const execFileAsync = promisify(execFile);
 
 function evaluationMarkdown(detail: string): string {
   return [
@@ -90,6 +94,7 @@ for (const runtimePath of [
   join(repositoryRoot, "knowledge", "rubrics", "update-strategy.md"),
   join(repositoryRoot, "knowledge", "rubrics", "experiment.md"),
   join(repositoryRoot, "knowledge", "rubrics", "indie-survival-strategy.md"),
+  join(repositoryRoot, "knowledge", "rubrics", "core-clarity.md"),
   join(repositoryRoot, "skills", "game-review.md"),
   join(repositoryRoot, "skills", "game-player-lens", "SKILL.md"),
   join(repositoryRoot, "skills", "game-player-lens", "agents", "openai.yaml"),
@@ -109,6 +114,24 @@ const temporaryRoot = await mkdtemp(join(tmpdir(), "game-player-lens-package-smo
 const foreignCwd = join(temporaryRoot, "foreign-cwd");
 const dataRoot = join(temporaryRoot, "data-home");
 await mkdir(foreignCwd);
+
+const doctorCommand = cliArgument ? cliPath : process.execPath;
+const doctorArguments = cliArgument ? ["doctor"] : [cliPath, "doctor"];
+const doctorProcess = await execFileAsync(doctorCommand, doctorArguments, {
+  cwd: foreignCwd,
+  env: {...stringEnvironment(), GAME_PLAYER_LENS_HOME: dataRoot},
+});
+const doctorReport = JSON.parse(doctorProcess.stdout) as {
+  ok?: unknown;
+  capabilities?: {toolCount?: unknown; promptCount?: unknown};
+};
+assert(
+  doctorReport.ok === true
+    && doctorReport.capabilities?.toolCount === 18
+    && doctorReport.capabilities.promptCount === 5
+    && !doctorProcess.stdout.includes(dataRoot),
+  "packaged CLI doctor did not report safe readiness metadata",
+);
 
 const transport = new StdioClientTransport({
   command: cliArgument ? cliPath : process.execPath,
@@ -133,12 +156,13 @@ let playtestCohortRoundTrip = false;
 let experimentLoopRoundTrip = false;
 let iterationCoachRoundTrip = false;
 let legalAuditRoundTrip = false;
+let playerPanelRoundTrip = false;
 try {
   await client.connect(transport);
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 17, "packaged CLI did not expose seventeen tools");
+  assert(tools.length === 18, "packaged CLI did not expose eighteen tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
       === JSON.stringify([
@@ -157,7 +181,7 @@ try {
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
-      && statusJson.includes('"toolCount":17')
+      && statusJson.includes('"toolCount":18')
       && statusJson.includes('"promptCount":5')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
@@ -804,6 +828,84 @@ try {
     }, null, 2)}\n`,
     "utf8",
   );
+  const playerPanel = await client.callTool({
+    name: "record_player_panel",
+    arguments: {
+      target: "Package Smoke Game",
+      observedAt: "2026-08-11T00:01:00.000Z",
+      buildId: "package-smoke-build",
+      task: "Identify the first meaningful action from one operated checkpoint.",
+      startState: "The checkpoint is visible and no action has been taken.",
+      endState: "The checkpoint remains synthetic and the action is not demonstrated.",
+      outcome: "blocked",
+      stimulus: [{
+        sequence: 1,
+        intent: "Find the first meaningful action.",
+        input: "Observe the synthetic checkpoint fixture.",
+        observedSystemResponse: "No playable response is present in the fixture.",
+        friction: "The core action cannot be inferred from an unplayed fixture.",
+        evidenceRefs: ["playtest-protocol"],
+      }],
+      neutral: {
+        summary: "The fixture proves transport but exposes no player-facing action.",
+        nextChoice: "Operate a real build before predicting player response.",
+        uncertainties: ["No gameplay response was observed."],
+      },
+      coreClarity: {
+        distinctiveness: {
+          status: "not-observed",
+          finding: "No action-to-consequence loop was observed.",
+          evidenceRefs: [],
+        },
+        communication: {
+          status: "not-observed",
+          finding: "The synthetic fixture does not communicate a playable promise.",
+          evidenceRefs: [],
+        },
+        sceneLegibility: {
+          status: "not-assessable",
+          finding: "No gameplay scene was rendered.",
+          evidenceRefs: [],
+        },
+      },
+      lenses: [{
+        personaId: "package-smoke-player",
+        researchQuestionId: "promise-readability",
+        voiceEvidence: [{
+          sourceAppid: 1145360,
+          recommendationId: "package-smoke-1",
+        }],
+        predictedResponse: "This player would wait for a demonstrated action before adopting.",
+        nextChoice: "Request one operated action-to-response trace.",
+        confidence: "low",
+        humanFalsifier: "A first-contact participant identifies the action without prompting.",
+      }],
+    },
+  });
+  assert(playerPanel.isError !== true, "packaged CLI could not validate a grounded player panel");
+  const playerPanelHandle = (
+    playerPanel.structuredContent?.meta as {resultHandle?: unknown} | undefined
+  )?.resultHandle;
+  const panelData = playerPanel.structuredContent?.data as {
+    lenses?: Array<{groundedMemory?: Array<{text?: unknown}>; personaSha256?: unknown}>;
+  } | undefined;
+  assert(
+    typeof playerPanelHandle === "string"
+      && panelData?.lenses?.[0]?.groundedMemory?.[0]?.text === "package smoke voice 1"
+      && typeof panelData.lenses[0]?.personaSha256 === "string",
+    "packaged player panel did not bind exact saved persona evidence",
+  );
+  const savedPlayerPanel = await client.callTool({
+    name: "save_artifact",
+    arguments: {
+      kind: "intel",
+      target: "Package Smoke Game",
+      id: "Grounded Player Panel",
+      resultHandle: playerPanelHandle,
+    },
+  });
+  assert(savedPlayerPanel.isError !== true, "packaged CLI could not exact-save a player panel");
+  playerPanelRoundTrip = true;
   const experimentSpecArguments = {
     kind: "intel",
     target: "Package Smoke Game",
@@ -1571,6 +1673,7 @@ try {
     experimentLoopRoundTrip,
     iterationCoachRoundTrip,
     legalAuditRoundTrip,
+    playerPanelRoundTrip,
     virtualPlayerRouting: true,
     liveBrief,
     liveUpdates,

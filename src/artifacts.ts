@@ -53,6 +53,7 @@ export const SourceToolSchema = z.enum([
   "legal_source_plan",
   "derive_personas",
   "record_first_contact",
+  "record_player_panel",
   "ui_capture",
   "manual",
 ]);

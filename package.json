@@ -1,6 +1,6 @@
 {
   "name": "game-player-lens",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Operation-first review-grounded virtual-player and evidence-review MCP server",
   "private": false,
   "type": "module",
@@ -47,7 +47,7 @@
     "smoke:stdio": "tsx scripts/smoke-stdio.ts",
     "check:package": "node scripts/check-package-contents.mjs",
     "smoke:package": "pnpm build && pnpm check:package && tsx scripts/smoke-package.ts",
-    "prepack": "pnpm build"
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "^2.0.0",

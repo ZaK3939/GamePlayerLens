@@ -17,6 +17,7 @@ const EXPECTED_TOOLS = [
   "get_status",
   "legal_source_plan",
   "record_first_contact",
+  "record_player_panel",
   "save_artifact",
   "save_persona",
   "steam_brief",
@@ -148,7 +149,7 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
-      && statusJson.includes('"toolCount":17')
+      && statusJson.includes('"toolCount":18')
       && statusJson.includes('"promptCount":5')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",

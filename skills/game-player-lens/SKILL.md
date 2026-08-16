@@ -10,7 +10,7 @@ Move one indie game decision forward. Prefer a live build, one player task, one 
 ## Connection gate
 
 1. Find the GamePlayerLens MCP server and call `get_status`.
-2. If it is unavailable, do not imitate its tools or claim that evidence was saved. Explain that this skill supplies agent guidance but does not install the MCP server. Point the developer to the repository README for the source build and MCP configuration.
+2. If it is unavailable, do not imitate its tools or claim that evidence was saved. Explain that this skill supplies agent guidance but does not install the MCP server. Point the developer to the repository README for the version-pinned `npx` doctor and MCP configuration.
 3. Continue when storage is writable. Treat missing ITAD or Obscura configuration as a warning unless the chosen task needs that integration.
 
 ## Choose the smallest route
@@ -37,6 +37,8 @@ Prepare lenses only when the developer asks for differentiated target-player hyp
 4. Call `derive_personas` with explicit market, language, research question, signals, and source roles. A UI capture or operated build is a stimulus for the panel, not a persona trait or personality evidence.
 5. Respect `generationReadiness`. Generate only the supported count, keep voices disjoint, follow the returned schema, and call `save_persona` once for each persona with the exact derivation result handle. If readiness is blocked, return the evidence gap instead of a virtual player.
 6. Call `play-build` again with `playerLensMode=grounded-personas`, the saved `personaIds`, and exactly the same build, task, start state, end state, and evidence class. Compare the neutral response with each grounded hypothesis.
+7. Call `record_player_panel` with one shared observed stimulus, the neutral summary, distinctiveness / communication / scene-legibility checks, and one lens per saved persona. Let the server resolve exact review text, research-question grounding, and persona SHA-256.
+8. Exact-save the returned handle with `save_artifact(kind=intel)`. If validation fails, return the missing or mismatched grounding instead of keeping an unchecked panel.
 
 Do not use a market-success anchor or visual reference as persona voice. Do not use Balatro, Hades, or any familiar title unless its declared source role and match axes answer this task's research question.
 
@@ -89,6 +91,8 @@ When grounded personas were requested, place this compact block after the observ
 |---|---|---|---|---|---|---|
 
 Keep disagreement visible. Do not average the panel into a vote, segment size, or market prediction.
+
+Treat the validated `record_player_panel` artifact as the canonical panel. Do not preserve a conflicting free-form version.
 
 Use GO, HOLD, or NO-GO only for `review-change` or `audit-project`. A daily `play-build` loop ends with the next executable build decision, not a ceremonial verdict.
 

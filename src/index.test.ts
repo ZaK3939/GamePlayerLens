@@ -456,7 +456,7 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly seventeen tools and five review prompts", async () => {
+  it("exposes exactly eighteen tools and five review prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -467,6 +467,7 @@ describe("MCP server contract", () => {
         "get_status",
         "legal_source_plan",
         "record_first_contact",
+        "record_player_panel",
         "save_artifact",
         "save_persona",
         "steam_brief",
@@ -600,13 +601,13 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.3.1"},
+          server: {name: "game-player-lens", version: "0.4.0"},
           storage: {location: "repository-root", writable: true},
           integrations: {
             itadPriceHistory: {configured: expect.any(Boolean)},
             obscuraPageCapture: {configured: expect.any(Boolean)},
           },
-          capabilities: {toolCount: 17, promptCount: 5},
+          capabilities: {toolCount: 18, promptCount: 5},
         },
         warnings: [],
       });
@@ -1443,7 +1444,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(17);
+      expect(tools).toHaveLength(18);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),
@@ -3134,6 +3135,102 @@ describe("MCP server contract", () => {
       expect(loaded.structuredContent).toMatchObject({
         data: {kind: "personas", id: "mcp-round-trip", persona: {archetype: "MCPテスト利用者"}},
         warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("records and exact-saves a panel grounded in one shared stimulus and saved persona", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const savedPersona = await savePersonaThroughMcp(client);
+      expect(savedPersona.isError).not.toBe(true);
+
+      const panel = await client.callTool({
+        name: "record_player_panel",
+        arguments: {
+          target: "Project Nyx",
+          observedAt: NOW.toISOString(),
+          buildId: "build-042",
+          task: "Complete one combat exchange",
+          startState: "At the first combat choice",
+          endState: "The attack result is visible",
+          outcome: "completed",
+          stimulus: [{
+            sequence: 1,
+            intent: "Test one attack choice",
+            input: "Pressed the prompted attack input",
+            observedSystemResponse: "The target flashed and lost health",
+            friction: "The damage source was visually crowded",
+            evidenceRefs: ["combat-capture-042"],
+          }],
+          neutral: {
+            summary: "The attack resolves, but the damage source is not immediately distinct.",
+            nextChoice: "Repeat with one alternate attack.",
+            uncertainties: ["Human comprehension is not observed."],
+          },
+          coreClarity: {
+            distinctiveness: {
+              status: "not-assessable",
+              finding: "One attack does not establish a distinctive repeated system.",
+              evidenceRefs: [],
+            },
+            communication: {
+              status: "partial",
+              finding: "The attack result is visible while its source remains ambiguous.",
+              evidenceRefs: ["combat-capture-042"],
+            },
+            sceneLegibility: {
+              status: "partial",
+              finding: "The target state changes inside a crowded effect layer.",
+              evidenceRefs: ["combat-capture-042"],
+            },
+          },
+          lenses: [{
+            personaId: "mcp-round-trip",
+            researchQuestionId: "choice-readability",
+            voiceEvidence: [{sourceAppid: 1145360, recommendationId: "mcp-0"}],
+            predictedResponse: "This lens may delay the next choice until the damage source is clear.",
+            nextChoice: "Repeat the attack and watch the target state.",
+            confidence: "medium",
+            humanFalsifier: "Ask which input caused the target state change without naming it.",
+          }],
+        },
+      });
+      expect(panel.isError).not.toBe(true);
+      expect(panel.structuredContent).toMatchObject({
+        data: {
+          artifactType: "player-panel",
+          buildId: "build-042",
+          stimulus: [{evidenceRefs: ["combat-capture-042"]}],
+          lenses: [{
+            personaId: "mcp-round-trip",
+            personaSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+            groundedMemory: [{
+              recommendationId: "mcp-0",
+              text: "voice 0",
+            }],
+          }],
+        },
+        warnings: [],
+        meta: {observedAt: NOW.toISOString(), resultHandle: expect.any(String)},
+      });
+      const resultHandle = (panel.structuredContent?.meta as {resultHandle: string})
+        .resultHandle;
+      const saved = await client.callTool({
+        name: "save_artifact",
+        arguments: {
+          kind: "intel",
+          target: "Project Nyx",
+          id: "player-panel-build-042",
+          resultHandle,
+        },
+      });
+      expect(saved.isError).not.toBe(true);
+      expect(saved.structuredContent?.data).toMatchObject({
+        sourceTool: "record_player_panel",
       });
     } finally {
       await client.close();

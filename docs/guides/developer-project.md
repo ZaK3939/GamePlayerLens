@@ -271,6 +271,8 @@ When UI is selected, each persona round must identify a captured target or refer
 
 These cards are evidence-grounded behavioral hypotheses. They are useful for finding differentiated reactions and choosing a test. They do not prove fun, purchase intent, retention, or segment size until compared with human observations.
 
+For the daily grounded panel, use one shared operated-build trace for every lens. Call `record_player_panel` after producing the neutral summary and persona hypotheses. It validates each cited review against the saved persona and selected research question, binds the persona SHA-256, and records three independent clarity checks: whether the repeated mechanism is distinctive, whether the exposure communicates it, and whether the main play state is legible. Exact-save its result handle immediately. A failed grounding check is an evidence gap; do not keep an unchecked prose panel as a substitute.
+
 ## Review the shortest emotional loop
 
 The developer-project review includes a `Moment-to-Moment Experience Loop`:

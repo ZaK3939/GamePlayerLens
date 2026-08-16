@@ -11,40 +11,41 @@ Review-derived personas remain part of the process, but they are evidence-ground
 
 ## Quick start
 
-From the game repository that should use GamePlayerLens, install the verified v0.3.1 Agent Skill and confirm that the project can see it:
+From the game repository that should use GamePlayerLens, install the version-pinned v0.4.0 Agent Skill and confirm that the project can see it:
 
 ```bash
 cd /path/to/your-game
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.1/skills/game-player-lens --list
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.3.1/skills/game-player-lens --skill game-player-lens
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.4.0/skills/game-player-lens --list
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.4.0/skills/game-player-lens --skill game-player-lens
 npx skills list
 ```
 
 Add `-a codex`, `-a claude-code`, or another supported agent when automatic detection is not appropriate. This installs the Agent Skill; it does not install or register the MCP server that supplies data, storage, and prompts.
 
-Run that server from source. Requirements are a supported Node.js LTS release (22 or newer) and pnpm 10 or newer:
+The Skill does not install the MCP server. With Node.js 22 or newer, run the version-pinned server doctor directly from GitHub before editing client configuration:
 
 ```bash
-git clone --branch v0.3.1 --depth 1 https://github.com/ZaK3939/GamePlayerLens.git
-cd GamePlayerLens
-pnpm install --frozen-lockfile
-pnpm build
+npx --yes --package=github:ZaK3939/GamePlayerLens#v0.4.0 game-player-lens doctor
 ```
 
-Register the built CLI in the MCP configuration used by your client, replacing the path with the clone's absolute path:
+The doctor returns JSON, never secrets or absolute paths, and exits unsuccessfully when Node or storage is not ready. Register that same pinned package in the MCP configuration used by your client:
 
 ```json
 {
   "mcpServers": {
     "game-player-lens": {
-      "command": "node",
-      "args": ["/absolute/path/to/GamePlayerLens/dist/cli.js"]
+      "command": "npx",
+      "args": [
+        "--yes",
+        "--package=github:ZaK3939/GamePlayerLens#v0.4.0",
+        "game-player-lens"
+      ]
     }
   }
 }
 ```
 
-The clone also includes `.mcp.json` for repository-local development. Enable the server and restart the client. Verify both layers independently: **Skill check:** invoke `$game-player-lens` from the game repository. **MCP check:** call `get_status` with no arguments. It reports whether the data directory is writable and whether optional integrations are configured, without returning secrets or absolute paths. CI verifies the complete build, test, stdio, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
+Enable the server and restart the client. Verify both layers independently: **Skill check:** invoke `$game-player-lens` from the game repository. **MCP check:** call `get_status` with no arguments. It reports whether the data directory is writable and whether optional integrations are configured, without returning secrets or absolute paths. Clone the repository only for development; `.mcp.json` remains the repository-local development configuration. CI verifies the complete build, test, stdio, doctor, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
 
 For a playable development build, start with `play-build` rather than a full audit:
 
@@ -62,7 +63,7 @@ For a playable development build, start with `play-build` rather than a full aud
 }
 ```
 
-For a virtual-player panel, operate this exact task in `neutral` mode first. Then derive and save personas from reviews selected for the observed question, and repeat it with `playerLensMode=grounded-personas` plus their `personaIds`. The same build stimulus is replayed through differentiated evidence-grounded lenses; their predictions remain hypotheses until people falsify or support them.
+For a virtual-player panel, operate this exact task in `neutral` mode first. Then derive and save personas from reviews selected for the observed question, and repeat it with `playerLensMode=grounded-personas` plus their `personaIds`. Submit the shared observed stimulus and lens hypotheses to `record_player_panel`; it resolves exact review text, verifies research-question grounding, binds each saved persona SHA-256, and returns an exact-save handle. Predictions remain hypotheses until people falsify or support them.
 
 When the immediate question is whether the playable core lands, add the optional `coreClaim`. It declares the theme plus distinctive system, intended experience and reward, proof moment, and optional amplifier. `play-build` then returns a Core Delivery Trace alongside the Action → Response Trace. Omit it for neutral operation; GamePlayerLens will not infer the intended core from genre labels, visual resemblance, or the build's appearance.
 
@@ -74,6 +75,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 |---|---|---|
 | Operate one build task through player lenses | `play-build` with build, task, controls, and start/end state | [Developer projects](docs/guides/developer-project.md) |
 | Build a grounded virtual-player panel | neutral `play-build` → `derive_personas` / `save_persona` → grounded `play-build` on the same task | [Developer projects](docs/guides/developer-project.md#run-evidence-grounded-player-lens-rounds) |
+| Validate and preserve that panel | `record_player_panel` → exact `save_artifact(kind=intel)` | [Tool reference](docs/reference/tools.md#partial-success-and-provenance) |
 | Repair already-known execution blockers | `play-build` with `target` and newline-separated `knownBlockers` | [Developer projects](docs/guides/developer-project.md#repair-first-routing) |
 | Review one proposed revision | `review-change` with `currentState`, `proposal`, and `revisionBundle` | [Developer projects](docs/guides/developer-project.md) |
 | Audit a concept, prototype, vertical slice, or milestone | `audit-project`; active projects also require an `auditSnapshotBundle` | [Developer projects](docs/guides/developer-project.md) |
@@ -111,7 +113,7 @@ The five MCP prompts are:
 
 `play-build` never returns GO / HOLD / NO-GO. The two decision prompts lead with a compact Decision Check: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations.
 
-The server currently exposes exactly 17 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
+The server currently exposes exactly 18 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
 
 ## What it does not prove
 
@@ -190,7 +192,7 @@ Evidence collection and review for released Steam games remain the strongest val
 
 - [Developer projects](docs/guides/developer-project.md): Project Briefs, concept tests, first-contact evidence, and moment-to-moment experience reviews.
 - [Existing games](docs/guides/existing-game.md): Steam triage, domains, competitor selection, updates, localization, price, and UI comparison.
-- [Tool reference](docs/reference/tools.md): all 17 tools, legal issue spotting, result handles, image capture, iteration coaching, and immutable artifact semantics.
+- [Tool reference](docs/reference/tools.md): all 18 tools, validated player panels, legal issue spotting, result handles, image capture, iteration coaching, and immutable artifact semantics.
 - [Evidence and integrity](docs/reference/evidence-and-integrity.md): coverage, provenance, persona boundaries, canonical evaluations, and immutable runs.
 - [Experiments and playtests](docs/reference/experiments.md): sessions, cohorts, retest lineage, prediction runs, measurements, and outcomes.
 - [Dogfood data policy](docs/dogfood/README.md): how private raw research is separated from publishable summaries.
