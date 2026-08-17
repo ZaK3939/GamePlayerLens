@@ -82,12 +82,12 @@ describe("public documentation", () => {
     const readme = await read("README.md");
 
     expect(readme).toContain("cd /path/to/your-game");
-    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.0/skills/game-player-lens");
+    expect(readme).toContain("https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.1/skills/game-player-lens");
     expect(readme).toContain("npx skills list");
     expect(readme).toMatch(/installs[\s\S]*skill[\s\S]*does not install[\s\S]*MCP server/i);
-    expect(readme).toContain("npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.0 game-player-lens doctor");
+    expect(readme).toContain("npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.1 game-player-lens doctor");
     expect(readme).toContain('"command": "npx"');
-    expect(readme).toContain('"--package=github:ZaK3939/GamePlayerLens#v0.6.0"');
+    expect(readme).toContain('"--package=github:ZaK3939/GamePlayerLens#v0.6.1"');
     expect(readme).toMatch(/Skill check[\s\S]*\$game-player-lens[\s\S]*MCP check[\s\S]*get_status/i);
     expect(readme).toContain("Node.js 22 or newer");
     expect(readme).toMatch(/doctor[\s\S]*storage is not ready/i);

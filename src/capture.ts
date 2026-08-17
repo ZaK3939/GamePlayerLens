@@ -1,7 +1,6 @@
 import {createServer} from "node:net";
 import {spawn as nodeSpawn, type ChildProcessByStdio} from "node:child_process";
 import {once} from "node:events";
-import {open, unlink} from "node:fs/promises";
 import {basename} from "node:path";
 import type {Readable} from "node:stream";
 import {
@@ -11,9 +10,11 @@ import {
 } from "puppeteer-core";
 import type {ImageFetchResult} from "./images.js";
 import {MAX_INLINE_IMAGE_BYTES, createImageService} from "./images.js";
+import {createCaptureImportService} from "./capture-import.js";
 import {
   resolveCapturePath,
   resolveCaptureReadPath,
+  resolveCaptureManifestPath,
   resolveUiReferencePath,
   type PathResolver,
 } from "./paths.js";
@@ -62,7 +63,7 @@ type ProcessSpawner = (
 export interface CaptureDependencies {
   resolver?: Pick<
     PathResolver,
-    "resolveCapturePath" | "resolveCaptureReadPath" | "resolveUiReferencePath"
+    "resolveCapturePath" | "resolveCaptureReadPath" | "resolveCaptureManifestPath" | "resolveUiReferencePath"
   >;
   obscuraPath?: string;
   now?: () => Date;
@@ -74,9 +75,14 @@ export interface CaptureDependencies {
 
 function defaultResolver(): Pick<
   PathResolver,
-  "resolveCapturePath" | "resolveCaptureReadPath" | "resolveUiReferencePath"
+  "resolveCapturePath" | "resolveCaptureReadPath" | "resolveCaptureManifestPath" | "resolveUiReferencePath"
 > {
-  return {resolveCapturePath, resolveCaptureReadPath, resolveUiReferencePath};
+  return {
+    resolveCapturePath,
+    resolveCaptureReadPath,
+    resolveCaptureManifestPath,
+    resolveUiReferencePath,
+  };
 }
 
 function validViewport(viewport: {width: number; height: number}): boolean {
@@ -295,36 +301,52 @@ export function createCaptureService(
     ?? ((command, args) => nodeSpawn(command, args, {stdio: ["ignore", "pipe", "pipe"]}));
   const findPort = dependencies.findPort ?? findLoopbackPort;
   const fetchImage = dependencies.fetchImage ?? fetch;
+  const imageService = createImageService(resolver);
 
   return async (url: string, opts: CaptureOptions = {}) => {
     const request = normalizeCaptureRequest(url, opts, resolver);
-    const resultFor = async (extension: "png" | "jpg") => {
-      const capturedAt = now();
-      if (Number.isNaN(capturedAt.getTime())) throw new Error("capture clock is invalid");
+    const resultFor = async (
+      bytes: Buffer,
+      mimeType: "image/png" | "image/jpeg",
+      extension: "png" | "jpg",
+    ) => {
       const id = basename(request.path, `.${extension}`);
       const resolved = resolver.resolveCaptureReadPath(id, extension);
       if (resolved.absolutePath !== request.path) {
         throw new Error("capture output does not match its resolver path");
       }
-      const inline = await createImageService(resolver).imageContentFor(resolved);
+      const imported = await createCaptureImportService({
+        resolver,
+        projectRoot: process.cwd(),
+        imageService,
+        clock: now,
+        managedSource: {kind: request.sourceType},
+      })({
+        id,
+        source: {
+          kind: "base64",
+          mimeType,
+          data: bytes.toString("base64"),
+        },
+      });
+      if (!imported.data) throw new Error("captured image could not be saved");
       return {
         data: {
-          id: resolved.id,
+          id: imported.data.id,
           path: request.path,
-          relativePath: resolved.relativePath,
+          relativePath: imported.data.relativePath,
           url: request.url,
-          capturedAt: capturedAt.toISOString(),
-          imageIncluded: inline.imageIncluded,
-          sizeBytes: inline.sizeBytes,
+          capturedAt: imported.data.savedAt,
+          imageIncluded: imported.data.imageIncluded,
+          sizeBytes: imported.data.sizeBytes,
           sourceType: request.sourceType,
         },
-        warnings: inline.warnings,
-        ...(inline.imageContent ? {imageContent: inline.imageContent} : {}),
+        warnings: imported.warnings,
+        ...(imported.imageContent ? {imageContent: imported.imageContent} : {}),
       } satisfies ImageFetchResult<CaptureResult>;
     };
 
     if (request.sourceType === "steam-image") {
-      let ownsOutput = false;
       try {
         const response = await fetchImage(request.url, {
           headers: {
@@ -335,17 +357,8 @@ export function createCaptureService(
           signal: AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT_MS),
         });
         const bytes = await readBoundedJpeg(response);
-        const output = await open(request.path, "wx", 0o600);
-        ownsOutput = true;
-        try {
-          await output.writeFile(bytes);
-          await output.sync();
-        } finally {
-          await output.close();
-        }
-        return await resultFor("jpg");
+        return await resultFor(bytes, "image/jpeg", "jpg");
       } catch {
-        if (ownsOutput) await unlink(request.path).catch(() => undefined);
         return {data: null, warnings: [steamImageFailureWarning()]};
       }
     }
@@ -364,12 +377,7 @@ export function createCaptureService(
     let browser: Browser | null = null;
     let child: CaptureChild | null = null;
     let spawnError: Error | null = null;
-    let ownsOutput = false;
     try {
-      const reservation = await open(request.path, "wx", 0o600);
-      ownsOutput = true;
-      await reservation.close();
-
       const port = await findPort();
       const runningChild = spawn(obscuraPath, obscuraServeArgs(request.url, port));
       child = runningChild;
@@ -391,21 +399,13 @@ export function createCaptureService(
         waitUntil: "networkidle2",
         timeout: NAVIGATION_TIMEOUT_MS,
       });
-      await page.screenshot({
-        path: request.path as `${string}.png`,
+      const bytes = Buffer.from(await page.screenshot({
         type: "png",
         fullPage: request.fullPage,
-      });
-      const completed = await open(request.path, "r+");
-      try {
-        await completed.sync();
-      } finally {
-        await completed.close();
-      }
+      }));
 
-      return await resultFor("png");
+      return await resultFor(bytes, "image/png", "png");
     } catch {
-      if (ownsOutput) await unlink(request.path).catch(() => undefined);
       return {data: null, warnings: [captureFailureWarning()]};
     } finally {
       browser?.disconnect();

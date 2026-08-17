@@ -14,7 +14,7 @@ import {createArtifactStore} from "./artifacts.js";
 import {canonicalSha256} from "./integrity.js";
 import type {Persona} from "./persona-schemas.js";
 import {createPersonaStore} from "./persona-store.js";
-import {createPathResolver} from "./paths.js";
+import {createPathResolver, type PathResolver} from "./paths.js";
 import {compileGameReviewRecipe} from "./run-recipe.js";
 import {
   MAX_RUN_BYTES,
@@ -187,6 +187,39 @@ function projectBriefFixture() {
 
 function sha256(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function captureManifest(
+  resolver: PathResolver,
+  id: string,
+  bytes: Buffer,
+): string {
+  const resolved = resolver.resolveCaptureReadPath(id);
+  return `${JSON.stringify({
+    schemaVersion: 1,
+    artifactType: "capture-manifest",
+    id: resolved.id,
+    extension: "png",
+    mimeType: "image/png",
+    sizeBytes: bytes.length,
+    width: 1,
+    height: 1,
+    sha256: sha256(bytes),
+    savedAt: "2026-08-11T10:00:00.000Z",
+    source: {kind: "base64"},
+  })}\n`;
+}
+
+async function writeCapture(
+  resolver: PathResolver,
+  id: string,
+  bytes: Buffer,
+): Promise<void> {
+  await writeFile(resolver.resolveCaptureReadPath(id).absolutePath, bytes);
+  await writeFile(
+    resolver.resolveCaptureManifestPath(id).absolutePath,
+    captureManifest(resolver, id, bytes),
+  );
 }
 
 const PERSONA_RESEARCH_QUESTIONS = [{
@@ -410,10 +443,7 @@ async function harness(
     content: evaluationMarkdown("Current versus proposal."),
   });
   await createPersonaStore(resolver).savePersona(persona());
-  await writeFile(
-    resolver.resolveCaptureReadPath("Store Hero").absolutePath,
-    PNG_BYTES,
-  );
+  await writeCapture(resolver, "Store Hero", PNG_BYTES);
   const profileSha = sha256(await readFile(
     resolver.resolveIntelArtifactPath("Hades II", "Profile").absolutePath,
   ));
@@ -1655,9 +1685,14 @@ describe("run store", () => {
 
     const outside = join(root, "outside.png");
     await writeFile(outside, PNG_BYTES);
+    const linkedManifest = captureManifest(resolver, "Linked", PNG_BYTES);
     await symlink(
       outside,
       resolver.resolveCaptureReadPath("Linked").absolutePath,
+    );
+    await writeFile(
+      resolver.resolveCaptureManifestPath("Linked").absolutePath,
+      linkedManifest,
     );
     await expect(store.saveRun(runInput({
       evidence: runInput().evidence.map((evidence) => evidence.ref === "hero"

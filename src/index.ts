@@ -443,11 +443,11 @@ export function buildServer(
     "get_status",
     {
       title: "GamePlayerLens status",
-      description: "Check local storage and optional integration readiness without exposing paths or secrets",
+      description: "Probe create-only local storage publication and report optional integration readiness without exposing paths or secrets",
       inputSchema: z.object({}).strict(),
       outputSchema: ResultEnvelopeSchema,
       annotations: {
-        readOnlyHint: true,
+        readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,

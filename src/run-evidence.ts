@@ -6,6 +6,7 @@ import {
   MAX_INTEL_PAYLOAD_BYTES,
 } from "./artifacts.js";
 import {assertCanonicalEvaluationMarkdown} from "./evaluation-markdown.js";
+import {parseCaptureManifest} from "./capture-manifest.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {sha256} from "./integrity.js";
 import type {SubjectKind} from "./project-brief.js";
@@ -104,23 +105,25 @@ export function createRunEvidenceResolver(
     resolved: ResolvedImagePath;
     bytes: Buffer;
   }> {
-    const found: Array<{resolved: ResolvedImagePath; bytes: Buffer}> = [];
-    for (const extension of ["png", "jpg"] as const) {
-      const resolved = resolver.resolveCaptureReadPath(id, extension);
-      try {
-        const {bytes} = await readRegularBytes(
-          resolved.absolutePath,
-          MAX_INLINE_IMAGE_BYTES,
-        );
-        verifyImageSignature(resolved, bytes);
-        found.push({resolved, bytes});
-      } catch (error) {
-        if (!isNodeError(error, "ENOENT")) throw error;
-      }
+    const resolvedManifest = resolver.resolveCaptureManifestPath(id);
+    const {bytes: manifestBytes} = await readRegularBytes(
+      resolvedManifest.absolutePath,
+      4_096,
+    );
+    const manifest = parseCaptureManifest(
+      manifestBytes.toString("utf8"),
+      resolvedManifest.id,
+    );
+    const resolved = resolver.resolveCaptureReadPath(id, manifest.extension);
+    const {bytes} = await readRegularBytes(
+      resolved.absolutePath,
+      MAX_INLINE_IMAGE_BYTES,
+    );
+    verifyImageSignature(resolved, bytes);
+    if (bytes.length !== manifest.sizeBytes || sha256(bytes) !== manifest.sha256) {
+      throw new Error("capture evidence does not match its immutable manifest");
     }
-    if (found.length > 1) throw new Error("ambiguous capture evidence id");
-    if (found.length < 1) throw new Error("capture evidence does not exist");
-    return found[0]!;
+    return {resolved, bytes};
   }
 
   async function resolveEvidence(

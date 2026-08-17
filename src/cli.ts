@@ -12,7 +12,7 @@ import {
   getServerStatus,
   SERVER_VERSION,
   type StatusEnvironment,
-  type WritableCheck,
+  type StorageCheck,
 } from "./status.js";
 
 export interface DataRootEnvironment {
@@ -61,16 +61,18 @@ export async function buildDoctorReport(
   resolver: Parameters<typeof getServerStatus>[0],
   version = process.version,
   environment: CliEnvironment = process.env,
-  isWritable?: WritableCheck,
+  checkStorage?: StorageCheck,
 ) {
   const minimumMajor = 22;
   const supported = (nodeMajor(version) ?? 0) >= minimumMajor;
-  const status = await getServerStatus(resolver, environment, isWritable);
-  const ok = supported && status.storage.writable;
+  const status = await getServerStatus(resolver, environment, checkStorage);
+  const ok = supported && status.storage.publicationReady;
   const nextStep = !supported
     ? "Install Node.js 22 or newer, then run game-player-lens doctor again."
     : !status.storage.writable
       ? "Make GAME_PLAYER_LENS_HOME writable, then run game-player-lens doctor again."
+      : !status.storage.publicationReady
+        ? "Move GAME_PLAYER_LENS_HOME to a local filesystem that supports create-only hard-link publication, then run game-player-lens doctor again."
       : "Register the same command as an MCP server, restart the client, then call get_status.";
   return {
     ok,

@@ -1,4 +1,6 @@
 import {join, resolve} from "node:path";
+import {mkdtemp, readdir, rm} from "node:fs/promises";
+import {tmpdir} from "node:os";
 import {describe, expect, it} from "vitest";
 import {buildDoctorReport, resolveDataRoot} from "./cli.js";
 import {listCliDocuments, readCliDocument} from "./cli-docs.js";
@@ -30,18 +32,24 @@ describe("packaged CLI data home", () => {
       resolver,
       "v24.7.0",
       {ITAD_API_KEY: "secret", OBSCURA_PATH: " /Applications/Obscura.app "},
-      async () => true,
+      async () => ({
+        writable: true,
+        publicationReady: true,
+        publicationPrimitive: "create-flush-link-read-cleanup",
+      }),
     );
 
     expect(report).toEqual({
       ok: true,
       command: "doctor",
       node: {version: "v24.7.0", minimumMajor: 22, supported: true},
-      server: {name: "game-player-lens", version: "0.6.0"},
+      server: {name: "game-player-lens", version: "0.6.1"},
       storage: {
         location: "external-data-home",
         instanceId: expect.stringMatching(/^storage-[a-f0-9]{16}$/),
         writable: true,
+        publicationReady: true,
+        publicationPrimitive: "create-flush-link-read-cleanup",
       },
       integrations: {
         itadPriceHistory: {configured: true},
@@ -81,11 +89,51 @@ describe("packaged CLI data home", () => {
 
   it("fails doctor readiness for an unsupported Node release or unwritable storage", async () => {
     const resolver = {root: "/data", assetRoot: "/package"} as PathResolver;
-    const report = await buildDoctorReport(resolver, "v20.19.0", {}, async () => false);
+    const report = await buildDoctorReport(resolver, "v20.19.0", {}, async () => ({
+      writable: false,
+      publicationReady: false,
+      publicationPrimitive: "create-flush-link-read-cleanup",
+      readinessIssue: "unwritable",
+    }));
 
     expect(report.ok).toBe(false);
     expect(report.node.supported).toBe(false);
     expect(report.storage.writable).toBe(false);
     expect(report.nextStep).toMatch(/Node\.js 22/i);
+  });
+
+  it("fails doctor when atomic publication is unavailable on a writable path", async () => {
+    const resolver = {root: "/data", assetRoot: "/package"} as PathResolver;
+    const report = await buildDoctorReport(resolver, "v22.19.0", {}, async () => ({
+      writable: true,
+      publicationReady: false,
+      publicationPrimitive: "create-flush-link-read-cleanup",
+      readinessIssue: "publication-failed",
+    }));
+
+    expect(report.ok).toBe(false);
+    expect(report.nextStep).toMatch(/hard-link publication/i);
+    expect(JSON.stringify(report)).not.toContain("/data");
+  });
+
+  it("proves the real create-only publication primitive and removes its probe", async () => {
+    const root = await mkdtemp(join(tmpdir(), "game-player-lens-doctor-"));
+    try {
+      const report = await buildDoctorReport(
+        {root, assetRoot: root} as PathResolver,
+        "v22.19.0",
+        {},
+      );
+
+      expect(report.ok).toBe(true);
+      expect(report.storage).toMatchObject({
+        writable: true,
+        publicationReady: true,
+        publicationPrimitive: "create-flush-link-read-cleanup",
+      });
+      expect(await readdir(root)).toEqual([]);
+    } finally {
+      await rm(root, {recursive: true, force: true});
+    }
   });
 });

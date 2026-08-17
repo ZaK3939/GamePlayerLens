@@ -1,6 +1,6 @@
 {
   "name": "game-player-lens",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Operation-first review-grounded virtual-player and evidence-review MCP server",
   "private": false,
   "type": "module",
@@ -53,6 +53,7 @@
     "@modelcontextprotocol/client": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "puppeteer-core": "^25.5.0",
+    "sharp": "^0.35.3",
     "zod": "^4.2.0"
   },
   "devDependencies": {

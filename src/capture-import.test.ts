@@ -1,23 +1,26 @@
-import {mkdir, mkdtemp, rm, symlink, writeFile} from "node:fs/promises";
+import {mkdir, mkdtemp, readFile, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join, resolve} from "node:path";
+import sharp from "sharp";
 import {describe, expect, it} from "vitest";
 import {
   createCaptureImportService,
   resolveCaptureImportRoot,
 } from "./capture-import.js";
 import {createImageService} from "./images.js";
+import {sha256} from "./integrity.js";
 import {initializePackagedPaths} from "./paths.js";
 
 const NOW = new Date("2026-08-17T15:00:00.000Z");
-const PNG = Buffer.concat([
-  Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-  Buffer.from("local-capture"),
-]);
-const JPEG = Buffer.concat([
-  Buffer.from([0xff, 0xd8, 0xff]),
-  Buffer.from("local-capture"),
-]);
+const PNG = await sharp({
+  create: {
+    width: 1,
+    height: 1,
+    channels: 4,
+    background: {r: 255, g: 96, b: 32, alpha: 1},
+  },
+}).png().toBuffer();
+const JPEG = await sharp(PNG).jpeg().toBuffer();
 
 async function withTempRoot(run: (root: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), "game-player-lens-capture-import-"));
@@ -64,12 +67,18 @@ describe("local capture import", () => {
         kind: "capture",
         mimeType: "image/png",
         sizeBytes: PNG.length,
+        width: 1,
+        height: 1,
         savedAt: NOW.toISOString(),
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
         evidenceReference: {kind: "capture", id: "freeze-after-70-seconds"},
         source: {kind: "base64"},
       });
       expect(result.imageContent?.data).toBe(PNG.toString("base64"));
+      await expect(readFile(
+        resolver.resolveCaptureManifestPath("freeze-after-70-seconds").absolutePath,
+        "utf8",
+      )).resolves.toContain('"artifactType":"capture-manifest"');
       await expect(writeFile(
         resolver.resolveCaptureReadPath("freeze-after-70-seconds").absolutePath,
         Buffer.from("replacement"),
@@ -152,6 +161,43 @@ describe("local capture import", () => {
           data: Buffer.from("not-a-png").toString("base64"),
         },
       })).rejects.toThrow(/PNG signature/i);
+      await expect(service({
+        id: "truncated",
+        source: {
+          kind: "base64",
+          mimeType: "image/png",
+          data: Buffer.concat([
+            Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+            Buffer.from("not-decodable"),
+          ]).toString("base64"),
+        },
+      })).rejects.toThrow(/could not be decoded/i);
+    });
+  });
+
+  it("does not expose the project root when a relative source is missing", async () => {
+    await withTempRoot(async (root) => {
+      const resolver = initializePackagedPaths(process.cwd(), join(root, "data"));
+      const projectRoot = join(root, "private-project");
+      await mkdir(projectRoot, {recursive: true});
+      const service = createCaptureImportService({
+        resolver,
+        projectRoot,
+        imageService: createImageService(resolver),
+      });
+
+      let message = "";
+      try {
+        await service({
+          id: "missing",
+          source: {kind: "project-file", relativePath: "captures/missing.png"},
+        });
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toMatch(/capture source does not exist/i);
+      expect(message).toContain("captures/missing.png");
+      expect(message).not.toContain(projectRoot);
     });
   });
 
@@ -185,18 +231,23 @@ describe("local capture import", () => {
     });
   });
 
-  it("publishes only one extension when the same capture ID races", async () => {
+  it("publishes only one extension when independent services race for one ID", async () => {
     await withTempRoot(async (root) => {
       const resolver = initializePackagedPaths(process.cwd(), root);
       const imageService = createImageService(resolver);
-      const service = createCaptureImportService({
+      const serviceA = createCaptureImportService({
+        resolver,
+        projectRoot: root,
+        imageService,
+      });
+      const serviceB = createCaptureImportService({
         resolver,
         projectRoot: root,
         imageService,
       });
 
       const results = await Promise.allSettled([
-        service({
+        serviceA({
           id: "one-logical-capture",
           source: {
             kind: "base64",
@@ -204,7 +255,7 @@ describe("local capture import", () => {
             data: PNG.toString("base64"),
           },
         }),
-        service({
+        serviceB({
           id: "one-logical-capture",
           source: {
             kind: "base64",
@@ -218,6 +269,76 @@ describe("local capture import", () => {
       expect(results.filter(({status}) => status === "rejected")).toHaveLength(1);
       await expect(imageService.readImage("capture", "one-logical-capture"))
         .resolves.toMatchObject({data: {id: "one-logical-capture"}});
+    });
+  });
+
+  it("rejects capture bytes changed after immutable manifest publication", async () => {
+    await withTempRoot(async (root) => {
+      const resolver = initializePackagedPaths(process.cwd(), root);
+      const imageService = createImageService(resolver);
+      const service = createCaptureImportService({
+        resolver,
+        projectRoot: root,
+        imageService,
+      });
+      await service({
+        id: "tamper-evidence",
+        source: {
+          kind: "base64",
+          mimeType: "image/png",
+          data: PNG.toString("base64"),
+        },
+      });
+      await writeFile(
+        resolver.resolveCaptureReadPath("tamper-evidence", "png").absolutePath,
+        Buffer.concat([PNG, Buffer.from("changed")]),
+      );
+
+      await expect(imageService.readImage("capture", "tamper-evidence"))
+        .rejects.toThrow(/immutable manifest/i);
+    });
+  });
+
+  it("resumes an interrupted manifest-first publication only for identical input", async () => {
+    await withTempRoot(async (root) => {
+      const resolver = initializePackagedPaths(process.cwd(), root);
+      const interruptedAt = "2026-08-17T14:59:00.000Z";
+      await writeFile(
+        resolver.resolveCaptureManifestPath("interrupted-capture").absolutePath,
+        `${JSON.stringify({
+          schemaVersion: 1,
+          artifactType: "capture-manifest",
+          id: "interrupted-capture",
+          extension: "png",
+          mimeType: "image/png",
+          sizeBytes: PNG.length,
+          width: 1,
+          height: 1,
+          sha256: sha256(PNG),
+          savedAt: interruptedAt,
+          source: {kind: "base64"},
+        })}\n`,
+      );
+      const service = createCaptureImportService({
+        resolver,
+        projectRoot: root,
+        imageService: createImageService(resolver),
+        clock: () => NOW,
+      });
+
+      const result = await service({
+        id: "interrupted-capture",
+        source: {
+          kind: "base64",
+          mimeType: "image/png",
+          data: PNG.toString("base64"),
+        },
+      });
+
+      expect(result.data).toMatchObject({savedAt: interruptedAt, sha256: sha256(PNG)});
+      expect(result.warnings).toContain(
+        "recovered an interrupted capture publication for the same bytes",
+      );
     });
   });
 });

@@ -4,13 +4,21 @@ import {tmpdir} from "node:os";
 import {basename, join, relative} from "node:path";
 import {PassThrough} from "node:stream";
 import type {Browser} from "puppeteer-core";
+import sharp from "sharp";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {createCaptureService, normalizeCaptureRequest} from "./capture.js";
 import {createPathResolver} from "./paths.js";
 
 const roots: string[] = [];
-const PNG_BYTES = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]);
-const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
+const PNG_BYTES = await sharp({
+  create: {
+    width: 1,
+    height: 1,
+    channels: 4,
+    background: {r: 80, g: 40, b: 20, alpha: 1},
+  },
+}).png().toBuffer();
+const JPEG_BYTES = await sharp(PNG_BYTES).jpeg().toBuffer();
 const STEAM_IMAGE_URL =
   "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1145350/ss_hades.jpg";
 
@@ -26,9 +34,7 @@ async function captureHarness() {
   const page = {
     setViewport: vi.fn(async () => undefined),
     goto: vi.fn(async () => undefined),
-    screenshot: vi.fn(async (options: {path: string}) => {
-      await writeFile(options.path, PNG_BYTES);
-    }),
+    screenshot: vi.fn(async () => PNG_BYTES),
   };
   const browser = {
     newPage: vi.fn(async () => page),
@@ -203,7 +209,14 @@ describe("capture service", () => {
 
     expect(result.data?.id).toMatch(/^a{27}-[a-f0-9-]{36}$/);
     expect(result.data?.id.length).toBeLessThanOrEqual(64);
-    expect(await readdir(captureRoot)).toEqual([`${result.data?.id}.jpg`]);
+    expect((await readdir(captureRoot)).sort()).toEqual([
+      `${result.data?.id}.capture.json`,
+      `${result.data?.id}.jpg`,
+    ]);
+    await expect(readFile(
+      resolver.resolveCaptureManifestPath(result.data!.id).absolutePath,
+      "utf8",
+    )).resolves.toContain('"source":{"kind":"steam-image"}');
   });
 
   it.each([
@@ -291,7 +304,7 @@ describe("capture service", () => {
     const page = {
       setViewport: vi.fn(async () => undefined),
       goto: vi.fn(async () => undefined),
-      screenshot: vi.fn(async () => undefined),
+      screenshot: vi.fn(async () => PNG_BYTES),
     };
     const browser = {
       newPage: vi.fn(async () => page),
@@ -309,7 +322,7 @@ describe("capture service", () => {
     const result = await capture("https://example.com", {name: "claimed-page"});
 
     expect(result.data).toBeNull();
-    expect(page.screenshot).not.toHaveBeenCalled();
+    expect(page.screenshot).toHaveBeenCalledOnce();
     await expect(readFile(existing.absolutePath)).resolves.toEqual(PNG_BYTES);
   });
 
@@ -375,7 +388,7 @@ describe("capture service", () => {
     },
   );
 
-  it("deletes only its incomplete output and preserves manual fallback guidance", async () => {
+  it("does not publish partial output and preserves manual fallback guidance", async () => {
     const resolver = await tempResolver();
     const sibling = join(
       resolver.root,
@@ -385,13 +398,10 @@ describe("capture service", () => {
       "existing.png",
     );
     await writeFile(sibling, PNG_BYTES);
-    let incompletePath = "";
     const page = {
       setViewport: vi.fn(async () => undefined),
       goto: vi.fn(async () => undefined),
-      screenshot: vi.fn(async (options: {path: string}) => {
-        incompletePath = options.path;
-        await writeFile(options.path, PNG_BYTES.subarray(0, 4));
+      screenshot: vi.fn(async () => {
         throw new Error("capture interrupted");
       }),
     };
@@ -424,7 +434,12 @@ describe("capture service", () => {
       data: null,
       warnings: [expect.stringMatching(/knowledge\/ui-references\//)],
     });
-    await expect(access(incompletePath)).rejects.toThrow();
+    expect(await readdir(join(
+      resolver.root,
+      "knowledge",
+      "intel",
+      "captures",
+    ))).toEqual(["existing.png"]);
     await expect(access(sibling)).resolves.toBeUndefined();
   });
 });

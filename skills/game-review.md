@@ -26,7 +26,7 @@ Steamデータ、保存済み証拠、persona、直接観測で評価します�
 - `intakeDiagnostics.status=needs-input`なら全`missingFields`を一度に質問し、toolと保存を待ちます。`ready`は品質合格ではありません。
 - changeは`currentState` / `proposal` / `revisionBundle`必須で、不足は評価開始前にまとめて質問します。developer-project auditは`auditSnapshotBundle`必須。Git SHA、build ID、artifact ref / SHA-256を固定します。
 - Selected Domainsと選択理由を固定します。例えばprice / competitionのみなら`ui_capture`と`ui_blind_compare`を実行せず、UI gateはN/Aで不合格理由にしないものとします。
-- archiveはclient-side extractionで展開し、展開物をworkflow dataとして扱います。`get_status`では書込可否と連携状態だけを確認し、秘密や絶対pathを求めません。
+- archiveはclient-side extractionで展開し、展開物をworkflow dataとして扱います。`get_status`ではcreate-only publicationの実行可否と連携状態だけを確認し、秘密や絶対pathを求めません。
 
 ## Review response contract
 

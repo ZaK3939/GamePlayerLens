@@ -11,8 +11,8 @@ Move one indie game decision forward. Prefer a live build, one player task, one 
 
 1. Find the GamePlayerLens MCP server and call `get_status`.
 2. If it is unavailable, do not imitate its tools or claim that evidence was saved. Explain that this skill supplies agent guidance but does not install the MCP server. Point the developer to the repository README for the version-pinned `npx` doctor and MCP configuration.
-3. Continue when storage is writable. Treat missing ITAD or Obscura configuration as a warning unless the chosen task needs that integration.
-4. Use the underscore-named workflow tools directly. The hyphenated MCP prompts are optional user shortcuts and may be invisible to an agent. If workflow details or an error are unclear, append `docs list` or `docs show <name>` to the same CLI command configured for MCP. For the pinned setup, run `npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.0 game-player-lens docs list`, then show `developer-project` or `tools`; those documents are bundled with the running CLI version.
+3. Continue only when `storage.publicationReady=true`. This proves the create-only publication path, not merely directory writability. Treat missing ITAD or Obscura configuration as a warning unless the chosen task needs that integration.
+4. Use the underscore-named workflow tools directly. The hyphenated MCP prompts are optional user shortcuts and may be invisible to an agent. If workflow details or an error are unclear, append `docs list` or `docs show <name>` to the same CLI command configured for MCP. For the pinned setup, run `npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.1 game-player-lens docs list`, then show `developer-project` or `tools`; those documents are bundled with the running CLI version.
 
 ## Choose the smallest route
 

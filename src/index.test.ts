@@ -2,6 +2,7 @@ import {basename, join} from "node:path";
 import {mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {Client, InMemoryTransport} from "@modelcontextprotocol/client";
+import sharp from "sharp";
 import {afterEach, describe, expect, it, vi} from "vitest";
 import {createArtifactStore} from "./artifacts.js";
 import {MAX_INLINE_IMAGE_BYTES, createImageService} from "./images.js";
@@ -135,6 +136,32 @@ function pngBytes(size = PNG_SIGNATURE.length): Buffer {
   const bytes = Buffer.alloc(size);
   PNG_SIGNATURE.copy(bytes);
   return bytes;
+}
+
+async function writeCaptureFixture(
+  resolver: ReturnType<typeof createPathResolver>,
+  id: string,
+  bytes: Buffer,
+  extension: "png" | "jpg" = "png",
+): Promise<void> {
+  const resolved = resolver.resolveCaptureReadPath(id, extension);
+  await writeFile(resolved.absolutePath, bytes);
+  await writeFile(
+    resolver.resolveCaptureManifestPath(id).absolutePath,
+    `${JSON.stringify({
+      schemaVersion: 1,
+      artifactType: "capture-manifest",
+      id: resolved.id,
+      extension,
+      mimeType: extension === "png" ? "image/png" : "image/jpeg",
+      sizeBytes: bytes.length,
+      width: 1,
+      height: 1,
+      sha256: sha256(bytes),
+      savedAt: NOW.toISOString(),
+      source: {kind: "base64"},
+    })}\n`,
+  );
 }
 
 type BuildServerOverrides = Parameters<typeof buildServer>[0] & Record<string, unknown>;
@@ -603,7 +630,7 @@ describe("MCP server contract", () => {
       expect(listed).toMatchObject({
         title: "GamePlayerLens status",
         annotations: {
-          readOnlyHint: true,
+          readOnlyHint: false,
           destructiveHint: false,
           idempotentHint: true,
           openWorldHint: false,
@@ -613,11 +640,13 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.6.0"},
+          server: {name: "game-player-lens", version: "0.6.1"},
           storage: {
             location: "repository-root",
             instanceId: expect.stringMatching(/^storage-[a-f0-9]{16}$/),
             writable: true,
+            publicationReady: true,
+            publicationPrimitive: "create-flush-link-read-cleanup",
           },
           integrations: {
             itadPriceHistory: {configured: expect.any(Boolean)},
@@ -725,7 +754,7 @@ describe("MCP server contract", () => {
       expect(first.structuredContent?.data).toMatchObject({
         record: {
           artifactType: "agent-experience-feedback",
-          productVersion: "0.6.0",
+          productVersion: "0.6.1",
           sessionId: "mcp-session-a",
         },
         artifact: {sourceTool: "report_agent_experience"},
@@ -2358,7 +2387,7 @@ describe("MCP server contract", () => {
     const {client, resolver, server} = await createHarness();
     const captureBytes = pngBytes(19);
     const referenceBytes = pngBytes(23);
-    await writeFile(resolver.resolveCaptureReadPath("Game Hero").absolutePath, captureBytes);
+    await writeCaptureFixture(resolver, "Game Hero", captureBytes);
     await writeFile(resolver.resolveUiReferencePath("Main Menu").absolutePath, referenceBytes);
     try {
       for (const [kind, id, bytes] of [
@@ -2414,10 +2443,7 @@ describe("MCP server contract", () => {
 
   it("lists and reads JPEG captures through get_artifact", async () => {
     const {client, resolver, server} = await createHarness();
-    await writeFile(
-      resolver.resolveCaptureReadPath("Store Shot", "jpg").absolutePath,
-      JPEG_BYTES,
-    );
+    await writeCaptureFixture(resolver, "Store Shot", JPEG_BYTES, "jpg");
     try {
       const listed = await client.callTool({
         name: "get_artifact",
@@ -2455,13 +2481,13 @@ describe("MCP server contract", () => {
   it("returns successful metadata and a warning without ImageContent for oversized PNGs", async () => {
     const {client, resolver, server} = await createHarness();
     await writeFile(
-      resolver.resolveCaptureReadPath("Oversized").absolutePath,
+      resolver.resolveUiReferencePath("Oversized").absolutePath,
       pngBytes(MAX_INLINE_IMAGE_BYTES + 1),
     );
     try {
       const result = await client.callTool({
         name: "get_artifact",
-        arguments: {kind: "capture", id: "Oversized"},
+        arguments: {kind: "ui-reference", id: "Oversized"},
       });
       expect(result.isError).not.toBe(true);
       expect(result.content.map((item) => item.type)).toEqual(["text"]);
@@ -2519,7 +2545,14 @@ describe("MCP server contract", () => {
   it("saves a caller-provided local screenshot into capture evidence without Obscura", async () => {
     const {client, server} = await createHarness();
     try {
-      const bytes = pngBytes(32);
+      const bytes = await sharp({
+        create: {
+          width: 1,
+          height: 1,
+          channels: 4,
+          background: {r: 32, g: 64, b: 96, alpha: 1},
+        },
+      }).png().toBuffer();
       const saved = await client.callTool({
         name: "save_capture",
         arguments: {

@@ -21,9 +21,9 @@ GamePlayerLens exposes exactly 30 MCP tools and five optional prompt shortcuts. 
 | `report_agent_experience` | Explicitly record one agent success, partial result, failure, confusion, parameter guess, give-up, or feature request as an immutable local artifact |
 | `summarize_agent_experience` | Aggregate explicit local agent feedback and identify repeated signals with distinct caller-provided session IDs that are eligible for a user-approved issue draft |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
-| `save_capture` | Import a validated PNG/JPEG from a project-relative path or bounded base64 into immutable capture evidence |
+| `save_capture` | Fully decode and import a PNG/JPEG from a project-relative path or bounded base64 into manifest-bound immutable capture evidence |
 | `get_knowledge` | List or read canonical templates, rubrics, personas, and compatibility intel |
-| `get_status` | Report data-root writability and optional integration status without secrets or absolute paths |
+| `get_status` | Probe create-only publication readiness and report optional integration status without secrets or absolute paths |
 | `coach_history` | Detect repeated review without a new build, direct stimulus, or human handoff across verified developer-project runs |
 | `steam_discover` | Find SteamSpy tag/genre candidates or intersect up to four values |
 | `save_result` | Exact-save one short-lived tool result handle as intel without model transcription |
@@ -168,7 +168,7 @@ The result card leads with the highest-priority active next action. It does not 
 
 ## Image capture
 
-The default `ui_capture` source type is `page`, which uses Obscura to capture a credential-free HTTP(S) page as PNG. Use `save_capture` for a screenshot already produced while operating a local build; Obscura is not required. `source.kind=project-file` accepts only a PNG/JPEG path relative to `GAME_PLAYER_LENS_PROJECT_ROOT` (or the server working directory when unset), rejects symlinks and traversal, verifies the signature, and stores immutable bytes. `source.kind=base64` accepts a bounded PNG/JPEG payload. Both return the capture ID and SHA-256 needed by evidence references.
+The default `ui_capture` source type is `page`, which uses Obscura to capture a credential-free HTTP(S) page as PNG. Use `save_capture` for a screenshot already produced while operating a local build; Obscura is not required. `source.kind=project-file` accepts only a PNG/JPEG path relative to `GAME_PLAYER_LENS_PROJECT_ROOT` (or the server working directory when unset), rejects symlinks and traversal, and never exposes the configured project root in a source-read error. `source.kind=base64` accepts a bounded PNG/JPEG payload. Both `save_capture` paths and successful `ui_capture` output check the declared signature, fully decode compressed pixels with bounded dimensions/channels, and publish a create-only manifest containing the format, dimensions, size, and SHA-256 before publishing exactly one image extension. Concurrent MCP processes therefore cannot claim the same logical capture ID as different formats. Both tools return the capture ID needed by evidence references; `save_capture` also returns the SHA-256 directly.
 
 Use `sourceType=steam-image` for a JPEG URL returned by `steam_fetch.screenshots`:
 
@@ -215,6 +215,7 @@ knowledge/intel/{targetId}/{artifactId}.json
 workspaces/{targetId}/{date}-{topicId}.md
 workspaces/{targetId}/runs/{runId}.json
 knowledge/intel/captures/{captureId}.{png|jpg}
+knowledge/intel/captures/{captureId}.capture.json
 knowledge/ui-references/{referenceId}.png
 ```
 

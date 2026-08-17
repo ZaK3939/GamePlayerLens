@@ -133,6 +133,7 @@ export interface PathResolver {
     id: string,
     extension?: CaptureImageExtension,
   ): ResolvedImagePath;
+  resolveCaptureManifestPath(id: string): ResolvedCaptureManifestPath;
   resolveUiReferencePath(id: string): ResolvedImagePath;
 }
 
@@ -157,6 +158,10 @@ export interface ResolvedRunPath extends ResolvedPath {
 }
 
 export interface ResolvedImagePath extends ResolvedPath {
+  id: string;
+}
+
+export interface ResolvedCaptureManifestPath extends ResolvedPath {
   id: string;
 }
 
@@ -293,6 +298,16 @@ function createSplitPathResolver(
       return {id: canonicalId, ...resolvedPath(absolutePath)};
     },
 
+    resolveCaptureManifestPath(id) {
+      const canonicalId = safeSlug(id);
+      const absolutePath = resolveIn(
+        root,
+        join("knowledge", "intel", "captures"),
+        `${canonicalId}.capture.json`,
+      );
+      return {id: canonicalId, ...resolvedPath(absolutePath)};
+    },
+
     resolveUiReferencePath(id) {
       const canonicalId = safeSlug(id);
       const absolutePath = resolveIn(
@@ -351,6 +366,7 @@ export function initializePackagedPaths(
   resolver.resolvePersonaPath("startup-probe");
   resolver.resolveSkillPath("startup-probe.md");
   resolver.resolveCaptureReadPath("startup-probe");
+  resolver.resolveCaptureManifestPath("startup-probe");
   resolver.resolveUiReferencePath("startup-probe");
   resolver.resolveEvaluationPath("startup-probe", "2000-01-01", "startup-probe");
   resolver.resolveRunPath("startup-probe", "00000000-0000-4000-8000-000000000000");
@@ -439,6 +455,10 @@ export function resolveCaptureReadPath(
   extension?: CaptureImageExtension,
 ): ResolvedImagePath {
   return getDefaultResolver().resolveCaptureReadPath(id, extension);
+}
+
+export function resolveCaptureManifestPath(id: string): ResolvedCaptureManifestPath {
+  return getDefaultResolver().resolveCaptureManifestPath(id);
 }
 
 export function resolveUiReferencePath(id: string): ResolvedImagePath {

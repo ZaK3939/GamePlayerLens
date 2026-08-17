@@ -161,6 +161,8 @@ try {
   assert(status.isError !== true, "get_status returned a tool error");
   assert(
     statusJson.includes('"location":"repository-root"')
+      && statusJson.includes('"publicationReady":true')
+      && statusJson.includes('"publicationPrimitive":"create-flush-link-read-cleanup"')
       && statusJson.includes('"toolCount":30')
       && statusJson.includes('"instanceId":"storage-')
       && statusJson.includes('"workflowToolCount":5')

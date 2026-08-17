@@ -3,6 +3,7 @@ import type {AddressInfo} from "node:net";
 import {unlink} from "node:fs/promises";
 import {describe, expect, it} from "vitest";
 import {captureUrl} from "./capture.js";
+import {resolveCaptureManifestPath} from "./paths.js";
 import {fetchGame} from "./steam.js";
 
 const runLive = process.env.RUN_LIVE === "1";
@@ -14,6 +15,7 @@ describe.runIf(runLive)("Steam Store image capture (live)", () => {
     const screenshot = game.data?.screenshots[0];
     expect(screenshot).toMatch(/^https:\/\/[^/]*\.steamstatic\.com\//);
     let artifactPath: string | undefined;
+    let artifactId: string | undefined;
 
     try {
       const result = await captureUrl(screenshot!, {
@@ -21,6 +23,7 @@ describe.runIf(runLive)("Steam Store image capture (live)", () => {
         sourceType: "steam-image",
       });
       artifactPath = result.data?.path;
+      artifactId = result.data?.id;
 
       expect(result.warnings).toEqual([]);
       expect(result.data).toMatchObject({
@@ -37,7 +40,12 @@ describe.runIf(runLive)("Steam Store image capture (live)", () => {
       expect(Buffer.from(result.imageContent!.data, "base64").subarray(0, 3))
         .toEqual(Buffer.from([0xff, 0xd8, 0xff]));
     } finally {
-      if (artifactPath) await unlink(artifactPath);
+      if (artifactPath && artifactId) {
+        await Promise.all([
+          unlink(artifactPath),
+          unlink(resolveCaptureManifestPath(artifactId).absolutePath),
+        ]);
+      }
     }
   }, 30_000);
 });
@@ -64,12 +72,14 @@ describe.runIf(runLive && obscuraConfigured)("UI capture (live Obscura)", () => 
     });
     const port = (origin.address() as AddressInfo).port;
     let artifactPath: string | undefined;
+    let artifactId: string | undefined;
 
     try {
       const result = await captureUrl(`http://127.0.0.1:${port}`, {
         name: "live-localhost-image-content",
       });
       artifactPath = result.data?.path;
+      artifactId = result.data?.id;
 
       expect(artifactPath).toContain("knowledge/intel/captures/");
       expect(artifactPath).toMatch(/\.png$/);
@@ -85,7 +95,12 @@ describe.runIf(runLive && obscuraConfigured)("UI capture (live Obscura)", () => 
       await new Promise<void>((resolve, reject) => {
         origin.close((error) => error ? reject(error) : resolve());
       });
-      if (artifactPath) await unlink(artifactPath);
+      if (artifactPath && artifactId) {
+        await Promise.all([
+          unlink(artifactPath),
+          unlink(resolveCaptureManifestPath(artifactId).absolutePath),
+        ]);
+      }
     }
   }, 30_000);
 });

@@ -256,6 +256,14 @@ describe("safe paths", () => {
       ),
       relativePath: "knowledge/intel/captures/hero-capture.jpg",
     });
+    expect(resolver.resolveCaptureManifestPath("Hero Capture")).toEqual({
+      id: "hero-capture",
+      absolutePath: join(
+        resolver.root,
+        "knowledge/intel/captures/hero-capture.capture.json",
+      ),
+      relativePath: "knowledge/intel/captures/hero-capture.capture.json",
+    });
     expect(() => resolver.resolveCaptureReadPath("../capture.png")).toThrow();
     expect(() => resolver.resolveCaptureReadPath("capture", "gif" as never)).toThrow();
     expect(() => resolver.resolveUiReferencePath("nested/reference.png")).toThrow();

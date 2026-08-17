@@ -13,23 +13,27 @@ import {
   dirname,
   extname,
   isAbsolute,
-  join,
   relative,
   resolve,
   sep,
   win32,
 } from "node:path";
 import {z} from "zod";
-import {writeBinaryFileAtomically} from "./atomic-write.js";
-import {withFileAccess} from "./file-access.js";
+import {
+  writeBinaryFileAtomically,
+  writeTextFileAtomically,
+} from "./atomic-write.js";
+import {
+  type CaptureManifest,
+  parseCaptureManifest,
+} from "./capture-manifest.js";
+import {validateRasterImage} from "./image-validation.js";
 import type {ImageFetchResult, ImageService} from "./images.js";
 import {MAX_INLINE_IMAGE_BYTES} from "./images.js";
 import {sha256} from "./integrity.js";
 import type {CaptureImageExtension, PathResolver} from "./paths.js";
 
 const MAX_BASE64_LENGTH = Math.ceil(MAX_INLINE_IMAGE_BYTES / 3) * 4;
-const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff]);
 const MimeTypeSchema = z.enum(["image/png", "image/jpeg"]);
 const RelativeProjectPathSchema = z.string().trim().min(1).max(1_024).transform(
   (value, context) => {
@@ -95,18 +99,24 @@ export interface CaptureImportRecord {
   relativePath: string;
   mimeType: "image/png" | "image/jpeg";
   sizeBytes: number;
+  width: number;
+  height: number;
   savedAt: string;
   sha256: string;
   evidenceReference: {kind: "capture"; id: string};
-  source: {kind: "base64"} | {kind: "project-file"; fileName: string};
+  source: CaptureManifest["source"];
   imageIncluded: boolean;
 }
 
 interface CaptureImportDependencies {
-  resolver: Pick<PathResolver, "resolveCaptureReadPath">;
+  resolver: Pick<
+    PathResolver,
+    "resolveCaptureReadPath" | "resolveCaptureManifestPath"
+  >;
   projectRoot: string;
   imageService: Pick<ImageService, "readImage">;
   clock?: () => Date;
+  managedSource?: {kind: "page" | "steam-image"};
 }
 
 function isWithin(root: string, candidate: string): boolean {
@@ -117,19 +127,12 @@ function isWithin(root: string, candidate: string): boolean {
 
 function formatForMime(mimeType: z.infer<typeof MimeTypeSchema>) {
   return mimeType === "image/png"
-    ? {extension: "png" as const, signature: PNG_SIGNATURE, signatureName: "PNG"}
-    : {extension: "jpg" as const, signature: JPEG_SIGNATURE, signatureName: "JPEG"};
+    ? {extension: "png" as const}
+    : {extension: "jpg" as const};
 }
 
 function mimeForProjectPath(path: string): z.infer<typeof MimeTypeSchema> {
   return extname(path).toLowerCase() === ".png" ? "image/png" : "image/jpeg";
-}
-
-function assertSignature(bytes: Buffer, mimeType: z.infer<typeof MimeTypeSchema>): void {
-  const format = formatForMime(mimeType);
-  if (!bytes.subarray(0, format.signature.length).equals(format.signature)) {
-    throw new Error(`invalid ${format.signatureName} signature`);
-  }
 }
 
 async function pathExists(path: string): Promise<boolean> {
@@ -141,6 +144,17 @@ async function pathExists(path: string): Promise<boolean> {
     throw error;
   }
 }
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  let current: unknown = error;
+  while (current instanceof Error) {
+    if ("code" in current && current.code === code) return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+class SafeCaptureSourceError extends Error {}
 
 function decodeBase64(value: string): Buffer {
   if (
@@ -157,37 +171,75 @@ function decodeBase64(value: string): Buffer {
 }
 
 async function readProjectImage(projectRoot: string, relativePath: string): Promise<Buffer> {
-  const canonicalRoot = await realpath(projectRoot);
-  const segments = relativePath.split("/");
-  let current = canonicalRoot;
-  for (const segment of segments) {
-    current = resolve(current, segment);
-    if (!isWithin(canonicalRoot, current)) throw new Error("relativePath escapes project root");
-    const stats = await lstat(current);
-    if (stats.isSymbolicLink()) throw new Error("symlink project paths are not allowed");
-  }
-  const canonicalSource = await realpath(current);
-  if (!isWithin(canonicalRoot, canonicalSource)) throw new Error("relativePath escapes project root");
-
-  const handle = await open(canonicalSource, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
-    const initial = await handle.stat();
-    if (!initial.isFile()) throw new Error("capture source is not a regular file");
-    if (initial.size < 1 || initial.size > MAX_INLINE_IMAGE_BYTES) {
-      throw new Error("capture source must contain 1 byte to 6 MiB");
+    const canonicalRoot = await realpath(projectRoot);
+    const segments = relativePath.split("/");
+    let current = canonicalRoot;
+    for (const segment of segments) {
+      current = resolve(current, segment);
+      if (!isWithin(canonicalRoot, current)) {
+        throw new SafeCaptureSourceError("relativePath escapes project root");
+      }
+      const stats = await lstat(current);
+      if (stats.isSymbolicLink()) {
+        throw new SafeCaptureSourceError("symlink project paths are not allowed");
+      }
     }
-    const bytes = await handle.readFile();
-    const final = await handle.stat();
-    if (
-      bytes.length !== initial.size
-      || final.dev !== initial.dev
-      || final.ino !== initial.ino
-      || final.size !== initial.size
-      || final.mtimeMs !== initial.mtimeMs
-    ) {
-      throw new Error("capture source changed while reading");
+    const canonicalSource = await realpath(current);
+    if (!isWithin(canonicalRoot, canonicalSource)) {
+      throw new SafeCaptureSourceError("relativePath escapes project root");
     }
-    return bytes;
+
+    const handle = await open(canonicalSource, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const initial = await handle.stat();
+      if (!initial.isFile()) {
+        throw new SafeCaptureSourceError("capture source is not a regular file");
+      }
+      if (initial.size < 1 || initial.size > MAX_INLINE_IMAGE_BYTES) {
+        throw new SafeCaptureSourceError("capture source must contain 1 byte to 6 MiB");
+      }
+      const bytes = await handle.readFile();
+      const final = await handle.stat();
+      if (
+        bytes.length !== initial.size
+        || final.dev !== initial.dev
+        || final.ino !== initial.ino
+        || final.size !== initial.size
+        || final.mtimeMs !== initial.mtimeMs
+      ) {
+        throw new SafeCaptureSourceError("capture source changed while reading");
+      }
+      return bytes;
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    if (error instanceof SafeCaptureSourceError) throw error;
+    if (hasErrorCode(error, "ENOENT")) {
+      throw new Error(`capture source does not exist: ${relativePath}`);
+    }
+    throw new Error(`capture source could not be read: ${relativePath}`);
+  }
+}
+
+async function readManifest(
+  path: string,
+  expectedId: string,
+): Promise<CaptureManifest | null> {
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) return null;
+    throw new Error("capture manifest could not be opened");
+  }
+  try {
+    const stats = await handle.stat();
+    if (!stats.isFile() || stats.size < 2 || stats.size > 4_096) {
+      throw new Error("capture manifest is not a bounded regular file");
+    }
+    return parseCaptureManifest(await handle.readFile({encoding: "utf8"}), expectedId);
   } finally {
     await handle.close();
   }
@@ -208,7 +260,7 @@ export function createCaptureImportService(
     if (bytes.length < 1 || bytes.length > MAX_INLINE_IMAGE_BYTES) {
       throw new Error("capture source must contain 1 byte to 6 MiB");
     }
-    assertSignature(bytes, mimeType);
+    const dimensions = await validateRasterImage(bytes, mimeType);
 
     const extension: CaptureImageExtension = formatForMime(mimeType).extension;
     const initial = dependencies.resolver.resolveCaptureReadPath(parsed.id, extension);
@@ -217,11 +269,31 @@ export function createCaptureImportService(
     if (destination.absolutePath !== initial.absolutePath) {
       throw new Error("capture destination changed during creation");
     }
-    const captureIdLock = join(
-      dirname(destination.absolutePath),
-      `.${destination.id}.capture-id`,
-    );
-    await withFileAccess(captureIdLock, async () => {
+    const manifestPath = dependencies.resolver.resolveCaptureManifestPath(destination.id);
+    const captureSha256 = sha256(bytes);
+    const savedAt = clock();
+    if (Number.isNaN(savedAt.getTime())) throw new Error("capture clock is invalid");
+    const source: CaptureManifest["source"] = dependencies.managedSource
+      ?? (parsed.source.kind === "base64"
+        ? {kind: "base64" as const}
+        : {kind: "project-file" as const, fileName: basename(parsed.source.relativePath)});
+    const proposedManifest: CaptureManifest = {
+      schemaVersion: 1,
+      artifactType: "capture-manifest",
+      id: destination.id,
+      extension,
+      mimeType,
+      sizeBytes: bytes.length,
+      width: dimensions.width,
+      height: dimensions.height,
+      sha256: captureSha256,
+      savedAt: savedAt.toISOString(),
+      source,
+    };
+
+    let manifest = await readManifest(manifestPath.absolutePath, destination.id);
+    let recoveringInterruptedPublication = manifest !== null;
+    if (!manifest) {
       const candidates = (["png", "jpg"] as const).map(
         (candidateExtension) => dependencies.resolver.resolveCaptureReadPath(
           destination.id,
@@ -233,18 +305,55 @@ export function createCaptureImportService(
       ))).some(Boolean)) {
         throw new Error(`capture already exists: ${destination.id}`);
       }
+      try {
+        await writeTextFileAtomically(
+          manifestPath.absolutePath,
+          `${JSON.stringify(proposedManifest)}\n`,
+          {
+            fileOps: {writeFile, link, unlink},
+            alreadyExistsMessage: `capture already exists: ${destination.id}`,
+          },
+        );
+        manifest = proposedManifest;
+      } catch (error) {
+        if (!hasErrorCode(error, "EEXIST")) throw error;
+        manifest = await readManifest(manifestPath.absolutePath, destination.id);
+        if (!manifest) throw new Error("capture manifest publication could not be verified");
+        recoveringInterruptedPublication = true;
+      }
+    }
+
+    const manifestMatchesInput = manifest.sha256 === captureSha256
+      && manifest.mimeType === mimeType
+      && manifest.sizeBytes === bytes.length
+      && manifest.width === dimensions.width
+      && manifest.height === dimensions.height
+      && JSON.stringify(manifest.source) === JSON.stringify(source);
+    const manifestDestination = dependencies.resolver.resolveCaptureReadPath(
+      manifest.id,
+      manifest.extension,
+    );
+    if (await pathExists(manifestDestination.absolutePath)) {
+      throw new Error(`capture already exists: ${destination.id}`);
+    }
+    if (!manifestMatchesInput) {
+      throw new Error(`capture ID is reserved by an incomplete import: ${destination.id}`);
+    }
+    try {
       await writeBinaryFileAtomically(destination.absolutePath, bytes, {
         fileOps: {writeFile, link, unlink},
         alreadyExistsMessage: `capture already exists: ${destination.id}`,
       });
-    });
+    } catch (error) {
+      if (hasErrorCode(error, "EEXIST")) {
+        throw new Error(`capture already exists: ${destination.id}`, {cause: error});
+      }
+      throw error;
+    }
 
-    const savedAt = clock();
-    if (Number.isNaN(savedAt.getTime())) throw new Error("capture clock is invalid");
     const image = await dependencies.imageService.readImage("capture", destination.id);
     if (!image.data) throw new Error("saved capture could not be read");
     if (image.data.kind !== "capture") throw new Error("saved image is not a capture");
-    const captureSha256 = sha256(bytes);
     if (image.data.sha256 !== captureSha256) {
       throw new Error("saved capture SHA-256 does not match imported bytes");
     }
@@ -256,15 +365,20 @@ export function createCaptureImportService(
         relativePath: image.data.relativePath,
         mimeType: image.data.mimeType,
         sizeBytes: image.data.sizeBytes,
+        width: manifest.width,
+        height: manifest.height,
         imageIncluded: image.data.imageIncluded,
-        savedAt: savedAt.toISOString(),
+        savedAt: manifest.savedAt,
         sha256: captureSha256,
         evidenceReference: {kind: "capture", id: destination.id},
-        source: parsed.source.kind === "base64"
-          ? {kind: "base64"}
-          : {kind: "project-file", fileName: basename(parsed.source.relativePath)},
+        source: manifest.source,
       },
-      warnings: image.warnings,
+      warnings: [
+        ...image.warnings,
+        ...(recoveringInterruptedPublication
+          ? ["recovered an interrupted capture publication for the same bytes"]
+          : []),
+      ],
       ...(image.imageContent ? {imageContent: image.imageContent} : {}),
     };
   };

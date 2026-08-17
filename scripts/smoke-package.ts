@@ -123,7 +123,7 @@ const doctorProcess = await execFileAsync(doctorCommand, doctorArguments, {
 });
 const doctorReport = JSON.parse(doctorProcess.stdout) as {
   ok?: unknown;
-  storage?: {instanceId?: unknown};
+  storage?: {instanceId?: unknown; publicationReady?: unknown};
   capabilities?: {
     toolCount?: unknown;
     workflowToolCount?: unknown;
@@ -132,6 +132,7 @@ const doctorReport = JSON.parse(doctorProcess.stdout) as {
 };
 assert(
   doctorReport.ok === true
+    && doctorReport.storage?.publicationReady === true
     && doctorReport.capabilities?.toolCount === 30
     && doctorReport.capabilities.workflowToolCount === 5
     && doctorReport.capabilities.promptShortcutCount === 5
@@ -163,7 +164,7 @@ assert(
 const versionArguments = cliArgument ? ["--version"] : [cliPath, "--version"];
 const versionProcess = await execFileAsync(doctorCommand, versionArguments, {cwd: foreignCwd});
 assert(
-  versionProcess.stdout.includes("game-player-lens 0.6.0")
+  versionProcess.stdout.includes("game-player-lens 0.6.1")
     && versionProcess.stdout.includes("game-player-lens docs list"),
   "packaged CLI version output did not include its version and agent documentation route",
 );
@@ -220,6 +221,8 @@ try {
   assert(
     statusJson.includes('"location":"external-data-home"')
       && statusJson.includes('"writable":true')
+      && statusJson.includes('"publicationReady":true')
+      && statusJson.includes('"publicationPrimitive":"create-flush-link-read-cleanup"')
       && statusJson.includes('"toolCount":30')
       && statusJson.includes('"instanceId":"storage-')
       && statusJson.includes('"localCaptureImport":{"available":true')
@@ -251,7 +254,7 @@ try {
       source: {
         kind: "base64",
         mimeType: "image/png",
-        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+4V7nWQAAAABJRU5ErkJggg==",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWNQcEj4DwADBAHAon97TgAAAABJRU5ErkJggg==",
       },
     },
   });

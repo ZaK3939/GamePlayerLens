@@ -12,7 +12,8 @@ import {
   MAX_INLINE_IMAGE_BYTES,
   createImageService,
 } from "./images.js";
-import {createPathResolver} from "./paths.js";
+import {sha256} from "./integrity.js";
+import {createPathResolver, type PathResolver} from "./paths.js";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
@@ -32,6 +33,32 @@ async function tempResolver() {
   return createPathResolver(root);
 }
 
+async function writeCapture(
+  resolver: PathResolver,
+  id: string,
+  bytes: Buffer,
+  extension: "png" | "jpg" = "png",
+): Promise<void> {
+  const resolved = resolver.resolveCaptureReadPath(id, extension);
+  await writeFile(resolved.absolutePath, bytes);
+  await writeFile(
+    resolver.resolveCaptureManifestPath(id).absolutePath,
+    `${JSON.stringify({
+      schemaVersion: 1,
+      artifactType: "capture-manifest",
+      id: resolved.id,
+      extension,
+      mimeType: extension === "png" ? "image/png" : "image/jpeg",
+      sizeBytes: bytes.length,
+      width: 1,
+      height: 1,
+      sha256: sha256(bytes),
+      savedAt: "2026-08-17T12:00:00.000Z",
+      source: {kind: "base64"},
+    })}\n`,
+  );
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, {recursive: true, force: true})));
 });
@@ -39,9 +66,8 @@ afterEach(async () => {
 describe("image content", () => {
   it("returns MCP ImageContent for a PNG exactly at the 6 MiB boundary", async () => {
     const resolver = await tempResolver();
-    const resolved = resolver.resolveCaptureReadPath("Boundary Image");
     const bytes = pngBytes(MAX_INLINE_IMAGE_BYTES);
-    await writeFile(resolved.absolutePath, bytes);
+    await writeCapture(resolver, "Boundary Image", bytes);
     const encodeBase64 = vi.fn((value: Buffer) => value.toString("base64"));
     const images = createImageService(resolver, {encodeBase64});
 
@@ -81,8 +107,7 @@ describe("image content", () => {
 
   it("returns MCP ImageContent for a JPEG capture", async () => {
     const resolver = await tempResolver();
-    const resolved = resolver.resolveCaptureReadPath("Store Hero", "jpg");
-    await writeFile(resolved.absolutePath, JPEG_BYTES);
+    await writeCapture(resolver, "Store Hero", JPEG_BYTES, "jpg");
     const images = createImageService(resolver);
 
     const result = await images.readImage("capture", "Store Hero");
@@ -107,10 +132,9 @@ describe("image content", () => {
     });
   });
 
-  it("rejects invalid JPEG signatures and ambiguous capture ids", async () => {
+  it("rejects invalid JPEG signatures and unmanifested capture ids", async () => {
     const resolver = await tempResolver();
-    const invalid = resolver.resolveCaptureReadPath("Invalid JPEG", "jpg");
-    await writeFile(invalid.absolutePath, Buffer.from("not a jpeg"));
+    await writeCapture(resolver, "Invalid JPEG", Buffer.from("not a jpeg"), "jpg");
     const images = createImageService(resolver);
     await expect(images.readImage("capture", "Invalid JPEG"))
       .rejects.toThrow(/JPEG signature/i);
@@ -121,23 +145,23 @@ describe("image content", () => {
       JPEG_BYTES,
     );
     await expect(images.readImage("capture", "Duplicate"))
-      .rejects.toThrow(/ambiguous/i);
+      .rejects.toThrow(/manifest/i);
   });
 
   it("returns metadata and a warning above 6 MiB without base64 encoding", async () => {
     const resolver = await tempResolver();
-    const resolved = resolver.resolveCaptureReadPath("Oversized");
+    const resolved = resolver.resolveUiReferencePath("Oversized");
     await writeFile(resolved.absolutePath, pngBytes(MAX_INLINE_IMAGE_BYTES + 1));
     const encodeBase64 = vi.fn(() => "should-not-run");
     const images = createImageService(resolver, {encodeBase64});
 
-    const result = await images.readImage("capture", "Oversized");
+    const result = await images.readImage("ui-reference", "Oversized");
 
     expect(result).toEqual({
       data: {
         id: "oversized",
-        kind: "capture",
-        relativePath: "knowledge/intel/captures/oversized.png",
+        kind: "ui-reference",
+        relativePath: "knowledge/ui-references/oversized.png",
         mimeType: "image/png",
         sizeBytes: MAX_INLINE_IMAGE_BYTES + 1,
         modifiedAt: expect.any(String),
@@ -154,12 +178,10 @@ describe("image content", () => {
 describe("image service roots and listing", () => {
   it("lists capture PNG/JPEG and UI-reference PNGs from separate safe roots", async () => {
     const resolver = await tempResolver();
-    const capture = resolver.resolveCaptureReadPath("Game Hero");
     const reference = resolver.resolveUiReferencePath("Main Menu");
-    const store = resolver.resolveCaptureReadPath("Store Shot", "jpg");
-    await writeFile(capture.absolutePath, pngBytes());
+    await writeCapture(resolver, "Game Hero", pngBytes());
     await writeFile(reference.absolutePath, pngBytes(12));
-    await writeFile(store.absolutePath, JPEG_BYTES);
+    await writeCapture(resolver, "Store Shot", JPEG_BYTES, "jpg");
     const images = createImageService(resolver);
 
     expect(await images.listImages("capture")).toEqual({
@@ -203,7 +225,7 @@ describe("image service roots and listing", () => {
   it("keeps list metadata-only and ignores nested, unsupported, and dotfile entries", async () => {
     const resolver = await tempResolver();
     const captureRoot = join(resolver.root, "knowledge", "intel", "captures");
-    await writeFile(join(captureRoot, "valid.png"), pngBytes());
+    await writeCapture(resolver, "valid", pngBytes());
     await writeFile(join(captureRoot, "notes.txt"), pngBytes());
     await writeFile(join(captureRoot, ".hidden.png"), pngBytes());
     await mkdir(join(captureRoot, "nested"));

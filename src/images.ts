@@ -10,6 +10,10 @@ import {
   ImageArtifactKindSchema,
   type ImageArtifactKind,
 } from "./artifacts.js";
+import {
+  type CaptureManifest,
+  parseCaptureManifest,
+} from "./capture-manifest.js";
 import type {FetchResult} from "./http.js";
 import {sha256 as hashBytes} from "./integrity.js";
 import type {
@@ -28,7 +32,7 @@ const INLINE_LIMIT_WARNING =
 
 type ImageResolver = Pick<
   PathResolver,
-  "resolveCaptureReadPath" | "resolveUiReferencePath"
+  "resolveCaptureReadPath" | "resolveCaptureManifestPath" | "resolveUiReferencePath"
 >;
 
 interface ImageFileHandle {
@@ -221,6 +225,32 @@ export function createImageService(
     }
   }
 
+  async function readCaptureManifest(id: string): Promise<CaptureManifest | null> {
+    const resolved = resolver.resolveCaptureManifestPath(id);
+    let handle: ImageFileHandle;
+    try {
+      handle = await ops.open(
+        resolved.absolutePath,
+        constants.O_RDONLY | constants.O_NOFOLLOW,
+      );
+    } catch (error) {
+      if (isNodeError(error, "ENOENT")) return null;
+      if (isNodeError(error, "ELOOP")) {
+        throw new Error("symlink capture manifests are not allowed", {cause: error});
+      }
+      throw new Error("capture manifest could not be opened", {cause: error});
+    }
+    try {
+      const stats = await handle.stat();
+      if (!stats.isFile() || stats.size < 2 || stats.size > 4_096) {
+        throw new Error("capture manifest is not a bounded regular file");
+      }
+      return parseCaptureManifest((await handle.readFile()).toString("utf8"), resolved.id);
+    } finally {
+      await handle.close();
+    }
+  }
+
   function verifyResolverIssuedPath(path: ResolvedImagePath): void {
     for (const kind of ImageArtifactKindSchema.options) {
       const extensions: CaptureImageExtension[] = kind === "capture"
@@ -318,6 +348,13 @@ export function createImageService(
         invalidNameCount += 1;
         continue;
       }
+      if (parsedKind === "capture") {
+        const manifest = await readCaptureManifest(id);
+        if (!manifest || manifest.extension !== extension) {
+          invalidNameCount += 1;
+          continue;
+        }
+      }
       const {handle, stats} = await openRegularImage(resolved);
       try {
         metadata.push(imageMetadata(parsedKind, resolved, stats));
@@ -339,27 +376,20 @@ export function createImageService(
   ): Promise<ImageFetchResult<ImageReadResult>> {
     const parsedKind = ImageArtifactKindSchema.parse(kind);
     let resolved = resolveImage(resolver, parsedKind, id);
+    let manifest: CaptureManifest | null = null;
     if (parsedKind === "capture") {
-      const candidates = [
-        resolveImage(resolver, parsedKind, id, "png"),
-        resolveImage(resolver, parsedKind, id, "jpg"),
-      ];
-      const existing: ResolvedImagePath[] = [];
-      for (const candidate of candidates) {
-        try {
-          const {handle} = await openRegularImage(candidate);
-          await handle.close();
-          existing.push(candidate);
-        } catch (error) {
-          if (!isNodeError(error, "ENOENT")) throw error;
-        }
-      }
-      if (existing.length > 1) {
-        throw new Error(`ambiguous capture image id: ${existing[0]!.id}`);
-      }
-      resolved = existing[0] ?? candidates[0]!;
+      manifest = await readCaptureManifest(id);
+      if (!manifest) throw new Error("capture manifest does not exist");
+      resolved = resolveImage(resolver, parsedKind, manifest.id, manifest.extension);
     }
     const inline = await imageContentFor(resolved);
+    if (manifest && (
+      inline.sha256 !== manifest.sha256
+      || inline.sizeBytes !== manifest.sizeBytes
+      || inline.mimeType !== manifest.mimeType
+    )) {
+      throw new Error("saved capture does not match its immutable manifest");
+    }
     return {
       data: {
         id: resolved.id,

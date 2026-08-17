@@ -11,12 +11,12 @@ Review-derived personas remain part of the process, but they are evidence-ground
 
 ## Quick start
 
-From the game repository that should use GamePlayerLens, install the version-pinned v0.6.0 Agent Skill and confirm that the project can see it:
+From the game repository that should use GamePlayerLens, install the version-pinned v0.6.1 Agent Skill and confirm that the project can see it:
 
 ```bash
 cd /path/to/your-game
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.0/skills/game-player-lens --list
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.0/skills/game-player-lens --skill game-player-lens
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.1/skills/game-player-lens --list
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.1/skills/game-player-lens --skill game-player-lens
 npx skills list
 ```
 
@@ -25,13 +25,13 @@ Add `-a codex`, `-a claude-code`, or another supported agent when automatic dete
 The Skill does not install the MCP server. With Node.js 22 or newer, run the version-pinned server doctor directly from GitHub before editing client configuration:
 
 ```bash
-npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.0 game-player-lens doctor
+npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.1 game-player-lens doctor
 ```
 
-The doctor returns JSON, never secrets or absolute paths, and exits unsuccessfully when Node or storage is not ready. Register that same pinned package in the MCP configuration used by your client:
+The doctor returns JSON, never secrets or absolute paths, and exits unsuccessfully when Node or storage is not ready. Storage readiness runs the same create-only `write → flush → hard-link publish → read-back → cleanup` primitive used by artifact saves; a writable-directory check alone is not treated as sufficient. Register that same pinned package in the MCP configuration used by your client:
 
 ```bash
-npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.0 game-player-lens docs list
+npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.1 game-player-lens docs list
 ```
 
 This machine-readable index lets an agent discover version-matched operational docs without web search. Use `docs show developer-project` or another listed name for the full topic.
@@ -43,7 +43,7 @@ This machine-readable index lets an agent discover version-matched operational d
       "command": "npx",
       "args": [
         "--yes",
-        "--package=github:ZaK3939/GamePlayerLens#v0.6.0",
+        "--package=github:ZaK3939/GamePlayerLens#v0.6.1",
         "game-player-lens"
       ]
     }
@@ -51,7 +51,7 @@ This machine-readable index lets an agent discover version-matched operational d
 }
 ```
 
-Enable the server and restart the client. Verify both layers independently: **Skill check:** invoke `$game-player-lens` from the game repository. **MCP check:** call `get_status` with no arguments. It reports whether the data directory is writable, an opaque storage identity that can be compared with doctor, agent-callable workflow counts, and optional integration state—without returning secrets or absolute paths. Clone the repository only for development; `.mcp.json` remains the repository-local development configuration. CI verifies the complete build, test, stdio, doctor, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
+Enable the server and restart the client. Verify both layers independently: **Skill check:** invoke `$game-player-lens` from the game repository. **MCP check:** call `get_status` with no arguments. It reports `storage.publicationReady`, the checked publication primitive, an opaque storage identity that can be compared with doctor, agent-callable workflow counts, and optional integration state—without returning secrets or absolute paths. Clone the repository only for development; `.mcp.json` remains the repository-local development configuration. CI verifies the complete build, test, stdio, doctor, and packaged-CLI gates on Linux, Windows, and macOS on Apple Silicon.
 
 For a playable development build, start with `play_build` rather than a full audit:
 
@@ -178,11 +178,11 @@ Artifacts are stored beneath the configured data root:
 knowledge/intel/{targetId}/{artifactId}.json
 workspaces/{targetId}/{date}-{topicId}.md
 workspaces/{targetId}/runs/{runId}.json
-knowledge/intel/captures/{captureId}.{png|jpg}
+knowledge/intel/captures/{captureId}.capture.json + {captureId}.{png|jpg}
 knowledge/ui-references/{referenceId}.png
 ```
 
-Every artifact and persona ID is create-only. To revise evidence, save a new ID and bind that revision in the next audit or change bundle. The server never replaces a published file; this removes the Windows overwrite-rename path that could fail under antivirus or file-indexer locks.
+Every artifact and persona ID is create-only. To revise evidence, save a new ID and bind that revision in the next audit or change bundle. Both `save_capture` and `ui_capture` publish through one capture path: claim the logical ID with an immutable manifest, then publish exactly one declared PNG or JPEG. They fully decode the compressed pixels before publication and bind format, dimensions, byte length, and SHA-256; reads reject later byte drift. The server never replaces a published file; this removes the Windows overwrite-rename path that could fail under antivirus or file-indexer locks.
 
 Agent-experience feedback is stored separately under the canonical `gameplayerlens-agent-experience` intel target. It rejects credential-like text and absolute paths; reporters must also attest that they did not include raw prompts or proprietary artifacts.
 
