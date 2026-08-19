@@ -76,7 +76,7 @@ prospective測定をtopicで明示した場合だけ`experiment.md`を読み、�
 
 Concept Origin RouteではconceptOriginを推測しません。Known Frame / imitationでは`sourceAction` → `sourceSystemResponse` → `sourceReward`とtargetでのmeaningfulDifferenceを分離します。`mechanismTransfer`はdeclared routeとobserved evidenceを分け、blocking missingを一般論で補わず、未確認の反応、runway、conversionを捏造しません。
 
-topicがconcept、prototype、vertical slice、pitch、storefront、trailer、demo、Next Fest、wishlist、launch、marketing、roadmap、studio survivalに関係する時は`indie-survival-strategy.md`を読みます。Indie Strategy Card、Core Experience Map、Concept Origin Route、Reward Mechanism Trace、Moment-to-Moment Experience Loop、Mechanism Transfer Map、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Concept Test Trace、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Capability Reinvestment Gate、Repair Backlog、最大3件のExperiment Queue、Survival Scenariosを作ります。wishlist単独を面白さ、売上、Steam visibilityの証明にしません。Steamworks、Next Fest等は公式資料の現在仕様を確認しaccessedAtを残します。
+topicがconcept、prototype、vertical slice、pitch、storefront、trailer、demo、Next Fest、wishlist、launch、marketing、roadmap、studio survivalに関係する時は`indie-survival-strategy.md`を読みます。Indie Strategy Card、Core Experience Map、Concept Origin Route、Reward Mechanism Trace、Moment-to-Moment Experience Loop、Mechanism Transfer Map、Core Legibility Gate、Core Revision Ledger、First-contact Asset Readiness、Concept Test Trace、Promise-Delivery Trace、Funnel Health、Milestone Readiness、Capability Reinvestment Gate、Repair Backlog、最大3件のExperiment Queue、Survival Scenariosを作ります。wishlist単独を面白さ、売上、Steam visibilityの証明にしません。Steamworks、Next Fest等は公式資料の現在仕様を確認しaccessedAtを残します。`store-reveal`、`release-date`、`launch`の判断ではさらに`steam-release-readiness.md`を読み、Steam Release Readinessを作ります。
 
 `conceptTest`がある場合、`conceptTestEvidence.resultHandle`を`save_result(target, id, resultHandle)`でmanual原本としてexact-saveします。`understoodTheme`、`themeSystemFit`、`understoodAction`、`understoodReward`、`interest`を別々に読みます。themeSystemFit=no / unclearでは`themeSystemFitReason`を要求します。participant countをconversion、需要、購入率へ変換しないものとします。
 
@@ -120,7 +120,11 @@ Game UI Database、Interface In Game等の`uiReferenceUrls`は最大8件の入�
 <!-- GPL:section domain:price -->
 ## Price domain contract
 
-Price domain contractでは`steam_fetch`のUS / JP / DE価格、package / discount状態と、`steam_timeline`のITAD価格履歴をsource・currency・取得時刻付きで分離します。ITAD key未設定はwarningと取得手順を示し、nullを0にしません。価格妥当性はcontent量だけでなく、比較対象、期待品質、personaのprice sensitivity、refund riskを仮説として扱い、購入意向や売上を推定値から断定しません。
+Price domain contractでは`steam_fetch`のUS / JP / DE価格、package / discount状態と、`steam_timeline`のITAD価格履歴をsource・currency・取得時刻付きで分離します。ITAD key未設定はwarningと取得手順を示し、nullを0にしません。
+
+`Pricing Decision Trace`では`primary objective`を1つ固定し、`base price`、package / edition / region、`launch discount`の有無・率・期間、終了後価格、value / quality signal仮説、matched competitor / player response、`success signal`とwindow、`guardrail`、revisit conditionを並べます。安いほど販売または購入が増えるとは断定せず、価格妥当性はcontent量だけでなく、比較対象、期待品質、personaのprice sensitivity、refund riskを仮説として扱います。購入意向、販売本数、net revenueを推定値や単一developer事例から断定しません。
+
+Steam発売案では現行の公式Steamworks pricing / discount rulesをaccessedAt付きで確認します。launch discount、期間、minimum price、cooldownが実行可能かを検査し、目的に合っていてもplatform上で設定不能な案は推奨しません。
 <!-- GPL:end -->
 
 <!-- GPL:section domain:localization -->

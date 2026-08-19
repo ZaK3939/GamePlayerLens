@@ -262,6 +262,8 @@ Steamworksの`Marketing & Visibility > Traffic Breakdown`でplacement別impressi
 | `launch` | price/package、release checklist、support、measurement plan | blocking defect、rollback不能 |
 | `post-launch` | observed player problem、update hypothesis、success / guardrail | cadenceや競合模倣だけで更新 |
 
+current gateが`store-reveal`、`release-date`、`launch`なら`steam-release-readiness.md`も読み、player / market readinessとは別に`Steam Release Readiness`を作ります。onboarding、app credit、Store Presence、Game Build、Coming Soon、pricing、permissions、manual releaseを順序付きで確認し、公式ruleのURLとaccessedAt、各gateのevidence status、earliest completionを残します。Steamworks未接続時のdeveloper申告はreportedであり、承認済みやliveとして観測したことにしません。
+
 Steam Next Festは現行の公式Steamworks要件を毎回確認します。公式documentationではNext Festは1作品につき1回だけで、公開store pageと公開demoなどのeligibilityがあります。日付やdeadlineを記憶で固定せず、[Steam Next Fest](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest)と[Upcoming Steam Events](https://partner.steamgames.com/doc/marketing/upcoming_events)を実行時に確認します。
 
 作品発表、demo / Next Fest、release-date発表、launchは有用なplanning checkpointですが、宣伝機会が4回だけという固定モデルは採用しない。themed Fests、Steam Playtest、announcement、discount、community、press、creator outreach、post-launch updateなどをproject固有に評価します。post-launchには公式のUpdate Visibility Roundもあります。
@@ -341,10 +343,11 @@ platform fee、refund、taxを固定値で一律計算しません。法域、�
 11. Promise-Delivery Trace: promiseとbuild momentの対応。
 12. Funnel Health: exposureからretained playまでのstatusと欠損。
 13. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
-14. Capability Reinvestment Gate: bottleneck、Evidence ID、capacity / runway、reversible next step、expansion trigger。
-15. Repair Backlog: blocking failure、Evidence ID、owner surface、復旧gate、維持contract。Experimentと分離する。
-16. Experiment Queue: 最大3件、primary metric、source、guardrail付き。
-17. Survival Scenarios: conservative / base / upsideとassumption boundary。
+14. Steam Release Readiness: store-reveal / release-date / launch時の順序付きplatform gate、earliest date、公式source / accessedAt。その他はN/A理由。
+15. Capability Reinvestment Gate: bottleneck、Evidence ID、capacity / runway、reversible next step、expansion trigger。
+16. Repair Backlog: blocking failure、Evidence ID、owner surface、復旧gate、維持contract。Experimentと分離する。
+17. Experiment Queue: 最大3件、primary metric、source、guardrail付き。
+18. Survival Scenarios: conservative / base / upsideとassumption boundary。
 
 数字がない場合は架空の販売本数やconversionを作らずmissingとし、次に取得するreport、build、participant、期間を指定します。
 
@@ -360,3 +363,7 @@ Steam固有の現在仕様は、実行時に公式Steamworks documentationを再
 - [Upcoming Steam Events](https://partner.steamgames.com/doc/marketing/upcoming_events)
 - [Trailers](https://partner.steamgames.com/doc/store/trailer)
 - [Marketing tools](https://partner.steamgames.com/doc/marketing/tools)
+- [Release Process](https://partner.steamgames.com/doc/store/releasing)
+- [Review Process](https://partner.steamgames.com/doc/store/review_process)
+- [Pricing](https://partner.steamgames.com/doc/store/pricing)
+- [Discounting](https://partner.steamgames.com/doc/marketing/discounts)

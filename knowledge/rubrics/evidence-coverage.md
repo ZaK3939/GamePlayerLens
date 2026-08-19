@@ -54,6 +54,10 @@ Steam description、tags、categoriesだけの場合はplayer perceptionのproxy
 3. player price response: 対象市場reviews、survey、wishlist/playtest feedbackのいずれかで価格摩擦を確認。
 4. competitor price context: 比較候補のedition、通貨、discount stateを揃える。
 
+priceを選択したreviewは、4 dimensionのcoverageとは別に`Pricing Decision Trace`を作ります。`primary objective`をnet revenue、paid reach、qualified feedback、positioning等から1つ固定し、他の目的はguardrailへ置きます。現在案と変更案について`base price`、package / edition、地域、`launch discount`の有無・率・期間、割引後も維持する価格、value / quality signal仮説を分離します。matched competitorと対象player responseを根拠にし、`success signal`、観測window、`guardrail`、revisit conditionを明記します。
+
+「安いほど販売本数が増える」「高いほど品質が高く見える」「launch discountがお得感を作る」はいずれも検証対象の仮説であり、普遍則ではありません。developer comment、単一事例、wishlist、review件数だけで購入率やnet revenueを断定しません。Steamで実施する案は公式の現行pricing / discount rulesとminimum thresholdをaccessedAt付きで確認し、実行不能な案を推奨しません。
+
 ### localization
 
 1. localized storefront: requested localeのcopyを保存し、fallback可能性を残す。

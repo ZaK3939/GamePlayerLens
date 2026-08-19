@@ -245,6 +245,22 @@ cohort集計はboundedな問題発見用です。同じparticipantの再参加�
 - Smallest evidence to unblock: ［build、asset、participant、report］
 - Current Steamworks rules checked at: ［URL / accessedAt、またはN/A］
 
+### Steam Release Readiness
+
+- Status: ［Selected / N/A。`store-reveal / release-date / launch`判断でSelected］
+- Earliest release date: ［確認済み日付 / unresolved］
+- Blocking gate: ［onboarding / app fee wait / Store Presence / Game Build / Coming Soon / pricing / permissions / release control / none］
+- Official rules checked at: ［Steamworks URL + accessedAt］
+
+| Gate | Required state | Current status | Evidence / source | Earliest completion | Owner / next action |
+|---|---|---|---|---|---|
+| Onboarding / app credit | ［official current requirement］ | ［not-started / blocked / ready / N/A］ | ［manual evidence / URL］ | ［date / unresolved］ | ［action］ |
+| Store Presence | ［checklist、review］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
+| Game Build | ［depot、branch、review］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
+| Coming Soon | ［official current minimum］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
+| Pricing / launch discount | ［approved、rule-valid］ | ［status］ | ［Pricing Decision Trace / official rule］ | ［date］ | ［action］ |
+| Manual release | ［permissions、release control］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
+
 ### Capability Reinvestment Gate
 
 売上再投資、外注、採用、online、story、live operationsなどのscope拡張は一般論で勧めず、現在のplayer-facing bottleneckとproject固有のcapacity / runwayで判定します。複数案を平均せず、現時点の決定を1行だけ記録します。
@@ -425,6 +441,12 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 - Mode result: ［現状の地域別価格、値引き幅、価格期待、購入タイミング / change の場合は現状 vs 変更案］
 - ペルソナ反応: ［price_sensitivity と voice 出典］
 - 根拠: ［`steam_fetch` / `steam_timeline` の Evidence ID。なければ「根拠不足」］
+
+#### Pricing Decision Trace
+
+| primary objective | base price / package / region | launch discount / post-offer price | value and quality signal hypothesis | matched evidence | success signal / window | guardrail | revisit condition |
+|---|---|---|---|---|---|---|---|
+| ［net revenue / paid reach / qualified feedback / positioningから1つ］ | ［current → proposal］ | ［noneまたは率・期間・終了後価格］ | ［検証対象。断定しない］ | ［競合 / player response / official Steamworks ruleのEvidence IDs］ | ［目的へ直結する1指標 / 期間］ | ［refund、net revenue、value trust等］ | ［どの観測で見直すか］ |
 
 ### ローカライズ
 

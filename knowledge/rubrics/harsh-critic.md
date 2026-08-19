@@ -23,6 +23,9 @@
 - `evidence-coverage.md`の固定dimensionをSelected Domainごとに埋め、Coverage rateとDirect observation rateを分ける。取得失敗をN/Aへ変えた場合、estimatedを直接観測へ数えた場合、blocking missingを平均coverageで隠した場合は差し戻す。
 - 更新施策を勧告する場合は`update-strategy.md`を読み、Decision Card、Update inventory、Persona Update Impact Matrix、Prioritized Update Backlogを要求する。`steam_updates`の`patchnotes` tagとheuristic分類を混同した場合、取得windowやunderfilled warningを落とした場合は差し戻す。
 - 更新頻度、最終announcement日、競合precedentから、品質、開発速度、放置、売上、retention効果を断定した場合は差し戻す。対象ゲームのplayer problem根拠と、update後に観測するsuccess signal / guardrailがなければ`fix-now`にしない。
+- price選択時に`Pricing Decision Trace`がなく、primary objective、base price、package / region、launch discount、終了後価格、value signal仮説、matched evidence、success signal / window、guardrail、revisit conditionを分けない場合は差し戻す。手段と目的が一致しない案、安値を販売本数へ直結させる案、複数目的を一つの成功指標へ混ぜる案も差し戻す。
+- Steam向けのbase priceまたはlaunch discount案を勧める場合、accessedAt付きSteamworks公式pricing / discount ruleでminimum threshold、率、期間、cooldownの実行可能性を確認する。現行上限を超えるlaunch discount、単一developer事例、community commentだけを市場効果の証明にした場合は差し戻す。
+- `store-reveal`、`release-date`、`launch`を判断するのに`Steam Release Readiness`がなく、onboardingからmanual releaseまでを順序付きgateとして確認しない場合は差し戻す。Steamworks未接続時のdeveloper申告をobservedへ昇格した場合、official source / accessedAt、earliest release date、blocking gateを欠く場合も差し戻す。
 - persona v2の`update_reaction`がreviewで直接観測されたのか、dealbreaker等から推論したのか、unknownなのかを区別しない場合は差し戻す。polarity-balanced persona件数をaffected player shareに変換しない。
 - competition選択時に`competitor-selection.md`を読まず、Competitor Selection Ledger、freshness window、3件以上のmust-match axes、2件以上のcandidate routesがなければ差し戻す。直接競合、system / visual reference、市場successを同じroleへ統合した場合も差し戻す。
 - Competitor Selection Ledgerにincludeされたdirect / adjacent、recent-success / breakout-anchor、comparison-control / rejected-candidateが揃わない場合は差し戻す。高評価率だけで成功作とした場合、Review signalとScale / momentum signalを分けない場合、demo / early access / released / upcomingまたはcurrent / historicalを混同した場合も差し戻す。

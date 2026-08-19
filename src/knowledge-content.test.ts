@@ -424,6 +424,53 @@ describe("evidence coverage rubric", () => {
     expect(content).toContain("N/A");
     expect(content).toMatch(/blocking[\s\S]*confidence[\s\S]*high/);
   });
+
+  it("frames price as an objective-led base-price and discount decision", async () => {
+    const coverage = await read("knowledge/rubrics/evidence-coverage.md");
+    const template = await read("knowledge/templates/review-eval.md");
+    const recipe = await read("skills/game-review.md");
+    const critic = await read("knowledge/rubrics/harsh-critic.md");
+
+    for (const content of [coverage, template, recipe]) {
+      expect(content).toContain("Pricing Decision Trace");
+      expect(content).toContain("primary objective");
+      expect(content).toContain("base price");
+      expect(content).toContain("launch discount");
+      expect(content).toContain("success signal");
+      expect(content).toContain("guardrail");
+    }
+    expect(recipe).toMatch(/安(?:い|く)[\s\S]*(販売|購入)[\s\S]*(断定|前提にし)/);
+    expect(critic).toMatch(/Pricing Decision Trace[\s\S]*手段[\s\S]*目的[\s\S]*差し戻す/);
+    expect(critic).toMatch(/launch discount[\s\S]*Steamworks[\s\S]*(実行可能|上限)/);
+  });
+});
+
+describe("Steam release readiness rubric", () => {
+  it("keeps onboarding, review, coming-soon, and manual release gates explicit", async () => {
+    const rubric = await read("knowledge/rubrics/steam-release-readiness.md");
+    const template = await read("knowledge/templates/review-eval.md");
+    const recipe = await read("skills/game-review.md");
+    const guide = await read("docs/guides/developer-project.md");
+    const survival = await read("knowledge/rubrics/indie-survival-strategy.md");
+    const critic = await read("knowledge/rubrics/harsh-critic.md");
+
+    for (const content of [rubric, template, recipe, guide]) {
+      expect(content).toContain("Steam Release Readiness");
+    }
+    expect(rubric).toContain("Steam Direct Fee");
+    expect(rubric).toContain("30-day waiting period");
+    expect(rubric).toContain("Store Presence");
+    expect(rubric).toContain("Game Build");
+    expect(rubric).toContain("Coming Soon");
+    expect(rubric).toContain("at least two weeks");
+    expect(rubric).toContain("Release App");
+    expect(rubric).toContain("accessedAt");
+    expect(rubric).toMatch(/credential[\s\S]*(保存|要求しない)/i);
+    expect(recipe).toMatch(/steam-release-readiness\.md[\s\S]*(store-reveal|release-date|launch)/);
+    expect(template).toMatch(/Earliest release date[\s\S]*Blocking gate/);
+    expect(survival).toMatch(/steam-release-readiness\.md[\s\S]*Steam Release Readiness/);
+    expect(critic).toMatch(/Steam Release Readiness[\s\S]*(順序|gate)[\s\S]*差し戻す/);
+  });
 });
 
 describe("competitor selection rubric", () => {

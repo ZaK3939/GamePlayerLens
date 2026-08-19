@@ -319,6 +319,19 @@ If the client can control an HTTP(S) build, provide `playtestUrl`, a concrete `p
 
 Use a structured `playtestSession` or `playtestCohort` to preserve the evidence. See [Experiments and playtests](../reference/experiments.md).
 
+## Steam Release Readiness
+
+For a `store-reveal`, `release-date`, or `launch` decision, read the current official Steamworks requirements instead of relying on a remembered checklist. Keep the operational release path separate from player and market evidence:
+
+1. Complete partner onboarding and activate the app credit; record the fee-paid date and any official waiting period without saving financial, tax, identity, or account credentials.
+2. Configure the app, packages, regional pricing, Store Presence, depots, launch options, and a testable Steam build.
+3. Complete and submit Store Presence for Valve review before submitting the Game Build review.
+4. After approval, publish Coming Soon and calculate the earliest eligible release date from the current official minimum.
+5. Confirm proposed base price and launch discount against current pricing, discount, duration, minimum-price, and cooldown rules.
+6. Confirm the required Steamworks permissions and keep the final `Release App` action manual. Approval does not auto-release the game.
+
+Report this as `Steam Release Readiness`: each gate's status, evidence source, `accessedAt`, earliest completion date, blocker, owner, and next action. Treat developer-entered status as reported evidence unless an authenticated Steamworks view was captured. Never request or save Steamworks passwords, session cookies, tax documents, bank details, or recovery codes.
+
 ## Expected output
 
 Saving a canonical evaluation returns both the complete artifact metadata and two structured views: `decisionCard` and `developerSummary`. The short summary contains the verdict, decision, highest risk, next action, and success signal, so daily work does not require parsing the full review Markdown.
