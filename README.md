@@ -139,9 +139,9 @@ GamePlayerLens deliberately refuses several shortcuts:
 - A static image does not prove motion, latency, controller feel, or hidden states.
 - One AI-operated playtest does not represent human fun, demand, completion, or retention.
 - A polarity-balanced persona sample does not represent market proportions.
-- SteamSpy owners are estimate ranges, not unit sales.
-- Current CCU is a timestamped snapshot, not a historical trend.
+- SteamSpy owners are estimate ranges, not unit sales; current CCU is a timestamped snapshot, not a historical trend.
 - Wishlists alone do not prove fun, sales, or algorithmic visibility.
+- A rule-valid Steam price or launch discount does not prove conversion, demand, or net revenue; Steam Release Readiness is publication feasibility, not player or market readiness.
 - A high review percentage alone does not establish a successful or relevant competitor.
 - A prediction run is not an executed experiment.
 - A player lens's predicted feeling or continuation decision is not a human report or population rate.

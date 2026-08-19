@@ -45,6 +45,7 @@ const REQUIRED_INDIE_SECTIONS = [
   "Playtest Cohort Summary",
   "Funnel Health",
   "Milestone Readiness",
+  "Steam Release Readiness",
   "Capability Reinvestment Gate",
   "Repair Backlog",
   "Experiment Queue",
@@ -84,6 +85,20 @@ function evaluationMarkdown(detail: string, detailedIndie = false): string {
           "|---|---|---|---|---|---|---|---|",
           "| 1 | The persisted fixture remains readable | prototype | integrity status | run-readback | no hash mismatch | one fixture | fixture-readback-01 |",
         ].join("\n"),
+      ];
+    }
+    if (heading === "Milestone Readiness") {
+      return [
+        `### ${heading}`,
+        "- Current gate: prototype",
+        `${heading} evidence.`,
+      ];
+    }
+    if (heading === "Steam Release Readiness") {
+      return [
+        `### ${heading}`,
+        "- Status: N/A",
+        "適用外: This fixture is not a store-reveal, release-date, or launch decision.",
       ];
     }
     if (heading === "Survival Scenarios") {

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Courier Gale — launch publication stop and pricing desk</title>
+  <style>
+    :root {
+      --bg: #070b10;
+      --ink: #f4f1ea;
+      --mute: #9aa4b2;
+      --faint: #6d7786;
+      --line: rgba(244, 241, 234, 0.1);
+      --paper: #121821;
+      --paper-2: #181f2a;
+      --stop: #ff5a3c;
+      --stop-dim: rgba(255, 90, 60, 0.12);
+      --ok: #b7d37a;
+      --ok-dim: rgba(183, 211, 122, 0.1);
+      --wait: #c8b27a;
+      --money: #f3d48a;
+      --sans: "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+      --ui: "Avenir Next", "Segoe UI", sans-serif;
+      --mono: "SFMono-Regular", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); }
+    body { font-family: var(--ui); }
+    .page { max-width: 1180px; margin: 0 auto; padding: 40px 28px 80px; }
+    .eyebrow {
+      font-family: var(--ui);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--mute);
+    }
+    h1 { font-family: var(--sans); font-weight: 600; font-size: 42px; margin: 8px 0 8px; letter-spacing: -0.03em; }
+    .dek { max-width: 58ch; color: var(--mute); line-height: 1.5; margin: 0 0 28px; }
+    .stopbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: center;
+      background: var(--stop-dim);
+      border: 1px solid rgba(255, 90, 60, 0.35);
+      border-left: 6px solid var(--stop);
+      padding: 16px 20px;
+      margin-bottom: 40px;
+    }
+    .stopbar strong { display: block; font-size: 20px; letter-spacing: -0.02em; }
+    .stopbar span { color: var(--mute); font-size: 13px; }
+    .stop-tag {
+      flex: 0 0 auto;
+      color: var(--stop);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    section { margin: 0 0 56px; }
+    h2 { font-family: var(--sans); font-size: 28px; margin: 0 0 6px; }
+    .note { color: var(--faint); font-size: 13px; margin: 0 0 18px; }
+    .tape {
+      display: grid;
+      grid-template-columns: 1fr 1.3fr 1fr;
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+    .price {
+      background: var(--paper);
+      padding: 18px 20px 20px;
+    }
+    .price.hero { background: #1b2116; }
+    .price .k { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+    .price .n {
+      font-family: var(--sans);
+      font-size: 36px;
+      line-height: 1.05;
+      margin: 10px 0 6px;
+      color: var(--ink);
+    }
+    .price.hero .n { color: var(--money); font-size: 44px; }
+    .price .s { color: var(--mute); font-size: 13px; }
+    .regions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0 18px; }
+    .region { background: var(--paper-2); padding: 12px 14px; border: 1px solid var(--line); }
+    .region b { display: block; font-size: 12px; color: var(--faint); letter-spacing: 0.1em; }
+    .region em { font-style: normal; font-family: var(--mono); font-size: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+    .cell { background: var(--paper); padding: 14px 16px; }
+    .cell .k { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
+    .cell p { margin: 0; line-height: 1.45; }
+    .empty {
+      border: 1px dashed rgba(255, 90, 60, 0.45);
+      background: transparent;
+      color: var(--stop);
+      min-height: 76px;
+    }
+    .constraint {
+      display: inline-block;
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      color: var(--mute);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 6px 10px;
+    }
+    .path { display: grid; gap: 8px; }
+    .gate {
+      display: grid;
+      grid-template-columns: 72px 1fr 160px;
+      gap: 16px;
+      padding: 14px 16px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+    .gate.done { border-left: 4px solid var(--ok); }
+    .gate.open { border-left: 4px solid var(--wait); }
+    .gate.block {
+      background: var(--stop-dim);
+      border: 1px solid rgba(255, 90, 60, 0.45);
+      border-left: 6px solid var(--stop);
+      padding: 20px 18px;
+    }
+    .gate.dead {
+      opacity: 0.38;
+      filter: grayscale(1);
+      pointer-events: none;
+    }
+    .ord { font-family: var(--mono); color: var(--faint); font-size: 12px; padding-top: 4px; }
+    .gate h3 { margin: 0 0 4px; font-size: 17px; font-family: var(--sans); font-weight: 600; }
+    .gate .src { color: var(--faint); font-size: 12px; }
+    .meta { color: var(--mute); font-size: 13px; line-height: 1.45; }
+    .state { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; color: var(--mute); }
+    .gate.block .state { color: var(--stop); font-weight: 700; }
+    .gate.done .state { color: var(--ok); }
+    .gate.open .state { color: var(--wait); }
+    .block-next { margin-top: 8px; color: var(--ink); }
+    .facts { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 8px; color: var(--mute); font-size: 13px; }
+    .facts b { color: var(--faint); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; margin-right: 6px; }
+    .gate.act { border-left: 4px solid #d7c37a; }
+    .gate.waitv { border-left: 4px solid #8aa0b5; }
+    .gate.act .state { color: #d7c37a; }
+    .gate.waitv .state { color: #8aa0b5; }
+    @media (max-width: 800px) {
+      .page { padding: 22px 14px 56px; }
+      h1 { font-size: 32px; }
+      .stopbar, .tape, .regions, .grid, .gate { grid-template-columns: 1fr; }
+      .price.hero .n { font-size: 40px; }
+      .state { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <p class="eyebrow">GamePlayerLens · 19 Aug 2026 · Japan / US / Germany</p>
+    <h1>Courier Gale</h1>
+    <p class="dek">Publication is blocked. Pricing is a hypothesis that happens to be allowed by current Steam launch-discount rules. Neither fact sells the game.</p>
+    <div class="stopbar">
+      <div>
+        <strong>Do not set a release date.</strong>
+        <span>Coming Soon is not live. Earliest release is unresolved. Later Steamwork is not in play.</span>
+      </div>
+      <div class="stop-tag">Hold · Coming Soon</div>
+    </div>
+
+    <section id="steam">
+      <h2>Steam Release Readiness</h2>
+      <p class="note">Seven ordered gates. Developer Steamworks entries are reported. Approval does not ship the build.</p>
+      <div class="stopbar">
+        <div>
+          <strong>Coming Soon is not live.</strong>
+          <span>Do not set a release date. Earliest release is unresolved. Gates 06–07 are unreachable.</span>
+        </div>
+        <div class="stop-tag">Hold · gate 05</div>
+      </div>
+      <div class="path">
+        <article class="gate done">
+          <div class="ord">01</div>
+          <div>
+            <h3>Onboarding / app credit</h3>
+            <div class="src">Official source: partner.steamgames.com/doc/gettingstarted/appfee</div>
+            <div class="facts"><span><b>Owner</b>producer</span><span><b>Date</b>2026-07-01</span><span><b>Evidence</b>E-020 reported</span></div>
+          </div>
+          <div class="state">approved</div>
+        </article>
+        <article class="gate act">
+          <div class="ord">02</div>
+          <div>
+            <h3>App configuration</h3>
+            <div class="src">Official source: partner.steamgames.com/doc/store/application</div>
+            <div class="facts"><span><b>Owner</b>producer</span><span><b>Date</b>unresolved</span><span><b>Evidence</b>E-021 reported</span></div>
+            <div class="block-next">Your move: finish depot and launch-option check on Steam Deck.</div>
+          </div>
+          <div class="state">submitted</div>
+        </article>
+        <article class="gate waitv">
+          <div class="ord">03</div>
+          <div>
+            <h3>Store Presence</h3>
+            <div class="src">Official source: partner.steamgames.com/doc/store/review_process</div>
+            <div class="facts"><span><b>Owner</b>Valve review</span><span><b>Date</b>unresolved</span><span><b>Evidence</b>E-022 reported</span></div>
+            <div class="block-next">Waiting on Valve. 3–5 business days is guidance, not a promise.</div>
+          </div>
+          <div class="state">submitted</div>
+        </article>
+        <article class="gate waitv">
+          <div class="ord">04</div>
+          <div>
+            <h3>Game Build</h3>
+            <div class="src">Official source: partner.steamgames.com/doc/store/releasing</div>
+            <div class="facts"><span><b>Owner</b>unassigned</span><span><b>Date</b>unresolved</span><span><b>Evidence</b>missing</span></div>
+            <div class="block-next">Cannot submit review until Store Presence is in. SteamPipe is not review.</div>
+          </div>
+          <div class="state">not-started</div>
+        </article>
+        <article class="gate block">
+          <div class="ord">05</div>
+          <div>
+            <h3>Coming Soon</h3>
+            <div class="src">Official source: partner.steamgames.com/doc/store/coming_soon</div>
+            <div class="facts"><span><b>Owner</b>producer</span><span><b>Date</b>unresolved</span><span><b>Evidence</b>missing</span></div>
+            <div class="block-next">Next action: after Store Presence approval, press Post as Coming Soon. Then, and only then, compute earliest release.</div>
+          </div>
+          <div class="state">blocked</div>
+        </article>
+        <article class="gate dead">
+          <div class="ord">06</div>
+          <div>
+            <h3>Pricing / launch offer</h3>
+            <div class="src">Official source: partner.steamgames.com/doc/marketing/discounts</div>
+            <div class="meta">Unreachable until Coming Soon is live. Do not treat a draft 15% offer as a publication step.</div>
+          </div>
+          <div class="state">N/A</div>
+        </article>
+        <article class="gate dead">
+          <div class="ord">07</div>
+          <div>
+            <h3>Manual release</h3>
+            <div class="src">Official source: partner.steamgames.com/doc/store/releasing</div>
+            <div class="meta">Unreachable. Release App stays manual. Needs Publish App Changes To Steam and Manage Pricing &amp; Discounts.</div>
+          </div>
+          <div class="state">N/A</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="pricing">
+      <h2>Pricing Decision Trace</h2>
+      <p class="note">Objective: keep more money after refunds in the first 14 days. The launch price is the only number a customer sees on day 0.</p>
+      <div class="tape">
+        <div class="price">
+          <div class="k">Bona fide base</div>
+          <div class="n">¥1,480</div>
+          <div class="s">Returns here when the offer ends</div>
+        </div>
+        <div class="price hero">
+          <div class="k">Customer pays at launch</div>
+          <div class="n">¥1,258</div>
+          <div class="s">15% off · 14 days · ends 10:00 Pacific</div>
+        </div>
+        <div class="price">
+          <div class="k">After the offer</div>
+          <div class="n">¥1,480</div>
+          <div class="s">Same base. Not a hidden second cut.</div>
+        </div>
+      </div>
+      <div class="regions">
+        <div class="region"><b>Japan</b><em>¥1,258 launch · ¥1,480 after</em></div>
+        <div class="region"><b>United States</b><em>$8.49 launch · $9.99 after</em></div>
+        <div class="region"><b>Germany</b><em>€7.64 launch · €8.99 after</em></div>
+      </div>
+      <div class="grid">
+        <div class="cell">
+          <div class="k">Other objectives</div>
+          <p>Paid reach and positioning sit on the guardrail. They are not a second score.</p>
+        </div>
+        <div class="cell">
+          <div class="k">Package</div>
+          <p>Standard app only. No deluxe or soundtrack bundle at launch.</p>
+        </div>
+        <div class="cell">
+          <div class="k">Matched competitor prices</div>
+          <p>E-014 · Gale Route ¥1,600 / $10.99 · Storm Post ¥1,280 / $8.99. Same short-session band. Not proof of demand.</p>
+        </div>
+        <div class="cell empty">
+          <div class="k">Matched player-price response</div>
+          <p>Empty. No target-market price sample. Do not infer one from the competitors.</p>
+        </div>
+        <div class="cell">
+          <div class="k">Success signal</div>
+          <p>Net store revenue after refunds, day 0–14 after a human presses Release App.</p>
+        </div>
+        <div class="cell">
+          <div class="k">Guardrail / revisit</div>
+          <p>Stop if refunds or “felt cheap” comments rise. Revisit when a player-price sample exists or any currency is missing.</p>
+        </div>
+      </div>
+      <div class="constraint">Steam launch-discount check · currently allowed · not a sales forecast · discounts doc · 19 Aug 2026</div>
+    </section>
+  </div>
+</body>
+</html>

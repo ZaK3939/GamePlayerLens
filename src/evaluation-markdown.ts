@@ -1,4 +1,6 @@
 import {validateCompetitorSelectionLedger} from "./evaluation-competitors.js";
+import {validatePricingDecisionTrace} from "./evaluation-pricing.js";
+import {validateSteamReleaseReadiness} from "./evaluation-steam.js";
 import {
   validateDecisionCard,
   validateDomainFindingSeverities,
@@ -48,6 +50,7 @@ export const REQUIRED_INDIE_STRATEGY_SECTIONS = [
   "Playtest Cohort Summary",
   "Funnel Health",
   "Milestone Readiness",
+  "Steam Release Readiness",
   "Capability Reinvestment Gate",
   "Repair Backlog",
   "Experiment Queue",
@@ -187,6 +190,9 @@ export function assertCanonicalEvaluationMarkdown(
   if (domains.includes("competition")) {
     validateCompetitorSelectionLedger(lines, headings, evidenceIds);
   }
+  if (domains.includes("price")) {
+    validatePricingDecisionTrace(lines, headings, evidenceIds);
+  }
 
   const indieHeading = headings.find(
     (heading) => heading.level === 2 && heading.title === "Indie Survival Strategy",
@@ -216,5 +222,6 @@ export function assertCanonicalEvaluationMarkdown(
     3,
   );
   validateDetailedIndieTables(lines, indieHeadings, evidenceIds);
+  validateSteamReleaseReadiness(lines, indieHeadings, evidenceIds);
   return {indieStrategyMode: "detailed", selectedDomains: [...domains]};
 }

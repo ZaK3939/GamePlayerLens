@@ -54,9 +54,13 @@ Steam description、tags、categoriesだけの場合はplayer perceptionのproxy
 3. player price response: 対象市場reviews、survey、wishlist/playtest feedbackのいずれかで価格摩擦を確認。
 4. competitor price context: 比較候補のedition、通貨、discount stateを揃える。
 
-priceを選択したreviewは、4 dimensionのcoverageとは別に`Pricing Decision Trace`を作ります。`primary objective`をnet revenue、paid reach、qualified feedback、positioning等から1つ固定し、他の目的はguardrailへ置きます。現在案と変更案について`base price`、package / edition、地域、`launch discount`の有無・率・期間、割引後も維持する価格、value / quality signal仮説を分離します。matched competitorと対象player responseを根拠にし、`success signal`、観測window、`guardrail`、revisit conditionを明記します。
+priceを選択したreviewは、上記4 dimensionのcoverageとは別に Field | Value の`Pricing Decision Trace`を作ります。traceを4 dimensionへ混ぜません。priceがN/Aなら表は出しません。
 
-「安いほど販売本数が増える」「高いほど品質が高く見える」「launch discountがお得感を作る」はいずれも検証対象の仮説であり、普遍則ではありません。developer comment、単一事例、wishlist、review件数だけで購入率やnet revenueを断定しません。Steamで実施する案は公式の現行pricing / discount rulesとminimum thresholdをaccessedAt付きで確認し、実行不能な案を推奨しません。
+metadataは Primary objective（`net-revenue` / `paid-reach` / `qualified-feedback` / `positioning`から1つ）と Platform feasibility（`rule-valid` / `rule-invalid` / `not-steam` / `unresolved`）です。表は次の15 fieldをこの順で1行ずつ置きます: primary objective; other objectives; base price; package / edition; region; launch discount; post-offer price; value / quality signal; matched competitor evidence; matched player-response evidence; official rules checked at; success signal; observation window; guardrail; revisit condition。
+
+`primary objective`は上記4 tokenから1つ。other objectivesは none、または guardrail に置く名前であり、第二の success metric にしません。base priceは金額 + 通貨（changeは`current → proposal`）。package / editionは named package。regionは ISO / Steam region set。launch discountは`none`、または率 + 期間（Steam launchなら 10–40% / 7–14 days かつ rule-valid）。post-offer priceは offer 後の bona fide base。value / quality signalは labeled hypothesis であり事実にしません。matched competitor / player-response evidenceは E-### または missing。official rules checked atは Steamworks URL + accessedAt、または N/A と理由。success signalは primary objective へ直結する指標1つ。observation windowは cohort + dates。guardrailは停止条件1つ。revisit conditionは判断を更新する観測です。
+
+安いほど販売本数が増える、複数目的を一つの success signal に混ぜる、rule-invalid な Steam launch offer を推奨する、単一 developer 逸話を市場証明にする、はいずれも禁止です。wishlist、review件数、community commentだけで購入率や net revenue を断定しません。
 
 ### localization
 

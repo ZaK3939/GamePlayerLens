@@ -321,16 +321,27 @@ Use a structured `playtestSession` or `playtestCohort` to preserve the evidence.
 
 ## Steam Release Readiness
 
-For a `store-reveal`, `release-date`, or `launch` decision, read the current official Steamworks requirements instead of relying on a remembered checklist. Keep the operational release path separate from player and market evidence:
+For a `store-reveal`, `release-date`, or `launch` decision, read the current official Steamworks requirements instead of relying on a remembered checklist. Keep the operational release path separate from player and market evidence. Recheck official rules at execution time and record the URL plus `accessedAt`.
 
-1. Complete partner onboarding and activate the app credit; record the fee-paid date and any official waiting period without saving financial, tax, identity, or account credentials.
-2. Configure the app, packages, regional pricing, Store Presence, depots, launch options, and a testable Steam build.
-3. Complete and submit Store Presence for Valve review before submitting the Game Build review.
-4. After approval, publish Coming Soon and calculate the earliest eligible release date from the current official minimum.
-5. Confirm proposed base price and launch discount against current pricing, discount, duration, minimum-price, and cooldown rules.
-6. Confirm the required Steamworks permissions and keep the final `Release App` action manual. Approval does not auto-release the game.
+When Selected, emit these metadata lines, then a 7-row table with exactly these columns:
 
-Report this as `Steam Release Readiness`: each gate's status, evidence source, `accessedAt`, earliest completion date, blocker, owner, and next action. Treat developer-entered status as reported evidence unless an authenticated Steamworks view was captured. Never request or save Steamworks passwords, session cookies, tax documents, bank details, or recovery codes.
+| Gate | Current status | Evidence status / ID | Official source | Date / earliest completion | Owner | Next action |
+
+Always include all 7 gates in this order and with these names. Do not merge App configuration into Store Presence.
+
+1. Onboarding / app credit — partner onboarding, Steam Direct fee / app credit activation, and the fee-paid date. The 30-day wait from fee payment for the first few titles is date math under this gate, not a separate gate.
+2. App configuration — app, package, depot, launch option, supported OS, and pricing setup required to purchase or launch.
+3. Store Presence — checklist complete, proposed pricing, `Mark as ready for review`, and the Valve result. Submit Store Presence before the Game Build review.
+4. Game Build — mostly-final default-branch build, Steam client install / launch test, checklist, and review result. A SteamPipe upload is not a review.
+5. Coming Soon — approved page live date and the official two-week minimum. `Post as Coming Soon` is manual. Once live, the release date freezes inside 14 days. A soundtrack attached to a released base game may be exempt.
+6. Pricing / launch offer — approved base prices in all required currencies and launch-discount feasibility (optional, pre-release only, 10–40%, 7–14 days, ends 10am Pacific).
+7. Manual release — required permissions `Publish App Changes To Steam` and `Manage Pricing & Discounts`. An authorized user runs `Release App` → `Publish Now` → `Release Now`. Approval does not auto-release.
+
+Current status tokens: `not-started` / `blocked` / `submitted` / `changes-requested` / `approved` / `live` / `N/A`. Evidence status is `observed` / `reported` / `missing` plus an `E-###` or `missing`. Developer-entered Steamworks state is reported, never observed. Owner is a role or `unassigned`. Next action is one action. Blocking gate is one of the 7 names or `none`. Earliest release date is verified `YYYY-MM-DD` or `unresolved`, derived from the gates, never a marketing target.
+
+When the decision is not `store-reveal` / `release-date` / `launch`, keep the heading and a one-line `Status: N/A` reason; no table.
+
+Treat developer-entered status as reported evidence unless an authenticated Steamworks view was captured. Never request or save Steamworks passwords, session cookies, tax documents, bank details, or recovery codes.
 
 ## Expected output
 

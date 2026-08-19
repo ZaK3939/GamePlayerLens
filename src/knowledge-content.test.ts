@@ -158,6 +158,8 @@ describe("canonical adoption evaluation template", () => {
     expect(content).toContain("Promise-Delivery Trace");
     expect(content).toContain("Funnel Health");
     expect(content).toContain("Milestone Readiness");
+    expect(content).toContain("Steam Release Readiness");
+    expect(content).toContain("App configuration");
     expect(content).toContain("Capability Reinvestment Gate");
     expect(content).toContain("Repair Backlog");
     expect(content).toContain("Experiment Queue");
@@ -434,14 +436,21 @@ describe("evidence coverage rubric", () => {
     for (const content of [coverage, template, recipe]) {
       expect(content).toContain("Pricing Decision Trace");
       expect(content).toContain("primary objective");
+      expect(content).toContain("other objectives");
       expect(content).toContain("base price");
+      expect(content).toContain("package / edition");
       expect(content).toContain("launch discount");
+      expect(content).toContain("official rules checked at");
       expect(content).toContain("success signal");
       expect(content).toContain("guardrail");
+      expect(content).toContain("revisit condition");
     }
+    expect(template).toContain("| Field | Value |");
+    expect(recipe).toContain("| Field | Value |");
     expect(recipe).toMatch(/安(?:い|く)[\s\S]*(販売|購入)[\s\S]*(断定|前提にし)/);
     expect(critic).toMatch(/Pricing Decision Trace[\s\S]*手段[\s\S]*目的[\s\S]*差し戻す/);
     expect(critic).toMatch(/launch discount[\s\S]*Steamworks[\s\S]*(実行可能|上限)/);
+    expect(critic).toContain("8列1行");
   });
 });
 
@@ -460,8 +469,19 @@ describe("Steam release readiness rubric", () => {
     expect(rubric).toContain("Steam Direct Fee");
     expect(rubric).toContain("30-day waiting period");
     expect(rubric).toContain("Store Presence");
+    expect(rubric).toContain("App configuration");
     expect(rubric).toContain("Game Build");
     expect(rubric).toContain("Coming Soon");
+    expect(rubric).toContain("Pricing / launch offer");
+    expect(rubric).toContain("Manual release");
+    expect(rubric).toContain(
+      "| Gate | Current status | Evidence status / ID | Official source | Date / earliest completion | Owner | Next action |",
+    );
+    expect(template).toContain(
+      "| Gate | Current status | Evidence status / ID | Official source | Date / earliest completion | Owner | Next action |",
+    );
+    expect(template).toContain("App configuration");
+    expect(template).not.toContain("app fee wait");
     expect(rubric).toContain("at least two weeks");
     expect(rubric).toContain("Release App");
     expect(rubric).toContain("accessedAt");

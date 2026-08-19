@@ -43,6 +43,7 @@ const REQUIRED_INDIE_SECTIONS = [
   "Playtest Cohort Summary",
   "Funnel Health",
   "Milestone Readiness",
+  "Steam Release Readiness",
   "Capability Reinvestment Gate",
   "Repair Backlog",
   "Experiment Queue",
@@ -92,6 +93,20 @@ function evaluationMarkdown(options: {indieNotApplicable?: boolean; detail?: str
           "|---|---|---|---|---|---|---|---|",
           "| 1 | A matched capture clarifies the target state | vertical-slice | unaided target identification | human-playtest | no new blocker | one current capture | slot-ember-target-state-01 |",
         ].join("\n"),
+      ];
+    }
+    if (heading === "Milestone Readiness") {
+      return [
+        `### ${heading}`,
+        "- Current gate: prototype",
+        `${heading} evidence.`,
+      ];
+    }
+    if (heading === "Steam Release Readiness") {
+      return [
+        `### ${heading}`,
+        "- Status: N/A",
+        "適用外: This fixture is not a store-reveal, release-date, or launch decision.",
       ];
     }
     if (heading === "Survival Scenarios") {
@@ -781,6 +796,192 @@ describe("evaluation artifact store", () => {
         "| outsource | Player-facing proof is missing | E-999 |",
       ),
     })).rejects.toThrow(/Capability Reinvestment Gate|Evidence/i);
+  });
+
+  function withPriceDomain(content: string): string {
+    const pricingTrace = [
+      "#### Pricing Decision Trace",
+      "- Primary objective: net-revenue",
+      "- Platform feasibility: not-steam",
+      "| Field | Value |",
+      "|---|---|",
+      "| primary objective | net-revenue |",
+      "| other objectives | none |",
+      "| base price | USD 19.99 |",
+      "| package / edition | Standard |",
+      "| region | US; JP; DE |",
+      "| launch discount | none |",
+      "| post-offer price | USD 19.99 |",
+      "| value / quality signal | hypothesis: price matches session length |",
+      "| matched competitor evidence | E-001 |",
+      "| matched player-response evidence | missing |",
+      "| official rules checked at | N/A: existing-game price lookup |",
+      "| success signal | net revenue after refunds |",
+      "| observation window | 14 days after a price change |",
+      "| guardrail | refund rate does not rise |",
+      "| revisit condition | a matched player-price response is saved |",
+    ].join("\n");
+    return content
+      .replace(
+        "- Selected Domains: gameplay, UI, competition",
+        "- Selected Domains: gameplay, ui, price, competition",
+      )
+      .replace(
+        "Domain Findings evidence.",
+        `${pricingTrace}\n\nDomain Findings evidence.`,
+      )
+      .replace(
+        "| competition | candidate discovery | missing | なし | discovery not run | blocks candidate scope |",
+        [
+          "| price | current regional price | missing | なし | no price fetch | no price claim |",
+          "| price | price history | missing | なし | no history | no price claim |",
+          "| price | player price response | missing | なし | no player price response | no price claim |",
+          "| price | competitor price context | missing | なし | no competitor prices | no price claim |",
+          "| competition | candidate discovery | missing | なし | discovery not run | blocks candidate scope |",
+        ].join("\n"),
+      )
+      .replace(
+        "| competition | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+        [
+          "| price | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+          "| competition | 4 | 0 | 0 | 0 | 4 | 0.0% | 0.0% |",
+        ].join("\n"),
+      )
+      .replace(
+        "| overall | 13 | 0 | 0 | 0 | 13 | 0.0% | 0.0% |",
+        "| overall | 17 | 0 | 0 | 0 | 17 | 0.0% | 0.0% |",
+      );
+  }
+
+  function selectedSteamReadiness(): string {
+    return [
+      "### Steam Release Readiness",
+      "- Status: Selected",
+      "- Earliest release date: unresolved",
+      "- Blocking gate: Coming Soon",
+      "- Official rules checked at: https://partner.steamgames.com/doc/store/releasing accessedAt 2026-08-19",
+      "| Gate | Current status | Evidence status / ID | Official source | Date / earliest completion | Owner | Next action |",
+      "|---|---|---|---|---|---|---|",
+      "| Onboarding / app credit | approved | reported; E-001 | https://partner.steamgames.com/doc/gettingstarted/appfee | 2026-07-01 | producer | keep fee-paid date |",
+      "| App configuration | submitted | reported; E-001 | https://partner.steamgames.com/doc/store/application | unresolved | producer | finish depots |",
+      "| Store Presence | submitted | reported; E-001 | https://partner.steamgames.com/doc/store/review_process | unresolved | producer | wait for review |",
+      "| Game Build | not-started | missing | https://partner.steamgames.com/doc/store/releasing | unresolved | unassigned | upload default branch |",
+      "| Coming Soon | blocked | missing | https://partner.steamgames.com/doc/store/coming_soon | unresolved | unassigned | post after approval |",
+      "| Pricing / launch offer | submitted | reported; E-001 | https://partner.steamgames.com/doc/marketing/discounts | unresolved | producer | confirm 37 currencies |",
+      "| Manual release | not-started | missing | https://partner.steamgames.com/doc/store/releasing | unresolved | unassigned | keep Release App manual |",
+    ].join("\n");
+  }
+
+  it("requires a Field | Value Pricing Decision Trace when price is selected", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Price Without Trace",
+      content: withPriceDomain(evaluationMarkdown()).replace(
+        /\n#### Pricing Decision Trace[\s\S]*?revisit condition \| a matched player-price response is saved \|/,
+        "",
+      ),
+    })).rejects.toThrow(/Pricing Decision Trace/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Packed Price Trace",
+      content: withPriceDomain(evaluationMarkdown()).replace(
+        "| Field | Value |",
+        "| primary objective | base price / package / region |",
+      ),
+    })).rejects.toThrow(/Pricing Decision Trace|Field/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Valid Price Trace",
+      content: withPriceDomain(evaluationMarkdown()),
+    })).resolves.toMatchObject({topicId: "valid-price-trace"});
+  });
+
+  it("requires selected Steam Release Readiness to use the 7 ordered gates", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const selected = evaluationMarkdown()
+      .replace("- Current gate: prototype", "- Current gate: launch")
+      .replace(
+        "### Steam Release Readiness\n\n- Status: N/A\n\n適用外: This fixture is not a store-reveal, release-date, or launch decision.",
+        selectedSteamReadiness(),
+      );
+    const missingAppConfig = selected.replace(
+      "| App configuration | submitted | reported; E-001 | https://partner.steamgames.com/doc/store/application | unresolved | producer | finish depots |\n",
+      "",
+    );
+    const launchNa = evaluationMarkdown()
+      .replace("- Current gate: prototype", "- Current gate: launch");
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Launch Without Steam Table",
+      content: launchNa,
+    })).rejects.toThrow(/Status Selected|Steam Release Readiness/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Missing App Configuration",
+      content: missingAppConfig,
+    })).rejects.toThrow(/App configuration|7 ordered gates/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Valid Steam Readiness",
+      content: selected,
+    })).resolves.toMatchObject({topicId: "valid-steam-readiness"});
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Steam Rules Without Date",
+      content: selected.replace(
+        "https://partner.steamgames.com/doc/store/releasing accessedAt 2026-08-19",
+        "https://partner.steamgames.com/doc/store/releasing",
+      ),
+    })).rejects.toThrow(/accessedAt/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Missing Current Gate",
+      content: evaluationMarkdown().replace("\n\n- Current gate: prototype", ""),
+    })).rejects.toThrow(/Current gate/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Colon Steam NA",
+      content: evaluationMarkdown()
+        .replace("- Status: N/A", "- Status: N/A: prototype has no Steam publication decision")
+        .replace("\n\n適用外: This fixture is not a store-reveal, release-date, or launch decision.", ""),
+    })).resolves.toMatchObject({topicId: "colon-steam-na"});
+  });
+
+  it("requires a dated Steamworks rule check for rule-valid prices", async () => {
+    const store = createArtifactStore(await tempResolver(), {clock: () => now});
+    const ruleValid = (official: string) => withPriceDomain(evaluationMarkdown())
+      .replace("- Platform feasibility: not-steam", "- Platform feasibility: rule-valid")
+      .replace(
+        "| official rules checked at | N/A: existing-game price lookup |",
+        `| official rules checked at | ${official} |`,
+      );
+
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Rule Valid Without Source",
+      content: ruleValid("N/A: skipped"),
+    })).rejects.toThrow(/accessedAt|Steamworks URL/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Rule Valid Without Date",
+      content: ruleValid("https://partner.steamgames.com/doc/marketing/discounts"),
+    })).rejects.toThrow(/accessedAt/);
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Rule Valid With Date",
+      content: ruleValid("https://partner.steamgames.com/doc/marketing/discounts accessedAt 2026-08-19"),
+    })).resolves.toMatchObject({topicId: "rule-valid-with-date"});
+    await expect(store.saveEvaluation({
+      target: "Hades II",
+      topic: "Missing Prefix Evidence",
+      content: withPriceDomain(evaluationMarkdown()).replace(
+        "| matched player-response evidence | missing |",
+        "| matched player-response evidence | missing — no target-market sample |",
+      ),
+    })).resolves.toMatchObject({topicId: "missing-prefix-evidence"});
   });
 
   it("rejects more than three experiments and incomplete evidence provenance", async () => {

@@ -35,7 +35,7 @@ Use `review_change` with `currentState`, `proposal`, and the exact `revisionBund
 | `gameplay` | What loop, goal, progression, failure, retry, and continued-play motives are observable? | Inferring internal state machines, formulas, or balance from tags and reviews |
 | `storefront` | What promise do localized copy, screenshots, and public dashboard evidence create? | Treating an uncaptured deep link as evidence |
 | `ui` | How does one matched task compare on hierarchy, legibility, density, state, feedback, accessibility, and finish? | Scoring motion or controller feel from a static image |
-| `price` | What are current US, JP, and DE prices, discount state, and optional ITAD history? | Inventing past trends from a current price |
+| `price` | What are current US, JP, and DE prices, discount state, and optional ITAD history? A selected price review also records a Pricing Decision Trace for primary objective, base price, and launch-offer feasibility; none of these prove conversion. | Inventing past trends from a current price |
 | `localization` | What do requested-locale copy, target-language reviews, and game captures show? | Treating a supported-language list as translation quality |
 | `competition` | Which games match the player action, system response, reward, audience, freshness, and market role? | Selecting by one tag, one review percentage, or one old hit |
 

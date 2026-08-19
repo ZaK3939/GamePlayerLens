@@ -262,7 +262,7 @@ Steamworksの`Marketing & Visibility > Traffic Breakdown`でplacement別impressi
 | `launch` | price/package、release checklist、support、measurement plan | blocking defect、rollback不能 |
 | `post-launch` | observed player problem、update hypothesis、success / guardrail | cadenceや競合模倣だけで更新 |
 
-current gateが`store-reveal`、`release-date`、`launch`なら`steam-release-readiness.md`も読み、player / market readinessとは別に`Steam Release Readiness`を作ります。onboarding、app credit、Store Presence、Game Build、Coming Soon、pricing、permissions、manual releaseを順序付きで確認し、公式ruleのURLとaccessedAt、各gateのevidence status、earliest completionを残します。Steamworks未接続時のdeveloper申告はreportedであり、承認済みやliveとして観測したことにしません。
+current gateが`store-reveal`、`release-date`、`launch`なら`steam-release-readiness.md`も読み、player / market readinessとは別に`Steam Release Readiness`をSelectedとして出します。metadata（Status、Earliest release date、Blocking gate、Official rules checked at）のあと、次の7 gateをこの順で必ず全部書きます: Onboarding / app credit、App configuration、Store Presence、Game Build、Coming Soon、Pricing / launch offer、Manual release。列は`Gate | Current status | Evidence status / ID | Official source | Date / earliest completion | Owner | Next action`です。30-day fee waitとComing Soon two-week minimumはgate 1とgate 5のdate mathであり、独立gateや別blocking enumにしません。それ以外では見出しと1行の`適用外:`理由だけを残し、tableは不要です。Steamworks未接続時のdeveloper申告はreportedであり、observedにしません。
 
 Steam Next Festは現行の公式Steamworks要件を毎回確認します。公式documentationではNext Festは1作品につき1回だけで、公開store pageと公開demoなどのeligibilityがあります。日付やdeadlineを記憶で固定せず、[Steam Next Fest](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest)と[Upcoming Steam Events](https://partner.steamgames.com/doc/marketing/upcoming_events)を実行時に確認します。
 
@@ -343,7 +343,7 @@ platform fee、refund、taxを固定値で一律計算しません。法域、�
 11. Promise-Delivery Trace: promiseとbuild momentの対応。
 12. Funnel Health: exposureからretained playまでのstatusと欠損。
 13. Milestone Readiness: current gate、pass / blocked、必要な最小証拠。
-14. Steam Release Readiness: store-reveal / release-date / launch時の順序付きplatform gate、earliest date、公式source / accessedAt。その他はN/A理由。
+14. Steam Release Readiness: current gateが`store-reveal` / `release-date` / `launch`ならSelected table（Onboarding / app credit、App configuration、Store Presence、Game Build、Coming Soon、Pricing / launch offer、Manual release）。earliest date、公式source / accessedAtを残す。それ以外は見出しと`適用外:`理由。
 15. Capability Reinvestment Gate: bottleneck、Evidence ID、capacity / runway、reversible next step、expansion trigger。
 16. Repair Backlog: blocking failure、Evidence ID、owner surface、復旧gate、維持contract。Experimentと分離する。
 17. Experiment Queue: 最大3件、primary metric、source、guardrail付き。

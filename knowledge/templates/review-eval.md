@@ -247,19 +247,24 @@ cohort集計はboundedな問題発見用です。同じparticipantの再参加�
 
 ### Steam Release Readiness
 
-- Status: ［Selected / N/A。`store-reveal / release-date / launch`判断でSelected］
-- Earliest release date: ［確認済み日付 / unresolved］
-- Blocking gate: ［onboarding / app fee wait / Store Presence / Game Build / Coming Soon / pricing / permissions / release control / none］
+`store-reveal` / `release-date` / `launch`では Status: Selected とし、次の metadata と 7 行表を出します。それ以外は Status: N/A と理由だけを残し、表は出しません。
+
+- Status: ［Selected / N/A］
+- Earliest release date: ［verified YYYY-MM-DD / unresolved］
+- Blocking gate: ［表の Gate 名 / none］
 - Official rules checked at: ［Steamworks URL + accessedAt］
 
-| Gate | Required state | Current status | Evidence / source | Earliest completion | Owner / next action |
-|---|---|---|---|---|---|
-| Onboarding / app credit | ［official current requirement］ | ［not-started / blocked / ready / N/A］ | ［manual evidence / URL］ | ［date / unresolved］ | ［action］ |
-| Store Presence | ［checklist、review］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
-| Game Build | ［depot、branch、review］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
-| Coming Soon | ［official current minimum］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
-| Pricing / launch discount | ［approved、rule-valid］ | ［status］ | ［Pricing Decision Trace / official rule］ | ［date］ | ［action］ |
-| Manual release | ［permissions、release control］ | ［status］ | ［evidence］ | ［date］ | ［action］ |
+Current status: `not-started` / `blocked` / `submitted` / `changes-requested` / `approved` / `live` / `N/A`。Evidence status / ID: `observed` / `reported` / `missing` + `E-###`。Owner: role / `unassigned`。Next action: 一つ。Blocking gate は下表の Gate 名または `none` です。
+
+| Gate | Current status | Evidence status / ID | Official source | Date / earliest completion | Owner | Next action |
+|---|---|---|---|---|---|---|
+| Onboarding / app credit | ［token］ | ［observed / reported / missing + E-###］ | ［Steamworks URL］ | ［YYYY-MM-DD / unresolved］ | ［role / unassigned］ | ［一つ］ |
+| App configuration | ［token］ | ［同上］ | ［同上］ | ［同上］ | ［同上］ | ［一つ］ |
+| Store Presence | ［token］ | ［同上］ | ［同上］ | ［同上］ | ［同上］ | ［一つ］ |
+| Game Build | ［token］ | ［同上］ | ［同上］ | ［同上］ | ［同上］ | ［一つ］ |
+| Coming Soon | ［token］ | ［同上］ | ［同上］ | ［同上］ | ［同上］ | ［一つ］ |
+| Pricing / launch offer | ［token］ | ［同上］ | ［同上］ | ［同上］ | ［同上］ | ［一つ］ |
+| Manual release | ［token］ | ［同上］ | ［同上］ | ［同上］ | ［同上］ | ［一つ］ |
 
 ### Capability Reinvestment Gate
 
@@ -438,15 +443,36 @@ polarity-balanced persona sample（balanced sample）は問題発見用であり
 ### 価格
 
 - Status: ［Selected / N/A と理由］
-- Mode result: ［現状の地域別価格、値引き幅、価格期待、購入タイミング / change の場合は現状 vs 変更案］
+- Mode result: ［primary objective、platform feasibility、value / quality signal 仮説。baseline は現状だけ、change は現状 vs 変更案。安いほど販売が増える、高いほど品質が高い、とは断定しない］
 - ペルソナ反応: ［price_sensitivity と voice 出典］
 - 根拠: ［`steam_fetch` / `steam_timeline` の Evidence ID。なければ「根拠不足」］
 
 #### Pricing Decision Trace
 
-| primary objective | base price / package / region | launch discount / post-offer price | value and quality signal hypothesis | matched evidence | success signal / window | guardrail | revisit condition |
-|---|---|---|---|---|---|---|---|
-| ［net revenue / paid reach / qualified feedback / positioningから1つ］ | ［current → proposal］ | ［noneまたは率・期間・終了後価格］ | ［検証対象。断定しない］ | ［競合 / player response / official Steamworks ruleのEvidence IDs］ | ［目的へ直結する1指標 / 期間］ | ［refund、net revenue、value trust等］ | ［どの観測で見直すか］ |
+Selected Domains に `price` が含まれるときだけ、次の scan-first カードを出します。price が N/A なら表は出しません。
+
+- Primary objective: ［`net-revenue` / `paid-reach` / `qualified-feedback` / `positioning`から1つ］
+- Platform feasibility: ［`rule-valid` / `rule-invalid` / `not-steam` / `unresolved`］
+
+| Field | Value |
+|---|---|
+| primary objective | ［`net-revenue` / `paid-reach` / `qualified-feedback` / `positioning`から1つ］ |
+| other objectives | ［none、または guardrail に置く目的名。第二の success metric にしない］ |
+| base price | ［金額 + 通貨。change は `current → proposal`］ |
+| package / edition | ［named package］ |
+| region | ［ISO / Steam region set］ |
+| launch discount | ［`none`、または率 + 期間。Steam launch なら 10–40% / 7–14 days かつ rule-valid］ |
+| post-offer price | ［offer 後に維持する bona fide base］ |
+| value / quality signal | ［labeled hypothesis。事実にしない］ |
+| matched competitor evidence | ［E-### / missing］ |
+| matched player-response evidence | ［E-### / missing］ |
+| official rules checked at | ［Steamworks URL + accessedAt、または N/A と理由］ |
+| success signal | ［primary objective へ直結する指標1つ］ |
+| observation window | ［cohort + dates］ |
+| guardrail | ［停止条件1つ］ |
+| revisit condition | ［どの観測で判断を更新するか］ |
+
+安いほど販売が増える、複数目的を一つの success signal に混ぜる、rule-invalid な Steam launch offer を推奨する、単一 developer 逸話を市場証明にする、はいずれも禁止です。
 
 ### ローカライズ
 

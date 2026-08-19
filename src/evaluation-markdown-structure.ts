@@ -4,6 +4,10 @@ export interface EvaluationHeading {
   line: number;
 }
 
+export function canonicalToken(value: string): string {
+  return value.trim().replaceAll("`", "").trim().split(/[\s:：—–]/u)[0]?.trim() ?? "";
+}
+
 export function evaluationHeadings(lines: string[]): EvaluationHeading[] {
   const headings: EvaluationHeading[] = [];
   let fence: "`" | "~" | undefined;
