@@ -11,7 +11,7 @@ Do not ask for a general verdict on the whole game. Choose the next decision tha
 - Should the team build the next content wave or repair the current slice?
 - Does a proposed UI change improve one concrete player task?
 
-Start with `play_build` when a playable URL exists. Use `review_change` for one explicit current-to-proposed revision after both sides have useful evidence. Use `audit_project` only for the current milestone as a whole. The workflow name fixes the mode; callers do not pass a `mode` argument.
+Start with `play_build` when a playable URL exists and the next change is still unknown. Use `improve_build` when the developer explicitly authorizes one bounded source change and same-task replay. Use `review_change` for one explicit current-to-proposed revision after both sides have useful evidence. Use `audit_project` only for the current milestone as a whole. The workflow name fixes the mode; callers do not pass a `mode` argument.
 
 ## Operation-first daily loop
 
@@ -37,6 +37,12 @@ Use `playerLensMode=neutral` without persona IDs for observation only. Use `play
 When operation produces a local PNG or JPEG, call `save_capture` with either `source.kind=project-file` and a path relative to the game project root, or `source.kind=base64`. The image is fully decoded, then bound to a create-only manifest containing its format, dimensions, size, and SHA-256. The result is immutable capture evidence that can be cited by player-panel and audit evidence references. Obscura is needed only when GamePlayerLens itself must acquire a page image; it is not required to preserve an image the caller already captured. Set `GAME_PLAYER_LENS_PROJECT_ROOT` in the MCP environment when its process working directory is not the game repository.
 
 If the client cannot operate the build, it reports an operation blocker. Loading a page, reading source, or viewing one static frame is not play.
+
+### Make and verify one bounded improvement
+
+`improve_build` closes the gap between a Build Handoff and a verified candidate. Supply the same operation fields plus one observable `successSignal`, `successSignalKind`, `regressionGuardrail`, and `regressionGuardrailKind`. Observable kinds are `visible-state`, `input-response`, `state-transition`, `audio-response`, and `error-recovery`. A signal that depends on fun, comprehension, preference, intent, demand, retention, or another human state must be replaced before editing. The workflow inspects the current repository, operates the baseline, changes at most one player-facing variable, runs focused checks, and replays the same task. It classifies the result as `improved`, `unchanged`, `regressed`, or `blocked`.
+
+The call authorizes only that bounded repository edit. It does not authorize dependency changes, commits, pushes, releases, external messages, Steam or persona research, or a second attempt. Completed comparisons call `record_improvement` with separate exact-saved baseline/candidate evidence, build IDs, the unchanged Git commit SHA, before/after working-tree diff hashes, the isolated change-diff hash, changed files, the matched protocol, and a concise explanation of how replay conditions stayed constant. Each side requires its own time-stamped `improvement-operation-trace` intel payload containing the build ID, compact Action → Response trace, success-signal observation, and guardrail observation. Those values must exactly match the canonical comparison; screenshots are supplemental. The server derives the final classification from the success-signal comparison and guardrail result, and derives the record time from the candidate operation. Exact-save the returned handle with `save_result`. Stored evidence bytes are verified; source identities and interpretations remain caller-supplied and are not independently inferred from an external build or the evidence content. Use `play_build` instead when the task is observational or the likely change is not yet narrow enough.
 
 ### Deliver the next build
 

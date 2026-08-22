@@ -43,7 +43,7 @@ describe("packaged CLI data home", () => {
       ok: true,
       command: "doctor",
       node: {version: "v24.7.0", minimumMajor: 22, supported: true},
-      server: {name: "game-player-lens", version: "0.6.1"},
+      server: {name: "game-player-lens", version: "0.7.0"},
       storage: {
         location: "external-data-home",
         instanceId: expect.stringMatching(/^storage-[a-f0-9]{16}$/),
@@ -61,9 +61,9 @@ describe("packaged CLI data home", () => {
         },
       },
       capabilities: {
-        toolCount: 30,
-        workflowToolCount: 5,
-        promptShortcutCount: 5,
+        toolCount: 32,
+        workflowToolCount: 6,
+        promptShortcutCount: 6,
       },
       documentation: {
         listCommand: "game-player-lens docs list",

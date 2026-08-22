@@ -1,6 +1,6 @@
 {
   "name": "game-player-lens",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Operation-first review-grounded virtual-player and evidence-review MCP server",
   "private": false,
   "type": "module",

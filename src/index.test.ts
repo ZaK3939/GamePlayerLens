@@ -483,7 +483,7 @@ function playerSimulation(recommendationId: string) {
 }
 
 describe("MCP server contract", () => {
-  it("exposes exactly thirty tools and five review prompts", async () => {
+  it("exposes exactly thirty-two tools and six workflow prompts", async () => {
     const {client, server} = await createHarness();
     try {
       expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual([
@@ -494,9 +494,11 @@ describe("MCP server contract", () => {
         "get_artifact",
         "get_knowledge",
         "get_status",
+        "improve_build",
         "legal_source_plan",
         "play_build",
         "record_first_contact",
+        "record_improvement",
         "record_player_panel",
         "report_agent_experience",
         "review_change",
@@ -521,6 +523,7 @@ describe("MCP server contract", () => {
       expect((await client.listPrompts()).prompts.map((prompt) => prompt.name).sort()).toEqual([
         "audit-game-legal",
         "audit-project",
+        "improve-build",
         "play-build",
         "review-change",
         "ui-blind-compare",
@@ -640,7 +643,7 @@ describe("MCP server contract", () => {
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({
         data: {
-          server: {name: "game-player-lens", version: "0.6.1"},
+          server: {name: "game-player-lens", version: "0.7.0"},
           storage: {
             location: "repository-root",
             instanceId: expect.stringMatching(/^storage-[a-f0-9]{16}$/),
@@ -658,9 +661,9 @@ describe("MCP server contract", () => {
             },
           },
           capabilities: {
-            toolCount: 30,
-            workflowToolCount: 5,
-            promptShortcutCount: 5,
+            toolCount: 32,
+            workflowToolCount: 6,
+            promptShortcutCount: 6,
           },
         },
         warnings: [],
@@ -754,7 +757,7 @@ describe("MCP server contract", () => {
       expect(first.structuredContent?.data).toMatchObject({
         record: {
           artifactType: "agent-experience-feedback",
-          productVersion: "0.6.1",
+          productVersion: "0.7.0",
           sessionId: "mcp-session-a",
         },
         artifact: {sourceTool: "report_agent_experience"},
@@ -1557,7 +1560,7 @@ describe("MCP server contract", () => {
     const {client, server} = await createHarness();
     try {
       const tools = (await client.listTools()).tools;
-      expect(tools).toHaveLength(30);
+      expect(tools).toHaveLength(32);
       for (const tool of tools) {
         expect(tool.outputSchema?.properties).toEqual(expect.objectContaining({
           data: expect.any(Object),
@@ -3214,6 +3217,26 @@ describe("MCP server contract", () => {
         "knownBlockers",
       ]);
 
+      const improveBuild = prompts.find((prompt) => prompt.name === "improve-build")!;
+      expect(improveBuild.arguments?.filter((argument) => argument.required).map((argument) => argument.name))
+        .toEqual(["target"]);
+      expect(improveBuild.arguments?.map((argument) => argument.name)).toEqual([
+        "target",
+        "buildUrl",
+        "buildId",
+        "task",
+        "controls",
+        "startState",
+        "endState",
+        "successSignal",
+        "successSignalKind",
+        "regressionGuardrail",
+        "regressionGuardrailKind",
+        "coreClaim",
+        "timeLimitMinutes",
+        "knownBlockers",
+      ]);
+
       const change = prompts.find((prompt) => prompt.name === "review-change")!;
       expect(change.arguments?.filter((argument) => argument.required).map((argument) => argument.name))
         .toEqual(["target", "topic"]);
@@ -3265,6 +3288,7 @@ describe("MCP server contract", () => {
     try {
       const tools = (await client.listTools()).tools.map(({name}) => name);
       expect(tools).toEqual(expect.arrayContaining([
+        "improve_build",
         "play_build",
         "review_change",
         "audit_project",
@@ -3291,6 +3315,172 @@ describe("MCP server contract", () => {
       expect(tool.structuredContent).toMatchObject({
         data: {workflow: "play-build", instructions: promptContent.text},
         warnings: [],
+      });
+
+      const improveArguments = {
+        ...arguments_,
+        successSignal: "The first result names the action that caused it",
+        successSignalKind: "visible-state",
+        regressionGuardrail: "Restart remains available from the result screen",
+        regressionGuardrailKind: "input-response",
+      };
+      const improvePrompt = await client.getPrompt({
+        name: "improve-build",
+        arguments: improveArguments,
+      });
+      const improveContent = improvePrompt.messages[0]?.content;
+      if (improveContent?.type !== "text") {
+        throw new Error("improve-build prompt did not return text");
+      }
+      const improveTool = await client.callTool({
+        name: "improve_build",
+        arguments: improveArguments,
+      });
+      expect(improveTool.isError).not.toBe(true);
+      expect(improveTool.content[0]).toEqual({type: "text", text: improveContent.text});
+      expect(improveTool.structuredContent).toMatchObject({
+        data: {workflow: "improve-build", instructions: improveContent.text},
+        warnings: [],
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("records and exact-saves a hash-bound matched improvement", async () => {
+    const {client, server} = await createHarness();
+    try {
+      const tool = (await client.listTools()).tools.find(({name}) => name === "record_improvement");
+      const inputSchema = tool?.inputSchema as Record<string, unknown>;
+      expect(inputSchema.required).toEqual(expect.arrayContaining([
+        "baseline",
+        "candidate",
+        "conditionsHeldConstantEvidence",
+        "successSignalResult",
+        "regressionGuardrailStatus",
+      ]));
+      expect(inputSchema.properties).not.toHaveProperty("classification");
+      expect(inputSchema.properties).not.toHaveProperty("observedAt");
+      expect(schemaProperty(inputSchema, "conditionsHeldConstantEvidence")).toMatchObject({
+        description: expect.stringContaining("replay conditions"),
+      });
+
+      await client.callTool({
+        name: "save_intel",
+        arguments: {
+          target: "Project Nyx",
+          id: "improvement-before",
+          sourceTool: "manual",
+          observedAt: "2026-08-22T17:20:00+04:00",
+          payload: {
+            artifactType: "improvement-operation-trace",
+            buildId: "nyx-044-baseline",
+            actionResponseTrace: "Submit delivery → result opens → failed joint is omitted",
+            successSignalObservation: "The failed joint is not named",
+            regressionGuardrailObservation: "Restart remains available",
+          },
+        },
+      });
+      await client.callTool({
+        name: "save_intel",
+        arguments: {
+          target: "Project Nyx",
+          id: "improvement-after",
+          sourceTool: "manual",
+          observedAt: "2026-08-22T17:30:00+04:00",
+          payload: {
+            artifactType: "improvement-operation-trace",
+            buildId: "nyx-044-candidate",
+            actionResponseTrace: "Submit delivery → result opens → failed joint is named",
+            successSignalObservation: "The failed joint is named",
+            regressionGuardrailObservation: "Restart remains available",
+          },
+        },
+      });
+
+      const recorded = await client.callTool({
+        name: "record_improvement",
+        arguments: {
+          target: "Project Nyx",
+          task: "Complete one delivery and read the result",
+          controls: "Keyboard and mouse",
+          startState: "At the dock before construction",
+          endState: "The arrival result is visible",
+          executionEnvironment: "Local Chromium at 1440x900",
+          successSignal: "The result names the failed joint",
+          successSignalKind: "visible-state",
+          regressionGuardrail: "Restart remains available",
+          regressionGuardrailKind: "input-response",
+          baseline: {
+            buildId: "nyx-044-baseline",
+            operatedAt: "2026-08-22T17:20:00+04:00",
+            gitCommitSha: "1".repeat(40),
+            workingTreeDiffSha256: "2".repeat(64),
+            actionResponseTrace: "Submit delivery → result opens → failed joint is omitted",
+            successSignalObservation: "The failed joint is not named",
+            regressionGuardrailObservation: "Restart remains available",
+            evidence: [{
+              ref: "before",
+              kind: "intel",
+              target: "Project Nyx",
+              id: "improvement-before",
+            }],
+          },
+          candidate: {
+            buildId: "nyx-044-candidate",
+            operatedAt: "2026-08-22T17:30:00+04:00",
+            gitCommitSha: "1".repeat(40),
+            workingTreeDiffSha256: "3".repeat(64),
+            actionResponseTrace: "Submit delivery → result opens → failed joint is named",
+            successSignalObservation: "The failed joint is named",
+            regressionGuardrailObservation: "Restart remains available",
+            evidence: [{
+              ref: "after",
+              kind: "intel",
+              target: "Project Nyx",
+              id: "improvement-after",
+            }],
+          },
+          changedFiles: ["src/result-panel.ts"],
+          changeDiffSha256: "4".repeat(64),
+          conditionsHeldConstant: true,
+          conditionsHeldConstantEvidence: "Same browser, viewport, controls, start state, and task",
+          successSignalResult: "improved",
+          regressionGuardrailStatus: "held",
+        },
+      });
+      expect(recorded.isError).not.toBe(true);
+      expect(recorded.structuredContent).toMatchObject({
+        data: {
+          artifactType: "improvement-record",
+          classification: "improved",
+          baseline: {
+            actionResponseTrace: expect.stringContaining("failed joint is omitted"),
+            evidence: [{ref: "before", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}],
+          },
+          candidate: {
+            actionResponseTrace: expect.stringContaining("failed joint is named"),
+            evidence: [{ref: "after", sha256: expect.stringMatching(/^[a-f0-9]{64}$/)}],
+          },
+        },
+        meta: {resultHandle: expect.any(String)},
+      });
+      const resultHandle = (recorded.structuredContent as {
+        meta?: {resultHandle?: string};
+      }).meta?.resultHandle;
+      if (!resultHandle) throw new Error("record_improvement returned no result handle");
+      const saved = await client.callTool({
+        name: "save_result",
+        arguments: {
+          target: "Project Nyx",
+          id: "verified-improvement-044",
+          resultHandle,
+        },
+      });
+      expect(saved.isError).not.toBe(true);
+      expect(saved.structuredContent).toMatchObject({
+        data: {sourceTool: "record_improvement"},
       });
     } finally {
       await client.close();

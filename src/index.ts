@@ -23,6 +23,10 @@ import {
 } from "./mcp-responses.js";
 import {LegalSourcePlanInputSchema} from "./legal.js";
 import {
+  buildImprovementRecord,
+  ImprovementRecordInputSchema,
+} from "./improvement-record.js";
+import {
   GameLegalAuditPromptArgumentsSchema,
 } from "./legal-prompt.js";
 import {buildIterationCoachHistory} from "./iteration-coach.js";
@@ -44,6 +48,7 @@ import {
 } from "./personas.js";
 import {
   AuditProjectPromptArgumentsSchema,
+  ImproveBuildPromptArgumentsSchema,
   ReviewChangePromptArgumentsSchema,
   PlayBuildPromptArgumentsSchema,
   UiBlindComparePromptArgumentsSchema,
@@ -338,6 +343,31 @@ export function buildServer(
           data: record,
           warnings: [],
           meta: {observedAt: record.testedAt},
+        },
+      );
+    },
+  );
+
+  server.registerTool(
+    "record_improvement",
+    {
+      title: "Record one matched build improvement",
+      description: "Verify matched improvement-operation-trace intel, hash-bind baseline and candidate evidence and source identities, then derive the replay classification",
+      inputSchema: ImprovementRecordInputSchema,
+      outputSchema: ResultEnvelopeSchema,
+    },
+    async (input) => {
+      const record = await buildImprovementRecord(
+        input,
+        services.runStore.resolveEvidence,
+      );
+      return trackedJsonEnvelope(
+        services.resultStore,
+        "record_improvement",
+        {
+          data: record,
+          warnings: [],
+          meta: {observedAt: record.observedAt},
         },
       );
     },
@@ -679,6 +709,26 @@ export function buildServer(
   } as const;
 
   server.registerTool(
+    "improve_build",
+    {
+      title: "Improve one bounded game behavior",
+      description: "Operate one build task, make one bounded source change, and replay the same task to classify the result",
+      inputSchema: ImproveBuildPromptArgumentsSchema,
+      outputSchema: ResultEnvelopeSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (input) => workflowEnvelope(
+      "improve-build",
+      await workflows.improveBuild(input),
+    ),
+  );
+
+  server.registerTool(
     "play_build",
     {
       title: "Operate one bounded game build task",
@@ -742,6 +792,23 @@ export function buildServer(
       "audit-game-legal",
       await workflows.auditGameLegal(input),
     ),
+  );
+
+  server.registerPrompt(
+    "improve-build",
+    {
+      description: "Operate, change, and replay one bounded game behavior with an explicit success signal and regression guardrail",
+      argsSchema: ImproveBuildPromptArgumentsSchema,
+    },
+    async (arguments_) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: await workflows.improveBuild(arguments_),
+        },
+      }],
+    }),
   );
 
   server.registerPrompt(

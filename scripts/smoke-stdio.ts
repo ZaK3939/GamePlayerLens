@@ -17,9 +17,11 @@ const EXPECTED_TOOLS = [
   "get_artifact",
   "get_knowledge",
   "get_status",
+  "improve_build",
   "legal_source_plan",
   "play_build",
   "record_first_contact",
+  "record_improvement",
   "record_player_panel",
   "report_agent_experience",
   "review_change",
@@ -44,6 +46,7 @@ const EXPECTED_TOOLS = [
 const EXPECTED_PROMPTS = [
   "audit-game-legal",
   "audit-project",
+  "improve-build",
   "play-build",
   "review-change",
   "ui-blind-compare",
@@ -90,6 +93,22 @@ const EXPECTED_PLAY_BUILD_ARGUMENTS = [
   "timeLimitMinutes",
   "playerLensMode",
   "personaIds",
+  "knownBlockers",
+];
+const EXPECTED_IMPROVE_BUILD_ARGUMENTS = [
+  "target",
+  "buildUrl",
+  "buildId",
+  "task",
+  "controls",
+  "startState",
+  "endState",
+  "successSignal",
+  "successSignalKind",
+  "regressionGuardrail",
+  "regressionGuardrailKind",
+  "coreClaim",
+  "timeLimitMinutes",
   "knownBlockers",
 ];
 
@@ -163,10 +182,10 @@ try {
     statusJson.includes('"location":"repository-root"')
       && statusJson.includes('"publicationReady":true')
       && statusJson.includes('"publicationPrimitive":"create-flush-link-read-cleanup"')
-      && statusJson.includes('"toolCount":30')
+      && statusJson.includes('"toolCount":32')
       && statusJson.includes('"instanceId":"storage-')
-      && statusJson.includes('"workflowToolCount":5')
-      && statusJson.includes('"promptShortcutCount":5')
+      && statusJson.includes('"workflowToolCount":6')
+      && statusJson.includes('"promptShortcutCount":6')
       && !statusJson.includes(repositoryRoot),
     "get_status did not return safe repository readiness metadata",
   );
@@ -283,6 +302,13 @@ try {
     JSON.stringify(playBuild.arguments?.map((argument) => argument.name))
       === JSON.stringify(EXPECTED_PLAY_BUILD_ARGUMENTS),
     "unexpected play-build prompt argument schema",
+  );
+  const improveBuild = listedPrompts.find((prompt) => prompt.name === "improve-build");
+  assert(improveBuild !== undefined, "improve-build prompt is missing");
+  assert(
+    JSON.stringify(improveBuild.arguments?.map((argument) => argument.name))
+      === JSON.stringify(EXPECTED_IMPROVE_BUILD_ARGUMENTS),
+    "unexpected improve-build prompt argument schema",
   );
   const repairPrompt = await client.getPrompt({
     name: "play-build",

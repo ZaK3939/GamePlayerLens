@@ -17,7 +17,7 @@ describe("development workflow routing", () => {
     })).toEqual({
       route: "repair-first",
       reason: "A declared execution blocker already prevents a useful player probe.",
-      nextAction: "Repair the declared blockers, produce a new playable build, and then run play-build.",
+      nextAction: "Repair only the first declared blocker, produce a new playable build, and then run play-build.",
       reentryCondition: "A new build can execute the bounded player task without the declared blockers.",
       allowedActions: ["inspect-declared-blockers", "repair-build", "run-focused-regression"],
       blockedActions: ["operate-build", "steam-research", "persona-derivation", "full-audit", "artifact-save"],
@@ -32,6 +32,37 @@ describe("development workflow routing", () => {
       route: "play-build",
       allowedActions: ["operate-build", "read-explicit-personas", "capture-observations"],
       blockedActions: ["steam-research", "persona-derivation", "full-audit", "mandatory-artifact-save"],
+    });
+  });
+
+  it("routes one authorized improvement separately from an observation-only probe", () => {
+    expect(routeDevelopmentWorkflow({
+      requestedWorkflow: "improve-build",
+      knownBlockers: [],
+    })).toMatchObject({
+      route: "improve-build",
+      allowedActions: [
+        "inspect-current-repository",
+        "operate-baseline",
+        "edit-one-player-facing-variable",
+        "run-focused-checks",
+        "replay-same-task",
+      ],
+      blockedActions: expect.arrayContaining([
+        "dependency-change",
+        "commit-or-push",
+        "second-improvement-attempt",
+      ]),
+    });
+  });
+
+  it("returns a blocked improvement to improve-build after repair", () => {
+    expect(routeDevelopmentWorkflow({
+      requestedWorkflow: "improve-build",
+      knownBlockers: ["The build does not start"],
+    })).toMatchObject({
+      route: "repair-first",
+      nextAction: expect.stringContaining("run improve-build"),
     });
   });
 });

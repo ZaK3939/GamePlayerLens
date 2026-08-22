@@ -54,6 +54,7 @@ export const SourceToolSchema = z.enum([
   "derive_personas",
   "record_first_contact",
   "record_player_panel",
+  "record_improvement",
   "report_agent_experience",
   "ui_capture",
   "manual",

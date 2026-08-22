@@ -133,9 +133,9 @@ const doctorReport = JSON.parse(doctorProcess.stdout) as {
 assert(
   doctorReport.ok === true
     && doctorReport.storage?.publicationReady === true
-    && doctorReport.capabilities?.toolCount === 30
-    && doctorReport.capabilities.workflowToolCount === 5
-    && doctorReport.capabilities.promptShortcutCount === 5
+    && doctorReport.capabilities?.toolCount === 32
+    && doctorReport.capabilities.workflowToolCount === 6
+    && doctorReport.capabilities.promptShortcutCount === 6
     && !doctorProcess.stdout.includes(dataRoot),
   "packaged CLI doctor did not report safe readiness metadata",
 );
@@ -164,7 +164,7 @@ assert(
 const versionArguments = cliArgument ? ["--version"] : [cliPath, "--version"];
 const versionProcess = await execFileAsync(doctorCommand, versionArguments, {cwd: foreignCwd});
 assert(
-  versionProcess.stdout.includes("game-player-lens 0.6.1")
+  versionProcess.stdout.includes("game-player-lens 0.7.0")
     && versionProcess.stdout.includes("game-player-lens docs list"),
   "packaged CLI version output did not include its version and agent documentation route",
 );
@@ -194,17 +194,19 @@ let iterationCoachRoundTrip = false;
 let legalAuditRoundTrip = false;
 let playerPanelRoundTrip = false;
 let agentFeedbackRoundTrip = false;
+let improvementRecordRoundTrip = false;
 try {
   await client.connect(transport);
   connected = true;
   const tools = (await client.listTools()).tools;
   const prompts = (await client.listPrompts()).prompts;
-  assert(tools.length === 30, "packaged CLI did not expose thirty tools");
+  assert(tools.length === 32, "packaged CLI did not expose thirty-two tools");
   assert(
     JSON.stringify(prompts.map((prompt) => prompt.name).sort())
       === JSON.stringify([
         "audit-game-legal",
         "audit-project",
+        "improve-build",
         "play-build",
         "review-change",
         "ui-blind-compare",
@@ -223,12 +225,12 @@ try {
       && statusJson.includes('"writable":true')
       && statusJson.includes('"publicationReady":true')
       && statusJson.includes('"publicationPrimitive":"create-flush-link-read-cleanup"')
-      && statusJson.includes('"toolCount":30')
+      && statusJson.includes('"toolCount":32')
       && statusJson.includes('"instanceId":"storage-')
       && statusJson.includes('"localCaptureImport":{"available":true')
       && statusData?.storage?.instanceId === doctorReport.storage?.instanceId
-      && statusJson.includes('"workflowToolCount":5')
-      && statusJson.includes('"promptShortcutCount":5')
+      && statusJson.includes('"workflowToolCount":6')
+      && statusJson.includes('"promptShortcutCount":6')
       && !statusJson.includes(dataRoot)
       && !(process.env.ITAD_API_KEY?.trim()
         && statusJson.includes(process.env.ITAD_API_KEY))
@@ -453,6 +455,142 @@ try {
       && repairToolData.instructions === repairContent.text,
     "packaged agent-callable play_build diverged from its prompt shortcut",
   );
+
+  const improveArguments = {
+    target: "Package Improvement Fixture",
+    buildUrl: "http://127.0.0.1:4173/play",
+    buildId: "improve-001",
+    task: "Complete one delivery and read the result",
+    controls: "Keyboard and mouse",
+    startState: "At the dock before construction",
+    endState: "The arrival result is visible",
+    successSignal: "The result names the failed joint",
+    successSignalKind: "visible-state",
+    regressionGuardrail: "Restart remains available",
+    regressionGuardrailKind: "input-response",
+  };
+  const improvePrompt = await client.getPrompt({
+    name: "improve-build",
+    arguments: improveArguments,
+  });
+  const improveContent = improvePrompt.messages[0]?.content;
+  assert(
+    improveContent?.type === "text"
+      && improveContent.text.includes("Improve build — one evidence-backed change")
+      && improveContent.text.includes('"status": "ready"')
+      && improveContent.text.includes('"attempts": 1'),
+    "packaged improve-build did not return its bounded ready workflow",
+  );
+  const improveTool = await client.callTool({
+    name: "improve_build",
+    arguments: improveArguments,
+  });
+  const improveToolData = improveTool.structuredContent?.data as {
+    workflow?: unknown;
+    instructions?: unknown;
+  } | undefined;
+  assert(
+    improveTool.isError !== true
+      && improveToolData?.workflow === "improve-build"
+      && improveToolData.instructions === improveContent.text,
+    "packaged agent-callable improve_build diverged from its prompt shortcut",
+  );
+
+  for (const [id, observedAt, payload] of [
+    ["package-improvement-before", "2026-08-22T17:30:00+04:00", {
+      artifactType: "improvement-operation-trace",
+      buildId: "improve-001-baseline",
+      actionResponseTrace: "Submit delivery → result opens → failed joint is omitted",
+      successSignalObservation: "The failed joint is not named",
+      regressionGuardrailObservation: "Restart remains available",
+    }],
+    ["package-improvement-after", "2026-08-22T17:31:00+04:00", {
+      artifactType: "improvement-operation-trace",
+      buildId: "improve-001-candidate",
+      actionResponseTrace: "Submit delivery → result opens → failed joint is named",
+      successSignalObservation: "The failed joint is named",
+      regressionGuardrailObservation: "Restart remains available",
+    }],
+  ] as const) {
+    const savedTrace = await client.callTool({
+      name: "save_intel",
+      arguments: {
+        target: "Package Improvement Fixture",
+        id,
+        sourceTool: "manual",
+        observedAt,
+        payload,
+      },
+    });
+    assert(savedTrace.isError !== true, `packaged improvement trace save failed: ${id}`);
+  }
+  const improvementRecord = await client.callTool({
+    name: "record_improvement",
+    arguments: {
+      target: "Package Improvement Fixture",
+      task: improveArguments.task,
+      controls: improveArguments.controls,
+      startState: improveArguments.startState,
+      endState: improveArguments.endState,
+      executionEnvironment: "Package smoke Chromium fixture",
+      successSignal: improveArguments.successSignal,
+      successSignalKind: improveArguments.successSignalKind,
+      regressionGuardrail: improveArguments.regressionGuardrail,
+      regressionGuardrailKind: improveArguments.regressionGuardrailKind,
+      baseline: {
+        buildId: "improve-001-baseline",
+        operatedAt: "2026-08-22T17:30:00+04:00",
+        gitCommitSha: "1".repeat(40),
+        workingTreeDiffSha256: "2".repeat(64),
+        actionResponseTrace: "Submit delivery → result opens → failed joint is omitted",
+        successSignalObservation: "The failed joint is not named",
+        regressionGuardrailObservation: "Restart remains available",
+        evidence: [{
+          ref: "before",
+          kind: "intel",
+          target: "Package Improvement Fixture",
+          id: "package-improvement-before",
+        }],
+      },
+      candidate: {
+        buildId: "improve-001-candidate",
+        operatedAt: "2026-08-22T17:31:00+04:00",
+        gitCommitSha: "1".repeat(40),
+        workingTreeDiffSha256: "3".repeat(64),
+        actionResponseTrace: "Submit delivery → result opens → failed joint is named",
+        successSignalObservation: "The failed joint is named",
+        regressionGuardrailObservation: "Restart remains available",
+        evidence: [{
+          ref: "after",
+          kind: "intel",
+          target: "Package Improvement Fixture",
+          id: "package-improvement-after",
+        }],
+      },
+      changedFiles: ["src/result-panel.ts"],
+      changeDiffSha256: "4".repeat(64),
+      conditionsHeldConstant: true,
+      conditionsHeldConstantEvidence: "Same browser, viewport, controls, start state, and task",
+      successSignalResult: "improved",
+      regressionGuardrailStatus: "held",
+    },
+  });
+  const improvementData = improvementRecord.structuredContent?.data as {
+    artifactType?: unknown;
+    baseline?: {actionResponseTrace?: unknown; evidence?: Array<{sha256?: unknown}>};
+    candidate?: {actionResponseTrace?: unknown; evidence?: Array<{sha256?: unknown}>};
+  } | undefined;
+  assert(
+    improvementRecord.isError !== true
+      && improvementData?.artifactType === "improvement-record"
+      && improvementData.baseline?.actionResponseTrace === "Submit delivery → result opens → failed joint is omitted"
+      && improvementData.candidate?.actionResponseTrace === "Submit delivery → result opens → failed joint is named"
+      && typeof improvementData.baseline?.evidence?.[0]?.sha256 === "string"
+      && typeof improvementData.candidate?.evidence?.[0]?.sha256 === "string"
+      && typeof improvementRecord.structuredContent?.meta?.resultHandle === "string",
+    "packaged record_improvement did not bind evidence and return a result handle",
+  );
+  improvementRecordRoundTrip = true;
 
   const virtualPlayerPrompt = await client.getPrompt({
     name: "play-build",
@@ -1814,6 +1952,7 @@ try {
     legalAuditRoundTrip,
     playerPanelRoundTrip,
     agentFeedbackRoundTrip,
+    improvementRecordRoundTrip,
     virtualPlayerRouting: true,
     liveBrief,
     liveUpdates,

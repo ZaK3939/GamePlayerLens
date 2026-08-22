@@ -39,6 +39,7 @@ export const KnownBlockersTextSchema = z.string().max(10_000).transform(
 );
 
 export type RequestedDevelopmentWorkflow =
+  | "improve-build"
   | "play-build"
   | "review-change"
   | "audit-project";
@@ -48,10 +49,13 @@ export function routeDevelopmentWorkflow(input: {
   knownBlockers: readonly string[];
 }) {
   if (input.knownBlockers.length > 0) {
+    const reentryWorkflow = input.requestedWorkflow === "improve-build"
+      ? "improve-build"
+      : "play-build";
     return {
       route: "repair-first" as const,
       reason: "A declared execution blocker already prevents a useful player probe.",
-      nextAction: "Repair the declared blockers, produce a new playable build, and then run play-build.",
+      nextAction: `Repair only the first declared blocker, produce a new playable build, and then run ${reentryWorkflow}.`,
       reentryCondition: "A new build can execute the bounded player task without the declared blockers.",
       allowedActions: [
         "inspect-declared-blockers",
@@ -64,6 +68,29 @@ export function routeDevelopmentWorkflow(input: {
         "persona-derivation",
         "full-audit",
         "artifact-save",
+      ] as const,
+    };
+  }
+  if (input.requestedWorkflow === "improve-build") {
+    return {
+      route: "improve-build" as const,
+      reason: "No execution blocker was declared, so one bounded behavior can be operated, changed, and replayed.",
+      nextAction: "Operate the baseline, change one player-facing variable, run focused checks, and replay the same task.",
+      reentryCondition: "The candidate is classified as improved, unchanged, regressed, or blocked.",
+      allowedActions: [
+        "inspect-current-repository",
+        "operate-baseline",
+        "edit-one-player-facing-variable",
+        "run-focused-checks",
+        "replay-same-task",
+      ] as const,
+      blockedActions: [
+        "dependency-change",
+        "commit-or-push",
+        "steam-research",
+        "persona-derivation",
+        "full-audit",
+        "second-improvement-attempt",
       ] as const,
     };
   }

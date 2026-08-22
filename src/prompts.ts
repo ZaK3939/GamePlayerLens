@@ -170,6 +170,13 @@ const PersonaIdsSchema = z.string().max(1_000).transform((input, context) => {
   }
   return ids.join(",");
 });
+const ObservableSignalKindSchema = z.enum([
+  "visible-state",
+  "input-response",
+  "state-transition",
+  "audio-response",
+  "error-recovery",
+]);
 
 const GameReviewPromptArgumentShape = {
   target: NonEmptyTrimmedStringSchema.describe("Game or proposal to evaluate"),
@@ -310,6 +317,35 @@ export const PlayBuildPromptArgumentsSchema = z.object({
   }
 });
 
+export const ImproveBuildPromptArgumentsSchema = z.object({
+  target: NonEmptyTrimmedStringSchema.describe("Game build to improve"),
+  buildUrl: BuildUrlSchema.optional(),
+  buildId: z.string().trim().min(1).max(200).optional(),
+  task: z.string().trim().min(1).max(1_000).optional(),
+  controls: z.string().trim().min(1).max(500).optional(),
+  startState: z.string().trim().min(1).max(1_000).optional(),
+  endState: z.string().trim().min(1).max(1_000).optional(),
+  successSignal: z.string().trim().min(1).max(1_000).optional().describe(
+    "One observable behavior that must improve in the replay",
+  ),
+  successSignalKind: ObservableSignalKindSchema.optional().describe(
+    "The directly observable class of the success signal",
+  ),
+  regressionGuardrail: z.string().trim().min(1).max(1_000).optional().describe(
+    "One observable behavior that must remain intact",
+  ),
+  regressionGuardrailKind: ObservableSignalKindSchema.optional().describe(
+    "The directly observable class of the regression guardrail",
+  ),
+  coreClaim: CorePlayClaimSchema.optional().describe(
+    "JSON object declaring the theme, distinctive system, intended experience, reward, proof moment, and optional amplifier",
+  ),
+  timeLimitMinutes: BuildProbeDurationSchema.optional(),
+  knownBlockers: KnownBlockersTextSchema.optional().describe(
+    "One known execution blocker per line in intended repair order",
+  ),
+}).strict();
+
 export type GameReviewPromptArguments = z.input<typeof GameReviewPromptArgumentsSchema>;
 export type ReviewChangePromptArguments = z.input<
   typeof ReviewChangePromptArgumentsSchema
@@ -319,6 +355,7 @@ export type AuditProjectPromptArguments = z.input<
 >;
 export type UiBlindComparePromptArguments = z.input<typeof UiBlindComparePromptArgumentsSchema>;
 export type PlayBuildPromptArguments = z.input<typeof PlayBuildPromptArgumentsSchema>;
+export type ImproveBuildPromptArguments = z.input<typeof ImproveBuildPromptArgumentsSchema>;
 
 export interface PromptEvidencePointer {
   sourceTool: "manual" | "record_first_contact";
@@ -634,6 +671,71 @@ export function buildPlayBuildPrompt(
             : parsed.playerLensMode === "grounded-personas"
               ? "Operate the bounded task once neutrally, then replay the same observed stimulus through only the saved personas."
               : "Operate only the bounded build task and return a Player Probe Card.",
+    },
+  });
+}
+
+export function buildImproveBuildPrompt(
+  recipe: string,
+  input: ImproveBuildPromptArguments,
+): string {
+  const parsed = ImproveBuildPromptArgumentsSchema.parse(input);
+  const blockerList = normalizeKnownBlockers(parsed.knownBlockers);
+  const workflowRouting = routeDevelopmentWorkflow({
+    requestedWorkflow: "improve-build",
+    knownBlockers: blockerList,
+  });
+  const repairFirst = workflowRouting.route === "repair-first";
+  const requiredFields = [
+    "buildUrl",
+    "buildId",
+    "task",
+    "controls",
+    "startState",
+    "endState",
+    "successSignal",
+    "successSignalKind",
+    "regressionGuardrail",
+    "regressionGuardrailKind",
+  ] as const;
+  const missingFields = repairFirst
+    ? []
+    : requiredFields.filter((field) => !parsed[field]?.trim());
+  const structuredCoreClaim = parsed.coreClaim
+    ? CorePlayClaimObjectSchema.parse(JSON.parse(parsed.coreClaim))
+    : undefined;
+  const {
+    knownBlockers: _knownBlockers,
+    coreClaim: _coreClaim,
+    ...promptInput
+  } = parsed;
+  return appendSerializedInput(recipe, {
+    ...promptInput,
+    knownBlockers: blockerList,
+    ...(structuredCoreClaim
+      ? {
+          coreClaim: structuredCoreClaim,
+          coreClaimDiagnostics: buildCorePlayClaimDiagnostics(structuredCoreClaim),
+        }
+      : {}),
+    testerType: "ai-operated",
+    improvementLimit: {
+      attempts: 1,
+      changedVariables: 1,
+      commitAuthorized: false,
+      dependencyChangesAuthorized: false,
+    },
+    workflowRouting,
+    intakeDiagnostics: {
+      status: repairFirst
+        ? "repair-first"
+        : missingFields.length > 0 ? "needs-input" : "ready",
+      missingFields,
+      nextAction: repairFirst
+        ? workflowRouting.nextAction
+        : missingFields.length > 0
+          ? "Ask for all missing operation and verification fields in one concise question."
+          : "Operate the baseline, make at most one bounded source change, run focused checks, and replay the same task under the same conditions.",
     },
   });
 }

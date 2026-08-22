@@ -6,10 +6,10 @@ import {writeTextFileAtomically} from "./atomic-write.js";
 import type {PathResolver} from "./paths.js";
 
 export const SERVER_NAME = "game-player-lens";
-export const SERVER_VERSION = "0.6.1";
-export const TOOL_COUNT = 30;
-export const PROMPT_COUNT = 5;
-export const WORKFLOW_TOOL_COUNT = 5;
+export const SERVER_VERSION = "0.7.0";
+export const TOOL_COUNT = 32;
+export const PROMPT_COUNT = 6;
+export const WORKFLOW_TOOL_COUNT = 6;
 
 export interface StatusEnvironment {
   ITAD_API_KEY?: string;

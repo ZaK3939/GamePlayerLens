@@ -956,6 +956,7 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/privacyConfirmed[\s\S]*raw prompts[\s\S]*credentials/i);
     expect(content).toMatch(/user approval[\s\S]*GitHub issue[\s\S]*pull request/i);
     for (const workflowTool of [
+      "improve_build",
       "play_build",
       "review_change",
       "audit_project",
@@ -978,6 +979,18 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/same observed stimulus/i);
     expect(content).toMatch(/record_player_panel[\s\S]*save_result/i);
     expect(content).toMatch(/not[\s\S]*(population|market share)/i);
+  });
+
+  it("packages an observable, hash-bound one-change improvement loop", async () => {
+    const content = await read("skills/improve-build.md");
+
+    expect(content).toMatch(/Only on the `ready` route, before any edit[\s\S]*observable kinds/i);
+    expect(content).toMatch(/signal gate does not apply to `repair-first`/i);
+    expect(content).toMatch(/fun[\s\S]*needs-input[\s\S]*Do not edit first/i);
+    expect(content).toMatch(/Git commit SHA[\s\S]*binary Git diff/i);
+    expect(content).toMatch(/improvement-operation-trace[\s\S]*exactly match a saved trace/i);
+    expect(content).toMatch(/record_improvement[\s\S]*save_result/i);
+    expect(content).toMatch(/verifies[\s\S]*source identities[\s\S]*not independently/i);
   });
 
   it("packages a bounded legal issue-spotting skill with private-source and counsel gates", async () => {

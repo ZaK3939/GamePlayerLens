@@ -14,10 +14,12 @@ import {
   AuditProjectPromptArgumentsSchema,
   buildAuditProjectPrompt,
   buildGameReviewPrompt,
+  buildImproveBuildPrompt,
   buildPlayBuildPrompt,
   buildReviewChangePrompt,
   buildUiBlindComparePrompt,
   GameReviewPromptArgumentsSchema,
+  ImproveBuildPromptArgumentsSchema,
   PlayBuildPromptArgumentsSchema,
   ReviewChangePromptArgumentsSchema,
   UiBlindComparePromptArgumentsSchema,
@@ -46,6 +48,7 @@ const recipe = [
   ),
 ].join("\n");
 const playBuildRecipe = "# Play build\n\nFollow the workflow route and return a Player Probe Card.";
+const improveBuildRecipe = "# Improve build\n\nOperate, change, and replay one bounded behavior.";
 
 function corePlayClaimFixture(): Record<string, string> {
   return {
@@ -2064,6 +2067,56 @@ describe("play-build prompt", () => {
       target: "Project Nyx",
       timeLimitMinutes: "121",
     })).toThrow(/timeLimitMinutes/i);
+  });
+});
+
+describe("improve-build prompt", () => {
+  it("requires an observable success signal and regression guardrail", () => {
+    const result = buildImproveBuildPrompt(improveBuildRecipe, {target: "Project Nyx"});
+
+    expect(result).toContain('"status": "needs-input"');
+    expect(result).toContain('"successSignal"');
+    expect(result).toContain('"successSignalKind"');
+    expect(result).toContain('"regressionGuardrail"');
+    expect(result).toContain('"regressionGuardrailKind"');
+    expect(result).toContain('"attempts": 1');
+    expect(result).toContain('"changedVariables": 1');
+    expect(result).toContain('"commitAuthorized": false');
+    expect(result).toContain('"dependencyChangesAuthorized": false');
+  });
+
+  it("normalizes a ready one-change improvement loop", () => {
+    const parsed = ImproveBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      buildUrl: "http://127.0.0.1:4173/play",
+      buildId: "build-044",
+      task: "Complete one delivery",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "Delivery result is visible",
+      successSignal: "The arrival result names the failed joint",
+      successSignalKind: "visible-state",
+      regressionGuardrail: "The player can still restart from the result screen",
+      regressionGuardrailKind: "input-response",
+      timeLimitMinutes: "12",
+    });
+    const result = buildImproveBuildPrompt(improveBuildRecipe, parsed);
+
+    expect(result.startsWith(improveBuildRecipe)).toBe(true);
+    expect(result).toContain('"status": "ready"');
+    expect(result).toContain('"testerType": "ai-operated"');
+    expect(result).toMatch(/baseline[\s\S]*source change[\s\S]*replay/i);
+  });
+
+  it("routes declared blockers before the improvement loop", () => {
+    const result = buildImproveBuildPrompt(improveBuildRecipe, {
+      target: "Project Nyx",
+      knownBlockers: "The build does not start\nInput is not detected",
+    });
+
+    expect(result).toContain('"route": "repair-first"');
+    expect(result).toContain('"status": "repair-first"');
+    expect(result).toContain('"missingFields": []');
   });
 });
 

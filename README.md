@@ -1,6 +1,6 @@
 # GamePlayerLens
 
-GamePlayerLens is an operation-first, review-grounded virtual-player and evidence-review MCP server for game teams. Its shortest loop is `play build → form grounded player hypotheses → make the smallest change → ask a human to falsify them`. Milestone auditing remains available after the build produces useful evidence. It combines direct build operation, review-derived player memories, UI stimuli, human observations, and—only when the decision needs them—Steam and competitor data to answer four questions:
+GamePlayerLens is an operation-first, review-grounded virtual-player and evidence-review MCP server for game teams. Its shortest implementation loop is `play one task → change one variable → replay the same task → keep or reject the change`. Milestone auditing remains available after the build produces useful evidence. It combines direct build operation, review-derived player memories, UI stimuli, human observations, and—only when the decision needs them—Steam and competitor data to answer four questions:
 
 - What happened when one bounded player task was operated?
 - How might different grounded player lenses interpret that response?
@@ -11,12 +11,12 @@ Review-derived personas remain part of the process, but they are evidence-ground
 
 ## Quick start
 
-From the game repository that should use GamePlayerLens, install the version-pinned v0.6.1 Agent Skill and confirm that the project can see it:
+From the game repository that should use GamePlayerLens, install the version-pinned v0.7.0 Agent Skill and confirm that the project can see it:
 
 ```bash
 cd /path/to/your-game
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.1/skills/game-player-lens --list
-npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.6.1/skills/game-player-lens --skill game-player-lens
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.7.0/skills/game-player-lens --list
+npx skills add https://github.com/ZaK3939/GamePlayerLens/tree/v0.7.0/skills/game-player-lens --skill game-player-lens
 npx skills list
 ```
 
@@ -25,13 +25,13 @@ Add `-a codex`, `-a claude-code`, or another supported agent when automatic dete
 The Skill does not install the MCP server. With Node.js 22 or newer, run the version-pinned server doctor directly from GitHub before editing client configuration:
 
 ```bash
-npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.1 game-player-lens doctor
+npx --yes --package=github:ZaK3939/GamePlayerLens#v0.7.0 game-player-lens doctor
 ```
 
 The doctor returns JSON, never secrets or absolute paths, and exits unsuccessfully when Node or storage is not ready. Storage readiness runs the same create-only `write → flush → hard-link publish → read-back → cleanup` primitive used by artifact saves; a writable-directory check alone is not treated as sufficient. Register that same pinned package in the MCP configuration used by your client:
 
 ```bash
-npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.1 game-player-lens docs list
+npx --yes --package=github:ZaK3939/GamePlayerLens#v0.7.0 game-player-lens docs list
 ```
 
 This machine-readable index lets an agent discover version-matched operational docs without web search. Use `docs show developer-project` or another listed name for the full topic.
@@ -43,7 +43,7 @@ This machine-readable index lets an agent discover version-matched operational d
       "command": "npx",
       "args": [
         "--yes",
-        "--package=github:ZaK3939/GamePlayerLens#v0.6.1",
+        "--package=github:ZaK3939/GamePlayerLens#v0.7.0",
         "game-player-lens"
       ]
     }
@@ -80,6 +80,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Goal | Start here | Guide |
 |---|---|---|
 | Operate one build task through player lenses | `play_build` with build, task, controls, and start/end state; preserve local images with `save_capture` | [Developer projects](docs/guides/developer-project.md) |
+| Make and verify one bounded source improvement | `improve_build` with the same task, one success signal, and one regression guardrail | [Developer projects](docs/guides/developer-project.md#make-and-verify-one-bounded-improvement) |
 | Build a grounded virtual-player panel | neutral `play_build` → `derive_personas` / `save_persona` → grounded `play_build` on the same task | [Developer projects](docs/guides/developer-project.md#run-evidence-grounded-player-lens-rounds) |
 | Validate and preserve that panel | `validate_player_panel` → `record_player_panel` → exact `save_result` | [Tool reference](docs/reference/tools.md#partial-success-and-provenance) |
 | Repair already-known execution blockers | `play_build` with `target` and newline-separated `knownBlockers` | [Developer projects](docs/guides/developer-project.md#repair-first-routing) |
@@ -102,7 +103,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Play | Operate one bounded task in a playable build | Action → Response Trace |
 | Trace the core | Compare declared theme/system and experience/reward delivery with one operation | Core Delivery Trace and one primary drift |
 | Hypothesize | Replay the same observed stimulus through explicit grounded personas | Virtual Player Panel with confidence and human falsifier |
-| Fix | Choose the smallest change and the least costly delivery topology that can alter the next operation | compact Build Handoff with change, invariants, task, success signal, and guardrail |
+| Improve | Apply one bounded change and replay the same task, or hand off the smallest next change | verified before/after result or compact Build Handoff |
 | Human check | Preserve first-contact and playtest observations without merging them into AI evidence | bounded participant reports and falsification result |
 | Compare | Review gameplay, storefront, UI, price, localization, and competition against matched evidence | Data Coverage Matrix, domain findings, UI quality gaps |
 | Audit | Decide whether a milestone or bounded revision should advance | structured Decision Card, immutable evidence run, prioritized backlog |
@@ -111,20 +112,20 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Research | Collect current Steam, review, update, price, and competitor evidence when the selected decision requires it | `steam_brief`, provenance, supported decisions, gaps |
 | Learn | Preserve explicit agent success and friction without hidden telemetry | local feedback records and evidence-gated issue candidates |
 
-The five workflows are available both as agent-callable tools (`play_build`, `review_change`, `audit_project`, `ui_blind_compare`, `audit_game_legal`) and as matching hyphenated MCP prompts for clients that expose user-invoked prompt menus. Agents should call the tools; prompt-only clients may use the slash-command surface. Both paths render the same versioned instructions.
+The six workflows are available both as agent-callable tools (`improve_build`, `play_build`, `review_change`, `audit_project`, `ui_blind_compare`, `audit_game_legal`) and as matching hyphenated MCP prompts for clients that expose user-invoked prompt menus. Agents should call the tools; prompt-only clients may use the slash-command surface. Both paths render the same versioned instructions.
 
-The five workflows are:
+The six workflows are:
 
 - `audit_game_legal`: reads an exact `legal_source_plan` result through the bundled `game-legal-audit` skill and produces a source-cited, release-scoped risk review. It never promises legal clearance.
 - `play_build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card with Action → Response, optional Core Delivery traces, and an indie-sized Build Handoff, not a milestone verdict.
+- `improve_build`: the bounded implementation loop. It operates a baseline, changes one player-facing variable, runs focused checks, and replays the same task against a success signal and regression guardrail.
 - `review_change`: the daily current-versus-candidate revision review. It fixes `mode=change`, requires a revision bundle, and prioritizes changed findings.
 - `audit_project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
 - `ui_blind_compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.
 
 `play_build` never returns GO / HOLD / NO-GO. The two decision workflows lead with a compact Decision Check: verdict, up to three proven items, up to three unproven items, the highest risk, and no more than three next validations.
 
-The server currently exposes exactly 30 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
-
+The server currently exposes exactly 32 tools. See the [tool reference](docs/reference/tools.md) for their inputs, outputs, and storage behavior.
 ## Agent experience feedback
 
 `report_agent_experience` lets an agent explicitly record a meaningful success, partial result, failure, confusion, parameter guess, give-up, or feature request about the Skill, MCP, or onboarding. Reports are create-only local artifacts. GamePlayerLens does not silently record tool calls, prompts, or sessions and does not transmit these reports to an external analytics service.
@@ -212,8 +213,7 @@ Evidence collection and review for released Steam games remain the strongest val
 
 - [Developer projects](docs/guides/developer-project.md): Project Briefs, concept tests, first-contact evidence, and moment-to-moment experience reviews.
 - [Existing games](docs/guides/existing-game.md): Steam triage, domains, competitor selection, updates, localization, price, and UI comparison.
-- [Tool reference](docs/reference/tools.md): all 30 tools, agent-callable workflows, validated player panels, local capture import, feedback, legal issue spotting, result handles, iteration coaching, and immutable artifact semantics. The packaged CLI also exposes these versioned docs through `game-player-lens docs list` / `game-player-lens docs show <name>` and advertises those commands in help, version, and errors.
+- [Tool reference](docs/reference/tools.md): all 32 tools, agent-callable workflows, validated player panels, local capture import, feedback, legal issue spotting, result handles, iteration coaching, and immutable artifact semantics. The packaged CLI also exposes these versioned docs through `game-player-lens docs list` / `game-player-lens docs show <name>` and advertises those commands in help, version, and errors.
 - [Evidence and integrity](docs/reference/evidence-and-integrity.md): coverage, provenance, persona boundaries, canonical evaluations, and immutable runs.
 - [Experiments and playtests](docs/reference/experiments.md): sessions, cohorts, retest lineage, prediction runs, measurements, and outcomes.
 - [Dogfood data policy](docs/dogfood/README.md): how private raw research is separated from publishable summaries.
-- [v1.1 design](docs/superpowers/specs/2026-08-11-steam-user-sim-v1-1-user-workflow-design.md) and [implementation plan](docs/superpowers/plans/2026-08-11-steam-user-sim-v1-1-user-workflow.md).

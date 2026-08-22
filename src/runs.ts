@@ -24,6 +24,7 @@ import {
 import {
   createRunEvidenceResolver,
   type ResolvedEvidenceResult,
+  type RunEvidenceResolver,
 } from "./run-evidence.js";
 import {createRunIntegrityAuditor} from "./run-integrity.js";
 import {createRunOutcomeChainVerifier} from "./run-outcome-chain.js";
@@ -94,6 +95,7 @@ export interface RunStore {
   listTargets(): Promise<string[]>;
   listRuns(target: string): Promise<RunArtifactMetadata[]>;
   readRun(target: string, id: string): Promise<RunArtifact>;
+  resolveEvidence: RunEvidenceResolver["resolveEvidence"];
 }
 
 export class RunSchemaError extends Error {
@@ -409,5 +411,6 @@ export function createRunStore(
     listTargets,
     listRuns,
     readRun,
+    resolveEvidence,
   };
 }

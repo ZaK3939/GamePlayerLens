@@ -5,10 +5,12 @@ import {
 } from "./legal-prompt.js";
 import {
   buildAuditProjectPrompt,
+  buildImproveBuildPrompt,
   buildPlayBuildPrompt,
   buildReviewChangePrompt,
   buildUiBlindComparePrompt,
   type AuditProjectPromptArguments,
+  type ImproveBuildPromptArguments,
   type PlayBuildPromptArguments,
   type ReviewChangePromptArguments,
   type UiBlindComparePromptArguments,
@@ -25,6 +27,13 @@ export function createWorkflowContent(
   dependencies: WorkflowContentDependencies,
 ) {
   return {
+    async improveBuild(input: ImproveBuildPromptArguments): Promise<string> {
+      return buildImproveBuildPrompt(
+        await dependencies.readSkill("improve-build.md"),
+        input,
+      );
+    },
+
     async playBuild(input: PlayBuildPromptArguments): Promise<string> {
       return buildPlayBuildPrompt(await dependencies.readSkill("play-build.md"), input);
     },

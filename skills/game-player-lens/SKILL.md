@@ -1,6 +1,6 @@
 ---
 name: game-player-lens
-description: Turn an indie game's playable build or milestone into one evidence-grounded next decision using the GamePlayerLens MCP, and explicitly report how the agent experienced that workflow. Use when a developer asks what to fix next, wants an AI-operated play probe or review-grounded virtual player panel, needs player personas built from relevant Steam reviews, challenges a risky product assumption, compares current and candidate builds or UI, researches relevant competitors, decides whether a vertical slice, demo, or release should advance, or audits GamePlayerLens agent friction. Do not use for engine API implementation or as a replacement for human fun or demand tests.
+description: Turn an indie game's playable build or milestone into one evidence-grounded next decision or one verified bounded improvement using the GamePlayerLens MCP, and explicitly report how the agent experienced that workflow. Use when a developer asks what to fix next, asks the agent to improve one playable behavior, wants an AI-operated play probe or review-grounded virtual player panel, needs player personas built from relevant Steam reviews, challenges a risky product assumption, compares current and candidate builds or UI, researches relevant competitors, decides whether a vertical slice, demo, or release should advance, or audits GamePlayerLens agent friction. Do not use for broad engine implementation or as a replacement for human fun or demand tests.
 ---
 
 # GamePlayerLens
@@ -12,7 +12,7 @@ Move one indie game decision forward. Prefer a live build, one player task, one 
 1. Find the GamePlayerLens MCP server and call `get_status`.
 2. If it is unavailable, do not imitate its tools or claim that evidence was saved. Explain that this skill supplies agent guidance but does not install the MCP server. Point the developer to the repository README for the version-pinned `npx` doctor and MCP configuration.
 3. Continue only when `storage.publicationReady=true`. This proves the create-only publication path, not merely directory writability. Treat missing ITAD or Obscura configuration as a warning unless the chosen task needs that integration.
-4. Use the underscore-named workflow tools directly. The hyphenated MCP prompts are optional user shortcuts and may be invisible to an agent. If workflow details or an error are unclear, append `docs list` or `docs show <name>` to the same CLI command configured for MCP. For the pinned setup, run `npx --yes --package=github:ZaK3939/GamePlayerLens#v0.6.1 game-player-lens docs list`, then show `developer-project` or `tools`; those documents are bundled with the running CLI version.
+4. Use the underscore-named workflow tools directly. The hyphenated MCP prompts are optional user shortcuts and may be invisible to an agent. If workflow details or an error are unclear, append `docs list` or `docs show <name>` to the same CLI command configured for MCP. For the pinned setup, run `npx --yes --package=github:ZaK3939/GamePlayerLens#v0.7.0 game-player-lens docs list`, then show `developer-project` or `tools`; those documents are bundled with the running CLI version.
 
 ## Choose the smallest route
 
@@ -20,6 +20,7 @@ Move one indie game decision forward. Prefer a live build, one player task, one 
 |---|---|
 | A known blocker prevents play | `play_build` with `knownBlockers`; repair the first blocker |
 | A playable build has one bounded player task | `play_build` |
+| The developer authorizes one bounded source improvement and same-task replay | `improve_build` |
 | Grounded virtual players are requested but relevant saved personas are absent | Run the neutral task, then prepare grounded player lenses |
 | A candidate must be compared with current behavior | `review_change` |
 | A vertical slice, demo, release, or other milestone needs a gate | `audit_project` |
@@ -72,7 +73,7 @@ The developer challenge may recommend a direction. The later Human falsifier mus
 
 ## Close the loop after a change
 
-Re-run the same player task under the same relevant build conditions and invariants. A successful compile or unit test is necessary evidence, but it is not behavior proof. Compare the live action-response trace against one success signal and one regression guardrail.
+When the developer asked for implementation, call `improve_build` with one observable success signal and one regression guardrail. Re-run the same player task under the same relevant build conditions and invariants. A successful compile or unit test is necessary evidence, but it is not behavior proof. Compare the live action-response trace against the success signal and regression guardrail.
 
 If the behavior still fails, choose the smallest bounded repair supported by the new observation. Do not respond to a reproducible build failure with more market research.
 

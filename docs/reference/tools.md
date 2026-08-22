@@ -1,6 +1,6 @@
 # Tool reference
 
-GamePlayerLens exposes exactly 30 MCP tools and five optional prompt shortcuts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
+GamePlayerLens exposes exactly 32 MCP tools and six optional prompt shortcuts. All tools return a structured `{data, warnings, meta?}` envelope unless the protocol requires image content in addition to that envelope.
 
 ## Tools
 
@@ -18,6 +18,7 @@ GamePlayerLens exposes exactly 30 MCP tools and five optional prompt shortcuts. 
 | `record_first_contact` | Normalize a compact pseudonymous first-contact test with a fixed unaided question protocol and return an exact-save handle |
 | `validate_player_panel` | Dry-run an incomplete or complete player-panel candidate and return missing fields or grounding errors without saving |
 | `record_player_panel` | Validate one shared operated-build stimulus and grounded lens hypotheses against exact saved persona memory, research questions, and persona SHA-256, then return an exact-save handle |
+| `record_improvement` | Verify and bind one matched baseline-to-candidate improvement record, then return an exact-save handle |
 | `report_agent_experience` | Explicitly record one agent success, partial result, failure, confusion, parameter guess, give-up, or feature request as an immutable local artifact |
 | `summarize_agent_experience` | Aggregate explicit local agent feedback and identify repeated signals with distinct caller-provided session IDs that are eligible for a user-approved issue draft |
 | `ui_capture` | Capture a normal page through Obscura or save an allowlisted Steam CDN JPEG |
@@ -32,6 +33,7 @@ GamePlayerLens exposes exactly 30 MCP tools and five optional prompt shortcuts. 
 | `save_run` | Validate, hash, and seal an immutable review run |
 | `get_artifact` | List or read intel, evaluations, runs, captures, and UI references |
 | `play_build` | Return the operation-first build workflow to an agent |
+| `improve_build` | Operate, change, and replay one bounded game behavior |
 | `review_change` | Return the current-versus-candidate workflow to an agent |
 | `audit_project` | Return the milestone audit workflow to an agent |
 | `ui_blind_compare` | Return the identity-hidden UI comparison workflow to an agent |
@@ -43,6 +45,7 @@ Agents call the underscore-named workflow tools above. Clients that expose MCP p
 
 - `audit_game_legal` reads a verified `legal_source_plan` handle through the packaged `game-legal-audit` skill. It performs source-grounded issue spotting, preserves `cannot-assess`, and never claims legal advice or clearance.
 - `play_build` is the operation-first development loop. With no declared blockers it requires a credential-free build URL, build ID, task, controls, start state, and end state. `playerLensMode=neutral` performs observation only. `playerLensMode=grounded-personas` requires saved persona IDs and replays the same observed stimulus as a Virtual Player Panel. Its optional `coreClaim` adds a Core Delivery Trace. It returns a Player Probe Card and a compact Build Handoff; it never starts Steam research, persona derivation, a full audit, or mandatory persistence.
+- `improve_build` is the bounded implementation loop. It additionally requires one observable success signal, its observable kind, one regression guardrail, and its observable kind. The agent operates the baseline, changes at most one player-facing variable in the current repository, runs focused checks, and replays the same task. Completed comparisons go through `record_improvement` with disjoint, time-stamped `improvement-operation-trace` intel payloads for both operations; each payload's build ID and three observation fields must exactly match the canonical record, while screenshots may supplement it. The caller supplies a success-signal comparison (`improved`, `unchanged`, or `regressed`), guardrail result (`held` or `failed`), and replay-conditions evidence; the server derives the final classification and record time. The result is exact-saved with `save_result`; blocked attempts are not recorded as verified improvements. The workflow does not authorize dependencies, commits, pushes, releases, Steam research, personas, or a second improvement attempt.
 - `review_change` reviews one current-to-candidate revision, fixes `mode=change` internally, and requires `currentState`, `proposal`, and a Git/build/artifact-bound `revisionBundle`.
 - `audit_project` reviews current milestone readiness and fixes `mode=baseline` internally. An active `developer-project` also requires an artifact-bound `auditSnapshotBundle`. Supplying `knownBlockers` short-circuits a premature audit to Repair First without requiring the full intake.
 - `ui_blind_compare` freezes a pre-reveal UI judgment before identity mapping is disclosed.
@@ -76,7 +79,7 @@ The bundled source registry routes Unity Editor and Asset Store terms, Unreal En
 
 External fetches preserve successful source data when another endpoint fails. Always retain `warnings`; they are part of the evidence envelope.
 
-Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, `record_first_contact`, `record_player_panel`, and `legal_source_plan` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_result` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact and legal review, pass the same handle to the corresponding workflow first so it can include the normalized evidence and exact-save pointer.
+Results smaller than 1 MiB from `steam_search`, `steam_brief`, `steam_discover`, `steam_fetch`, `steam_reviews`, `steam_timeline`, `steam_updates`, `derive_personas`, `record_first_contact`, `record_player_panel`, `record_improvement`, and `legal_source_plan` include a short-lived `meta.resultHandle`. Pass evidence handles with `target` and `id` to `save_result` immediately. The server then saves the normalized source envelope, including warnings and metadata, without model transcription. For first contact and legal review, pass the same handle to the corresponding workflow first so it can include the normalized evidence and exact-save pointer.
 
 For persona generation, every requested appid needs an explicit `sourceRoles` entry linked to one of one-to-three `researchQuestions`. Each question has one-to-twelve `evidenceSignals` of 2–80 characters. The server applies Unicode/case normalization, removes reviews containing none of the signals mapped to their source, and records the matched question IDs and signals. A competitor source must be direct or adjacent and declare at least three fit axes. A reference source is limited to `system-reference`; visual references and market-success anchors belong in their own evidence ledgers, not persona voice. Pass the same `derive_personas` handle as `derivationResultHandle` to `save_persona`. The server compares every selected review field, research question, audience, and source-selection field with the cached result, then stores a SHA-256 binding to that result. Every saved voice must support an observed pattern whose evidence entry explains its relevance, and its matched question ID must equal the pattern's question. These deterministic checks expose and enforce a lexical relevance boundary; they do not prove the broader interpretation is true.
 
