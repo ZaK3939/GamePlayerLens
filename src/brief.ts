@@ -1,6 +1,6 @@
 import {z} from "zod";
 import type {DiscoveryInput, DiscoveryResult} from "./discovery.js";
-import type {FetchMeta, FetchResult, FetchSource, JsonValue} from "./http.js";
+import type {FetchResult, FetchSource, JsonValue} from "./http.js";
 import type {Review, ReviewOptions} from "./reviews.js";
 import type {GameProfile, StorefrontLanguage} from "./steam.js";
 import type {Timeline, TimelineOptions} from "./timeline.js";

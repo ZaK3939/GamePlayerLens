@@ -12,7 +12,7 @@ import {
   type PersonaResearchQuestion,
   type PersonaSourceSelection,
 } from "./persona-schemas.js";
-import {fetchReviews, type Review, type ReviewOptions} from "./reviews.js";
+import {fetchReviews, type Review} from "./reviews.js";
 import {fetchGame, type GameProfile} from "./steam.js";
 
 export const MIN_REVIEWS_PER_POLARITY = 3;

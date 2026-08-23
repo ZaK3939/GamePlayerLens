@@ -57,15 +57,6 @@ export type ReadRegularBytes = (
   maxBytes: number,
 ) => Promise<{bytes: Buffer}>;
 
-function isNodeError(error: unknown, code: string): boolean {
-  let current: unknown = error;
-  while (current instanceof Error) {
-    if ("code" in current && current.code === code) return true;
-    current = current.cause;
-  }
-  return false;
-}
-
 function relativeAssetPath(resolver: PathResolver, absolutePath: string): string {
   return relative(resolver.assetRoot, absolutePath).split(sep).join("/");
 }
