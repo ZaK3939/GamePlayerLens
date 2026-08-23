@@ -73,7 +73,7 @@ The developer challenge may recommend a direction. The later Human falsifier mus
 
 ## Close the loop after a change
 
-When the developer asked for implementation, call `improve_build` with one observable success signal and one regression guardrail. Re-run the same player task under the same relevant build conditions and invariants. A successful compile or unit test is necessary evidence, but it is not behavior proof. Compare the live action-response trace against the success signal and regression guardrail.
+When the developer asked for implementation, call `improve_build` with `operationSurface=browser` or `desktop`, one observable success signal, and one regression guardrail. A browser URL is required only for browser operation. Re-run the same player task under the same relevant build conditions and invariants. Reuse one controlled operation session, replace only processes the workflow started, verify the candidate is active, and close owned resources on every exit. A successful compile or unit test is necessary evidence, but it is not behavior proof. Compare the live action-response trace against the success signal and regression guardrail.
 
 If the behavior still fails, choose the smallest bounded repair supported by the new observation. Do not respond to a reproducible build failure with more market research.
 

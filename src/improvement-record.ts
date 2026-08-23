@@ -94,6 +94,9 @@ const RelativeFileSchema = z.string().trim().min(1).max(500).superRefine(
 
 export const ImprovementRecordInputSchema = z.object({
   target: z.string().trim().min(1).max(120).describe("Game or build target shared by both operations"),
+  operationSurface: z.enum(["browser", "desktop"]).describe(
+    "Operation surface held constant across baseline and candidate",
+  ),
   task: BoundedTextSchema.describe("Identical bounded player task used for baseline and candidate"),
   controls: BoundedTextSchema.describe("Identical controls used for both operations"),
   startState: BoundedTextSchema.describe("Identical start state used for both operations"),
@@ -216,6 +219,7 @@ export async function buildImprovementRecord(
     };
   };
   const protocol = {
+    operationSurface: parsed.operationSurface,
     task: parsed.task,
     controls: parsed.controls,
     startState: parsed.startState,

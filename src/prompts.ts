@@ -319,7 +319,12 @@ export const PlayBuildPromptArgumentsSchema = z.object({
 
 export const ImproveBuildPromptArgumentsSchema = z.object({
   target: NonEmptyTrimmedStringSchema.describe("Game build to improve"),
-  buildUrl: BuildUrlSchema.optional(),
+  operationSurface: z.enum(["browser", "desktop"]).optional().describe(
+    "Operate a web build in a controlled browser page or a locally runnable native build in a controlled desktop app session",
+  ),
+  buildUrl: BuildUrlSchema.optional().describe(
+    "Credential-free HTTP(S) URL; required only when operationSurface=browser",
+  ),
   buildId: z.string().trim().min(1).max(200).optional(),
   task: z.string().trim().min(1).max(1_000).optional(),
   controls: z.string().trim().min(1).max(500).optional(),
@@ -344,7 +349,15 @@ export const ImproveBuildPromptArgumentsSchema = z.object({
   knownBlockers: KnownBlockersTextSchema.optional().describe(
     "One known execution blocker per line in intended repair order",
   ),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.operationSurface === "desktop" && value.buildUrl) {
+    context.addIssue({
+      code: "custom",
+      path: ["buildUrl"],
+      message: "buildUrl is only valid when operationSurface=browser",
+    });
+  }
+});
 
 export type GameReviewPromptArguments = z.input<typeof GameReviewPromptArgumentsSchema>;
 export type ReviewChangePromptArguments = z.input<
@@ -687,7 +700,7 @@ export function buildImproveBuildPrompt(
   });
   const repairFirst = workflowRouting.route === "repair-first";
   const requiredFields = [
-    "buildUrl",
+    "operationSurface",
     "buildId",
     "task",
     "controls",
@@ -698,9 +711,12 @@ export function buildImproveBuildPrompt(
     "regressionGuardrail",
     "regressionGuardrailKind",
   ] as const;
-  const missingFields = repairFirst
+  const missingFields: string[] = repairFirst
     ? []
     : requiredFields.filter((field) => !parsed[field]?.trim());
+  if (!repairFirst && parsed.operationSurface === "browser" && !parsed.buildUrl) {
+    missingFields.push("buildUrl");
+  }
   const structuredCoreClaim = parsed.coreClaim
     ? CorePlayClaimObjectSchema.parse(JSON.parse(parsed.coreClaim))
     : undefined;

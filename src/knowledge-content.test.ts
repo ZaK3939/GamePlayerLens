@@ -990,6 +990,9 @@ describe("MCP prompt source recipes", () => {
     expect(content).toMatch(/Git commit SHA[\s\S]*binary Git diff/i);
     expect(content).toMatch(/improvement-operation-trace[\s\S]*exactly match a saved trace/i);
     expect(content).toMatch(/record_improvement[\s\S]*save_result/i);
+    expect(content).toMatch(/one controlled browser context[\s\S]*one controlled app session/i);
+    expect(content).toMatch(/stop and replace only[\s\S]*hard-refresh[\s\S]*candidate identity/i);
+    expect(content).toMatch(/every exit path[\s\S]*close only[\s\S]*created by this workflow/i);
     expect(content).toMatch(/verifies[\s\S]*source identities[\s\S]*not independently/i);
   });
 

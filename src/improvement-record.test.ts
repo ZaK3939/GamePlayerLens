@@ -9,6 +9,7 @@ import type {RunEvidenceResolver} from "./run-evidence.js";
 function input(): ImprovementRecordInput {
   return {
     target: "Project Nyx",
+    operationSurface: "browser",
     task: "Complete one delivery and read the result",
     controls: "Keyboard and mouse",
     startState: "At the dock before construction",
@@ -82,6 +83,7 @@ describe("improvement record", () => {
     expect(record).toMatchObject({
       artifactType: "improvement-record",
       classification: "improved",
+      protocol: {operationSurface: "browser"},
       baseline: {
         actionResponseTrace: expect.stringContaining("failed joint is omitted"),
         evidence: [{ref: "before", sha256: "a".repeat(64)}],

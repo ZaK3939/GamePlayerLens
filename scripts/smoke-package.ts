@@ -458,6 +458,7 @@ try {
 
   const improveArguments = {
     target: "Package Improvement Fixture",
+    operationSurface: "browser",
     buildUrl: "http://127.0.0.1:4173/play",
     buildId: "improve-001",
     task: "Complete one delivery and read the result",
@@ -528,6 +529,7 @@ try {
     name: "record_improvement",
     arguments: {
       target: "Package Improvement Fixture",
+      operationSurface: improveArguments.operationSurface,
       task: improveArguments.task,
       controls: improveArguments.controls,
       startState: improveArguments.startState,

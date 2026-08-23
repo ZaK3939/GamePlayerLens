@@ -97,6 +97,7 @@ const EXPECTED_PLAY_BUILD_ARGUMENTS = [
 ];
 const EXPECTED_IMPROVE_BUILD_ARGUMENTS = [
   "target",
+  "operationSurface",
   "buildUrl",
   "buildId",
   "task",

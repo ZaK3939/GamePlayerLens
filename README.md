@@ -80,7 +80,7 @@ If known execution blockers already prevent that task, pass one per line in inte
 | Goal | Start here | Guide |
 |---|---|---|
 | Operate one build task through player lenses | `play_build` with build, task, controls, and start/end state; preserve local images with `save_capture` | [Developer projects](docs/guides/developer-project.md) |
-| Make and verify one bounded source improvement | `improve_build` with the same task, one success signal, and one regression guardrail | [Developer projects](docs/guides/developer-project.md#make-and-verify-one-bounded-improvement) |
+| Make and verify one bounded source improvement | `improve_build` with a browser or desktop operation surface, the same task, one success signal, and one regression guardrail | [Developer projects](docs/guides/developer-project.md#make-and-verify-one-bounded-improvement) |
 | Build a grounded virtual-player panel | neutral `play_build` → `derive_personas` / `save_persona` → grounded `play_build` on the same task | [Developer projects](docs/guides/developer-project.md#run-evidence-grounded-player-lens-rounds) |
 | Validate and preserve that panel | `validate_player_panel` → `record_player_panel` → exact `save_result` | [Tool reference](docs/reference/tools.md#partial-success-and-provenance) |
 | Repair already-known execution blockers | `play_build` with `target` and newline-separated `knownBlockers` | [Developer projects](docs/guides/developer-project.md#repair-first-routing) |
@@ -118,7 +118,7 @@ The six workflows are:
 
 - `audit_game_legal`: reads an exact `legal_source_plan` result through the bundled `game-legal-audit` skill and produces a source-cited, release-scoped risk review. It never promises legal clearance.
 - `play_build`: the default development loop. It operates one bounded task and returns a compact Player Probe Card with Action → Response, optional Core Delivery traces, and an indie-sized Build Handoff, not a milestone verdict.
-- `improve_build`: the bounded implementation loop. It operates a baseline, changes one player-facing variable, runs focused checks, and replays the same task against a success signal and regression guardrail.
+- `improve_build`: the bounded implementation loop. It operates a browser or desktop baseline, changes one player-facing variable, runs focused checks, and replays the same task against a success signal and regression guardrail while cleaning up only its owned resources.
 - `review_change`: the daily current-versus-candidate revision review. It fixes `mode=change`, requires a revision bundle, and prioritizes changed findings.
 - `audit_project`: the milestone readiness review for the current project or released game. It fixes `mode=baseline` internally.
 - `ui_blind_compare`: a pre-reveal UI comparison workflow that separates reference identity from scoring.

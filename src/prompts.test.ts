@@ -2075,6 +2075,7 @@ describe("improve-build prompt", () => {
     const result = buildImproveBuildPrompt(improveBuildRecipe, {target: "Project Nyx"});
 
     expect(result).toContain('"status": "needs-input"');
+    expect(result).toContain('"operationSurface"');
     expect(result).toContain('"successSignal"');
     expect(result).toContain('"successSignalKind"');
     expect(result).toContain('"regressionGuardrail"');
@@ -2088,6 +2089,7 @@ describe("improve-build prompt", () => {
   it("normalizes a ready one-change improvement loop", () => {
     const parsed = ImproveBuildPromptArgumentsSchema.parse({
       target: "Project Nyx",
+      operationSurface: "browser",
       buildUrl: "http://127.0.0.1:4173/play",
       buildId: "build-044",
       task: "Complete one delivery",
@@ -2106,6 +2108,49 @@ describe("improve-build prompt", () => {
     expect(result).toContain('"status": "ready"');
     expect(result).toContain('"testerType": "ai-operated"');
     expect(result).toMatch(/baseline[\s\S]*source change[\s\S]*replay/i);
+  });
+
+  it("supports a desktop improvement without requiring a browser URL", () => {
+    const result = buildImproveBuildPrompt(improveBuildRecipe, {
+      target: "Project Nyx",
+      operationSurface: "desktop",
+      buildId: "nyx-native-044",
+      task: "Complete one delivery",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "Delivery result is visible",
+      successSignal: "The arrival result names the failed joint",
+      successSignalKind: "visible-state",
+      regressionGuardrail: "Restart remains available",
+      regressionGuardrailKind: "input-response",
+    });
+
+    expect(result).toContain('"status": "ready"');
+    expect(result).toContain('"operationSurface": "desktop"');
+    expect(result).not.toContain('"buildUrl"');
+  });
+
+  it("requires a URL only for browser operation and rejects one for desktop", () => {
+    const browser = buildImproveBuildPrompt(improveBuildRecipe, {
+      target: "Project Nyx",
+      operationSurface: "browser",
+      buildId: "nyx-web-044",
+      task: "Complete one delivery",
+      controls: "Keyboard and mouse",
+      startState: "At the dock before construction",
+      endState: "Delivery result is visible",
+      successSignal: "The arrival result names the failed joint",
+      successSignalKind: "visible-state",
+      regressionGuardrail: "Restart remains available",
+      regressionGuardrailKind: "input-response",
+    });
+    expect(browser).toContain('"status": "needs-input"');
+    expect(browser).toContain('"missingFields": [\n      "buildUrl"');
+    expect(() => ImproveBuildPromptArgumentsSchema.parse({
+      target: "Project Nyx",
+      operationSurface: "desktop",
+      buildUrl: "http://127.0.0.1:4173/play",
+    })).toThrow(/only valid.*browser/i);
   });
 
   it("routes declared blockers before the improvement loop", () => {

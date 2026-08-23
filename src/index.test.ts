@@ -3222,6 +3222,7 @@ describe("MCP server contract", () => {
         .toEqual(["target"]);
       expect(improveBuild.arguments?.map((argument) => argument.name)).toEqual([
         "target",
+        "operationSurface",
         "buildUrl",
         "buildId",
         "task",
@@ -3319,6 +3320,7 @@ describe("MCP server contract", () => {
 
       const improveArguments = {
         ...arguments_,
+        operationSurface: "browser",
         successSignal: "The first result names the action that caused it",
         successSignalKind: "visible-state",
         regressionGuardrail: "Restart remains available from the result screen",
@@ -3403,6 +3405,7 @@ describe("MCP server contract", () => {
         name: "record_improvement",
         arguments: {
           target: "Project Nyx",
+          operationSurface: "browser",
           task: "Complete one delivery and read the result",
           controls: "Keyboard and mouse",
           startState: "At the dock before construction",
